@@ -75,7 +75,7 @@
 
 #if BUILDFLAG(IS_MAC)
 #include "base/mac/mac_util.h"
-#include "chrome/browser/updater/browser_updater_client.h"
+#include "chrome/browser/updater/updater.h"
 #endif
 
 #if !BUILDFLAG(IS_CHROMEOS)
@@ -519,7 +519,7 @@ void ChromeInternalLogSource::PopulateSyncLogs(SystemLogsResponse* response) {
     return;
 
   // Add sync logs to |response|.
-  base::Value::Dict sync_logs = syncer::sync_ui_util::ConstructAboutInformation(
+  base::DictValue sync_logs = syncer::sync_ui_util::ConstructAboutInformation(
       syncer::sync_ui_util::IncludeSensitiveData(false),
       SyncServiceFactory::GetForProfile(profile),
       chrome::GetChannelName(chrome::WithExtendedStable(true)));
@@ -598,10 +598,10 @@ void ChromeInternalLogSource::PopulateLocalStateSettings(
     SystemLogsResponse* response) {
   // Extract the "settings" entry in the local state and serialize back to
   // a string.
-  base::Value::Dict local_state =
+  base::DictValue local_state =
       g_browser_process->local_state()->GetPreferenceValues(
           PrefService::EXCLUDE_DEFAULTS);
-  const base::Value::Dict* local_state_settings =
+  const base::DictValue* local_state_settings =
       local_state.FindDict(kSettingsKey);
   if (!local_state_settings) {
     VLOG(1) << "Failed to extract the settings entry from Local State.";
@@ -690,8 +690,8 @@ void ChromeInternalLogSource::PopulateLastUpdateState(
 #if BUILDFLAG(IS_MAC)
 void ChromeInternalLogSource::PopulateLastUpdateState(
     SystemLogsResponse* response) {
-  const std::optional<updater::UpdateService::UpdateState> update_state =
-      BrowserUpdaterClient::GetLastOnDemandUpdateState();
+  const std::optional<updater::mojom::UpdateState> update_state =
+      updater::GetLastOnDemandUpdateState();
   if (!update_state) {
     return;  // There is nothing to include if no update check has completed.
   }

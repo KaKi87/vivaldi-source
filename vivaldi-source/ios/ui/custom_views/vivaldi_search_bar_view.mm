@@ -16,8 +16,8 @@ UIEdgeInsets searchBarPadding = UIEdgeInsetsMake(8, 12, 8, 12);
 
 }  // namespace
 
-@interface VivaldiSearchBarView()<UISearchBarDelegate>
-@property (nonatomic,weak) UISearchBar* searchBar;
+@interface VivaldiSearchBarView () <UISearchBarDelegate>
+@property(nonatomic, weak) UISearchBar* searchBar;
 @end
 
 @implementation VivaldiSearchBarView
@@ -35,7 +35,6 @@ UIEdgeInsets searchBarPadding = UIEdgeInsetsMake(8, 12, 8, 12);
 
 #pragma mark - SET UP UI COMPONENTS
 - (void)setUpUI {
-
   // Search bar
   UISearchBar* searchBar = [UISearchBar new];
   _searchBar = searchBar;
@@ -60,8 +59,7 @@ UIEdgeInsets searchBarPadding = UIEdgeInsetsMake(8, 12, 8, 12);
 }
 
 #pragma mark - UISEARCHBAR DELEGATE
-- (void)searchBar:(UISearchBar*)searchBar
-    textDidChange:(NSString*)searchText {
+- (void)searchBar:(UISearchBar*)searchBar textDidChange:(NSString*)searchText {
   if (self.delegate)
     [self.delegate searchBarTextDidChange:searchText];
 }

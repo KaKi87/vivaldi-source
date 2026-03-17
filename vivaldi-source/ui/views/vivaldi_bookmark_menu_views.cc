@@ -49,6 +49,8 @@ VivaldiBookmarkMenuViews::VivaldiBookmarkMenuViews(
     int offset,
     const gfx::Rect& button_rect)
     : web_contents_(web_contents), button_rect_(button_rect) {
+  Profile* profile =
+      Profile::FromBrowserContext(web_contents->GetBrowserContext());
   Browser* browser = vivaldi::FindBrowserForEmbedderWebContents(web_contents_);
   if (browser) {
     int index = 0;
@@ -57,16 +59,15 @@ VivaldiBookmarkMenuViews::VivaldiBookmarkMenuViews(
         SetBookmarkContainer(container, index);
         controller_ = new BookmarkMenuController(
             browser, GetTopLevelWidgetFromWebContents(web_contents_),
-            BookmarkParentFolder::FromFolderNode(node),
-            offset, false);
+            BookmarkParentFolder::FromFolderNode(node), offset, false,
+            profile->GetPrefs()->GetBoolean(
+                vivaldiprefs::kBookmarksUnderlineMenuLetter));
         controller_->set_observer(this);
         break;
       }
       index++;
     }
   }
-  Profile* profile = Profile::FromBrowserContext(
-      web_contents->GetBrowserContext());
   views::MenuController::VivaldiSetCompactLayout(
       profile->GetPrefs()->GetBoolean(vivaldiprefs::kMenuCompact));
   views::MenuController::VivaldiSetContextMenu(false);

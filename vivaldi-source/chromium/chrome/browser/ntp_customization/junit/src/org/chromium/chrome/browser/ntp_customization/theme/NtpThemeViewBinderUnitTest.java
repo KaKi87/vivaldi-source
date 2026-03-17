@@ -6,9 +6,10 @@ package org.chromium.chrome.browser.ntp_customization.theme;
 
 import static org.mockito.Mockito.verify;
 
-import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundImageType.DEFAULT;
+import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType.DEFAULT;
 
 import android.content.Context;
+import android.graphics.drawable.Drawable;
 import android.util.Pair;
 import android.view.ContextThemeWrapper;
 import android.view.LayoutInflater;
@@ -72,17 +73,17 @@ public class NtpThemeViewBinderUnitTest {
     }
 
     @Test
-    public void testSectionTrailingIconVisibility() {
+    public void testIsSectionSelected() {
         PropertyModelChangeProcessor.create(
                 mModel, mNtpThemeBottomSheetView, NtpThemeViewBinder::bindThemeBottomSheet);
 
         Pair<Integer, Boolean> pair = new Pair<>(DEFAULT, true);
-        mModel.set(NtpThemeProperty.IS_SECTION_TRAILING_ICON_VISIBLE, pair);
-        verify(mNtpThemeBottomSheetView).setSectionTrailingIconVisibility(DEFAULT, true);
+        mModel.set(NtpThemeProperty.IS_SECTION_SELECTED, pair);
+        verify(mNtpThemeBottomSheetView).updateSectionTrailingIcon(DEFAULT, true);
 
         pair = new Pair<>(DEFAULT, false);
-        mModel.set(NtpThemeProperty.IS_SECTION_TRAILING_ICON_VISIBLE, pair);
-        verify(mNtpThemeBottomSheetView).setSectionTrailingIconVisibility(DEFAULT, false);
+        mModel.set(NtpThemeProperty.IS_SECTION_SELECTED, pair);
+        verify(mNtpThemeBottomSheetView).updateSectionTrailingIcon(DEFAULT, false);
     }
 
     @Test
@@ -100,10 +101,11 @@ public class NtpThemeViewBinderUnitTest {
         PropertyModelChangeProcessor.create(
                 mModel, mNtpThemeBottomSheetView, NtpThemeViewBinder::bindThemeBottomSheet);
 
-        final Pair<Integer, Integer> pair =
-                new Pair<>(
-                        R.drawable.upload_an_image_icon_for_theme_bottom_sheet,
-                        R.drawable.upload_an_image_icon_for_theme_bottom_sheet);
+        Drawable primaryDrawable =
+                mContext.getDrawable(R.drawable.upload_an_image_icon_for_theme_bottom_sheet);
+        Drawable secondaryDrawable =
+                mContext.getDrawable(R.drawable.upload_an_image_icon_for_theme_bottom_sheet);
+        final Pair<Drawable, Drawable> pair = new Pair<>(primaryDrawable, secondaryDrawable);
         mModel.set(NtpThemeProperty.LEADING_ICON_FOR_THEME_COLLECTIONS, pair);
         verify(mNtpThemeBottomSheetView).setLeadingIconForThemeCollections(pair);
     }

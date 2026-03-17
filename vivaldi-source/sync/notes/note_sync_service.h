@@ -71,7 +71,7 @@ class NoteSyncService : public KeyedService {
 
   // For integration tests.
   void SetIsTrackingMetadataForTesting();
-  void SetNotesLimitForTesting(size_t limit);
+  void SetLocalNotesLimitForTesting(size_t limit);
 
  private:
   std::unique_ptr<NoteModelView> note_model_view_;

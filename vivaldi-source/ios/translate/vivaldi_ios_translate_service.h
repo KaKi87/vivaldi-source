@@ -46,7 +46,8 @@ class VivaldiIOSTranslateService
   static bool IsTranslatableURL(const GURL& url);
 
   VivaldiIOSTranslateService(const VivaldiIOSTranslateService&) = delete;
-  VivaldiIOSTranslateService& operator=(const VivaldiIOSTranslateService&) = delete;
+  VivaldiIOSTranslateService& operator=(const VivaldiIOSTranslateService&) =
+      delete;
 
  private:
   VivaldiIOSTranslateService();
@@ -55,9 +56,9 @@ class VivaldiIOSTranslateService
   void StartDownload();
   bool ShouldUpdate();
   void StartUpdateTimer();
-  void OnListDownloaded(std::unique_ptr<std::string> response_body);
+  void OnListDownloaded(std::optional<std::string> response_body);
   void SetPrefsListAsDefault();
-  void SetListInChromium(const base::Value::List& list);
+  void SetListInChromium(const base::ListValue& list);
   const std::string GetServer();
 
   std::unique_ptr<network::SimpleURLLoader> url_loader_;

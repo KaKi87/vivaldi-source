@@ -48,10 +48,11 @@ constexpr CGFloat kNotificationDotSize = 6;
 #pragma mark - Public
 
 + (CGFloat)approximativeNonSharedWidthWithTitle:(NSString*)title {
-  UIFont* titleFont = [UIFont systemFontOfSize:TabStripGroupItemConstants.fontSize
-                                        weight:UIFontWeightSemibold];
-  CGFloat length = 1 +
-  [title sizeWithAttributes:@{NSFontAttributeName : titleFont}].width;
+  UIFont* titleFont =
+      [UIFont systemFontOfSize:TabStripGroupItemConstants.fontSize
+                        weight:UIFontWeightSemibold];
+  CGFloat length =
+      1 + [title sizeWithAttributes:@{NSFontAttributeName : titleFont}].width;
   return length +
          2 * TabStripGroupItemConstants.contentContainerHorizontalPadding;
 }

@@ -5,8 +5,6 @@
 
 #import <Foundation/Foundation.h>
 
-// Share item accessibility Identifier.
-extern NSString* const kToolsMenuShareId;
 // Text Zoom item accessibility Identifier.
 extern NSString* const vToolsMenuTextZoomId;
 // Find In Page item accessibility Identifier.

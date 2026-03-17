@@ -60,7 +60,7 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "components/cronet/android/cronet_jni_headers/CronetUrlRequestContext_jni.h"
 
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
 
 namespace cronet {
@@ -93,16 +93,16 @@ CronetContextAdapter::~CronetContextAdapter() = default;
 
 void CronetContextAdapter::InitRequestContextOnInitThread(
     JNIEnv* env,
-    const JavaParamRef<jobject>& jcaller) {
+    const JavaRef<jobject>& jcaller) {
   jcronet_url_request_context_.Reset(env, jcaller);
   context_->InitRequestContextOnInitThread();
 }
 
 void CronetContextAdapter::ConfigureNetworkQualityEstimatorForTesting(
     JNIEnv* env,
-    jboolean use_local_host_requests,
-    jboolean use_smaller_responses,
-    jboolean disable_offline_check) {
+    bool use_local_host_requests,
+    bool use_smaller_responses,
+    bool disable_offline_check) {
   context_->ConfigureNetworkQualityEstimatorForTesting(
       use_local_host_requests == JNI_TRUE, use_smaller_responses == JNI_TRUE,
       disable_offline_check == JNI_TRUE);
@@ -217,20 +217,18 @@ bool CronetContextAdapter::IsOnNetworkThread() const {
   return context_->IsOnNetworkThread();
 }
 
-bool CronetContextAdapter::StartNetLogToFile(
-    JNIEnv* env,
-    const JavaParamRef<jstring>& jfile_name,
-    jboolean jlog_all) {
+bool CronetContextAdapter::StartNetLogToFile(JNIEnv* env,
+                                             const JavaRef<jstring>& jfile_name,
+                                             bool jlog_all) {
   std::string file_name(
       base::android::ConvertJavaStringToUTF8(env, jfile_name));
   return context_->StartNetLogToFile(file_name, jlog_all == JNI_TRUE);
 }
 
-void CronetContextAdapter::StartNetLogToDisk(
-    JNIEnv* env,
-    const JavaParamRef<jstring>& jdir_name,
-    jboolean jlog_all,
-    jint jmax_size) {
+void CronetContextAdapter::StartNetLogToDisk(JNIEnv* env,
+                                             const JavaRef<jstring>& jdir_name,
+                                             bool jlog_all,
+                                             int32_t jmax_size) {
   std::string dir_name(base::android::ConvertJavaStringToUTF8(env, jdir_name));
   context_->StartNetLogToDisk(dir_name, jlog_all == JNI_TRUE, jmax_size);
 }
@@ -248,9 +246,9 @@ int CronetContextAdapter::default_load_flags() const {
 }
 
 // Create a URLRequestContextConfig from the given parameters.
-static jlong JNI_CronetUrlRequestContext_CreateRequestContextConfig(
+static int64_t JNI_CronetUrlRequestContext_CreateRequestContextConfig(
     JNIEnv* env,
-    const JavaParamRef<jbyteArray>& javaSerializedProto) {
+    const JavaRef<jbyteArray>& javaSerializedProto) {
   const int serializedProtoLength =
       env->GetArrayLength(javaSerializedProto.obj());
   cronet::proto::RequestContextConfigOptions configOptions;
@@ -286,16 +284,16 @@ static jlong JNI_CronetUrlRequestContext_CreateRequestContextConfig(
           configOptions.has_proxy_options()
               ? configOptions.proxy_options()
               : std::optional<cronet::proto::ProxyOptions>());
-  return reinterpret_cast<jlong>(url_request_context_config.release());
+  return reinterpret_cast<int64_t>(url_request_context_config.release());
 }
 
 // Add a QUIC hint to a URLRequestContextConfig.
 static void JNI_CronetUrlRequestContext_AddQuicHint(
     JNIEnv* env,
-    jlong jurl_request_context_config,
-    const JavaParamRef<jstring>& jhost,
-    jint jport,
-    jint jalternate_port) {
+    int64_t jurl_request_context_config,
+    const JavaRef<jstring>& jhost,
+    int32_t jport,
+    int32_t jalternate_port) {
   URLRequestContextConfig* config =
       reinterpret_cast<URLRequestContextConfig*>(jurl_request_context_config);
   config->quic_hints.push_back(
@@ -306,17 +304,17 @@ static void JNI_CronetUrlRequestContext_AddQuicHint(
 
 // Add a public key pin to URLRequestContextConfig.
 // |jhost| is the host to apply the pin to.
-// |jhashes| is an array of jbyte[32] representing SHA256 key hashes.
+// |jhashes| is an array of int8_t[32] representing SHA256 key hashes.
 // |jinclude_subdomains| indicates if pin should be applied to subdomains.
 // |jexpiration_time| is the time that the pin expires, in milliseconds since
 // Jan. 1, 1970, midnight GMT.
 static void JNI_CronetUrlRequestContext_AddPkp(
     JNIEnv* env,
-    jlong jurl_request_context_config,
-    const JavaParamRef<jstring>& jhost,
-    const JavaParamRef<jobjectArray>& jhashes,
-    jboolean jinclude_subdomains,
-    jlong jexpiration_time) {
+    int64_t jurl_request_context_config,
+    const JavaRef<jstring>& jhost,
+    const JavaRef<jobjectArray>& jhashes,
+    bool jinclude_subdomains,
+    int64_t jexpiration_time) {
   URLRequestContextConfig* config =
       reinterpret_cast<URLRequestContextConfig*>(jurl_request_context_config);
   std::unique_ptr<URLRequestContextConfig::Pkp> pkp(
@@ -334,7 +332,7 @@ static void JNI_CronetUrlRequestContext_AddPkp(
       LOG(ERROR) << "Unable to add public key hash value.";
       continue;
     }
-    jbyte* bytes = env->GetByteArrayElements(bytes_array.obj(), nullptr);
+    int8_t* bytes = env->GetByteArrayElements(bytes_array.obj(), nullptr);
     net::HashValue hash(*reinterpret_cast<net::SHA256HashValue*>(bytes));
     pkp->pin_hashes.push_back(hash);
     env->ReleaseByteArrayElements(bytes_array.obj(), bytes, JNI_ABORT);
@@ -344,15 +342,15 @@ static void JNI_CronetUrlRequestContext_AddPkp(
 
 // Creates RequestContextAdater if config is valid URLRequestContextConfig,
 // returns 0 otherwise.
-static jlong JNI_CronetUrlRequestContext_CreateRequestContextAdapter(
+static int64_t JNI_CronetUrlRequestContext_CreateRequestContextAdapter(
     JNIEnv* env,
-    jlong jconfig) {
+    int64_t jconfig) {
   std::unique_ptr<URLRequestContextConfig> context_config(
       reinterpret_cast<URLRequestContextConfig*>(jconfig));
 
   CronetContextAdapter* context_adapter =
       new CronetContextAdapter(std::move(context_config));
-  return reinterpret_cast<jlong>(context_adapter);
+  return reinterpret_cast<int64_t>(context_adapter);
 }
 
 }  // namespace cronet

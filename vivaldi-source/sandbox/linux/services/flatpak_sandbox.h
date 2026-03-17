@@ -135,6 +135,6 @@ class SANDBOX_EXPORT FlatpakSandbox {
 };
 
 }  // namespace sandbox
-} // namespace vivaldi
+}  // namespace vivaldi
 
 #endif  // SANDBOX_LINUX_SERVICES_FLATPAK_SANDBOX_H_

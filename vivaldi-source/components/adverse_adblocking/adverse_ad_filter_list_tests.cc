@@ -34,8 +34,7 @@ const std::string_view kAdversAdFilterListConfig(R"(
     }
 ])");
 
-const base::FilePath::StringViewType
-    kAdverseAdFilterJsonFileName =
+const base::FilePath::StringViewType kAdverseAdFilterJsonFileName =
     FILE_PATH_LITERAL("adverse_ad_filter1.json");
 
 GURL CreateURL(const std::string& hostname) {
@@ -88,8 +87,9 @@ TEST_F(AdverseAdFiltering, LoadFile) {
   filter_list_.reset(new AdverseAdFilterListService(nullptr));
 
   // constructed loading from file
-  std::unique_ptr<std::string> json_string = AdverseAdFilterListService::ReadFileToString(
-      GetAdfilterPath(kAdverseAdFilterJsonFileName));
+  std::unique_ptr<std::string> json_string =
+      AdverseAdFilterListService::ReadFileToString(
+          GetAdfilterPath(kAdverseAdFilterJsonFileName));
 
   filter_list_->LoadAndInitializeFromUniqueString(std::move(json_string));
 

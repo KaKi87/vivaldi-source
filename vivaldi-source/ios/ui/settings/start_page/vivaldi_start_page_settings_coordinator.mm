@@ -9,8 +9,8 @@
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-@interface VivaldiStartPageSettingsCoordinator ()
-    <VivaldiStartPageSettingsViewControllerPresentationDelegate> {
+@interface VivaldiStartPageSettingsCoordinator () <
+    VivaldiStartPageSettingsViewControllerPresentationDelegate> {
   // The browser where the settings are being displayed.
   Browser* _browser;
 }

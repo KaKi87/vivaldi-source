@@ -6,22 +6,22 @@
 
 #import "base/no_destructor.h"
 #import "base/strings/sys_string_conversions.h"
+#import "ios/chrome/browser/web/model/font_size/font_size_tab_helper.h"
+#import "ios/public/provider/chrome/browser/text_zoom/text_zoom_api.h"
+#import "ios/web/public/js_messaging/script_message.h"
 #import "ios/web/public/js_messaging/web_frame.h"
 #import "ios/web/public/js_messaging/web_frames_manager.h"
-#import "ios/web/public/js_messaging/script_message.h"
 #import "ios/web/public/ui/crw_web_view_proxy.h"
 #import "ios/web/public/ui/crw_web_view_scroll_view_proxy.h"
 #import "ios/web/public/web_state.h"
-#import "ios/public/provider/chrome/browser/text_zoom/text_zoom_api.h"
-#import "ios/chrome/browser/web/model/font_size/font_size_tab_helper.h"
 
 namespace {
 const char kScriptName[] = "reader_mode_controls";
 const char kScriptMessageName[] = "ReaderModeMessage";
 
 // Text zoom values (percentage)
-const int kValidTextZoomLevels[] =
-    {50, 66, 75, 80, 90, 100, 110, 125, 150, 175, 200, 250, 300};
+const int kValidTextZoomLevels[] = {50,  66,  75,  80,  90,  100, 110,
+                                    125, 150, 175, 200, 250, 300};
 const int kDefaultTextZoom = 100;
 }  // namespace
 
@@ -29,7 +29,7 @@ const int kDefaultTextZoom = 100;
 
 // static
 VivaldiReaderModeJavaScriptFeature*
-      VivaldiReaderModeJavaScriptFeature::GetInstance() {
+VivaldiReaderModeJavaScriptFeature::GetInstance() {
   static base::NoDestructor<VivaldiReaderModeJavaScriptFeature> instance;
   return instance.get();
 }
@@ -43,11 +43,10 @@ VivaldiReaderModeJavaScriptFeature::VivaldiReaderModeJavaScriptFeature()
               kScriptName,
               FeatureScript::InjectionTime::kDocumentStart,
               FeatureScript::TargetFrames::kAllFrames,
-              FeatureScript::ReinjectionBehavior::kInjectOncePerWindow)}) {
-}
+              FeatureScript::ReinjectionBehavior::kInjectOncePerWindow)}) {}
 
-VivaldiReaderModeJavaScriptFeature::
-      ~VivaldiReaderModeJavaScriptFeature() = default;
+VivaldiReaderModeJavaScriptFeature::~VivaldiReaderModeJavaScriptFeature() =
+    default;
 
 #pragma mark - Observer Management
 
@@ -57,8 +56,9 @@ void VivaldiReaderModeJavaScriptFeature::SetObserver(Observer* observer) {
 
 #pragma mark - Reader Mode Control
 
-bool VivaldiReaderModeJavaScriptFeature::
-          ToggleReaderMode(web::WebState* web_state, bool was_enabled) {
+bool VivaldiReaderModeJavaScriptFeature::ToggleReaderMode(
+    web::WebState* web_state,
+    bool was_enabled) {
   if (!web_state) {
     return false;
   }
@@ -72,8 +72,8 @@ bool VivaldiReaderModeJavaScriptFeature::
   }
 }
 
-void VivaldiReaderModeJavaScriptFeature::
-        ApplyReaderMode(web::WebState* web_state) {
+void VivaldiReaderModeJavaScriptFeature::ApplyReaderMode(
+    web::WebState* web_state) {
   if (!web_state) {
     return;
   }
@@ -85,8 +85,8 @@ void VivaldiReaderModeJavaScriptFeature::
   }
 }
 
-void VivaldiReaderModeJavaScriptFeature::
-        DisableReaderMode(web::WebState* web_state) {
+void VivaldiReaderModeJavaScriptFeature::DisableReaderMode(
+    web::WebState* web_state) {
   if (!web_state) {
     return;
   }
@@ -109,7 +109,7 @@ void VivaldiReaderModeJavaScriptFeature::
 #pragma mark - Reader Mode Availability Checks
 
 void VivaldiReaderModeJavaScriptFeature::CheckReaderModeAvailability(
-                                                   web::WebState* web_state) {
+    web::WebState* web_state) {
   if (!web_state) {
     if (observer_) {
       observer_->OnReaderModeAvailabilityResult(web_state, false);
@@ -127,14 +127,12 @@ void VivaldiReaderModeJavaScriptFeature::CheckReaderModeAvailability(
     return;
   }
 
-  CallJavaScriptFunction(
-      mainFrame, "vivaldiReaderMode.checkAvailability",
-      base::Value::List()
-  );
+  CallJavaScriptFunction(mainFrame, "vivaldiReaderMode.checkAvailability",
+                         base::ListValue());
 }
 
 void VivaldiReaderModeJavaScriptFeature::CheckReaderModeEnabledState(
-                                                  web::WebState* web_state) {
+    web::WebState* web_state) {
   if (!web_state) {
     if (observer_) {
       observer_->OnReaderModeEnabledStateResult(web_state, false);
@@ -152,16 +150,14 @@ void VivaldiReaderModeJavaScriptFeature::CheckReaderModeEnabledState(
     return;
   }
 
-  CallJavaScriptFunction(
-      mainFrame, "vivaldiReaderMode.checkEnabledState",
-      base::Value::List()
-  );
+  CallJavaScriptFunction(mainFrame, "vivaldiReaderMode.checkEnabledState",
+                         base::ListValue());
 }
 
 #pragma mark - Reader Mode Settings
 
-bool VivaldiReaderModeJavaScriptFeature::
-       SetFontSize(web::WebState* web_state, int size) {
+bool VivaldiReaderModeJavaScriptFeature::SetFontSize(web::WebState* web_state,
+                                                     int size) {
   if (!web_state) {
     return false;
   }
@@ -185,8 +181,9 @@ bool VivaldiReaderModeJavaScriptFeature::
   return true;
 }
 
-bool VivaldiReaderModeJavaScriptFeature::
-       SetFontFamily(web::WebState* web_state, const std::string& family) {
+bool VivaldiReaderModeJavaScriptFeature::SetFontFamily(
+    web::WebState* web_state,
+    const std::string& family) {
   if (!web_state) {
     return false;
   }
@@ -199,23 +196,21 @@ bool VivaldiReaderModeJavaScriptFeature::
 
   for (web::WebFrame* frame : frames) {
     if (frame) {
-      CallJavaScriptFunction(
-          frame, "vivaldiReaderMode.setFontFamily",
-          base::Value::List().Append(family)
-      );
+      CallJavaScriptFunction(frame, "vivaldiReaderMode.setFontFamily",
+                             base::ListValue().Append(family));
     }
   }
   return true;
 }
 
-bool VivaldiReaderModeJavaScriptFeature::
-       SetTheme(web::WebState* web_state, const std::string& theme) {
+bool VivaldiReaderModeJavaScriptFeature::SetTheme(web::WebState* web_state,
+                                                  const std::string& theme) {
   if (!web_state) {
     return false;
   }
   // Validate theme
-  if (theme != "light" && theme != "dark" &&
-      theme != "sepia" && theme != "black") {
+  if (theme != "light" && theme != "dark" && theme != "sepia" &&
+      theme != "black") {
     return false;
   }
   // Execute the command in all frames using CallJavaScriptFunction
@@ -226,10 +221,8 @@ bool VivaldiReaderModeJavaScriptFeature::
 
   for (web::WebFrame* frame : frames) {
     if (frame) {
-      CallJavaScriptFunction(
-          frame, "vivaldiReaderMode.setTheme",
-          base::Value::List().Append(theme)
-      );
+      CallJavaScriptFunction(frame, "vivaldiReaderMode.setTheme",
+                             base::ListValue().Append(theme));
     }
   }
   return true;
@@ -260,7 +253,7 @@ void VivaldiReaderModeJavaScriptFeature::ScriptMessageReceived(
     return;
   }
 
-  const base::Value::Dict& dict = message.body()->GetDict();
+  const base::DictValue& dict = message.body()->GetDict();
   const std::string* command = dict.FindString("command");
 
   if (!command) {
@@ -285,22 +278,18 @@ void VivaldiReaderModeJavaScriptFeature::ScriptMessageReceived(
 }
 
 #pragma mark - Private Helper Methods
-void VivaldiReaderModeJavaScriptFeature::
-       ApplyReaderMode(web::WebFrame* web_frame) {
+void VivaldiReaderModeJavaScriptFeature::ApplyReaderMode(
+    web::WebFrame* web_frame) {
   if (web_frame) {
-    CallJavaScriptFunction(
-        web_frame, "vivaldiReaderMode.enable",
-        base::Value::List()
-      );
+    CallJavaScriptFunction(web_frame, "vivaldiReaderMode.enable",
+                           base::ListValue());
   }
 }
 
-void VivaldiReaderModeJavaScriptFeature::
-       DisableReaderMode(web::WebFrame* web_frame) {
+void VivaldiReaderModeJavaScriptFeature::DisableReaderMode(
+    web::WebFrame* web_frame) {
   if (web_frame) {
-    CallJavaScriptFunction(
-        web_frame, "vivaldiReaderMode.disable",
-        base::Value::List()
-    );
+    CallJavaScriptFunction(web_frame, "vivaldiReaderMode.disable",
+                           base::ListValue());
   }
 }

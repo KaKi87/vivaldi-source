@@ -6,8 +6,8 @@
 #import "base/scoped_observation.h"
 #import "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
-#import "ios/chrome/browser/shared/model/web_state_list/web_state_list_observer_bridge.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
+#import "ios/chrome/browser/shared/model/web_state_list/web_state_list_observer_bridge.h"
 #import "ios/chrome/browser/shared/public/commands/text_zoom_commands.h"
 #import "ios/chrome/browser/text_zoom/ui_bundled/text_zoom_consumer.h"
 #import "ios/chrome/browser/web/model/font_size/font_size_tab_helper.h"
@@ -16,12 +16,12 @@
 #import "ios/ui/settings/pagezoom/vivaldi_pagezoom_settings_prefs.h"
 #import "ios/web/public/browser_state.h"
 #import "ios/web/public/favicon/favicon_status.h"
-#import "ios/web/public/web_state_observer_bridge.h"
 #import "ios/web/public/web_state.h"
+#import "ios/web/public/web_state_observer_bridge.h"
 #import "ui/gfx/image/image.h"
 
-@interface VivaldiPageZoomDialogMediator ()
-    <WebStateListObserving, CRWWebStateObserver>
+@interface VivaldiPageZoomDialogMediator () <WebStateListObserving,
+                                             CRWWebStateObserver>
 @end
 
 @implementation VivaldiPageZoomDialogMediator {
@@ -103,7 +103,7 @@
 - (void)zoomIn {
   if (_activeWebState) {
     FontSizeTabHelper* fontSizeTabHelper =
-      FontSizeTabHelper::FromWebState(_activeWebState);
+        FontSizeTabHelper::FromWebState(_activeWebState);
     if (fontSizeTabHelper) {
       fontSizeTabHelper->UserZoom(ZOOM_IN);
     }
@@ -114,7 +114,7 @@
 - (void)zoomOut {
   if (_activeWebState) {
     FontSizeTabHelper* fontSizeTabHelper =
-      FontSizeTabHelper::FromWebState(_activeWebState);
+        FontSizeTabHelper::FromWebState(_activeWebState);
     if (fontSizeTabHelper) {
       fontSizeTabHelper->UserZoom(ZOOM_OUT);
     }
@@ -125,7 +125,7 @@
 - (void)resetZoom {
   if (_activeWebState) {
     FontSizeTabHelper* fontSizeTabHelper =
-      FontSizeTabHelper::FromWebState(_activeWebState);
+        FontSizeTabHelper::FromWebState(_activeWebState);
     if (fontSizeTabHelper) {
       fontSizeTabHelper->UserZoom(ZOOM_RESET);
     }
@@ -163,12 +163,12 @@
   }
 }
 
-- (void) updateConsumerState {
+- (void)updateConsumerState {
   if (!_activeWebState || !_prefService) {
     return;
   }
   FontSizeTabHelper* activeFontSizeTabHelper =
-    FontSizeTabHelper::FromWebState(_activeWebState);
+      FontSizeTabHelper::FromWebState(_activeWebState);
   if (!activeFontSizeTabHelper) {
     return;
   }
@@ -183,14 +183,14 @@
   // Updating favicon and URL
   GURL url = _activeWebState->GetLastCommittedURL();
   NSString* stringUrl = base::SysUTF8ToNSString(url.GetHost().c_str());
-  [_consumer setCurrentHostURL:
-    [VivaldiGlobalHelpers hostOfURLString: stringUrl]];
+  [_consumer
+      setCurrentHostURL:[VivaldiGlobalHelpers hostOfURLString:stringUrl]];
   const web::FaviconStatus& favicon_status =
-    _activeWebState->GetFaviconStatus();
+      _activeWebState->GetFaviconStatus();
   if (_activeWebState->GetFaviconStatus().valid) {
     gfx::Image gfxImage = favicon_status.image;
     if (!gfxImage.IsEmpty()) {
-      [_consumer setCurrentHostFavicon: gfxImage.ToUIImage()];
+      [_consumer setCurrentHostFavicon:gfxImage.ToUIImage()];
     }
   }
 }

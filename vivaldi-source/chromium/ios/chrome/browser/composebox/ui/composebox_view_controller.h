@@ -18,12 +18,15 @@
 @protocol ComposeboxViewControllerDelegate
 - (void)composeboxViewControllerDidTapCloseButton:
     (ComposeboxViewController*)viewController;
+// Indicates to the delegate to handle a change in horizontal size class.
+- (void)composeboxHorizontalSizeClassDidChange;
 @end
 
 // View Controller that contains the composebox, presenting it modally.
 @interface ComposeboxViewController
     : UIViewController <ComposeboxNavigationConsumer,
-                        OmniboxPopupPresenterDelegate>
+                        OmniboxPopupPresenterDelegate,
+                        UIAdaptivePresentationControllerDelegate>
 
 // Creates an instance with the theme of the input plate.
 - (instancetype)initWithTheme:(ComposeboxTheme*)theme;

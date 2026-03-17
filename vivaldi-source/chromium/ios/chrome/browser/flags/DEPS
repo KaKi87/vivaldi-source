@@ -8,12 +8,13 @@ specific_include_rules = {
     "+components/page_content_annotations/core",
     "+components/sharing_message/features.h",
     "+ios/chrome/browser",
+    "+ios/components/enterprise/analysis/features.h",
     "+ios/components/enterprise/data_controls/features.h",
   ],
   "^ios_chrome_field_trials.mm": [
     "+ios/chrome/browser/variations/model",
-    "+ios/chrome/browser/content_suggestions/ui_bundled",
-    "+ios/chrome/browser/first_run/ui_bundled",
+    "+ios/chrome/browser/first_run/coordinator",
+    "+ios/chrome/browser/content_suggestions",
     "+ios/chrome/browser/ntp/ui_bundled",
   ],
 }

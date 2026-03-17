@@ -55,9 +55,6 @@
 <translation id="4269820728363426813">Copiază adresa linkului</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Activează blocarea ecranului în setările Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Gestionar de parole</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {File și grupuri nefolosite pentru 1 zi sau mai mult}
-          other {File și grupuri nefolosite pentru # zile sau mai mult}}</translation>
 <translation id="451872707440238414">Căutați în semnele de carte</translation>
 <translation id="4526803704855831732">File private</translation>
 <translation id="4532845899244822526">Alegere dosar</translation>
@@ -124,14 +121,10 @@ Pentru a ajusta termenul de căutare, apăsați lung pentru a-l selecta. Pentru 
 <translation id="8348430946834215779">Folosește HTTPS ori de câte ori este posibil și primește un avertisment înainte de a încărca site-uri web care nu acceptă acest protocol</translation>
 <translation id="8560602726703398413">Căutați lista de lectură în semnele de carte</translation>
 <translation id="85991616550051997">Mergi la pagina principală</translation>
-<translation id="8693232767599693749">Vizualizați în modul de lectură?</translation>
 <translation id="8820817407110198400">Semne de carte</translation>
 <translation id="9042893549633094279">Confidențialitate și securitate</translation>
 <translation id="9063523880881406963">Dezactivați solicitarea pentru versiunea desktop</translation>
 <translation id="9080642952018487277">Intrați în modul privat</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {Nefolosit pentru 1 zi sau mai mult}
-          other {Nefolosite pentru # zile sau mai mult}}</translation>
 <translation id="930124987204876019">Șterge istoricul, cookie-urile, datele privind site-urile, memoria cache…</translation>
 <translation id="961856697154696964">Ștergere date de navigare</translation>
 </translationbundle>

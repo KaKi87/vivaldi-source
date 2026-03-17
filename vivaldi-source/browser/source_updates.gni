@@ -129,6 +129,9 @@ update_target("//chrome/browser/ui:ui") {
       "//vivaldi/sync/vivaldi_browser_synced_window_delegate.cc",
       "//vivaldi/sync/vivaldi_browser_synced_window_delegate.h",
     ]
+    sources -= [
+      "webui/settings/settings_default_browser_handler.h",
+    ]
   }
   if (toolkit_views) {
     sources += [
@@ -163,15 +166,27 @@ update_target("//content/public/browser:browser_sources") {
 }
 
 if (!is_android) {
+  update_target("//chrome/browser/ui/views/toolbar:impl") {
+    sources -= [
+      "toolbar_glic_button.cc",
+    ]
+  }
+
   if (vivaldi_build_tests) {
     update_target("//chrome/test:unit_tests") {
       sources += [
         "//vivaldi/browser/stats_reporter_unittest.cc",
         "//vivaldi/browser/translate/vivaldi_translate_server_request_unittests.cc"
       ]
+      sources -= [
+        "../browser/ui/webui/settings/settings_default_browser_handler_unittest.cc",
+      ]
     }
     update_target("//chrome/browser/ui/toolbar:unit_tests") {
-      sources -= [ "app_menu_icon_controller_unittest.cc" ]
+      sources -= [
+        "app_menu_icon_controller_unittest.cc",
+        "app_menu_model_unittest.cc",
+      ]
     }
   }
 
@@ -184,7 +199,14 @@ if (!is_android) {
     update_template_instance("//chrome/test:browser_tests") {
       sources -= [
         "../browser/ui/views/upgrade_notification_controller_browsertest.cc",
+        "../browser/ui/views/tabs/tab_search_container_browsertest.cc",
+        "../browser/infobars/infobars_browsertest.cc",
       ]
+      if (!is_win) {
+        sources -= [ # Already removed for windows
+          "../browser/ui/views/tabs/tab_search_button_browsertest.cc",
+        ]
+      }
     }
   }
 

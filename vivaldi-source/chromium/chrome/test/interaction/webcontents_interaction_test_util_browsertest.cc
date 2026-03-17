@@ -792,7 +792,7 @@ IN_PROC_BROWSER_TEST_F(WebContentsInteractionTestUtilTest,
                            [&](ui::InteractionSequence* sequence,
                                ui::TrackedElement* element) {
                              check_elapsed();
-                             base::Value::List list;
+                             base::ListValue list;
                              list.Append(false);
                              post_and_listen(base::Value(),
                                              base::Value(std::move(list)));
@@ -806,7 +806,7 @@ IN_PROC_BROWSER_TEST_F(WebContentsInteractionTestUtilTest,
                            [&](ui::InteractionSequence* sequence,
                                ui::TrackedElement* element) {
                              check_elapsed();
-                             base::Value::Dict dict;
+                             base::DictValue dict;
                              dict.Set("foo", "bar");
                              post_and_listen(base::Value(),
                                              base::Value(std::move(dict)));
@@ -1662,10 +1662,10 @@ IN_PROC_BROWSER_TEST_F(WebContentsInteractionTestUtilTest,
   auto util = WebContentsInteractionTestUtil::ForExistingTabInBrowser(
       browser(), kWebContentsElementId);
   auto* const model = browser()->tab_strip_model();
-  const int count = model->GetTabCount();
+  const int count = model->count();
   const int index = model->active_index();
   util->LoadPageInNewTab(url, false);
-  EXPECT_EQ(count + 1, model->GetTabCount());
+  EXPECT_EQ(count + 1, model->count());
   EXPECT_EQ(index, model->active_index());
 }
 
@@ -1676,10 +1676,10 @@ IN_PROC_BROWSER_TEST_F(WebContentsInteractionTestUtilTest,
   auto util = WebContentsInteractionTestUtil::ForExistingTabInBrowser(
       browser(), kWebContentsElementId);
   auto* const model = browser()->tab_strip_model();
-  const int count = model->GetTabCount();
+  const int count = model->count();
   const int index = model->active_index();
   util->LoadPageInNewTab(url, true);
-  EXPECT_EQ(count + 1, model->GetTabCount());
+  EXPECT_EQ(count + 1, model->count());
   EXPECT_EQ(index + 1, model->active_index());
 }
 

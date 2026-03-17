@@ -52,7 +52,7 @@
 <translation id="1769104665586091481">Apri Link in una Nuova &amp;Finestra</translation>
 <translation id="1779468444204342338">Minimi</translation>
 <translation id="1805822111539868586">Viste ispezionabili</translation>
-<translation id="1815083418640426271">Incolla come Solo Testo</translation>
+<translation id="1815083418640426271">Incolla come testo semplice</translation>
 <translation id="1828901632669367785">Stampa utilizzando la finestra di dialogo di sistema...</translation>
 <translation id="1843048149176045210">Copia link per scaricare</translation>
 <translation id="1850508293116537636">Ruota in senso &amp;orario</translation>
@@ -303,7 +303,6 @@
 <translation id="5624959475330585145">Chiedi prima di usare connessioni non sicure</translation>
 <translation id="5638309510554459422">Trova estensioni e temi nel <ph name="BEGIN_LINK" />Chrome Web Store<ph name="END_LINK" /></translation>
 <translation id="5677928146339483299">Bloccato</translation>
-<translation id="5707185214361380026">Impossibile caricare l'estensione da:</translation>
 <translation id="5713171467967533494">Apri nel browser Vivaldi</translation>
 <translation id="5746169159649715125">Salva come PDF</translation>
 <translation id="5747809636523347288">I&amp;ncolla e vai all'indirizzo <ph name="URL" /></translation>

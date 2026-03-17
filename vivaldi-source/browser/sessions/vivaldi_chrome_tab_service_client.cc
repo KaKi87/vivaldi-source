@@ -10,7 +10,7 @@ const std::map<base::FilePath, bool>*
 ChromeTabRestoreServiceClient::GetPageActionOverridesForTab(
     sessions::LiveTab* tab) {
   auto* page_actions_helper = page_actions::TabHelper::FromWebContents(
-      static_cast<sessions::ContentLiveTab*>(tab)->web_contents());
+      &static_cast<sessions::ContentLiveTab*>(tab)->GetWebContents());
   if (!page_actions_helper)
     return nullptr;
   return &page_actions_helper->GetScriptOverrides();

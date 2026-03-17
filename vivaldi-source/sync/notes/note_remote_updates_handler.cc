@@ -9,7 +9,6 @@
 #include <set>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 #include <utility>
 
 #include "base/logging.h"
@@ -25,6 +24,7 @@
 #include "sync/notes/note_model_view.h"
 #include "sync/notes/note_specifics_conversions.h"
 #include "sync/notes/synced_note_tracker_entity.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 
 namespace sync_notes {
 
@@ -203,7 +203,7 @@ void NoteRemoteUpdatesHandler::Process(
   // If new encryption requirements come from the server, the entities that are
   // in |updates| will be recorded here so they can be ignored during the
   // re-encryption phase at the end.
-  std::unordered_set<std::string> entities_with_up_to_date_encryption;
+  absl::flat_hash_set<std::string> entities_with_up_to_date_encryption;
 
   for (const syncer::UpdateResponseData* update :
        ReorderValidUpdates(&updates)) {
@@ -314,8 +314,8 @@ void NoteRemoteUpdatesHandler::Process(
       if (entity->note_node()->is_permanent_node()) {
         continue;
       }
-      if (entities_with_up_to_date_encryption.count(
-              entity->metadata().server_id()) != 0) {
+      if (entities_with_up_to_date_encryption.contains(
+              entity->metadata().server_id())) {
         continue;
       }
       note_tracker_->IncrementSequenceNumber(entity);

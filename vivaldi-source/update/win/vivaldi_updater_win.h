@@ -29,7 +29,8 @@ using vivaldi_update_notifier::InstallerLaunchData;
 
 class UpdaterCheckVivaldi {
  public:
-  UpdaterCheckVivaldi(const base::WeakPtr<VivaldiUpdateBackendNotifier>& delegate);
+  UpdaterCheckVivaldi(
+      const base::WeakPtr<VivaldiUpdateBackendNotifier>& delegate);
 
   UpdaterCheckVivaldi(const UpdaterCheckVivaldi&) = delete;
   UpdaterCheckVivaldi& operator=(const UpdaterCheckVivaldi&) = delete;

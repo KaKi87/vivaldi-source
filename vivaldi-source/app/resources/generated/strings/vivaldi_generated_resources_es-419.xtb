@@ -275,7 +275,6 @@
 <translation id="5624959475330585145">Preguntar antes de usar conexiones no seguras</translation>
 <translation id="5638309510554459422">Encuentra extensiones y temas en <ph name="BEGIN_LINK" />Chrome Web Store<ph name="END_LINK" /></translation>
 <translation id="5677928146339483299">Bloqueado</translation>
-<translation id="5707185214361380026">No se ha podido cargar la extensión desde:</translation>
 <translation id="5713171467967533494">Abrir en el navegador Vivaldi</translation>
 <translation id="5746169159649715125">Guardar como PDF</translation>
 <translation id="5747809636523347288">Pe&amp;gar e ir a <ph name="URL" /></translation>
@@ -405,8 +404,7 @@ Mantén el archivo de clave en un lugar seguro. Debes crear las nuevas versiones
 <translation id="8018313076035239964">Controla qué contenido pueden mostrarte los sitios web y qué información pueden usar</translation>
 <translation id="8071432093239591881">Imprimir como imagen</translation>
 <translation id="8135557862853121765"><ph name="NUM_KILOBYTES" /> K</translation>
-<translation id="8212008074015601248">{NUM_DOWNLOAD,plural,
- ……=1 {Descarga en curso} other {Descargas en curso}}</translation>
+<translation id="8212008074015601248">{NUM_DOWNLOAD,plural, =1 {Descarga en curso} other {Descargas en curso}}</translation>
 <translation id="8230134520748321204">¿Quieres guardar la contraseña para <ph name="ORIGIN" />?</translation>
 <translation id="8248050856337841185">&amp;Pegar</translation>
 <translation id="8261378640211443080">Esta extensión no figura en <ph name="IDS_EXTENSION_WEB_STORE_TITLE" /> y es posible que se haya agregado sin tu conocimiento.</translation>

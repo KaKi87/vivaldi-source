@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Tilkoblingen til dette nettstedet er ikke helt sikker</translation>
 <translation id="4265872034478892965">Tillatt av administratoren</translation>
 <translation id="4305666528087210886">Fikk ikke tilgang til filen</translation>
-<translation id="4408413947728134509">Infokapsler <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> godtok ikke innlogginssertifikatet ditt, eller sertifikatet manglet.</translation>
 <translation id="4506599922270137252">Kontakte systemadministratoren</translation>
 <translation id="4522570452068850558">Detaljer</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Ingen resultater</translation>
 <translation id="5017554619425969104">Teksten du kopierte</translation>
 <translation id="5023310440958281426">Sjekk administratorens retningslinjer</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 i bruk)} other {(# i bruk)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Sjekk proxy-adressen<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-biters)</translation>
 <translation id="5216942107514965959">Sist besøkt i dag</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Du bør ikke skrive inn sensitiv informasjon på denne siden (for eksempel passord eller betalingsinformasjon) da det kan blir stjålet av angripere.</translation>
 <translation id="5863515189965725638">Rediger IBAN</translation>
 <translation id="5869405914158311789">Siden kan ikke nås</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{1 i bruk}other{# i bruk}}</translation>
 <translation id="5932224571077948991">Nettstedet viser påtrengende eller villedende annonser</translation>
 <translation id="6051221802930200923">Du kan ikke besøke <ph name="SITE" /> akkurat nå, fordi nettsiden bruker sertifikatlåsing. Nettverksfeil og -angrep er ofte midlertidige, så denne siden vil trolig virke igjen senere.</translation>
 <translation id="6146055958333702838">Kontroller eventuelle kabler og start eventuelle rutere, modem og andre
@@ -167,7 +164,7 @@
 <translation id="7126644664682723998">Lim inn og søk</translation>
 <translation id="7210863904660874423"><ph name="HOST_NAME" /> følger ikke sikkerhetsstandarder.</translation>
 <translation id="7219179957768738017">Tilkoblinger bruker <ph name="SSL_VERSION" />.</translation>
-<translation id="7221855153210829124">Vis varsler</translation>
+<translation id="7221855153210829124">vise varsler</translation>
 <translation id="7353601530677266744">Kommandolinje</translation>
 <translation id="7419106976560586862">Profilplassering</translation>
 <translation id="7455133967321480974">Bruk global standardinnstilling (Blokker)</translation>

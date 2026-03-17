@@ -2,9 +2,9 @@
 
 #include "app/vivaldi_apptools.h"
 #include "chrome/browser/ui/views/profiles/profile_picker_view.h"
-#include "ui/views/profile_picker_frame.h"
-#include "third_party/skia/include/core/SkRegion.h"
 #include "third_party/blink/public/mojom/page/draggable_region.mojom.h"
+#include "third_party/skia/include/core/SkRegion.h"
+#include "ui/views/profile_picker_frame.h"
 #include "ui/wm/core/easy_resize_window_targeter.h"
 
 #if !BUILDFLAG(IS_MAC)
@@ -25,15 +25,14 @@ std::unique_ptr<views::FrameView> ProfilePickerView::CreateFrameView(
 }
 
 void ProfilePickerView::DraggableRegionsChanged(
-      const std::vector<blink::mojom::DraggableRegionPtr>& regions,
-      content::WebContents* contents)
-{
+    const std::vector<blink::mojom::DraggableRegionPtr>& regions,
+    content::WebContents* contents) {
 #if !BUILDFLAG(IS_MAC)
   if (!vivaldi::IsVivaldiRunning()) {
     return;
   }
   draggable_region_ = std::make_unique<SkRegion>();
-  for (auto& region: regions) {
+  for (auto& region : regions) {
     draggable_region_->op(
         SkIRect::MakeLTRB(region->bounds.x(), region->bounds.y(),
                           region->bounds.right(), region->bounds.bottom()),

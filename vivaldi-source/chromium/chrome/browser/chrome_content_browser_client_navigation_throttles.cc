@@ -8,7 +8,11 @@
 #include "base/feature_list.h"
 #include "build/build_config.h"
 #include "build/buildflag.h"
+#include "chrome/browser/actor/actor_navigation_throttle.h"
+#include "chrome/browser/autocomplete/aim_eligibility_refresh_navigation_throttle.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/custom_handlers/chrome_protocol_handler_navigation_throttle.h"
+#include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
 #include "chrome/browser/data_sharing/data_sharing_navigation_throttle.h"
 #include "chrome/browser/enterprise/data_protection/view_source_navigation_throttle.h"
 #include "chrome/browser/first_party_sets/first_party_sets_navigation_throttle.h"
@@ -19,7 +23,6 @@
 #include "chrome/browser/policy/chrome_policy_blocklist_service_factory.h"
 #include "chrome/browser/policy/policy_util.h"
 #include "chrome/browser/preloading/prefetch/no_state_prefetch/chrome_no_state_prefetch_contents_delegate.h"
-#include "chrome/browser/preloading/prefetch/no_state_prefetch/no_state_prefetch_navigation_throttle.h"
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_settings_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ssl/chrome_security_blocking_page_factory.h"
@@ -38,7 +41,11 @@
 #include "components/captive_portal/content/captive_portal_service.h"
 #include "components/captive_portal/core/buildflags.h"
 #include "components/contextual_tasks/public/features.h"
+#include "components/custom_handlers/protocol_handler_navigation_throttle.h"
 #include "components/dom_distiller/content/browser/distiller_page_web_contents.h"
+#include "components/dom_distiller/content/browser/distiller_referrer_throttle.h"
+#include "components/dom_distiller/core/url_constants.h"
+#include "components/dom_distiller/core/url_utils.h"
 #include "components/error_page/content/browser/net_error_auto_reloader.h"
 #include "components/guest_view/buildflags/buildflags.h"
 #include "components/history/content/browser/visited_link_navigation_throttle.h"
@@ -62,8 +69,11 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_switches.h"
 #include "extensions/buildflags/buildflags.h"
+#include "extensions/common/extension_features.h"
 #include "pdf/buildflags.h"
+#include "services/network/public/mojom/referrer_policy.mojom.h"
 #include "third_party/blink/public/common/features.h"
+#include "third_party/blink/public/mojom/loader/referrer.mojom.h"
 #include "url/gurl.h"
 
 #if BUILDFLAG(IS_ANDROID)
@@ -76,7 +86,6 @@
 #endif  // BUILDFLAG(DFMIFY_DEV_UI)
 
 #else  // BUILDFLAG(IS_ANDROID)
-#include "chrome/browser/actor/actor_navigation_throttle.h"
 #include "chrome/browser/apps/link_capturing/link_capturing_navigation_throttle.h"
 #include "chrome/browser/apps/link_capturing/web_app_link_capturing_delegate.h"
 #include "chrome/browser/contextual_tasks/contextual_tasks_navigation_throttle.h"
@@ -113,9 +122,9 @@
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
-#if BUILDFLAG(ENABLE_GUEST_VIEW)
+#if BUILDFLAG(ENABLE_GUEST_VIEW) && BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "extensions/browser/guest_view/web_view/web_view_guest.h"
-#endif
+#endif  // BUILDFLAG(ENABLE_GUEST_VIEW) && BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 
 #if BUILDFLAG(ENABLE_PDF)
 #include "chrome/browser/pdf/chrome_pdf_stream_delegate.h"
@@ -167,6 +176,10 @@
 #include "extensions/browser/extension_navigation_throttle.h"
 #include "extensions/browser/extensions_browser_client.h"
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#include "chrome/browser/glic/glic_navigation_throttle.h"
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
 // Vivaldi
 #include "app/vivaldi_apptools.h"
@@ -279,7 +292,7 @@ void CreateAndAddChromeThrottlesForNavigation(
 
 #if BUILDFLAG(IS_ANDROID)
   // TODO(davidben): This is insufficient to integrate with prerender properly.
-  // https://crbug.com/370595
+  // https://crbug.com/40364296
   prerender::NoStatePrefetchContents* no_state_prefetch_contents =
       prerender::ChromeNoStatePrefetchContentsDelegate::FromWebContents(
           handle.GetWebContents());
@@ -318,6 +331,9 @@ void CreateAndAddChromeThrottlesForNavigation(
   apps::ChromeOsDisabledAppsThrottle::MaybeCreateAndAdd(registry);
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
+  Profile* profile =
+      Profile::FromBrowserContext(handle.GetWebContents()->GetBrowserContext());
+
 #if !BUILDFLAG(IS_ANDROID)
   std::unique_ptr<apps::LinkCapturingNavigationThrottle::Delegate>
       link_capturing_delegate;
@@ -344,10 +360,17 @@ void CreateAndAddChromeThrottlesForNavigation(
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
   web_app::NavigationCapturingRedirectionThrottle::MaybeCreateAndAdd(registry);
-#endif  // !BUILDFLAG(IS_ANDROID)
 
-  Profile* profile =
-      Profile::FromBrowserContext(handle.GetWebContents()->GetBrowserContext());
+  if (base::FeatureList::IsEnabled(
+          extensions_features::kExtensionProtocolHandlers)) {
+    // Could be null in some unit tests.
+    if (auto* protocol_handler_registry =
+            ProtocolHandlerRegistryFactory::GetForBrowserContext(profile)) {
+      custom_handlers::ChromeProtocolHandlerNavigationThrottle::
+          MaybeCreateAndAdd(protocol_handler_registry, registry);
+    }
+  }
+#endif  // !BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   if (!extensions::ChromeContentBrowserClientExtensionsPart::
@@ -359,11 +382,12 @@ void CreateAndAddChromeThrottlesForNavigation(
         ->GetUserScriptListener()
         ->CreateAndAddNavigationThrottle(registry);
   }
-#endif
 
 #if BUILDFLAG(ENABLE_GUEST_VIEW)
   extensions::WebViewGuest::MaybeCreateAndAddNavigationThrottle(registry);
-#endif
+#endif  // BUILDFLAG(ENABLE_GUEST_VIEW)
+
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 
   SupervisedUserGoogleAuthNavigationThrottle::MaybeCreateAndAdd(registry);
   supervised_user::ClassifyUrlNavigationThrottle::MaybeCreateAndAdd(registry);
@@ -441,8 +465,15 @@ void CreateAndAddChromeThrottlesForNavigation(
 #endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) ||
         // BUILDFLAG(IS_CHROMEOS)
 
+  // AimEligibilityRefreshNavigationThrottle must be registered before
+  // ContextualTasksNavigationThrottle so it can detect AIM URL navigations
+  // before ContextualTasksNavigationThrottle intercepts them.
+  AimEligibilityRefreshNavigationThrottle::MaybeCreateAndAdd(registry);
+
 #if !BUILDFLAG(IS_ANDROID)
-  if (base::FeatureList::IsEnabled(contextual_tasks::kContextualTasks)) {
+  if (base::FeatureList::IsEnabled(contextual_tasks::kContextualTasks) ||
+      base::FeatureList::IsEnabled(
+          contextual_tasks::kContextualTasksUrlRedirectToAimUrl)) {
     contextual_tasks::ContextualTasksNavigationThrottle::MaybeCreateAndAdd(
         registry);
   }
@@ -501,8 +532,6 @@ void CreateAndAddChromeThrottlesForNavigation(
   }
 
   payments::PaymentHandlerNavigationThrottle::MaybeCreateAndAdd(registry);
-
-  prerender::NoStatePrefetchNavigationThrottle::MaybeCreateAndAdd(registry);
 
 #if !BUILDFLAG(IS_ANDROID)
   ReadAnythingSidePanelNavigationThrottle::CreateAndAdd(registry);
@@ -580,9 +609,18 @@ void CreateAndAddChromeThrottlesForNavigation(
 #if !BUILDFLAG(IS_ANDROID)
   web_app::IsolatedWebAppThrottle::MaybeCreateAndAdd(registry);
 
-  actor::ActorNavigationThrottle::MaybeCreateAndAdd(registry);
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+  actor::ActorNavigationThrottle::MaybeCreateAndAdd(registry);
+#endif
 
   dom_distiller::DistillerPageWebContents::MaybeCreateAndAddNavigationThrottle(
       registry);
+
+  dom_distiller::DistillerReferrerThrottle::MaybeCreateAndAdd(registry);
+
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+  glic::GlicNavigationThrottle::MaybeCreateAndAdd(registry);
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 }

@@ -56,8 +56,7 @@ ExtensionFunction::ResponseAction SavedpasswordsGetListFunction::Run() {
   Profile* profile = Profile::FromBrowserContext(browser_context());
   scoped_refptr<password_manager::PasswordStoreInterface> password_store =
       ProfilePasswordStoreFactory::GetForProfile(
-          profile,
-                                          ServiceAccessType::EXPLICIT_ACCESS);
+          profile, ServiceAccessType::EXPLICIT_ACCESS);
 
   AddRef();  // Balanced in OnGetPasswordStoreResults
   password_store->GetAllLoginsWithAffiliationAndBrandingInformation(
@@ -200,7 +199,7 @@ void SavedpasswordsGetFunction::OnGetPasswordStoreResults(
     std::vector<std::unique_ptr<password_manager::PasswordForm>> passwords) {
   namespace Results = vivaldi::savedpasswords::Get::Results;
 
-  base::Value::List results;
+  base::ListValue results;
   for (const auto& result : passwords) {
     if (base::UTF16ToUTF8(result->username_value) == username_) {
       results =
@@ -219,9 +218,9 @@ void SavedpasswordsGetFunction::OnGetPasswordStoreResults(
 
 ExtensionFunction::ResponseAction SavedpasswordsCreateDelegateFunction::Run() {
   Profile* profile = Profile::FromBrowserContext(browser_context());
-  //We only need to create the delegate once.
-  //There is no process for deleting the delegate,
-  // so once it's created it lives until browser shutdown.
+  // We only need to create the delegate once.
+  // There is no process for deleting the delegate,
+  //  so once it's created it lives until browser shutdown.
   if (!extensions::PasswordsPrivateDelegateFactory::GetForBrowserContext(
           profile, false)) {
     scoped_refptr<extensions::PasswordsPrivateDelegate>*
@@ -269,8 +268,8 @@ ExtensionFunction::ResponseAction SavedpasswordsAuthenticateFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   VivaldiBrowserWindow* window =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          VivaldiBrowserWindowFromId(params->window_id);
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->window_id);
   if (!window) {
     return RespondNow(Error("No such window"));
   }

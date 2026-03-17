@@ -13,7 +13,7 @@
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
 #import "ios/ui/settings/tabs/vivaldi_ntp_type.h"
 #import "ios/ui/settings/tabs/vivaldi_tab_setting_prefs.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 @interface VivaldiTabSettingsMediator () <BooleanObserver,
                                           PrefObserverDelegate> {
@@ -23,6 +23,7 @@
   PrefBackedBoolean* _showXButtonBackgroundTabsEnabled;
   PrefBackedBoolean* _openNTPOnClosingLastTabEnabled;
   PrefBackedBoolean* _focusOmniboxOnNTPEnabled;
+  PrefBackedBoolean* _swipeToCloseTabEnabled;
 }
 @end
 
@@ -43,40 +44,42 @@
   if (self) {
     _local_prefs = localPrefService;
     _prefService = originalPrefService;
-    _bottomOmniboxEnabled =
-        [[PrefBackedBoolean alloc] initWithPrefService:localPrefService
-            prefName:omnibox::kIsOmniboxInBottomPosition];
+    _bottomOmniboxEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:localPrefService
+                   prefName:omnibox::kIsOmniboxInBottomPosition];
     [_bottomOmniboxEnabled setObserver:self];
 
-    _reverseSearchResultsEnabled =
-        [[PrefBackedBoolean alloc]
-           initWithPrefService:originalPrefService
-              prefName:vivaldiprefs::kVivaldiReverseSearchResultsEnabled];
+    _reverseSearchResultsEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kVivaldiReverseSearchResultsEnabled];
     [_reverseSearchResultsEnabled setObserver:self];
 
-    _tabBarEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                       prefName:vivaldiprefs::kVivaldiDesktopTabsEnabled];
+    _tabBarEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kVivaldiDesktopTabsEnabled];
     [_tabBarEnabled setObserver:self];
 
-    _showXButtonBackgroundTabsEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-               prefName:vivaldiprefs::kVivaldiShowXButtonBackgroundTabsEnabled];
+    _showXButtonBackgroundTabsEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::
+                                kVivaldiShowXButtonBackgroundTabsEnabled];
     [_showXButtonBackgroundTabsEnabled setObserver:self];
 
-    _openNTPOnClosingLastTabEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                prefName:vivaldiprefs::kVivaldiOpenNTPOnClosingLastTabEnabled];
+    _openNTPOnClosingLastTabEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::
+                                kVivaldiOpenNTPOnClosingLastTabEnabled];
     [_openNTPOnClosingLastTabEnabled setObserver:self];
 
-    _focusOmniboxOnNTPEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                prefName:vivaldiprefs::kVivaldiFocusOmniboxOnNTPEnabled];
+    _focusOmniboxOnNTPEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kVivaldiFocusOmniboxOnNTPEnabled];
     [_focusOmniboxOnNTPEnabled setObserver:self];
+
+    _swipeToCloseTabEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kVivaldiSwipeToCloseTabEnabled];
+    [_swipeToCloseTabEnabled setObserver:self];
 
     [self.consumer setPreferenceForVivaldiNTPType:self.newTabSetting
                                           withURL:self.newTabURL];
@@ -87,7 +90,6 @@
         prefs::kInactiveTabsTimeThreshold, &_prefChangeRegistrar);
     [self.consumer
         setPreferenceForInactiveTabsTimeThreshold:[self defaultThreshold]];
-
   }
   return self;
 }
@@ -116,6 +118,10 @@
   [_focusOmniboxOnNTPEnabled stop];
   [_focusOmniboxOnNTPEnabled setObserver:nil];
   _focusOmniboxOnNTPEnabled = nil;
+
+  [_swipeToCloseTabEnabled stop];
+  [_swipeToCloseTabEnabled setObserver:nil];
+  _swipeToCloseTabEnabled = nil;
 
   _prefChangeRegistrar.RemoveAll();
   _prefObserverBridge.reset();
@@ -166,16 +172,23 @@
   return [_focusOmniboxOnNTPEnabled value];
 }
 
+- (BOOL)swipeToCloseTabEnabled {
+  if (!_swipeToCloseTabEnabled) {
+    return NO;
+  }
+  return [_swipeToCloseTabEnabled value];
+}
+
 - (NSString*)homepageURL {
-  return [VivaldiTabSettingPrefs getHomepageUrlWithPrefService: _prefService];
+  return [VivaldiTabSettingPrefs getHomepageUrlWithPrefService:_prefService];
 }
 
 - (VivaldiNTPType)newTabSetting {
-  return [VivaldiTabSettingPrefs getNewTabSettingWithPrefService: _prefService];
+  return [VivaldiTabSettingPrefs getNewTabSettingWithPrefService:_prefService];
 }
 
 - (NSString*)newTabURL {
-  return [VivaldiTabSettingPrefs getNewTabUrlWithPrefService: _prefService];
+  return [VivaldiTabSettingPrefs getNewTabUrlWithPrefService:_prefService];
 }
 
 - (int)defaultThreshold {
@@ -192,16 +205,18 @@
 - (void)setConsumer:(id<VivaldiTabsSettingsConsumer>)consumer {
   _consumer = consumer;
   [self.consumer setPreferenceForOmniboxAtBottom:[self isBottomOmniboxEnabled]];
-  [self.consumer setPreferenceForReverseSearchResultOrder:
-      [self isReverseSearchResultOrder]];
+  [self.consumer
+      setPreferenceForReverseSearchResultOrder:[self
+                                                   isReverseSearchResultOrder]];
   [self.consumer setPreferenceForShowTabBar:[self isTabBarEnabled]];
   [self.consumer
-      setPreferenceShowXButtonInBackgroundTab:
-            [self showXButtonInBackgroundTab]];
+      setPreferenceShowXButtonInBackgroundTab:[self
+                                                  showXButtonInBackgroundTab]];
   [self.consumer
       setPreferenceOpenNTPOnClosingLastTab:[self openNTPOnClosingLastTab]];
+  [self.consumer setPreferenceFocusOmniboxOnNTP:[self focusOmniboxOnNTP]];
   [self.consumer
-      setPreferenceFocusOmniboxOnNTP:[self focusOmniboxOnNTP]];
+      setPreferenceSwipeToCloseTabEnabled:[self swipeToCloseTabEnabled]];
 
   [self.consumer
       setPreferenceForInactiveTabsTimeThreshold:[self defaultThreshold]];
@@ -236,6 +251,11 @@
     [_focusOmniboxOnNTPEnabled setValue:focusOmnibox];
 }
 
+- (void)setPreferenceSwipeToCloseTabEnabled:(BOOL)enabled {
+  if (enabled != [self swipeToCloseTabEnabled])
+    [_swipeToCloseTabEnabled setValue:enabled];
+}
+
 - (void)setPreferenceShowXButtonInBackgroundTab:(BOOL)showXButton {
   if (showXButton != [self showXButtonInBackgroundTab])
     [_showXButtonBackgroundTabsEnabled setValue:showXButton];
@@ -247,9 +267,9 @@
 
 - (void)setPreferenceForVivaldiNTPType:(VivaldiNTPType)setting
                                withURL:(NSString*)url {
-  [VivaldiTabSettingPrefs setNewTabSettingWithPrefService: _prefService
-                                               andSetting: setting
-                                                  withURL: url];
+  [VivaldiTabSettingPrefs setNewTabSettingWithPrefService:_prefService
+                                               andSetting:setting
+                                                  withURL:url];
 }
 
 #pragma mark - BooleanObserver
@@ -258,8 +278,8 @@
   if (observableBoolean == _bottomOmniboxEnabled) {
     [self.consumer setPreferenceForOmniboxAtBottom:[observableBoolean value]];
   } else if (observableBoolean == _reverseSearchResultsEnabled) {
-    [self.consumer setPreferenceForReverseSearchResultOrder:
-        [observableBoolean value]];
+    [self.consumer
+        setPreferenceForReverseSearchResultOrder:[observableBoolean value]];
   } else if (observableBoolean == _tabBarEnabled) {
     [self.consumer setPreferenceForShowTabBar:[observableBoolean value]];
   } else if (observableBoolean == _showXButtonBackgroundTabsEnabled) {
@@ -269,8 +289,10 @@
     [self.consumer
         setPreferenceOpenNTPOnClosingLastTab:[observableBoolean value]];
   } else if (observableBoolean == _focusOmniboxOnNTPEnabled) {
+    [self.consumer setPreferenceFocusOmniboxOnNTP:[observableBoolean value]];
+  } else if (observableBoolean == _swipeToCloseTabEnabled) {
     [self.consumer
-        setPreferenceFocusOmniboxOnNTP:[observableBoolean value]];
+        setPreferenceSwipeToCloseTabEnabled:[observableBoolean value]];
   }
 }
 
@@ -278,9 +300,8 @@
 
 - (void)onPreferenceChanged:(const std::string&)preferenceName {
   if (preferenceName == prefs::kInactiveTabsTimeThreshold) {
-    [_consumer
-        setPreferenceForInactiveTabsTimeThreshold:_local_prefs->GetInteger(
-                                            prefs::kInactiveTabsTimeThreshold)];
+    [_consumer setPreferenceForInactiveTabsTimeThreshold:
+                   _local_prefs->GetInteger(prefs::kInactiveTabsTimeThreshold)];
   }
 }
 

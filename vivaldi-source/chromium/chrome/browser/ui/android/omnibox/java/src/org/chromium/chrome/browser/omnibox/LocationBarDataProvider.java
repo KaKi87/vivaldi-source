@@ -10,7 +10,8 @@ import androidx.annotation.ColorRes;
 import androidx.annotation.DrawableRes;
 import androidx.annotation.StringRes;
 
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.UserDataHost;
+import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;
@@ -118,6 +119,9 @@ public interface LocationBarDataProvider {
     /** Returns the currently active tab, if there is one. */
     @Nullable Tab getTab();
 
+    /** Returns the UserDataHost linked to the current tab (if present) or context (otherwise). */
+    @Nullable UserDataHost getUserDataHost();
+
     /** Returns whether the LocationBarDataProvider currently has an active tab. */
     boolean hasTab();
 
@@ -174,5 +178,5 @@ public interface LocationBarDataProvider {
     int getSecurityIconContentDescriptionResourceId();
 
     /** Returns the user-selected placement of the Toolbar. */
-    ObservableSupplier<@ControlsPosition Integer> getToolbarPositionSupplier();
+    NonNullObservableSupplier<@ControlsPosition Integer> getToolbarPositionSupplier();
 }

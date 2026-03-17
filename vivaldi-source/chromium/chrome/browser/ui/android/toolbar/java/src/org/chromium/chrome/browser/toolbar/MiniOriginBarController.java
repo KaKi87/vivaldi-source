@@ -21,8 +21,8 @@ import androidx.core.view.WindowInsetsAnimationCompat.BoundsCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import org.chromium.base.Callback;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsSizer;
@@ -111,9 +111,9 @@ public class MiniOriginBarController implements Observer {
     private final KeyboardVisibilityListener mKeyboardVisibilityObserver;
     private final Context mContext;
     private final ControlContainer mControlContainer;
-    private final ObservableSupplierImpl<Boolean> mSuppressToolbarSceneLayerSupplier;
+    private final SettableNonNullObservableSupplier<Boolean> mSuppressToolbarSceneLayerSupplier;
     private final BrowserControlsSizer mBrowserControlsSizer;
-    private final ObservableSupplier<Boolean> mIsKeyboardAccessorySheetShowing;
+    private final NonNullObservableSupplier<Boolean> mIsKeyboardAccessorySheetShowing;
     private final MiniOriginWindowInsetsAnimationListener mWindowInsetsAnimationListener;
     private final Callback<Boolean> mAccessorySheetShowingObserver;
     private @MiniOriginState int mMiniOriginBarState = MiniOriginState.NOT_READY;
@@ -146,11 +146,11 @@ public class MiniOriginBarController implements Observer {
             KeyboardVisibilityDelegate keyboardVisibilityDelegate,
             Context context,
             ControlContainer controlContainer,
-            ObservableSupplierImpl<Boolean> suppressToolbarSceneLayerSupplier,
+            SettableNonNullObservableSupplier<Boolean> suppressToolbarSceneLayerSupplier,
             BrowserControlsSizer browserControlsSizer,
             InsetObserver insetObserver,
-            ObservableSupplierImpl<Integer> controlContainerTranslationSupplier,
-            ObservableSupplier<Boolean> isKeyboardAccessorySheetShowing,
+            SettableNonNullObservableSupplier<Integer> controlContainerTranslationSupplier,
+            NonNullObservableSupplier<Boolean> isKeyboardAccessorySheetShowing,
             BooleanSupplier isOmniboxFocusedSupplier) {
         mLocationBar = locationBar;
         mIsFormFieldFocusedSupplier = isFormFieldFocusedSupplier;
@@ -205,7 +205,9 @@ public class MiniOriginBarController implements Observer {
                                     : MiniOriginEvent.KEYBOARD_DISAPPEARED);
                 };
 
-        mIsFormFieldFocusedSupplier.addObserver(mIsFormFieldFocusedObserver);
+        mIsFormFieldFocusedSupplier
+                .getObservable()
+                .addSyncObserverAndPostIfNonNull(mIsFormFieldFocusedObserver);
         mKeyboardVisibilityDelegate.addKeyboardVisibilityListener(mKeyboardVisibilityObserver);
 
         mTouchEventObserver =
@@ -229,7 +231,8 @@ public class MiniOriginBarController implements Observer {
                                 showing
                                         ? MiniOriginEvent.ACCESSORY_SHEET_APPEARED
                                         : MiniOriginEvent.ACCESSORY_SHEET_DISAPPEARED);
-        mIsKeyboardAccessorySheetShowing.addObserver(mAccessorySheetShowingObserver);
+        mIsKeyboardAccessorySheetShowing.addSyncObserverAndPostIfNonNull(
+                mAccessorySheetShowingObserver);
     }
 
     private void updateMiniOriginBarState(@MiniOriginEvent int event) {
@@ -333,7 +336,7 @@ public class MiniOriginBarController implements Observer {
 
     public void destroy() {
         mKeyboardVisibilityDelegate.removeKeyboardVisibilityListener(mKeyboardVisibilityObserver);
-        mIsFormFieldFocusedSupplier.removeObserver(mIsFormFieldFocusedObserver);
+        mIsFormFieldFocusedSupplier.getObservable().removeObserver(mIsFormFieldFocusedObserver);
         mIsKeyboardAccessorySheetShowing.removeObserver(mAccessorySheetShowingObserver);
         mBrowserControlsSizer.removeObserver(this);
         mInsetObserver.removeWindowInsetsAnimationListener(mWindowInsetsAnimationListener);
@@ -362,7 +365,7 @@ public class MiniOriginBarController implements Observer {
     private @MiniOriginState int getNewMiniOriginState(@MiniOriginEvent int miniOriginEvent) {
         switch (mMiniOriginBarState) {
             case MiniOriginState.NOT_READY -> {
-                if (mIsFormFieldFocusedSupplier.getAsBoolean()
+                if (mIsFormFieldFocusedSupplier.get()
                         && mBrowserControlsSizer.getControlsPosition() == ControlsPosition.BOTTOM
                         && !mIsOmniboxFocusedSupplier.getAsBoolean()) {
                     return isKeyboardShowing() ? MiniOriginState.SHOWING : MiniOriginState.READY;
@@ -404,19 +407,20 @@ public class MiniOriginBarController implements Observer {
             }
             case MiniOriginState.SHOWING -> {
                 return switch (miniOriginEvent) {
-                    case MiniOriginEvent.ACCESSORY_SHEET_APPEARED -> MiniOriginState
-                            .SHOWING_WITH_ACCESSORY_SHEET;
-                    case MiniOriginEvent.FORM_FIELD_LOST_FOCUS -> isKeyboardShowing()
-                            ? MiniOriginState.SHOWING
-                            : MiniOriginState.NOT_READY;
+                    case MiniOriginEvent.ACCESSORY_SHEET_APPEARED ->
+                            MiniOriginState.SHOWING_WITH_ACCESSORY_SHEET;
+                    case MiniOriginEvent.FORM_FIELD_LOST_FOCUS ->
+                            isKeyboardShowing()
+                                    ? MiniOriginState.SHOWING
+                                    : MiniOriginState.NOT_READY;
                     case MiniOriginEvent.CONTROLS_POSITION_BECAME_TOP -> MiniOriginState.NOT_READY;
                     case MiniOriginEvent.KEYBOARD_ANIMATION_PREPARED -> MiniOriginState.ANIMATING;
                     case MiniOriginEvent.KEYBOARD_DISAPPEARED ->
-                    // Skip our animation if we get a keyboard disappearance event before the
-                    // animation prepare signal.
-                    mIsFormFieldFocusedSupplier.getAsBoolean()
-                            ? MiniOriginState.READY
-                            : MiniOriginState.NOT_READY;
+                            // Skip our animation if we get a keyboard disappearance event before
+                            // the animation prepare signal.
+                            mIsFormFieldFocusedSupplier.get()
+                                    ? MiniOriginState.READY
+                                    : MiniOriginState.NOT_READY;
                     default -> MiniOriginState.SHOWING;
                 };
             }
@@ -474,8 +478,8 @@ public class MiniOriginBarController implements Observer {
         private int mMaxKeyboardHeight;
         private final KeyboardVisibilityDelegate mKeyboardVisibilityDelegate;
         private final ViewGroup mContainerView;
-        private final ObservableSupplierImpl<Integer> mTranslationSupplier;
-        private final ObservableSupplierImpl<Boolean> mSuppressToolbarSceneLayerSupplier;
+        private final SettableNonNullObservableSupplier<Integer> mTranslationSupplier;
+        private final SettableNonNullObservableSupplier<Boolean> mSuppressToolbarSceneLayerSupplier;
         private final BooleanSupplier mShowingMiniOriginBar;
         private final Runnable mOnAnimationPreparedSignal;
         private final Callback<Boolean> mAnimationEndedSignal;
@@ -492,8 +496,8 @@ public class MiniOriginBarController implements Observer {
         MiniOriginWindowInsetsAnimationListener(
                 KeyboardVisibilityDelegate keyboardVisibilityDelegate,
                 ViewGroup containerView,
-                ObservableSupplierImpl<Integer> translationSupplier,
-                ObservableSupplierImpl<Boolean> suppressToolbarSceneLayerSupplier,
+                SettableNonNullObservableSupplier<Integer> translationSupplier,
+                SettableNonNullObservableSupplier<Boolean> suppressToolbarSceneLayerSupplier,
                 BooleanSupplier showingMiniOriginBar,
                 Runnable animationPreparedSignal,
                 Callback<Boolean> animationEndedSignal,

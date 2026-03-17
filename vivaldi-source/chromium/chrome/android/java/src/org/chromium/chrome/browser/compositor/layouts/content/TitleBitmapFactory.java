@@ -49,7 +49,7 @@ public class TitleBitmapFactory {
 
     // We were drawing up to 1000 characters, but only displaying ~30 in the tab strip. Experiment
     // with a smaller limit.
-    private static final int SMALLER_MAX_NUM_TITLE_CHAR = 100;
+    private static final int SMALLER_MAX_NUM_TITLE_CHAR = 32; // Vivaldi
 
     private final int mMaxWidth;
     private final int mViewHeight;
@@ -137,16 +137,23 @@ public class TitleBitmapFactory {
      */
     public @Nullable Bitmap getFaviconBitmap(Bitmap favicon) {
         assert favicon != null;
+        // Vivaldi
+        final int dim = mFaviconDimension;
+        // Optional fast-path - no need to scale the bitmap, return original.
+        if (favicon.getWidth() == dim && favicon.getHeight() == dim) {
+            return favicon;
+        }
         try {
+            // Note(david@vivaldi.com): We rather scale the image here with the correct density
+            // instead of using a canvas. This allows us to scale the favicons properly.
+            if (ChromeApplicationImpl.isVivaldi()) {
+                return Bitmap.createScaledBitmap(
+                        favicon, mFaviconDimension, mFaviconDimension, false);
+            } else {
             Bitmap b =
                     Bitmap.createBitmap(
                             mFaviconDimension, mFaviconDimension, Bitmap.Config.ARGB_8888);
 
-            // Note(david@vivaldi.com): We rather scale the image here with the correct density
-            // instead of using a canvas. This allows us to scale the favicons properly.
-            if (ChromeApplicationImpl.isVivaldi())
-                b = Bitmap.createScaledBitmap(favicon, mFaviconDimension, mFaviconDimension, false);
-            else {
             Canvas c = new Canvas(b);
             if (favicon.getWidth() > mFaviconDimension || favicon.getHeight() > mFaviconDimension) {
                 float scale =
@@ -159,8 +166,8 @@ public class TitleBitmapFactory {
                         Math.round((mFaviconDimension - favicon.getHeight()) / 2.0f));
             }
             c.drawBitmap(favicon, 0, 0, null);
-            }
             return b;
+            } // Vivaldi
         } catch (OutOfMemoryError ex) {
             Log.e(TAG, "OutOfMemoryError while building favicon texture.");
         } catch (InflateException ex) {
@@ -215,7 +222,13 @@ public class TitleBitmapFactory {
         try {
             final long startTime = SystemClock.elapsedRealtime();
             boolean drawText = !TextUtils.isEmpty(title);
-            int textWidth = drawText ? getTitleWidth(title, textPaint) : 0;
+            // Vivaldi
+            int textWidth;
+            if (ChromeApplicationImpl.isVivaldi()) {
+                final int end = Math.min(SMALLER_MAX_NUM_TITLE_CHAR, title.length());
+                textWidth = drawText ? (int) Math.ceil(textPaint.measureText(title, 0, end)) : 0;
+            } else
+            textWidth = drawText ? getTitleWidth(title, textPaint) : 0;
 
             // Minimum 1 width bitmap to avoid createBitmap function's IllegalArgumentException,
             // when textWidth == 0.

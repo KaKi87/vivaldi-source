@@ -6,7 +6,7 @@
 
 #include "app/vivaldi_constants.h"
 #include "app/vivaldi_resources.h"
-#include "chrome/browser/ui/browser_dialogs.h"
+#include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/webui/privacy_report_ui.h"
 

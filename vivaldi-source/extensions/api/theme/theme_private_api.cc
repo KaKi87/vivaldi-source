@@ -81,8 +81,8 @@ ExtensionFunction::ResponseAction ThemePrivateExportFunction::Run() {
       return RespondNow(
           Error("Both dialogTitle and windowId must be specified"));
     }
-    base::FilePath theme_filename =
-        base::FilePath::FromUTF8Unsafe(*theme_object_.GetDict().FindString("name"));
+    base::FilePath theme_filename = base::FilePath::FromUTF8Unsafe(
+        *theme_object_.GetDict().FindString("name"));
     net::GenerateSafeFileName("application/zip", /*ignore_extension=*/true,
                               &theme_filename);
 
@@ -141,8 +141,7 @@ void ThemePrivateImportFunction::StartImport(
     std::vector<uint8_t> archive_data) {
   vivaldi_theme_io::Import(
       Profile::FromBrowserContext(browser_context())->GetWeakPtr(),
-      base::FilePath(),
-      std::move(archive_data),
+      base::FilePath(), std::move(archive_data),
       base::BindOnce(&ThemePrivateImportFunction::SendResult, this));
 }
 

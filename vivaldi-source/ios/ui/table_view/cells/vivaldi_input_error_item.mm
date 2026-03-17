@@ -2,8 +2,8 @@
 
 #import "ios/ui/table_view/cells/vivaldi_input_error_item.h"
 
-#import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
 #import "ios/chrome/browser/settings/ui_bundled/settings_root_table_view_controller.h"
+#import "ios/chrome/common/ui/table_view/table_view_cells_constants.h"
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
 
 @implementation VivaldiInputErrorItem
@@ -57,11 +57,12 @@
     [contentView addSubview:_textLabel];
 
     // Set up the constraints.
-    [_textLabel fillSuperviewWithPadding:
-      UIEdgeInsetsMake(kTableViewOneLabelCellVerticalSpacing,
-                       kTableViewHorizontalSpacing,
-                       kTableViewOneLabelCellVerticalSpacing,
-                       kTableViewHorizontalSpacing)];
+    [_textLabel
+        fillSuperviewWithPadding:UIEdgeInsetsMake(
+                                     kTableViewOneLabelCellVerticalSpacing,
+                                     kTableViewHorizontalSpacing,
+                                     kTableViewOneLabelCellVerticalSpacing,
+                                     kTableViewHorizontalSpacing)];
   }
   return self;
 }

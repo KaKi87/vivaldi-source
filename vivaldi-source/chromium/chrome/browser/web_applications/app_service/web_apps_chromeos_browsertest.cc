@@ -12,6 +12,7 @@
 #include "ash/public/cpp/shelf_model.h"
 #include "ash/public/cpp/system/toast_manager.h"
 #include "base/run_loop.h"
+#include "base/strings/strcat.h"
 #include "base/test/bind.h"
 #include "base/test/run_until.h"
 #include "base/test/test_future.h"
@@ -28,6 +29,8 @@
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_trust_checker.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
 #include "chrome/browser/web_applications/isolated_web_apps/policy/isolated_web_app_policy_constants.h"
+#include "chrome/browser/web_applications/isolated_web_apps/runtime_data/chrome_iwa_runtime_data_provider.h"
+#include "chrome/browser/web_applications/isolated_web_apps/test/fake_iwa_runtime_data_provider_mixin.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_test_update_server.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/policy_test_utils.h"
@@ -197,8 +200,8 @@ class WebAppsPreventCloseChromeOsBrowserTest
         installed_app_url_ = kCalculatorAppUrl;
         profile()->GetPrefs()->SetList(
             prefs::kWebAppInstallForceList,
-            base::Value::List().Append(
-                base::Value::Dict()
+            base::ListValue().Append(
+                base::DictValue()
                     .Set(web_app::kUrlKey, kCalculatorAppUrl)
                     .Set(web_app::kDefaultLaunchContainerKey,
                          web_app::kDefaultLaunchContainerWindowValue)));
@@ -206,8 +209,8 @@ class WebAppsPreventCloseChromeOsBrowserTest
 
       case AppType::kIsolatedWebApp:
         auto web_bundle_id = web_app::test::GetDefaultEd25519WebBundleId();
-        SetIwaManagedAllowlist({web_bundle_id},
-                               /*component_version=*/base::Version("1.0"));
+        data_provider_->Update(
+            [&](auto& update) { update.AddToManagedAllowlist(web_bundle_id); });
 
         iwa_test_update_server_.AddBundle(
             web_app::IsolatedWebAppBuilder(
@@ -240,9 +243,9 @@ class WebAppsPreventCloseChromeOsBrowserTest
   }
 
   void ResetPolicies() {
-    profile()->GetPrefs()->SetList(prefs::kWebAppSettings, base::Value::List());
+    profile()->GetPrefs()->SetList(prefs::kWebAppSettings, base::ListValue());
     profile()->GetPrefs()->SetList(prefs::kWebAppInstallForceList,
-                                   base::Value::List());
+                                   base::ListValue());
     web_app::WebAppProvider::GetForTest(profile())
         ->command_manager()
         .AwaitAllCommandsCompleteForTesting();
@@ -255,6 +258,8 @@ class WebAppsPreventCloseChromeOsBrowserTest
  protected:
   std::optional<std::string> installed_app_url_;
   web_app::IsolatedWebAppTestUpdateServer iwa_test_update_server_;
+
+  web_app::FakeIwaRuntimeDataProviderMixin data_provider_{&mixin_host_};
 };
 
 IN_PROC_BROWSER_TEST_P(WebAppsPreventCloseChromeOsBrowserTest, CheckMenuModel) {
@@ -262,8 +267,8 @@ IN_PROC_BROWSER_TEST_P(WebAppsPreventCloseChromeOsBrowserTest, CheckMenuModel) {
   InstallApp();
   profile()->GetPrefs()->SetList(
       prefs::kWebAppSettings,
-      base::Value::List().Append(
-          base::Value::Dict()
+      base::ListValue().Append(
+          base::DictValue()
               .Set(web_app::kManifestId, *installed_app_url_)
               .Set(web_app::kRunOnOsLogin, web_app::kRunWindowed)
               .Set(web_app::kPreventClose, IsPreventCloseEnabled())));
@@ -327,8 +332,8 @@ IN_PROC_BROWSER_TEST_P(WebAppsPreventCloseChromeOsBrowserTest,
 
   profile()->GetPrefs()->SetList(
       prefs::kWebAppSettings,
-      base::Value::List().Append(
-          base::Value::Dict()
+      base::ListValue().Append(
+          base::DictValue()
               .Set(web_app::kManifestId, *installed_app_url_)
               .Set(web_app::kRunOnOsLogin, web_app::kRunWindowed)
               .Set(web_app::kPreventClose, IsPreventCloseEnabled())));
@@ -356,8 +361,8 @@ IN_PROC_BROWSER_TEST_P(WebAppsPreventCloseChromeOsBrowserTest,
 
   profile()->GetPrefs()->SetList(
       prefs::kWebAppSettings,
-      base::Value::List().Append(
-          base::Value::Dict()
+      base::ListValue().Append(
+          base::DictValue()
               .Set(web_app::kManifestId, *installed_app_url_)
               .Set(web_app::kRunOnOsLogin, web_app::kRunWindowed)
               .Set(web_app::kPreventClose, IsPreventCloseEnabled())));

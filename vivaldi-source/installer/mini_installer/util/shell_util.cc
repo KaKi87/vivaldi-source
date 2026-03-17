@@ -59,6 +59,7 @@
 #include "chrome/install_static/install_details.h"
 #include "chrome/install_static/install_modes.h"
 #include "chrome/install_static/install_util.h"
+#include "components/base32/base32.h"
 #include "installer/mini_installer/util/beacons.h"
 #include "installer/mini_installer/util/helper.h"
 #include "installer/mini_installer/util/initial_preferences.h"
@@ -70,26 +71,25 @@
 #include "installer/mini_installer/util/taskbar_util.h"
 #include "installer/mini_installer/util/util_constants.h"
 #include "installer/mini_installer/util/work_item.h"
-#include "components/base32/base32.h"
 #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
 #include "vivaldi/installer/mini_installer/util/installer_util_strings.h"
 
 #include "base/file_version_info.h"
 
 #include "chrome/browser/platform_util.h"
-#include "installer/mini_installer/util/install_util.h"
 #include "crypto/obsolete/md5.h"
+#include "installer/mini_installer/util/install_util.h"
 #include "installer/util/vivaldi_install_util.h"
 #include "url/gurl.h"
 
-#include <windows.h>
 #include <shellapi.h>
+#include <windows.h>
 
 namespace vivaldi {
 
 std::wstring GetAppName(const std::wstring& install_path);
 
-} // namespace vivaldi
+}  // namespace vivaldi
 
 using base::win::RegKey;
 
@@ -387,11 +387,10 @@ void GetChromeProgIdEntries(
   if (is_standalone) {
     app_info.app_id = install_static::GetBaseAppId() + suffix;
   } else {
-  // For user-level installs: entries for the app id will be in HKCU; thus we
-  // do not need a suffix on those entries.
-  app_info.app_id =
-      ShellUtil::GetBrowserModelId(InstallUtil::IsPerUserInstall());
-
+    // For user-level installs: entries for the app id will be in HKCU; thus we
+    // do not need a suffix on those entries.
+    app_info.app_id =
+        ShellUtil::GetBrowserModelId(InstallUtil::IsPerUserInstall());
   }
   // TODO(grt): http://crbug.com/75152 Write a reference to a localized
   // resource for name, description, and company.
@@ -504,21 +503,31 @@ void GetShellIntegrationEntries(
       capabilities + L"\\Startmenu", L"StartMenuInternet", reg_app_name));
 
   const std::wstring html_prog_id(GetBrowserProgId(suffix));
-  // Register HTML and PDF Prog IDs (e.g., ChromePDF) with the corresponding
-  // file association.
-  for (int i = 0; ShellUtil::kPotentialFileAssociations[i] != nullptr; i++) {
+  // Associate ordinary files with the HTML Prog ID (e.g., "ChromeHTML").
+  for (auto association : ShellUtil::kPotentialFileAssociations) {
     entries->push_back(std::make_unique<RegistryEntry>(
-        capabilities + L"\\FileAssociations",
-        ShellUtil::kPotentialFileAssociations[i],
-        wcscmp(ShellUtil::kPotentialFileAssociations[i], L".pdf") == 0
-            ? GetPDFProgId(suffix)
-            : html_prog_id));
+        capabilities + L"\\FileAssociations", std::wstring(association),
+        html_prog_id));
   }
-  for (int i = 0; ShellUtil::kPotentialProtocolAssociations[i] != nullptr;
+  // Associate .pdf files with the PDF Prog ID (e.g., "ChromePDF").
+  entries->push_back(std::make_unique<RegistryEntry>(
+      capabilities + L"\\FileAssociations", L".pdf", GetPDFProgId(suffix)));
+
+  for (int i = 0;
+       UNSAFE_TODO(ShellUtil::kPotentialProtocolAssociations[i]) != nullptr;
        i++) {
     entries->push_back(std::make_unique<RegistryEntry>(
         capabilities + L"\\URLAssociations",
-        ShellUtil::kPotentialProtocolAssociations[i], html_prog_id));
+        UNSAFE_TODO(ShellUtil::kPotentialProtocolAssociations[i]),
+        html_prog_id));
+  }
+
+  // Add the direct launch URL scheme if one is defined for this mode.
+  const char* direct_launch_scheme = install_static::GetDirectLaunchUrlScheme();
+  if (direct_launch_scheme && *direct_launch_scheme) {
+    entries->push_back(std::make_unique<RegistryEntry>(
+        capabilities + L"\\URLAssociations",
+        base::ASCIIToWide(direct_launch_scheme), html_prog_id));
   }
 }
 
@@ -527,7 +536,7 @@ void GetShellIntegrationEntries(
 // application. |ext| is the file extension, which must begin with a '.'.
 void GetAppExtRegistrationEntries(
     const std::wstring& prog_id,
-    const std::wstring& ext,
+    std::wstring_view ext,
     std::vector<std::unique_ptr<RegistryEntry>>* entries) {
   // In HKEY_CURRENT_USER\Software\Classes\EXT\OpenWithProgids, create an
   // empty value with this class's ProgId.
@@ -560,10 +569,15 @@ void GetChromeAppRegistrationEntries(
       chrome_exe.DirName().value()));
 
   const std::wstring html_prog_id(GetBrowserProgId(suffix));
-  for (int i = 0; ShellUtil::kPotentialFileAssociations[i] != nullptr; i++) {
-    GetAppExtRegistrationEntries(
-        html_prog_id, ShellUtil::kPotentialFileAssociations[i], entries);
+  for (auto association : ShellUtil::kPotentialFileAssociations) {
+    GetAppExtRegistrationEntries(html_prog_id, association, entries);
   }
+  GetAppExtRegistrationEntries(GetPDFProgId(suffix), L".pdf", entries);
+
+  // Remove the faulty registration of the main HTML Prog Id with .pdf files.
+  // Remove this in 2028.
+  GetAppExtRegistrationEntries(html_prog_id, L".pdf", entries);
+  entries->back()->set_removal_flag(RegistryEntry::RemovalFlag::VALUE);
 }
 
 // Gets the registry entries to register an application as the default handler
@@ -672,6 +686,34 @@ bool AreEntriesAsDesired(
   return true;
 }
 
+// This method returns a list of all the registry entries that are needed to
+// register the direct launch URI scheme (e.g. "google-chrome://").
+void GetDirectLaunchEntries(
+    const base::FilePath& chrome_exe,
+    std::vector<std::unique_ptr<RegistryEntry>>* entries) {
+  const char* scheme_char = install_static::GetDirectLaunchUrlScheme();
+  if (!scheme_char || *scheme_char == '\0') {
+    return;
+  }
+  const std::wstring scheme = base::ASCIIToWide(scheme_char);
+  std::wstring url_key =
+      base::StrCat({ShellUtil::kRegClasses, kFilePathSeparator, scheme});
+
+  // <root hkey>\SOFTWARE\Classes\<scheme>:
+  // - "" (default value) REG_SZ: "URL:google-chrome"
+  // - "URL Protocol" REG_SZ: (empty string)
+  entries->push_back(std::make_unique<RegistryEntry>(
+      url_key, base::StrCat({L"URL:", scheme})));
+  entries->push_back(std::make_unique<RegistryEntry>(
+      url_key, ShellUtil::kRegUrlProtocol, std::wstring()));
+
+  // <root hkey>\SOFTWARE\Classes\<scheme>\ShellUtil::kRegShellOpen:
+  // - "" (default value) REG_SZ: ShellUtil::GetChromeShellOpenCmd()
+  std::wstring shell_key = url_key + ShellUtil::kRegShellOpen;
+  entries->push_back(std::make_unique<RegistryEntry>(
+      shell_key, ShellUtil::GetChromeShellOpenCmd(chrome_exe)));
+}
+
 // Checks that all required registry entries for Chrome are already present on
 // this computer (or absent if their |removal_flag_| is set).
 // See RegistryEntry::ExistsInRegistry for the behavior of |look_for_in|.
@@ -689,6 +731,7 @@ bool IsChromeRegistered(const base::FilePath& chrome_exe,
   GetChromeProgIdEntries(chrome_exe, suffix, &entries);
   GetShellIntegrationEntries(chrome_exe, suffix, &entries);
   GetChromeAppRegistrationEntries(chrome_exe, suffix, &entries);
+  GetDirectLaunchEntries(chrome_exe, &entries);
   return AreEntriesAsDesired(entries, look_for_in);
 }
 
@@ -726,8 +769,8 @@ bool ElevateAndRegisterChrome(
   // which is the canonical location of the installer for all types of installs
   // (see AddUninstallShortcutWorkItems).
   const bool is_per_user = InstallUtil::IsPerUserInstall();
-  if (base::CommandLine::ForCurrentProcess()->
-      HasSwitch(vivaldi::constants::kVivaldiStandalone)) {
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          vivaldi::constants::kVivaldiStandalone)) {
     std::unique_ptr<FileVersionInfo> version_info(
         FileVersionInfo::CreateFileVersionInfo(chrome_exe));
     if (version_info.get()) {
@@ -737,17 +780,17 @@ bool ElevateAndRegisterChrome(
       exe_path = exe_path.Append(installer::kSetupExe);
     }
   } else {
-  exe_path = chrome_exe.DirName().Append(installer::kSetupExe);
-  if (!base::PathExists(exe_path)) {
-    RegKey key(is_per_user ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE,
-               install_static::GetClientStateKeyPath().c_str(),
-               KEY_QUERY_VALUE | KEY_WOW64_32KEY);
-    std::wstring uninstall_string;
-    if (key.ReadValue(installer::kUninstallStringField, &uninstall_string) ==
-        ERROR_SUCCESS) {
-      exe_path = base::FilePath(uninstall_string);
+    exe_path = chrome_exe.DirName().Append(installer::kSetupExe);
+    if (!base::PathExists(exe_path)) {
+      RegKey key(is_per_user ? HKEY_CURRENT_USER : HKEY_LOCAL_MACHINE,
+                 install_static::GetClientStateKeyPath().c_str(),
+                 KEY_QUERY_VALUE | KEY_WOW64_32KEY);
+      std::wstring uninstall_string;
+      if (key.ReadValue(installer::kUninstallStringField, &uninstall_string) ==
+          ERROR_SUCCESS) {
+        exe_path = base::FilePath(uninstall_string);
+      }
     }
-  }
   }
 
   if (base::PathExists(exe_path)) {
@@ -1341,9 +1384,7 @@ bool BatchShortcutAction(
 bool RemoveShortcutFolderIfEmpty(ShellUtil::ShortcutLocation location,
                                  ShellUtil::ShellChange level) {
   // Explicitly allow locations, since accidental calls can be very harmful.
-  if (location !=
-          ShellUtil::SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED &&
-      location != ShellUtil::SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR &&
+  if (location != ShellUtil::SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR &&
       location != ShellUtil::SHORTCUT_LOCATION_APP_SHORTCUTS) {
     NOTREACHED();
   }
@@ -1398,7 +1439,7 @@ ShellUtil::ProtocolAssociations GetBrowserProtocolAssociation(
   return protocol_associations;
 }
 
-} // anonymous namespace
+}  // anonymous namespace
 
 #include "installer/win/vivaldi_shell_util.inc"
 
@@ -1455,6 +1496,7 @@ bool RegisterChromeBrowserImpl(const base::FilePath& chrome_exe,
     GetChromeAppRegistrationEntries(chrome_exe, suffix,
                                     &progid_and_appreg_entries);
     GetShellIntegrationEntries(chrome_exe, suffix, &shell_entries);
+    GetDirectLaunchEntries(chrome_exe, &shell_entries);
     const std::wstring html_prog_id = GetBrowserProgId(suffix);
     return ShellUtil::AddRegistryEntries(root, progid_and_appreg_entries,
                                          best_effort_no_rollback) &&
@@ -1615,11 +1657,6 @@ const wchar_t* ShellUtil::kAppPathsRegistryPathName = L"Path";
 
 const wchar_t* ShellUtil::kDefaultFileAssociations[] = {
     L".htm", L".html", L".shtml", L".xht", L".xhtml", nullptr};
-const wchar_t* ShellUtil::kPotentialFileAssociations[] = {
-    L".htm", L".html",
-    L".mht",
-    L".mhtml", L".pdf",  L".shtml",
-    L".svg", L".xht",  L".xhtml", L".webp", nullptr};
 const wchar_t* ShellUtil::kBrowserProtocolAssociations[] = {L"http", L"https",
                                                             nullptr};
 const wchar_t* ShellUtil::kPotentialProtocolAssociations[] = {
@@ -1664,13 +1701,12 @@ bool ShellUtil::QuickIsChromeRegisteredInHKLM(const base::FilePath& chrome_exe,
 
 bool ShellUtil::ShortcutLocationIsSupported(ShortcutLocation location) {
   switch (location) {
-    case SHORTCUT_LOCATION_DESKTOP:                           // Falls through.
-    case SHORTCUT_LOCATION_QUICK_LAUNCH:                      // Falls through.
-    case SHORTCUT_LOCATION_START_MENU_ROOT:                   // Falls through.
-    case SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED:  // Falls through.
-    case SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR:        // Falls through.
-    case SHORTCUT_LOCATION_STARTUP:                           // Falls through.
-    case SHORTCUT_LOCATION_TASKBAR_PINS:                      // Falls through.
+    case SHORTCUT_LOCATION_DESKTOP:                     // Falls through.
+    case SHORTCUT_LOCATION_QUICK_LAUNCH:                // Falls through.
+    case SHORTCUT_LOCATION_START_MENU_ROOT:             // Falls through.
+    case SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR:  // Falls through.
+    case SHORTCUT_LOCATION_STARTUP:                     // Falls through.
+    case SHORTCUT_LOCATION_TASKBAR_PINS:                // Falls through.
     case SHORTCUT_LOCATION_APP_SHORTCUTS:
       return true;
     default:
@@ -1697,11 +1733,6 @@ bool ShellUtil::GetShortcutPath(ShortcutLocation location,
     case SHORTCUT_LOCATION_START_MENU_ROOT:
       dir_key = (level == CURRENT_USER) ? base::DIR_START_MENU
                                         : base::DIR_COMMON_START_MENU;
-      break;
-    case SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED:
-      dir_key = (level == CURRENT_USER) ? base::DIR_START_MENU
-                                        : base::DIR_COMMON_START_MENU;
-      folder_to_append = InstallUtil::GetChromeShortcutDirNameDeprecated();
       break;
     case SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR:
       dir_key = (level == CURRENT_USER) ? base::DIR_START_MENU
@@ -1762,29 +1793,6 @@ void ShellUtil::AddDefaultShortcutProperties(const base::FilePath& target_exe,
   }
 }
 
-bool ShellUtil::MoveExistingShortcut(ShortcutLocation old_location,
-                                     ShortcutLocation new_location,
-                                     const ShortcutProperties& properties) {
-  // Explicitly allow locations to which this is applicable.
-  if (old_location != SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED ||
-      new_location != SHORTCUT_LOCATION_START_MENU_ROOT) {
-    NOTREACHED();
-  }
-
-  std::wstring shortcut_name(ExtractShortcutNameFromProperties(properties));
-
-  base::FilePath old_shortcut_path;
-  base::FilePath new_shortcut_path;
-  GetShortcutPath(old_location, properties.level, &old_shortcut_path);
-  GetShortcutPath(new_location, properties.level, &new_shortcut_path);
-  old_shortcut_path = old_shortcut_path.Append(shortcut_name);
-  new_shortcut_path = new_shortcut_path.Append(shortcut_name);
-
-  bool result = base::Move(old_shortcut_path, new_shortcut_path);
-  RemoveShortcutFolderIfEmpty(old_location, properties.level);
-  return result;
-}
-
 bool ShellUtil::TranslateShortcutCreationOrUpdateInfo(
     ShortcutLocation location,
     const ShortcutProperties& properties,
@@ -1797,7 +1805,6 @@ bool ShellUtil::TranslateShortcutCreationOrUpdateInfo(
   if (location != SHORTCUT_LOCATION_DESKTOP &&
       location != SHORTCUT_LOCATION_QUICK_LAUNCH &&
       location != SHORTCUT_LOCATION_START_MENU_ROOT &&
-      location != SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED &&
       location != SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR) {
     DLOG(ERROR) << "Invalid shortcut location " << location;
     return false;
@@ -1880,8 +1887,8 @@ bool ShellUtil::CreateOrUpdateShortcut(ShortcutLocation location,
   std::optional<bool> override_pinning =
       IsShortcutPinnedToTaskbar(shortcut_path);
   if (shortcut_operation == base::win::ShortcutOperation::kCreateAlways &&
-        properties.pin_to_taskbar && CanPinShortcutToTaskbar() &&
-        !(override_pinning == true)) {
+      properties.pin_to_taskbar && CanPinShortcutToTaskbar() &&
+      !(override_pinning == true)) {
     bool pin_succeeded = PinShortcutToTaskbar(shortcut_path);
     LOG_IF(ERROR, !pin_succeeded)
         << "Failed to pin to taskbar " << shortcut_path.value();
@@ -1942,14 +1949,14 @@ std::wstring ShellUtil::GetCurrentInstallationSuffix(
   if (command_line.HasSwitch(vivaldi::constants::kVivaldiStandalone)) {
     vivaldi::GetPathSpecificSuffix(chrome_exe, &tested_suffix);
   } else if (InstallUtil::IsPerUserInstall() &&
-      (!GetUserSpecificRegistrySuffix(&tested_suffix) ||
-       !QuickIsChromeRegistered(chrome_exe, tested_suffix,
-                                CONFIRM_PROGID_REGISTRATION)) &&
-      (!GetOldUserSpecificRegistrySuffix(&tested_suffix) ||
-       !QuickIsChromeRegistered(chrome_exe, tested_suffix,
-                                CONFIRM_PROGID_REGISTRATION)) &&
-      !QuickIsChromeRegistered(chrome_exe, tested_suffix.erase(),
-                               CONFIRM_PROGID_REGISTRATION)) {
+             (!GetUserSpecificRegistrySuffix(&tested_suffix) ||
+              !QuickIsChromeRegistered(chrome_exe, tested_suffix,
+                                       CONFIRM_PROGID_REGISTRATION)) &&
+             (!GetOldUserSpecificRegistrySuffix(&tested_suffix) ||
+              !QuickIsChromeRegistered(chrome_exe, tested_suffix,
+                                       CONFIRM_PROGID_REGISTRATION)) &&
+             !QuickIsChromeRegistered(chrome_exe, tested_suffix.erase(),
+                                      CONFIRM_PROGID_REGISTRATION)) {
     // If Chrome is not registered under any of the possible suffixes (e.g.
     // tests, Canary, etc.): use the new-style suffix at run-time.
     if (!GetUserSpecificRegistrySuffix(&tested_suffix)) {
@@ -2069,7 +2076,8 @@ bool ShellUtil::ShowMakeChromeDefaultSystemUI(
   bool succeeded = true;
   bool is_default = (GetChromeDefaultState() == IS_DEFAULT);
   bool is_win11_or_greater =
-      base::win::GetVersion() >= base::win::Version::WIN10_21H2; // Vivadi include older windows
+      base::win::GetVersion() >=
+      base::win::Version::WIN10_21H2;  // Vivadi include older windows
   if (!is_default) {
     if (is_win11_or_greater) {
       // Launch the Windows Apps Settings dialog and navigate to the settings
@@ -2094,11 +2102,12 @@ ShellUtil::ShowSystemUIResult ShellUtil::ShowSetDefaultForFileExtensionSystemUI(
   // Ensure `file_extension` is correctly formatted and is one of the extensions
   // Chrome handles.
   DCHECK(file_extension.starts_with(base::FilePath::kExtensionSeparator));
-  DCHECK(std::ranges::any_of(base::span(ShellUtil::kPotentialFileAssociations),
-                             [&file_extension](const wchar_t* candidate) {
+  DCHECK(std::ranges::any_of(ShellUtil::kPotentialFileAssociations,
+                             [&file_extension](std::wstring_view candidate) {
                                return base::FilePath::CompareEqualIgnoreCase(
                                    file_extension, candidate);
-                             }));
+                             }) ||
+         base::FilePath::CompareEqualIgnoreCase(file_extension, L".pdf"));
   // If Chrome is not eligible to become the default handler, do nothing.
   if (!install_static::SupportsSetAsDefaultBrowser() ||
       !RegisterChromeBrowser(chrome_exe, std::wstring(), true)) {
@@ -2301,10 +2310,8 @@ bool ShellUtil::RemoveShortcuts(
       BatchShortcutAction(shortcut_filter.AsShortcutFilterCallback(),
                           shortcut_operation, location, level, nullptr);
   // Remove chrome-specific shortcut folders if they are now empty.
-  if (success &&
-      (location == SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED ||
-       location == SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR ||
-       location == SHORTCUT_LOCATION_APP_SHORTCUTS)) {
+  if (success && (location == SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR ||
+                  location == SHORTCUT_LOCATION_APP_SHORTCUTS)) {
     success = RemoveShortcutFolderIfEmpty(location, level);
   }
   return success;

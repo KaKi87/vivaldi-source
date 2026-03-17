@@ -236,6 +236,11 @@ class CopyTextureForBrowserTests : public Parent {
 
     void SetUp() override {
         Parent::SetUp();
+
+        // TODO(crbug.com/40238674): Fails on Pixel 10 gles on compilation so it must be skipped at
+        // this level.
+        DAWN_SUPPRESS_TEST_IF(this->IsImgTec() && this->IsOpenGLES());
+
         pipeline = MakeTestPipeline();
 
         uint32_t uniformBufferData[] = {
@@ -1109,30 +1114,40 @@ class CopyTextureForBrowser_ColorSpace
 // Verify CopyTextureForBrowserTests works with internal pipeline.
 // The case do copy without any transform.
 TEST_P(CopyTextureForBrowser_Basic, PassthroughCopy) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     DAWN_SUPPRESS_TEST_IF(IsOpenGL() && IsLinux());
 
     DoBasicCopyTest({10, 1});
 }
 
 TEST_P(CopyTextureForBrowser_Basic, VerifyCopyOnXDirection) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     DAWN_SUPPRESS_TEST_IF(IsOpenGL() && IsLinux());
 
     DoBasicCopyTest({1000, 1});
 }
 
 TEST_P(CopyTextureForBrowser_Basic, VerifyCopyOnYDirection) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     DAWN_SUPPRESS_TEST_IF(IsOpenGL() && IsLinux());
 
     DoBasicCopyTest({1, 1000});
 }
 
 TEST_P(CopyTextureForBrowser_Basic, VerifyCopyFromLargeTexture) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     DAWN_SUPPRESS_TEST_IF(IsOpenGL() && IsLinux());
 
     DoBasicCopyTest({899, 999});
 }
 
 TEST_P(CopyTextureForBrowser_Basic, VerifyFlipY) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     DAWN_SUPPRESS_TEST_IF(IsOpenGL() && IsLinux());
 
     wgpu::CopyTextureForBrowserOptions options = {};
@@ -1142,6 +1157,8 @@ TEST_P(CopyTextureForBrowser_Basic, VerifyFlipY) {
 }
 
 TEST_P(CopyTextureForBrowser_Basic, VerifyFlipYInSlimTexture) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     DAWN_SUPPRESS_TEST_IF(IsOpenGL() && IsLinux());
 
     wgpu::CopyTextureForBrowserOptions options = {};
@@ -1162,6 +1179,8 @@ DAWN_INSTANTIATE_TEST(CopyTextureForBrowser_Basic,
 // Verify |CopyTextureForBrowser| doing color conversion correctly when
 // the source texture is RGBA8Unorm format.
 TEST_P(CopyTextureForBrowser_Formats, ColorConversion) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     // BGRA8UnormSrgb is unsupported in Compatibility mode.
     DAWN_TEST_UNSUPPORTED_IF(IsCompatibilityMode() &&
                              GetParam().mDstFormat == wgpu::TextureFormat::BGRA8UnormSrgb);
@@ -1200,6 +1219,8 @@ DAWN_INSTANTIATE_TEST_P(CopyTextureForBrowser_Formats,
 // green texture originally. After the subrect copy, affected part
 // in dst texture should be red and other part should remain green.
 TEST_P(CopyTextureForBrowser_SubRects, CopySubRect) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     DAWN_SUPPRESS_TEST_IF(IsOpenGL() && IsLinux());
 
     // Tests skip due to crbug.com/dawn/592.
@@ -1222,6 +1243,8 @@ DAWN_INSTANTIATE_TEST_P(CopyTextureForBrowser_SubRects,
 // Verify |CopyTextureForBrowser| doing alpha changes.
 // Test srcAlphaMode and dstAlphaMode: Premultiplied, Unpremultiplied.
 TEST_P(CopyTextureForBrowser_AlphaMode, alphaMode) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     DAWN_SUPPRESS_TEST_IF(IsOpenGL() && IsLinux());
 
     // Tests skip due to crbug.com/dawn/1104.
@@ -1241,6 +1264,8 @@ DAWN_INSTANTIATE_TEST_P(
 
 // Verify |CopyTextureForBrowser| doing color space conversion.
 TEST_P(CopyTextureForBrowser_ColorSpace, colorSpaceConversion) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     DAWN_SUPPRESS_TEST_IF(IsOpenGL() && IsLinux());
 
     // Tests skip due to crbug.com/dawn/1104.

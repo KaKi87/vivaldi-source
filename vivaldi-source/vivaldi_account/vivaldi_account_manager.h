@@ -112,7 +112,9 @@ class VivaldiAccountManager : public KeyedService,
   bool has_refresh_token() const { return !refresh_token_.empty(); }
   // Whether an encrypted refresh token was found after a browser restart, but
   // could not be decrypted.
-  bool has_encrypted_refresh_token() const { return has_encrypted_refresh_token_; }
+  bool has_encrypted_refresh_token() const {
+    return has_encrypted_refresh_token_;
+  }
 
   std::string access_token() const { return access_token_; }
   base::Time token_received_time() const { return token_received_time_; }
@@ -143,7 +145,7 @@ class VivaldiAccountManager : public KeyedService,
  private:
   void OnTokenRequestDone(bool using_password,
                           std::unique_ptr<network::SimpleURLLoader> url_loader,
-                          std::unique_ptr<std::string> response_body);
+                          std::optional<std::string> response_body);
   bool UpdateAccountInfoFromJwt(const std::string& jwt);
 
   void NotifyAccountUpdated();

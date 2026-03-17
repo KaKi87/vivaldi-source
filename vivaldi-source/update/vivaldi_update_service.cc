@@ -63,9 +63,9 @@ bool VivaldiUpdateService::Init() {
   // Create the update backend.
   scoped_refptr<VivaldiUpdateBackend> backend(new VivaldiUpdateBackend(
       new VivaldiUpdateBackendDelegate(
-                            weak_ptr_factory_.GetWeakPtr(),
-                            base::SingleThreadTaskRunner::GetCurrentDefault()),
-                        backend_task_runner_));
+          weak_ptr_factory_.GetWeakPtr(),
+          base::SingleThreadTaskRunner::GetCurrentDefault()),
+      backend_task_runner_));
   update_backend_.swap(backend);
   ScheduleTask(base::BindOnce(&VivaldiUpdateBackend::Init, update_backend_));
 
@@ -123,8 +123,8 @@ void VivaldiUpdateService::Cleanup() {
 }
 
 void VivaldiUpdateService::OnUpdgradeProgress(const AutoUpdateStatus& status,
-                                       const std::string& reason,
-                                       const int progress) {
+                                              const std::string& reason,
+                                              const int progress) {
   for (VivaldiUpdateModelObserver& observer : observers_) {
     observer.OnUpdateProgress(this, status, reason, progress);
   }

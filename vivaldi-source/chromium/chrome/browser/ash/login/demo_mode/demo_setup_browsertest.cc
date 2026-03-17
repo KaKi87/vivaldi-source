@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include <string>
 #include <string_view>
 
@@ -15,6 +10,7 @@
 #include "ash/constants/ash_switches.h"
 #include "ash/public/cpp/login_accelerators.h"
 #include "base/command_line.h"
+#include "base/compiler_specific.h"
 #include "base/containers/flat_map.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
@@ -77,6 +73,7 @@
 #include "chromeos/ash/experiences/arc/arc_util.h"
 #include "chromeos/constants/chromeos_features.h"
 #include "components/component_updater/ash/fake_component_manager_ash.h"
+#include "components/policy/core/common/cloud/cloud_policy_constants.h"
 #include "components/policy/core/common/cloud/mock_cloud_policy_store.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/browser_test.h"
@@ -327,7 +324,8 @@ class DemoSetupTestBase : public OobeBaseTest {
  private:
   // TODO(agawronska): Maybe create a separate test fixture for offline setup.
   base::ScopedTempDir fake_demo_resources_dir_;
-  policy::MockCloudPolicyStore mock_policy_store_;
+  policy::MockCloudPolicyStore mock_policy_store_{
+      policy::dm_protocol::GetChromeUserPolicyType()};
   std::unique_ptr<base::AutoReset<bool>> branded_build_override_;
 };
 
@@ -1163,7 +1161,7 @@ IN_PROC_BROWSER_TEST_F(DemoSetupProgressStepsTest,
   ASSERT_EQ(CountNumberOfStepsInUi(), numSteps);
 
   for (int i = 0; i < numSteps; i++) {
-    demoSetupScreen->SetCurrentSetupStepForTest(orderedSteps[i]);
+    demoSetupScreen->SetCurrentSetupStepForTest(UNSAFE_TODO(orderedSteps[i]));
     ASSERT_EQ(CountStepsInUi("pending"), numSteps - i - 1);
     ASSERT_EQ(CountStepsInUi("active"), 1);
     ASSERT_EQ(CountStepsInUi("completed"), i);

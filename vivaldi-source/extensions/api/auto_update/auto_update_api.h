@@ -43,14 +43,15 @@ struct FilePathResult {
 // events to the extension system.
 class UpdateEventRouter : public VivaldiUpdateModelObserver {
  public:
-  explicit UpdateEventRouter(Profile* profile, VivaldiUpdateService* update_service);
+  explicit UpdateEventRouter(Profile* profile,
+                             VivaldiUpdateService* update_service);
   ~UpdateEventRouter() override;
 
  private:
   // Helper to actually dispatch an event to extension listeners.
   void DispatchEvent(Profile* profile,
                      const std::string& event_name,
-                     base::Value::List event_args);
+                     base::ListValue event_args);
 
   // VivaldiUpdateModelObserver
   void OnUpdateProgress(VivaldiUpdateService* service,
@@ -59,7 +60,8 @@ class UpdateEventRouter : public VivaldiUpdateModelObserver {
                         const int progress) override;
 
   const raw_ptr<Profile> profile_;
-  base::ScopedObservation<update::VivaldiUpdateService, VivaldiUpdateModelObserver>
+  base::ScopedObservation<update::VivaldiUpdateService,
+                          VivaldiUpdateModelObserver>
       update_service_observation_{this};
 };
 

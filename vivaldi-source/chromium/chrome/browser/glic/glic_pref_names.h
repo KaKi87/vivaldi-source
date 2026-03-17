@@ -5,6 +5,8 @@
 #ifndef CHROME_BROWSER_GLIC_GLIC_PREF_NAMES_H_
 #define CHROME_BROWSER_GLIC_GLIC_PREF_NAMES_H_
 
+#include "build/build_config.h"
+
 class PrefRegistrySimple;
 namespace user_prefs {
 class PrefRegistrySyncable;
@@ -30,6 +32,14 @@ inline constexpr char kGlicFocusToggleHotkey[] = "glic.focus_toggle_hotkey";
 // been, of a subscription tier that should enable multi-instance.
 inline constexpr char kGlicMultiInstanceEnabledBySubscriptionTier[] =
     "glic.multi_instance_enabled_by_tier";
+
+// String prefs that keep track of user-configured Glic guest URL presets for
+// different environments.
+inline constexpr char kGlicGuestUrlPresetAutopush[] =
+    "glic.guest_url_preset_autopush";
+inline constexpr char kGlicGuestUrlPresetPreprod[] =
+    "glic.guest_url_preset_preprod";
+inline constexpr char kGlicGuestUrlPresetProd[] = "glic.guest_url_preset_prod";
 
 // ************* PROFILE PREFS ***************
 // Prefs below are tied to a user profile
@@ -114,6 +124,13 @@ enum class GlicActuationOnWebPolicyState {
 };
 // This perf is only applicable to enterprise accounts.
 inline constexpr char kGlicActuationOnWeb[] = "glic.actuation_on_web";
+
+// List prefs for allow/blocklists of URLs for more granular control than
+// `kGlicActuationOnWeb`.
+inline constexpr char kGlicActuationOnWebAllowedForURLs[] =
+    "glic.actuation_on_web_allowed_for_urls";
+inline constexpr char kGlicActuationOnWebBlockedForURLs[] =
+    "glic.actuation_on_web_blocked_for_urls";
 
 // Boolean pref for the user enabled actuation on web setting.
 inline constexpr char kGlicUserEnabledActuationOnWeb[] =

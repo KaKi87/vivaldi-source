@@ -10,10 +10,10 @@
 
 #include "base/files/file_util.h"
 #include "base/logging.h"
-#include "installer/mini_installer/util/lzma_util.h"
 #include "components/zucchini/zucchini.h"
 #include "components/zucchini/zucchini_integration.h"
 #include "installer/mini_installer/thirdparty/bspatch/mbspatch.h"
+#include "installer/mini_installer/util/lzma_util.h"
 
 namespace installer {
 

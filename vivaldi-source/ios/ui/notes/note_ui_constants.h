@@ -99,7 +99,7 @@ extern CGFloat vNoteFolderSelectionHeaderViewHeight;
 
 #pragma mark - OTHERS
 // Maximum number of entries to fetch when searching on notes folder page.
-extern const int vMaxNoteFolderSearchResults; // TODO
+extern const int vMaxNoteFolderSearchResults;  // TODO
 
 #pragma mark - MARKDOWN
 extern NSString* vMarkdownLibraryBundleName;

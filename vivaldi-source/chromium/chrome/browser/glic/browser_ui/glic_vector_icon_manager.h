@@ -5,6 +5,8 @@
 #ifndef CHROME_BROWSER_GLIC_BROWSER_UI_GLIC_VECTOR_ICON_MANAGER_H_
 #define CHROME_BROWSER_GLIC_BROWSER_UI_GLIC_VECTOR_ICON_MANAGER_H_
 
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+
 #include "chrome/browser/glic/resources/grit/glic_browser_resources.h"
 #include "ui/gfx/vector_icon_types.h"
 
@@ -21,4 +23,5 @@ class GlicVectorIconManager {
 
 }  // namespace glic
 
+#endif
 #endif  // CHROME_BROWSER_GLIC_BROWSER_UI_GLIC_VECTOR_ICON_MANAGER_H_

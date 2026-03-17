@@ -73,10 +73,12 @@ base::FilePath GetProfileDir(user_data_importer::ImporterType importerType) {
       profile_path = app_data_path.AppendASCII("Microsoft\\Edge\\User Data");
       break;
     case user_data_importer::TYPE_ARC:
-      profile_path = app_data_path.AppendASCII("The Browser Company\\Arc\\User Data");
+      profile_path =
+          app_data_path.AppendASCII("The Browser Company\\Arc\\User Data");
       break;
     case user_data_importer::TYPE_OPERA_GX:
-      profile_path = app_data_path.AppendASCII("Opera Software\\Opera GX Stable");
+      profile_path =
+          app_data_path.AppendASCII("Opera Software\\Opera GX Stable");
       break;
     default:
       profile_path = app_data_path.AppendASCII("not-supported");

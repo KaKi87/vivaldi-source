@@ -172,7 +172,7 @@ IN_PROC_BROWSER_TEST_P(KioskRemoteCommandTest, SetVolumeWithRemoteCommand) {
       NewRemoteCommandBuilder()
           .SetType(em::RemoteCommand_Type_DEVICE_SET_VOLUME)
           .SetPayload(
-              base::WriteJson(base::Value::Dict()  //
+              base::WriteJson(base::DictValue()  //
                                   .Set("volume", kExpectedVolumePercent))
                   .value())
           .Build());
@@ -211,7 +211,6 @@ IN_PROC_BROWSER_TEST_P(KioskRemoteCommandTest, ScreenshotWithRemoteCommand) {
   ASSERT_TRUE(WaitKioskLaunched());
 
   // Skips real image upload.
-  // TODO(crbug.com/269432279): Try real upload with embedded test server.
   policy::DeviceCommandsFactoryAsh::set_commands_for_testing(true);
 
   auto response = IssueCommandAndGetResponse(

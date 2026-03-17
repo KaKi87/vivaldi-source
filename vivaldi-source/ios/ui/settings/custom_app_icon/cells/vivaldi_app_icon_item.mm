@@ -50,9 +50,9 @@ const CGSize iconViewShadowOffset = CGSizeMake(0, 1);
   [cell setDetailText:self.detailText];
 
   [cell setIconImage:self.iconImage
-           tintColor:self.iconTintColor
-     backgroundColor:self.iconBackgroundColor
-        cornerRadius:self.iconCornerRadius];
+            tintColor:self.iconTintColor
+      backgroundColor:self.iconBackgroundColor
+         cornerRadius:self.iconCornerRadius];
   [cell setTextLayoutConstraintAxis:self.textLayoutConstraintAxis];
 }
 

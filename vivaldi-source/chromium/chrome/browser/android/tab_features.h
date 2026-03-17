@@ -7,15 +7,27 @@
 
 #include <memory>
 
+#include "chrome/common/buildflags.h"
 #include "ui/base/unowned_user_data/user_data_factory.h"
 
 class Profile;
 class QwacWebContentsObserver;
 class NewTabPagePreloadPipelineManager;
 
+namespace actor {
+class ActorTabData;
+}  // namespace actor
+
 namespace content {
 class WebContents;
 }  // namespace content
+
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+namespace glic {
+class GlicInstanceHelper;
+class GlicSidePanelCoordinator;
+}  // namespace glic
+#endif
 
 namespace sync_sessions {
 class SyncSessionsRouterTabHelper;
@@ -48,6 +60,8 @@ class TabFeatures {
   // Returns the factory used to create owned components.
   static ui::UserDataFactoryWithOwner<TabInterface>& GetUserDataFactory();
 
+  std::unique_ptr<actor::ActorTabData> actor_tab_data_;
+
   std::unique_ptr<sync_sessions::SyncSessionsRouterTabHelper>
       sync_sessions_router_;
   std::unique_ptr<QwacWebContentsObserver> qwac_web_contents_observer_;
@@ -55,6 +69,11 @@ class TabFeatures {
       new_tab_page_preload_pipeline_manager_;
   std::unique_ptr<lens::TabContextualizationController>
       tab_contextualization_controller_;
+
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+  std::unique_ptr<glic::GlicInstanceHelper> glic_instance_helper_;
+  std::unique_ptr<glic::GlicSidePanelCoordinator> glic_side_panel_coordinator_;
+#endif
 };
 
 }  // namespace tabs

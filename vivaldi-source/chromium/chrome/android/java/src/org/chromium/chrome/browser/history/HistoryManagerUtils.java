@@ -42,7 +42,9 @@ public class HistoryManagerUtils {
      */
     public static void showHistoryManager(Activity activity, Tab tab, Profile profile) {
         if (ChromeApplicationImpl.isVivaldi()) {
-            showHistoryManagerForVivaldi((ChromeActivity) activity, tab.isIncognitoBranded());
+            if (tab != null) {
+                showHistoryManagerForVivaldi((ChromeActivity) activity, tab.isIncognitoBranded());
+            }
             return;
         } // End Vivaldi
 

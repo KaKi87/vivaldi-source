@@ -21,10 +21,6 @@
 
 namespace glic {
 
-namespace {
-constexpr int kDraggableAreaHeight = 44;
-}  // namespace
-
 // Helper class for observing mouse and key events from native window.
 class GlicWindowEventObserver::WindowEventObserverImpl
     : public ui::EventObserver {
@@ -81,7 +77,7 @@ class GlicWindowEventObserver::WindowEventObserverImpl
         POINT cursor_location = touch_screen_point.ToPOINT();
         ::SetCursorPos(cursor_location.x, cursor_location.y);
         touch_down_in_draggable_area_ =
-            view_->IsPointWithinDraggableArea(touch_location);
+            view_->IsPointWithinDraggableRegion(touch_location);
         if (touch_down_in_draggable_area_) {
           ui::SendMouseEvent(touch_screen_point, MOUSEEVENTF_LEFTDOWN);
           ui::SendMouseEvent(touch_screen_point, MOUSEEVENTF_MOVE);
@@ -108,7 +104,7 @@ class GlicWindowEventObserver::WindowEventObserverImpl
     views::View::ConvertPointFromScreen(view_, &mouse_location);
     if (event.type() == ui::EventType::kMousePressed) {
       mouse_down_in_draggable_area_ =
-          view_->IsPointWithinDraggableArea(mouse_location);
+          view_->IsPointWithinDraggableRegion(mouse_location);
       initial_click_location_ = mouse_location;
     }
     if (event.type() == ui::EventType::kMouseReleased ||
@@ -166,31 +162,30 @@ void GlicWindowEventObserver::SetDraggingAreasAndWatchForMouseEvents() {
 
   window_event_observer_impl_ =
       std::make_unique<WindowEventObserverImpl>(this, glic_view);
-
-  // Set the draggable area to the top bar of the window.
-  glic_view->SetDraggableAreas(
-      {{0, 0, glic_view->width(), kDraggableAreaHeight}});
 }
 
 void GlicWindowEventObserver::HandleWindowDragWithOffset(
     const gfx::Vector2d& mouse_offset) {
-  if (!in_move_loop_) {
-    in_move_loop_ = true;
-    delegate_->window_animator()->CancelAnimation();
-#if BUILDFLAG(IS_MAC)
-    widget_->SetCapture(nullptr);
-#endif
-    const views::Widget::MoveLoopSource move_loop_source =
-        views::Widget::MoveLoopSource::kMouse;
-    widget_->RunMoveLoop(mouse_offset, move_loop_source,
-                         views::Widget::MoveLoopEscapeBehavior::kDontHide);
-    in_move_loop_ = false;
-
-    delegate_->window_animator()->MaybeAnimateToTargetSize();
-
-    AdjustPositionIfNeeded();
-    delegate_->OnDragComplete();
+  if (in_move_loop_) {
+    return;
   }
+  in_move_loop_ = true;
+  widget_->SetIsDragging(true);
+  delegate_->window_animator()->CancelAnimation();
+#if BUILDFLAG(IS_MAC)
+  widget_->SetCapture(nullptr);
+#endif
+  const views::Widget::MoveLoopSource move_loop_source =
+      views::Widget::MoveLoopSource::kMouse;
+  widget_->RunMoveLoop(mouse_offset, move_loop_source,
+                       views::Widget::MoveLoopEscapeBehavior::kDontHide);
+  in_move_loop_ = false;
+
+  delegate_->window_animator()->MaybeAnimateToTargetSize();
+
+  AdjustPositionIfNeeded();
+  widget_->SetIsDragging(false);
+  delegate_->OnDragComplete();
 }
 
 void GlicWindowEventObserver::AdjustPositionIfNeeded() {

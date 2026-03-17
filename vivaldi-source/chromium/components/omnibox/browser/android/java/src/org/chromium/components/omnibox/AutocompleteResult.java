@@ -150,11 +150,13 @@ public class AutocompleteResult {
 
     /** Returns the list of Omnibox Suggestions. */
     public List<AutocompleteMatch> getSuggestionsList() {
-        if(ChromeSharedPreferences.getInstance().readBoolean( // Vivaldi Ref. VAB-9121
-                "reverse_search_suggestion", false)) {
+        if (ChromeSharedPreferences.getInstance().readBoolean( // Vivaldi Ref. VAB-9121
+                    "reverse_search_suggestion", false)
+                && ChromeSharedPreferences.getInstance().readBoolean(
+                        "address_bar_to_bottom", false)) {
             @NonNull List<AutocompleteMatch> reverseCopy = new ArrayList<>(mSuggestions);;
             Collections.reverse(reverseCopy);
-        }
+        } // End Vivaldi
         return mSuggestions;
     }
 

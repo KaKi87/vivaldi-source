@@ -74,4 +74,4 @@ extern const char kUsernameKey[];
 extern const char kPasswordKey[];
 extern const char kRecoveryEmailKey[];
 
-#endif // IOS_UI_SETTINGS_SYNC_VIVALDI_SYNC_SETTINGS_CONSTANTS_H_
+#endif  // IOS_UI_SETTINGS_SYNC_VIVALDI_SYNC_SETTINGS_CONSTANTS_H_

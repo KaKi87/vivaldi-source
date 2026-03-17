@@ -69,7 +69,7 @@ suite('SettingsMain', function() {
       {route: routes.PERFORMANCE, pluginTag: 'settings-performance-page-index'},
       {route: routes.APPEARANCE, pluginTag: 'settings-appearance-page-index'},
       {route: routes.SEARCH, pluginTag: 'settings-search-page-index'},
-      // <if expr="not is_chromeos">
+      // <if expr="_google_chrome and not is_chromeos">
       {
         route: routes.DEFAULT_BROWSER,
         pluginTag: 'settings-default-browser-page',

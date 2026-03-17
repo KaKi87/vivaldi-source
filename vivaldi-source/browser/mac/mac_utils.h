@@ -11,5 +11,4 @@ bool CanEventExecuteCommand(NSEvent* event);
 
 }  // namespace vivaldi
 
-
 #endif  // VIVALDI_BROWSER_MAC_MAC_UTILS_H

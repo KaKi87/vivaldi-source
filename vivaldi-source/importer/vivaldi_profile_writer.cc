@@ -108,14 +108,13 @@ void RestoreTabsToBrowser(
     // of browsing in the tab.
     int selected_index = GetNavigationIndexToSelect(*tab);
 
-    chrome::AddRestoredTab(browser, tab->navigations, tab_index, selected_index,
-                           tab->extension_app_id, std::nullopt, false,
-                           tab->pinned, last_active_time_ticks, tab->last_active_time,
-                           nullptr,
-                           tab->user_agent_override, tab->extra_data, false,
-                           true,
-                           // Vivaldi
-                           tab->viv_page_action_overrides, tab->viv_ext_data);
+    chrome::AddRestoredTab(
+        browser, tab->navigations, tab_index, selected_index,
+        tab->extension_app_id, std::nullopt, false, tab->pinned,
+        last_active_time_ticks, tab->last_active_time, nullptr,
+        tab->user_agent_override, tab->extra_data, false, true,
+        // Vivaldi
+        tab->viv_page_action_overrides, tab->viv_ext_data);
     ++tab_index;
   }
 
@@ -330,6 +329,7 @@ void ProfileWriter::AddOpenTabs(const std::vector<ImportedTabEntry>& tabs) {
     // Restore the tabs by opening a new browser instance with the window we
     // prepared.
     SessionRestore::RestoreForeignSessionWindows(
-        profile_, session_windows.begin(), session_windows.end());
+        profile_, session_windows.begin(), session_windows.end(),
+        base::DoNothing());
   }
 }

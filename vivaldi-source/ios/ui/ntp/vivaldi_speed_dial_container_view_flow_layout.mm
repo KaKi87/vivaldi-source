@@ -13,7 +13,7 @@ const CGFloat kMinimumSidePadding = 12.0;
 const CGFloat kListStyleItemHeight = 76.0;
 const CGFloat kMinimumItemWidthDecrease = 1.0;
 
-#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2 // Not final
+#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2  // Not final
 const CGFloat kSpacingIconLayout = 8.0;
 const CGFloat kTopInsetIconLayout = 32;
 const CGFloat kMinimumSidePaddingIconLayout = 32.0;
@@ -147,8 +147,7 @@ const CGFloat kMinimumSidePaddingPreview = 2.0;
   NSInteger numberOfRowsToUse = MIN(actualNumberOfRows, _maxNumberOfRows);
   // Calculate total height
   CGFloat totalHeight = (itemHeight * numberOfRowsToUse) +
-                        (lineSpacing * (numberOfRowsToUse - 1)) +
-                        kSpacing * 2;
+                        (lineSpacing * (numberOfRowsToUse - 1)) + kSpacing * 2;
 
   return totalHeight;
 }
@@ -166,7 +165,7 @@ const CGFloat kMinimumSidePaddingPreview = 2.0;
 #pragma mark - Private
 
 - (CGFloat)horizontalSpacing {
-#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2 // Not final
+#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2  // Not final
   if (self.layoutStyle == VivaldiStartPageLayoutStyleIcon) {
     return kMinimumSidePaddingIconLayout;
   }
@@ -206,7 +205,7 @@ const CGFloat kMinimumSidePaddingPreview = 2.0;
 
   switch (self.layoutStyle) {
     case VivaldiStartPageLayoutStyleSmall:
-#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2 // Not final
+#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2  // Not final
     case VivaldiStartPageLayoutStyleIcon:
 #endif
       return [self isTopSites] ? kSmallStyleWidthPadTopSites
@@ -224,7 +223,7 @@ const CGFloat kMinimumSidePaddingPreview = 2.0;
 - (CGFloat)iPadColumnWidthForPreview {
   switch (self.layoutStyle) {
     case VivaldiStartPageLayoutStyleSmall:
-#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2 // Not final
+#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2  // Not final
     case VivaldiStartPageLayoutStyleIcon:
 #endif
       return [self isSmallModalPreview] ? kSmallStyleWidthPadPreview
@@ -244,7 +243,7 @@ const CGFloat kMinimumSidePaddingPreview = 2.0;
 - (CGFloat)iPhoneColumnWidth {
   switch (self.layoutStyle) {
     case VivaldiStartPageLayoutStyleSmall:
-#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2 // Not final
+#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2  // Not final
     case VivaldiStartPageLayoutStyleIcon:
 #endif
       return [self isPreview]
@@ -264,7 +263,7 @@ const CGFloat kMinimumSidePaddingPreview = 2.0;
 
 /// Returns top inset for the Collection View.
 - (CGFloat)kTopInset {
-#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2 // Not final
+#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2  // Not final
   if (self.layoutStyle == VivaldiStartPageLayoutStyleIcon) {
     return kTopInsetIconLayout;
   }
@@ -274,7 +273,7 @@ const CGFloat kMinimumSidePaddingPreview = 2.0;
 }
 
 - (CGFloat)spacing {
-#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2 // Not final
+#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2  // Not final
   if (self.layoutStyle == VivaldiStartPageLayoutStyleIcon) {
     return kSpacingIconLayout;
   }

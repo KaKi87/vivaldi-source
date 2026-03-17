@@ -133,6 +133,7 @@ enterprise_connectors::EventResult DownloadItemMetadata::GetPreScanEventResult(
     case download::DOWNLOAD_DANGER_TYPE_ASYNC_LOCAL_PASSWORD_SCANNING:
     case download::DOWNLOAD_DANGER_TYPE_BLOCKED_SCAN_FAILED:
     case download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_GDRIVE:
+    case download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_ONEDRIVE:
     case download::DOWNLOAD_DANGER_TYPE_MAX:
       NOTREACHED();
   }
@@ -141,8 +142,8 @@ enterprise_connectors::EventResult DownloadItemMetadata::GetPreScanEventResult(
 std::unique_ptr<DownloadRequestMaker>
 DownloadItemMetadata::CreateDownloadRequestFromMetadata(
     scoped_refptr<BinaryFeatureExtractor> binary_feature_extractor) const {
-  return DownloadRequestMaker::CreateFromDownloadItem(binary_feature_extractor,
-                                                      item_);
+  return DownloadRequestMaker::CreateFromDownloadItem(
+      binary_feature_extractor, item_, std::nullopt, IsObfuscated());
 }
 
 std::unique_ptr<DeepScanningMetadata::DownloadScopedObservation>

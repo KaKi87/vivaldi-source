@@ -7,7 +7,6 @@
 #import "ios/ui/settings/pagezoom/dialog/vivaldi_pagezoom_dialog_consumer.h"
 #import "ios/ui/settings/pagezoom/dialog/vivaldi_pagezoom_view_controller.h"
 
-
 @protocol TextZoomCommands;
 @protocol VivaldiPageZoomDialogConsumer;
 class WebStateList;
@@ -27,7 +26,6 @@ class WebStateList;
 
 // Disconnects the page zoom settings observation.
 - (void)disconnect;
-
 
 @end
 

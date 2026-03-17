@@ -1,7 +1,9 @@
 <?xml version="1.0" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="ro">
+<translation id="1035560095760914532">Plasează Chrome în partea de jos pentru a-l accesa oricând</translation>
 <translation id="1076643793026027628">Chrome deschide automat linkurile YouTube incognito în modul incognito.</translation>
+<translation id="1081114897601629648">Următoarele parole nu au fost importate în Managerul de parole Google deoarece nu corespund cerințelor.</translation>
 <translation id="1086486568852410168">Caută cu Google Lens</translation>
 <translation id="1088490543924960890">Începe să salvezi chei de acces cu Managerul de parole Google</translation>
 <translation id="1143896152279775643">Parola se va salva în Managerul de parole Google pentru <ph name="EMAIL" />.</translation>
@@ -16,6 +18,7 @@
 <translation id="124228879633599436">Browserul Chrome este învechit. Actualizează-l pentru a rămâne în siguranță.</translation>
 <translation id="1258531953614971819">Sfat pentru Chrome: mută Chrome pe ecranul de pornire</translation>
 <translation id="1333745675627230582">Joacă Chrome Dino</translation>
+<translation id="1343830902827845050">Conectează-te la Chrome</translation>
 <translation id="1352919863522755794">Managerul de parole Google nu ți-a putut verifica parolele. Verifică-ți conexiunea la internet.</translation>
 <translation id="1394995526009609883">Poți actualiza oricând opțiunile din Setările Chrome.</translation>
 <translation id="1407843355326180937">Conectează-te la acest site și la Chrome pentru a accesa marcajele și multe altele de pe toate dispozitivele tale.</translation>
@@ -84,6 +87,10 @@ Așteaptă câteva minute înainte să te deconectezi. Dacă te deconectezi acum
 <translation id="2767464022270041271">Nu există parole salvate. Managerul de parole Google îți poate verifica parolele atunci când le salvezi.</translation>
 <translation id="2788811701191021538">Deschide pagina cu setări pentru metodele de plată în Chrome.</translation>
 <translation id="2876628302275096482">Află mai multe despre <ph name="BEGIN_LINK" />cum îți păstrează Chrome datele private<ph name="END_LINK" /></translation>
+<translation id="288992067439702510">Ai atins limita de <ph name="LIMIT" /> marcaje pentru Google Chrome, așadar unele dintre marcaje nu au fost salvate încă în Contul Google.
+
+Nu poți salva marcaje noi în cont până când nu ștergi câteva. Dacă te deconectezi acum, marcajele nesalvate vor fi șterse.</translation>
+<translation id="2901621928549457170">Deschide instantaneu Chrome când folosești iPadul</translation>
 <translation id="2922914028977213693">Atinge aici pentru a profita din plin de Chrome pe iPad.</translation>
 <translation id="292371311537977079">Setări Chrome</translation>
 <translation id="2923827943290349720">Blochează filele incognito când închizi Chrome</translation>
@@ -103,7 +110,6 @@ Așteaptă câteva minute înainte să te deconectezi. Dacă te deconectezi acum
 <translation id="3167189358072330585">Contul nu funcționează pe Google Chrome. Contactează administratorul domeniului sau folosește un Cont Google obișnuit pentru a te conecta.</translation>
 <translation id="320747600144551583">Sfat pentru Chrome: Navigarea sigură îmbunătățită îți va fi utilă</translation>
 <translation id="322254490661677575">Pentru a folosi și a salva datele Chrome în Contul Google, introdu expresia de acces.</translation>
-<translation id="3282568296779691940">Conectează-te la Chrome</translation>
 <translation id="3303503998967553377">Folosește Acțiuni în Chrome pe iOS</translation>
 <translation id="3348862487678490430">Adaugă un element din Lista de lecturi în Chrome</translation>
 <translation id="3357827134511189025">Conectează-te cu parolele și cheile de acces salvate din orice aplicație folosind Chrome pentru completare automată</translation>
@@ -115,6 +121,7 @@ Așteaptă câteva minute înainte să te deconectezi. Dacă te deconectezi acum
 <translation id="3460369101684070455">Pentru a accesa cu ușurință parolele salvate în alte aplicații, alege Chrome pentru completare automată</translation>
 <translation id="3472587960215700950">Chrome folosește Google Maps pentru a-ți oferi indicații de orientare și informații locale despre adresele detectate.</translation>
 <translation id="3482807551645716768">Accesează Chrome mai rapid de pe ecranul de pornire al iPad-ului.</translation>
+<translation id="3491067552520121605">Ai deja parole sau chei de acces în Managerul de parole Google pentru site-urile afișate. Selectează un cont pentru a păstra informațiile de conectare afișate, înlocuind conținutul din Google Password Manager.</translation>
 <translation id="3503014945441706099">Obține și Navigare sigură îmbunătățită pentru acest profil Chrome</translation>
 <translation id="3522659714780527202">Activează sincronizarea ca să vezi toate filele tale deschise în Chrome</translation>
 <translation id="364480321352456989">Chrome este învechit.</translation>
@@ -134,6 +141,7 @@ Așteaptă câteva minute înainte să te deconectezi. Dacă te deconectezi acum
 <translation id="4167555379306984168">Vezi noutățile din Chrome</translation>
 <translation id="417201473131094001">Nu se acceptă pe Chrome Canary</translation>
 <translation id="424864128008805179">Te deconectezi de la Chrome?</translation>
+<translation id="4409545895715116037">Următoarele chei de acces nu au fost importate în Managerul de parole Google, deoarece nu corespund cerințelor.</translation>
 <translation id="4430797724889237570">Deschide linkuri din Gmail, Maps, YouTube și alte aplicații în Chrome</translation>
 <translation id="447252321002412580">Contribuie la îmbunătățirea funcțiilor și performanței Chrome</translation>
 <translation id="4523886039239821078">Unele suplimente determină blocarea browserului Chrome. Dezinstalează:</translation>
@@ -167,6 +175,8 @@ Așteaptă câteva minute înainte să te deconectezi. Dacă te deconectezi acum
 <translation id="5119391094379141756">Selectează Chrome.</translation>
 <translation id="5123188916260706415">Căutarea vocală în Chrome</translation>
 <translation id="5162467219239570114">Chrome nu este actualizat. Dacă nu este disponibilă nicio actualizare în <ph name="BEGIN_LINK" />App Store<ph name="END_LINK" />, e posibil ca dispozitivul tău să nu mai accepte versiuni noi de Chrome.</translation>
+<translation id="5172049865623113551">Deschide instantaneu Chrome când folosești iPhone-ul</translation>
+<translation id="5179095426828744632">Accesează Chrome mai rapid din bara de andocare</translation>
 <translation id="5184329579814168207">Deschide în Chrome</translation>
 <translation id="5190139289262548459">Organizația ta, <ph name="DOMAIN" />, gestionează contul la care te-ai conectat și modul în care folosești Chrome.</translation>
 <translation id="5209238444239954363">Chrome nu a putut căuta actualizări. Încearcă din nou mai târziu.</translation>
@@ -272,6 +282,7 @@ Pentru mai multe setări care folosesc date pentru a-ți îmbunătăți experien
 <translation id="7284245284340063465">Dacă uiți expresia de acces sau dorești să modifici această setare, <ph name="BEGIN_LINK" />șterge datele Chrome din cont<ph name="END_LINK" />.</translation>
 <translation id="7296102444587051536">Chrome pentru iOS</translation>
 <translation id="7299681342915173313">Acum poți folosi Chrome oricând atingi linkuri din e-mailuri, documente și alte aplicații.</translation>
+<translation id="7334364820047587268">Ai deja parole pentru aceste conturi în Managerul de parole Google. Dacă alegi să imporți una dintre parolele de mai jos, aceasta o va înlocui pe cea existentă.</translation>
 <translation id="7344094882820374540">Beneficiază de cea mai puternică securitate Chrome de pe site-urile periculoase</translation>
 <translation id="7349129508108954623">Permite browserului Chrome să folosească Google Maps pentru a-ți oferi indicații de orientare și informații locale despre adresele detectate.</translation>
 <translation id="7371674917547846460">Rămâi la curent cu sfaturile utile pentru Chrome și altele.</translation>
@@ -304,7 +315,6 @@ Pentru mai multe setări care folosesc date pentru a-ți îmbunătăți experien
 <translation id="787226752901403048">Conectează-te la Chrome pentru a permite accesul la grupuri de file și a te alătura acestora, precum și pentru a colabora la idei</translation>
 <translation id="7897703007638178753">Vezi filele recente din Chrome</translation>
 <translation id="7948283758957877064">Ce e nou în Chrome</translation>
-<translation id="7996707498590516621">Creează o imagine cu Gemini în Chrome</translation>
 <translation id="8000174216052461231">Sfat pentru Chrome: beneficiază de cea mai puternică securitate de la Chrome</translation>
 <translation id="8006014511203279255">Folosește Chrome oricând atingi linkuri în mesaje sau alte aplicații.</translation>
 <translation id="8014670471808569312">Chrome îți va oferi salvarea parolei.</translation>

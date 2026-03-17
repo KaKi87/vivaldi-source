@@ -25,8 +25,8 @@
 #import "ios/chrome/browser/omnibox/ui/omnibox_consumer.h"
 #import "ios/chrome/browser/search_engines/model/search_engine_observer_bridge.h"
 #import "ios/chrome/browser/search_engines/model/search_engines_util.h"
+#import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
 #import "ios/chrome/browser/shared/public/commands/lens_commands.h"
-#import "ios/chrome/browser/shared/public/commands/load_query_commands.h"
 #import "ios/chrome/browser/shared/public/commands/omnibox_commands.h"
 #import "ios/chrome/browser/shared/public/commands/search_image_with_lens_command.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -50,7 +50,7 @@
 #import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
 #import "ios/chrome/browser/shared/model/utils/observable_boolean.h"
 #import "ios/chrome/common/ui/util/image_util.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 using vivaldi::IsVivaldiRunning;
 using TemplateURLService::kDefaultSearchMain;
@@ -322,8 +322,7 @@ using base::UserMetricsAction;
         dispatch_async(dispatch_get_main_queue(), ^{
           NSString* text = static_cast<NSString*>(providedItem);
           if (text) {
-            [weakSelf.loadQueryCommandsHandler loadQuery:text immediately:YES];
-            [weakSelf.omniboxCommandsHandler cancelOmniboxEdit];
+            [weakSelf loadQuery:text];
           }
         });
       };
@@ -333,7 +332,7 @@ using base::UserMetricsAction;
           UIImage* image = static_cast<UIImage*>(providedItem);
           if (image) {
             [weakSelf loadImageQuery:image];
-            [weakSelf.omniboxCommandsHandler cancelOmniboxEdit];
+            [weakSelf.browserCoordinatorCommandsHandler hideComposebox];
           }
         });
       };
@@ -391,10 +390,9 @@ using base::UserMetricsAction;
         if (!optionalURL) {
           return;
         }
-        NSString* url = [NSString cr_fromString:optionalURL.value().spec()];
         dispatch_async(dispatch_get_main_queue(), ^{
-          [weakSelf.loadQueryCommandsHandler loadQuery:url immediately:YES];
-          [weakSelf.omniboxCommandsHandler cancelOmniboxEdit];
+          [weakSelf
+              loadQuery:[NSString cr_fromString:optionalURL.value().spec()]];
         });
       }));
 }
@@ -407,10 +405,8 @@ using base::UserMetricsAction;
         if (!optionalText) {
           return;
         }
-        NSString* query = [NSString cr_fromString16:optionalText.value()];
         dispatch_async(dispatch_get_main_queue(), ^{
-          [weakSelf.loadQueryCommandsHandler loadQuery:query immediately:YES];
-          [weakSelf.omniboxCommandsHandler cancelOmniboxEdit];
+          [weakSelf loadQuery:[NSString cr_fromString16:optionalText.value()]];
         });
       }));
 }
@@ -424,7 +420,7 @@ using base::UserMetricsAction;
         }
         UIImage* image = optionalImage.value().ToUIImage();
         [weakSelf loadImageQuery:image];
-        [weakSelf.omniboxCommandsHandler cancelOmniboxEdit];
+        [weakSelf.browserCoordinatorCommandsHandler hideComposebox];
       }));
 }
 
@@ -596,7 +592,7 @@ using base::UserMetricsAction;
       initWithImage:image
          entryPoint:LensEntrypoint::OmniboxPostCapture];
   [self.lensCommandsHandler searchImageWithLens:command];
-  [self.omniboxCommandsHandler cancelOmniboxEdit];
+  [self.browserCoordinatorCommandsHandler hideComposebox];
 }
 
 // Returns whether or not to use Lens for copied images.
@@ -614,6 +610,14 @@ using base::UserMetricsAction;
   } else {
     return kMinFaviconSizePt;
   }
+}
+
+// Loads the `query`.
+- (void)loadQuery:(NSString*)query {
+  if (self.URLLoadingBrowserAgent) {
+    self.URLLoadingBrowserAgent->LoadURLForQuery(query);
+  }
+  [self.browserCoordinatorCommandsHandler hideComposebox];
 }
 
 #pragma mark - VIVALDI

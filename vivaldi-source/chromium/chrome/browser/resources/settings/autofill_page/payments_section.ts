@@ -138,6 +138,18 @@ export class SettingsPaymentsSectionElement extends
       },
 
       /**
+       * Whether Google Wallet branding should be used instead of Google Pay
+       * branding.
+       */
+      autofillEnableWalletBrandingEnabled_: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean('autofillEnableWalletBranding');
+        },
+        readOnly: true,
+      },
+
+      /**
        * The model for any credit card-related action menus or dialogs.
        */
       activeCreditCard_: Object,
@@ -157,7 +169,7 @@ export class SettingsPaymentsSectionElement extends
       /**
        * Checks if we can use device authentication to authenticate the user.
        */
-      // <if expr="is_win or is_macosx">
+      // <if expr="is_win or is_macosx or is_chromeos">
       deviceAuthAvailable_: {
         type: Boolean,
         value() {
@@ -194,6 +206,16 @@ export class SettingsPaymentsSectionElement extends
         type: String,
         value() {
           return loadTimeData.getString('cardBenefitsToggleSublabel');
+        },
+      },
+
+      /**
+       * Checks if a mandatory reauth feature flag is enabled.
+       */
+      mandatoryReauthFeatureFlagEnabled_: {
+        type: Boolean,
+        value() {
+          return loadTimeData.getBoolean('mandatoryReauthFeatureFlagEnabled');
         },
       },
 
@@ -236,6 +258,7 @@ export class SettingsPaymentsSectionElement extends
   declare ibans: chrome.autofillPrivate.IbanEntry[];
   declare payOverTimeIssuers: chrome.autofillPrivate.PayOverTimeIssuerEntry[];
   declare private showIbanSettingsEnabled_: boolean;
+  declare private autofillEnableWalletBrandingEnabled_: boolean;
   declare private activeCreditCard_: chrome.autofillPrivate.CreditCardEntry|
       null;
   declare private activeIban_: chrome.autofillPrivate.IbanEntry|null;
@@ -244,7 +267,7 @@ export class SettingsPaymentsSectionElement extends
   declare private showLocalCreditCardRemoveConfirmationDialog_: boolean;
   declare private showLocalIbanRemoveConfirmationDialog_: boolean;
   declare private showVirtualCardUnenrollDialog_: boolean;
-  // <if expr="is_win or is_macosx">
+  // <if expr="is_win or is_macosx or is_chromeos">
   declare private deviceAuthAvailable_: boolean;
   // </if>
   declare private cvcStorageAvailable_: boolean;
@@ -257,6 +280,7 @@ export class SettingsPaymentsSectionElement extends
   declare private shouldShowPayOverTimeSettings_: boolean;
   declare private payOverTimeSublabel_: string;
   declare private isYourSavedInfoSubpage_: boolean;
+  declare private mandatoryReauthFeatureFlagEnabled_: boolean;
 
   override connectedCallback() {
     super.connectedCallback();
@@ -297,7 +321,7 @@ export class SettingsPaymentsSectionElement extends
     this.paymentsManager_.setPersonalDataManagerListener(
         setPersonalDataListener);
 
-    // <if expr="is_win or is_macosx">
+    // <if expr="is_win or is_macosx or is_chromeos">
     this.paymentsManager_.checkIfDeviceAuthAvailable().then(
         result => this.deviceAuthAvailable_ = result);
     // </if>
@@ -595,7 +619,12 @@ export class SettingsPaymentsSectionElement extends
   }
 
   private getMenuEditCardText_(isLocalCard: boolean): string {
-    return this.i18n(isLocalCard ? 'edit' : 'editServerCard');
+    if (isLocalCard) {
+      return this.i18n('edit');
+    }
+    return this.i18n(
+        this.autofillEnableWalletBrandingEnabled_ ? 'editServerCardInWallet' :
+                                                    'editServerCard');
   }
 
   private shouldShowAddVirtualCardButton_(): boolean {
@@ -621,7 +650,7 @@ export class SettingsPaymentsSectionElement extends
     this.paymentsManager_.removeVirtualCard(event.detail);
   }
 
-  // <if expr="is_win or is_macosx">
+  // <if expr="is_win or is_macosx or is_chromeos">
   /**
    * Checks if we should disable the mandatory reauth toggle.
    * This method checks that one of the following conditions are met:
@@ -728,6 +757,17 @@ export class SettingsPaymentsSectionElement extends
     return this.i18n(
         card === undefined ? 'enableCvcStorageAriaLabelForNoCvcSaved' :
                              'enableCvcStorageLabel');
+  }
+
+  /**
+   * Get the body text for the CVC deletion dialog, depending on whether Google
+   * Wallet branding is enabled or not.
+   */
+  private getCvcDeletionDialogBodyText_(): string {
+    return this.i18n(
+        this.autofillEnableWalletBrandingEnabled_ ?
+            'bulkRemoveCvcFromWalletConfirmationDescription' :
+            'bulkRemoveCvcConfirmationDescription');
   }
 
   /**

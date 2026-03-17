@@ -51,11 +51,11 @@ VivaldiFilterImportedTabsSessionCommands(
   static const SessionCommand::id_type kChromeCommandSetTabGroup = 25;
 
   std::vector<std::unique_ptr<sessions::SessionCommand>> commands;
-  for (auto &item : cmds) {
+  for (auto &command : cmds) {
     // we use a filter for the commands that we want to pass through - many are
     // irrelevant/not parseable and would stop the creation operation
     // prematurely.
-    switch (item->id()) {
+    switch (command->id()) {
       case kCommandSetTabIndexInWindow:
       case kCommandUpdateTabNavigation:
       case kCommandSetSelectedNavigationIndex:
@@ -64,15 +64,15 @@ VivaldiFilterImportedTabsSessionCommands(
       case kCommandSetTabUserAgentOverride:
       case kCommandSessionStorageAssociated:
       case kCommandTabClosed:
-        commands.push_back(std::move(item));
+        commands.push_back(std::move(command));
         break;
       case kChromeCommandSetTabGroup:
         // Vivaldi has a different command id for SetTabGroup operation than
         // rest of the chromium browsers.
         if (!vivaldi_source) {
-          auto adapted_command =
-              std::make_unique<sessions::SessionCommand>(kCommandSetTabGroup, item->size());
-          item->GetPayload(adapted_command->contents(), item->size());
+          std::unique_ptr<sessions::SessionCommand> adapted_command =
+              std::make_unique<sessions::SessionCommand>(kCommandSetTabGroup, command->size());
+          command->GetPayload(&adapted_command, sizeof(command));
           commands.push_back(std::move(adapted_command));
         }
         break;
@@ -83,7 +83,7 @@ VivaldiFilterImportedTabsSessionCommands(
       case kCommandCreateThumbnail:
       case kCommandRemovePageActionOverrides:
         if (vivaldi_source) {
-          commands.push_back(std::move(item));
+          commands.push_back(std::move(command));
         }
         break;
       default:

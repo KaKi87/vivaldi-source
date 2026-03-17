@@ -1,7 +1,9 @@
 <?xml version="1.0" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="ms">
+<translation id="1035560095760914532">Letakkan Chrome pada bahagian bawah untuk mengakses Chrome pada bila-bila masa</translation>
 <translation id="1076643793026027628">Chrome membuka pautan Inkognito YouTube secara automatik dalam Inkognito.</translation>
+<translation id="1081114897601629648">Kata laluan yang berikut tidak diimport kepada Google Password Manager kerana kata laluan tersebut tidak sepadan dengan keperluan.</translation>
 <translation id="1086486568852410168">Cari dengan Google Lens</translation>
 <translation id="1088490543924960890">Mula menyimpan kunci laluan dengan Google Password Manager</translation>
 <translation id="1143896152279775643">Kata laluan anda akan disimpan pada Pengurus Kata Laluan Google untuk <ph name="EMAIL" />.</translation>
@@ -16,6 +18,7 @@
 <translation id="124228879633599436">Chrome anda sudah lapuk. Kemas kinikan Chromium untuk kekal selamat.</translation>
 <translation id="1258531953614971819">Petua Chrome: Alihkan Chrome kepada skrin utama anda</translation>
 <translation id="1333745675627230582">Main Permainan Dino Chrome</translation>
+<translation id="1343830902827845050">Log masuk ke Chrome</translation>
 <translation id="1352919863522755794">Google Password Manager tidak dapat menyemak kata laluan anda. Cuba periksa sambungan Internet anda.</translation>
 <translation id="1394995526009609883">Anda boleh mengemaskinikan pilihan anda pada bila-bila masa dalam tetapan Chrome.</translation>
 <translation id="1407843355326180937">Log masuk ke laman ini dan Chrome untuk mendapatkan penanda halaman anda dan banyak lagi pada semua peranti anda.</translation>
@@ -84,6 +87,10 @@ Tunggu beberapa minit sebelum log keluar. Jika anda log keluar sekarang, data in
 <translation id="2767464022270041271">Tiada kata laluan yang disimpan. Google Password Manager boleh menyemak kata laluan anda yang disimpan.</translation>
 <translation id="2788811701191021538">Buka halaman tetapan kaedah pembayaran dalam Chrome.</translation>
 <translation id="2876628302275096482">Ketahui lebih lanjut tentang <ph name="BEGIN_LINK" />cara Chrome mengekalkan data anda peribadi<ph name="END_LINK" /></translation>
+<translation id="288992067439702510">Anda telah mencapai had <ph name="LIMIT" /> penanda halaman Google Chrome, maka sesetengah penanda halaman anda belum disimpan dalam Google Account anda.
+
+Penanda halaman baharu tidak boleh disimpan dalam akaun anda sehingga anda memadamkan beberapa penanda halaman. Jika anda log keluar sekarang, penanda halaman yang tidak disimpan akan dipadamkan.</translation>
+<translation id="2901621928549457170">Buka Chrome dengan serta-merta apabila anda menggunakan iPad anda</translation>
 <translation id="2922914028977213693">Ketik di sini untuk memanfaatkan Chrome sepenuhnya pada iPad anda.</translation>
 <translation id="292371311537977079">Tetapan Chrome</translation>
 <translation id="2923827943290349720">Kunci tab Inkognito apabila anda menutup Chrome</translation>
@@ -103,7 +110,6 @@ Tunggu beberapa minit sebelum log keluar. Jika anda log keluar sekarang, data in
 <translation id="3167189358072330585">Akaun anda tidak berfungsi pada Google Chrome. Sila hubungi pentadbir domain anda atau gunakan Google Account biasa untuk log masuk.</translation>
 <translation id="320747600144551583">Petua Chrome: Penyemakan imbas selamat dipertingkat akan menyelamatkan hari anda</translation>
 <translation id="322254490661677575">Untuk menggunakan dan menyimpan data Chrome dalam Google Account anda, masukkan ungkapan laluan anda.</translation>
-<translation id="3282568296779691940">Log masuk ke Chrome</translation>
 <translation id="3303503998967553377">Gunakan tindakan Chrome pada iOS</translation>
 <translation id="3348862487678490430">Tambahkan item senarai bacaan pada Chrome</translation>
 <translation id="3357827134511189025">Log masuk dengan kata laluan &amp; kunci laluan anda yang disimpan daripada mana-mana apl menggunakan Chrome untuk Autolengkap</translation>
@@ -115,6 +121,7 @@ Tunggu beberapa minit sebelum log keluar. Jika anda log keluar sekarang, data in
 <translation id="3460369101684070455">Untuk mendapatkan kata laluan anda yang disimpan dalam apl anda yang lain dengan mudah, pilih Chrome untuk Autolengkap</translation>
 <translation id="3472587960215700950">Chrome menggunakan Google Maps untuk memberi anda arah dan maklumat setempat pada alamat yang dikesan.</translation>
 <translation id="3482807551645716768">Akses Chrome dengan lebih pantas pada Skrin Utama iPad anda.</translation>
+<translation id="3491067552520121605">Anda sudah mempunyai kata laluan atau kunci laluan dalam Google Password Manager untuk laman yang dipaparkan. Pilih akaun untuk menyimpan maklumat log masuk yang dipaparkan, menggantikan maklumat dalam Google Password Manager.</translation>
 <translation id="3503014945441706099">Dapatkan juga Penyemakan Imbas Selamat Dipertingkat untuk profil Chrome ini</translation>
 <translation id="3522659714780527202">Untuk melihat tab anda daripada mana-mana tempat anda menggunakan Chrome, hidupkan penyegerakan</translation>
 <translation id="364480321352456989">Chrome anda sudah lapuk.</translation>
@@ -134,6 +141,7 @@ Tunggu beberapa minit sebelum log keluar. Jika anda log keluar sekarang, data in
 <translation id="4167555379306984168">Lihat ciri baharu dalam Chrome</translation>
 <translation id="417201473131094001">Tidak disokong pada Chrome Canary</translation>
 <translation id="424864128008805179">Log keluar daripada Chrome?</translation>
+<translation id="4409545895715116037">Kunci laluan yang berikut tidak diimport kepada Google Password Manager kerana kunci laluan tersebut tidak sepadan dengan keperluan.</translation>
 <translation id="4430797724889237570">Buka pautan daripada Gmail, Maps, YouTube dan apl lain dalam Chrome</translation>
 <translation id="447252321002412580">Bantu meningkatkan ciri dan prestasi Chrome</translation>
 <translation id="4523886039239821078">Beberapa tambahan menyebabkan Chrome ranap. Sila nyahpasang:</translation>
@@ -167,6 +175,8 @@ Tunggu beberapa minit sebelum log keluar. Jika anda log keluar sekarang, data in
 <translation id="5119391094379141756">Pilih Chrome</translation>
 <translation id="5123188916260706415">Cari dengan suara dalam Chrome</translation>
 <translation id="5162467219239570114">Chrome sudah lapuk. Jika tiada kemaskinian tersedia dalam <ph name="BEGIN_LINK" />Gedung Apl<ph name="END_LINK" />, mungkin peranti anda sudah tidak menyokong versi baharu Chrome lagi.</translation>
+<translation id="5172049865623113551">Buka Chrome dengan serta-merta apabila anda menggunakan iPhone anda</translation>
+<translation id="5179095426828744632">Akses Chrome dengan lebih pantas daripada dok anda</translation>
 <translation id="5184329579814168207">Buka dalam Chrome</translation>
 <translation id="5190139289262548459">Organisasi anda, <ph name="DOMAIN" />, mengurus akaun yang anda log masuk dan cara Chrome digunakan.</translation>
 <translation id="5209238444239954363">Chrome tidak dapat menyemak kemaskinian. Cuba sebentar lagi.</translation>
@@ -272,6 +282,7 @@ Untuk mendapatkan lebih banyak tetapan yang menggunakan data untuk meningkatkan 
 <translation id="7284245284340063465">Jika anda terlupa ungkapan laluan anda atau mahu menukar tetapan ini, <ph name="BEGIN_LINK" />padamkan data Chrome dalam akaun anda<ph name="END_LINK" />.</translation>
 <translation id="7296102444587051536">Chrome untuk iOS</translation>
 <translation id="7299681342915173313">Kini anda boleh menggunakan Chrome pada bila-bila masa anda mengetik pautan dalam e-mel, dokumen dan apl lain.</translation>
+<translation id="7334364820047587268">Anda sudah mempunyai kata laluan untuk akaun ini dalam Google Password Manager anda. Jika anda memilih untuk mengimport salah satu kata laluan di bawah, kata laluan itu akan menggantikan kata laluan sedia ada.</translation>
 <translation id="7344094882820374540">Dapatkan keselamatan Chrome yang paling kukuh daripada laman berbahaya</translation>
 <translation id="7349129508108954623">Benarkan Chrome untuk menggunakan Google Maps bagi memberikan arah dan maklumat setempat kepada anda pada alamat yang dikesan.</translation>
 <translation id="7371674917547846460">Ikuti petua Chrome yang berguna dan banyak lagi.</translation>
@@ -304,7 +315,6 @@ Untuk mendapatkan lebih banyak tetapan yang menggunakan data untuk meningkatkan 
 <translation id="787226752901403048">Log masuk ke Chrome untuk berkongsi dan menyertai kumpulan tab serta bekerjasama untuk menghasilkan idea</translation>
 <translation id="7897703007638178753">Lihat Tab Terbaharu Chrome</translation>
 <translation id="7948283758957877064">Item Baharu dalam Chrome</translation>
-<translation id="7996707498590516621">Buat imej dengan Gemini dalam Chrome</translation>
 <translation id="8000174216052461231">Petua Chrome: Dapatkan keselamatan Chrome yang paling kukuh</translation>
 <translation id="8006014511203279255">Gunakan Chrome pada bila-bila masa anda mengetik pautan dalam mesej dan apl lain.</translation>
 <translation id="8014670471808569312">Chrome akan menawarkan untuk menyimpan kata laluan anda.</translation>

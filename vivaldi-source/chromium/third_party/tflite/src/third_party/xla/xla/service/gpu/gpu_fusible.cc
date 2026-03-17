@@ -39,6 +39,7 @@ limitations under the License.
 #include "xla/hlo/ir/hlo_opcode.h"
 #include "xla/hlo/utils/hlo_traversal.h"
 #include "xla/permutation_util.h"
+#include "xla/service/gpu/alias_info.h"
 #include "xla/service/gpu/backend_configs.pb.h"
 #include "xla/service/gpu/hlo_fusion_analysis.h"
 #include "xla/service/gpu/ir_emission_utils.h"
@@ -63,8 +64,20 @@ bool ContainsTransposeWithSmallMostMinorDim(const HloFusionAdaptor& fusion,
       return false;
     }
     const HloInstruction& transpose = instr.instruction();
-    // We can assume that TransposeDimensionGrouper pass has run, so no need
-    // to try to combine adjacent dimensions.
+    // The kLoop emitter operates on the original transpose, but it handles the
+    // index calculation. The critical factor for performance (coalescing) is
+    // the size of the contiguous memory block being accessed in the minor
+    // dimension. Normalization reveals this true physical dimension size by
+    // merging adjacent logical dimensions. If this normalized dimension is
+    // large enough, the unrolled accesses will be coalesced, justifying the
+    // unroll factor.
+    absl::InlinedVector<int64_t, 3> permutation;
+    auto normalized_dims_or = ShapeUtil::GetNormalizedLogicalTransposeShape(
+        transpose.operand(0)->shape(), transpose.shape(),
+        transpose.dimensions(), permutation);
+    if (normalized_dims_or.ok()) {
+      return normalized_dims_or.value().back() < unroll_factor;
+    }
     return transpose.shape().dimensions().back() < unroll_factor;
   });
 }
@@ -528,7 +541,8 @@ FusionDecision CanEmitInputFusedScatter(const HloInstruction& producer,
 }
 
 FusionDecision IsProducerMultiOutputFusible(
-    const HloInstruction& producer, const se::DeviceDescription& device_info) {
+    const HloInstruction& producer, const GpuAliasInfo* alias_info,
+    const se::DeviceDescription& device_info) {
   // Skip multiple output fusion. It's not yet supported.
   if (producer.IsMultiOutputFusion()) {
     return FusionDecision::Forbid("Producer is a multi-output fusion");
@@ -558,7 +572,7 @@ FusionDecision IsProducerMultiOutputFusible(
   // is in-place. (We can relax this restriction by establishing an explicit
   // contract that describes what multi-output fusion scenarios are supported by
   // codegen and then changing this check to allow exactly those fusions).
-  if (!HloDataflowAnalysis::GetInPlaceInputOutputPairs(&producer).empty()) {
+  if (!alias_info->GetInPlaceInputOutputPairs(&producer).empty()) {
     return FusionDecision::Forbid("In-place operations are present");
   }
 

@@ -4,11 +4,11 @@
 
 #include "chrome/browser/profiles/batch_upload/batch_upload_service.h"
 
+#include <algorithm>
 #include <array>
 #include <map>
 
 #include "base/check_deref.h"
-#include "base/containers/contains.h"
 #include "base/containers/to_vector.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
@@ -17,7 +17,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/profiles/batch_upload/batch_upload_delegate.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
-#include "chrome/browser/signin/signin_promo_util.h"  // nogncheck
+#include "chrome/browser/signin/signin_promo_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
@@ -88,7 +88,7 @@ syncer::LocalDataDescription GetPrimaryTypeLocalDataDescription(
     const std::map<syncer::DataType, syncer::LocalDataDescription>&
         local_data_descriptions_map,
     syncer::DataType primary_type) {
-  CHECK(base::Contains(kBatchUploadAvailableTypesOrder, primary_type));
+  CHECK(std::ranges::contains(kBatchUploadAvailableTypesOrder, primary_type));
   CHECK(local_data_descriptions_map.contains(primary_type));
   const syncer::LocalDataDescription& primary_local_data_description =
       local_data_descriptions_map.at(primary_type);

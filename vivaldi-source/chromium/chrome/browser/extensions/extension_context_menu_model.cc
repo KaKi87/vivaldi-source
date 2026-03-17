@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "base/containers/contains.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_macros.h"
@@ -28,10 +27,10 @@
 #include "chrome/browser/policy/developer_tools_policy_handler.h"
 #include "chrome/browser/policy/profile_policy_connector.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/tab_list/tab_list_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/chrome_pages.h"
-#include "chrome/browser/ui/tabs/tab_list_interface.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/pref_names.h"
@@ -55,6 +54,7 @@
 #include "extensions/buildflags/buildflags.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/extension_features.h"
+#include "extensions/common/extension_usage.h"
 #include "extensions/common/manifest_handlers/options_page_info.h"
 #include "extensions/common/manifest_url_handlers.h"
 #include "extensions/common/permissions/api_permission.h"
@@ -115,7 +115,7 @@ bool MenuItemMatchesAction(const std::optional<ActionInfo::Type> action_type,
 // the toolbar by policy.
 bool IsExtensionForcePinned(const Extension& extension, Profile* profile) {
   auto* management = ExtensionManagementFactory::GetForBrowserContext(profile);
-  return base::Contains(management->GetForcePinnedList(), extension.id());
+  return management->GetForcePinnedList().contains(extension.id());
 }
 
 // Returns true if the given |extension| is allowed to be inspected based on
@@ -523,14 +523,8 @@ void ExtensionContextMenuModel::ExecuteCommand(int command_id,
       break;
     }
     case UNINSTALL: {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
       UninstallDialogHelper::UninstallExtension(
           profile_, browser_->GetWindow()->GetNativeWindow(), extension);
-#else
-      // TODO(crbug.com/448879321): Make it possible to uninstall extensions
-      // from here on Desktop Android.
-      NOTIMPLEMENTED();
-#endif
       break;
     }
     case TOGGLE_SIDE_PANEL_VISIBILITY: {
@@ -656,10 +650,7 @@ void ExtensionContextMenuModel::MenuClosed(ui::SimpleMenuModel* menu) {
 #if !BUILDFLAG(IS_ANDROID)
     if (source_ == ContextMenuSource::kMenuItem &&
         was_side_panel_action_taken) {
-      browser_->GetBrowserForMigrationOnly()
-          ->window()
-          ->GetExtensionsContainer()
-          ->CloseOverflowMenuIfOpen();
+      ExtensionsContainer::From(*browser_)->CloseOverflowMenuIfOpen();
       // WARNING: The overflow menu was the parent for this menu, so it's
       // possible `this` is now deleted.
     }

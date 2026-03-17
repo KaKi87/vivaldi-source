@@ -12,7 +12,6 @@
 #import <vector>
 
 #import "base/check.h"
-#import "base/containers/contains.h"
 #import "base/containers/flat_map.h"
 #import "base/hash/hash.h"
 #import "base/i18n/message_formatter.h"
@@ -79,7 +78,7 @@ void RemoveBookmarksRecursive(const std::set<const BookmarkNode*>& bookmarks,
                              node->children()[i - 1].get(), location);
   }
 
-  if (base::Contains(bookmarks, node)) {
+  if (bookmarks.contains(node)) {
     model->Remove(node, source, location);
   }
 }

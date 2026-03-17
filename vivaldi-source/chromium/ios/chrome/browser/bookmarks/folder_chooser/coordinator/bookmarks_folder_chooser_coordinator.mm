@@ -249,6 +249,9 @@ using vivaldi::IsVivaldiRunning;
 
 - (void)showBookmarksFolderEditorWithParentFolderNode:
     (const bookmarks::BookmarkNode*)parentNode {
+  if (_folderEditorCoordinator || _mediator.UIDisabled) {
+    return;
+  }
 
   if (IsVivaldiRunning()) {
     [self navigateToBookmarkFolderEditorWithParent:parentNode];
@@ -262,6 +265,7 @@ using vivaldi::IsVivaldiRunning;
                                browser:self.browser
                       parentFolderNode:parentNode];
   _folderEditorCoordinator.delegate = self;
+  _mediator.UIDisabled = YES;
   [_folderEditorCoordinator start];
   } // End Vivaldi
 
@@ -304,6 +308,7 @@ using vivaldi::IsVivaldiRunning;
     (BookmarksFolderEditorCoordinator*)coordinator {
   CHECK(_folderEditorCoordinator, base::NotFatalUntil::M150);
   [self stopBookmarksFolderEditorCoordinator];
+  _mediator.UIDisabled = NO;
 }
 
 - (void)bookmarksFolderEditorWillCommitTitleChange:

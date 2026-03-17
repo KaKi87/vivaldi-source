@@ -6,7 +6,6 @@ package org.chromium.chrome.browser.ntp_customization.theme.theme_collections;
 
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.SINGLE_THEME_COLLECTION;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.THEME_COLLECTIONS;
-import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.launchUriActivity;
 import static org.chromium.chrome.browser.ntp_customization.theme.theme_collections.NtpThemeCollectionsAdapter.ThemeCollectionsItemType.SINGLE_THEME_COLLECTION_ITEM;
 
 import android.content.ComponentCallbacks;
@@ -14,21 +13,21 @@ import android.content.Context;
 import android.content.res.Configuration;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.ntp_customization.BottomSheetDelegate;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationMetricsUtils;
 import org.chromium.chrome.browser.ntp_customization.R;
-import org.chromium.components.browser_ui.bottomsheet.BottomSheetController.SheetState;
 import org.chromium.components.browser_ui.widget.MaterialSwitchWithText;
 import org.chromium.components.image_fetcher.ImageFetcher;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -36,19 +35,12 @@ import java.util.List;
  */
 @NullMarked
 public class NtpSingleThemeCollectionCoordinator {
-    // TODO(crbug.com/423579377): Update the url for learn more button.
-    private static final String LEARN_MORE_CLICK_URL =
-            "https://support.google.com/chrome/?p=new_tab";
     private static final int RECYCLE_VIEW_SPAN_COUNT = 3;
 
-    private String mThemeCollectionId;
-    private String mThemeCollectionTitle;
-    private int mThemeCollectionHash;
     private final List<CollectionImage> mThemeCollectionImageList = new ArrayList<>();
     private final Context mContext;
     private final View mNtpSingleThemeCollectionBottomSheetView;
     private final View mBackButton;
-    private final ImageView mLearnMoreButton;
     private final TextView mTitle;
     private final MaterialSwitchWithText mDailyRefreshSwitchButton;
     private final RecyclerView mSingleThemeCollectionBottomSheetRecyclerView;
@@ -60,9 +52,16 @@ public class NtpSingleThemeCollectionCoordinator {
     private final int mItemMaxWidth;
     private final int mSpacing;
     private final Runnable mOnDailyRefreshCancelledCallback;
-    private boolean mHasDisplayedBefore;
+    private String mThemeCollectionId;
+    private String mThemeCollectionTitle;
+    private int mThemeCollectionHash;
     private int mScreenWidth;
+    // This variable is only used to record metrics.
     private boolean mIsThemeCollectionSelected;
+    // This variable is only used to record metrics.
+    private int mDailyRefreshThemeCollectionHash;
+    // This variable is only used to record metrics.
+    private @Nullable Boolean mIsDailyRefreshEnabled;
 
     /**
      * Constructor for the single theme collection coordinator.
@@ -73,8 +72,6 @@ public class NtpSingleThemeCollectionCoordinator {
      * @param imageFetcher The fetcher to retrieve images.
      * @param collectionId The ID of the current theme collection to display.
      * @param themeCollectionTitle The title of the current theme collection.
-     * @param previousBottomSheetState The bottom sheet state in the previous theme collections
-     *     bottom sheet.
      * @param onDailyRefreshCancelledCallback The callback to run when daily refresh is cancelled.
      */
     NtpSingleThemeCollectionCoordinator(
@@ -85,7 +82,6 @@ public class NtpSingleThemeCollectionCoordinator {
             String collectionId,
             String themeCollectionTitle,
             int themeCollectionHash,
-            @SheetState int previousBottomSheetState,
             Runnable onDailyRefreshCancelledCallback) {
         mContext = context;
         mBottomSheetDelegate = delegate;
@@ -104,7 +100,7 @@ public class NtpSingleThemeCollectionCoordinator {
                 context.getResources()
                                 .getDimensionPixelSize(
                                         R.dimen
-                                                .ntp_customization_theme_collection_list_item_padding_horizontal)
+                                                .ntp_customization_theme_collection_list_item_margin_horizontal)
                         * 2;
 
         mNtpSingleThemeCollectionBottomSheetView =
@@ -123,11 +119,6 @@ public class NtpSingleThemeCollectionCoordinator {
         mBackButton.setOnClickListener(
                 v -> mBottomSheetDelegate.showBottomSheet(THEME_COLLECTIONS));
 
-        // Manage the learn more button in the theme collections bottom sheet.
-        mLearnMoreButton =
-                mNtpSingleThemeCollectionBottomSheetView.findViewById(R.id.learn_more_button);
-        mLearnMoreButton.setOnClickListener(this::handleLearnMoreClick);
-
         // Update the title of the bottom sheet.
         mTitle = mNtpSingleThemeCollectionBottomSheetView.findViewById(R.id.bottom_sheet_title);
         mTitle.setText(mThemeCollectionTitle);
@@ -144,6 +135,8 @@ public class NtpSingleThemeCollectionCoordinator {
         mSingleThemeCollectionBottomSheetRecyclerView =
                 mNtpSingleThemeCollectionBottomSheetView.findViewById(
                         R.id.single_theme_collection_recycler_view);
+        // Disable the animation to prevent a crash when clicking the images rapidly.
+        mSingleThemeCollectionBottomSheetRecyclerView.setItemAnimator(null);
         GridLayoutManager gridLayoutManager =
                 new GridLayoutManager(context, RECYCLE_VIEW_SPAN_COUNT);
         mSingleThemeCollectionBottomSheetRecyclerView.setLayoutManager(gridLayoutManager);
@@ -170,7 +163,7 @@ public class NtpSingleThemeCollectionCoordinator {
                                         mSingleThemeCollectionBottomSheetRecyclerView));
 
         // Fetches the images for the current collection.
-        fetchImagesForCollection(previousBottomSheetState);
+        fetchImagesForCollection();
     }
 
     void destroy() {
@@ -179,10 +172,14 @@ public class NtpSingleThemeCollectionCoordinator {
         }
 
         mBackButton.setOnClickListener(null);
-        mLearnMoreButton.setOnClickListener(null);
 
         if (mNtpThemeCollectionsAdapter != null) {
             mNtpThemeCollectionsAdapter.clearOnClickListeners();
+        }
+
+        if (mIsDailyRefreshEnabled != null) {
+            NtpCustomizationMetricsUtils.recordThemeCollectionDailyRefresh(
+                    mDailyRefreshThemeCollectionHash, mIsDailyRefreshEnabled);
         }
     }
 
@@ -223,10 +220,7 @@ public class NtpSingleThemeCollectionCoordinator {
      * Updates the single theme collection bottom sheet based on the given theme collection type.
      */
     void updateThemeCollection(
-            String collectionId,
-            String themeCollectionTitle,
-            int themeCollectionHash,
-            @SheetState int previousBottomSheetState) {
+            String collectionId, String themeCollectionTitle, int themeCollectionHash) {
         if (mThemeCollectionTitle.equals(themeCollectionTitle)) {
             return;
         }
@@ -237,7 +231,7 @@ public class NtpSingleThemeCollectionCoordinator {
         mIsThemeCollectionSelected = false;
 
         mTitle.setText(mThemeCollectionTitle);
-        fetchImagesForCollection(previousBottomSheetState);
+        fetchImagesForCollection();
     }
 
     private void handleThemeCollectionImageClick(View view) {
@@ -252,27 +246,26 @@ public class NtpSingleThemeCollectionCoordinator {
         }
     }
 
-    private void handleLearnMoreClick(View view) {
-        launchUriActivity(view.getContext(), LEARN_MORE_CLICK_URL);
-    }
-
     /** Handles clicks on the daily refresh switch. */
     private void handleDailyRefreshClick(View view, Boolean isChecked) {
+        mIsDailyRefreshEnabled = isChecked;
+        mDailyRefreshThemeCollectionHash = mThemeCollectionHash;
         if (isChecked) {
             mNtpThemeCollectionManager.setThemeCollectionDailyRefreshed(mThemeCollectionId);
+            if (mNtpThemeCollectionsAdapter != null) {
+                mNtpThemeCollectionsAdapter.cancelLoadingState();
+            }
         } else {
             // If unchecked, resets to the default background by invoking the callback.
             mOnDailyRefreshCancelledCallback.run();
         }
     }
 
-    /**
-     * Fetches the images for the current collection and updates the adapter.
-     *
-     * @param previousBottomSheetState The bottom sheet state in the previous theme collections
-     *     bottom sheet.
-     */
-    private void fetchImagesForCollection(@SheetState int previousBottomSheetState) {
+    /** Fetches the images for the current collection and updates the adapter. */
+    private void fetchImagesForCollection() {
+        // Notify the adapter immediately that the data set is reset.
+        mNtpThemeCollectionsAdapter.setItems(Collections.emptyList());
+
         mNtpThemeCollectionManager.getBackgroundImages(
                 mThemeCollectionId,
                 (images) -> {
@@ -284,20 +277,10 @@ public class NtpSingleThemeCollectionCoordinator {
                     }
                     mNtpThemeCollectionsAdapter.setItems(mThemeCollectionImageList);
 
-                    if (previousBottomSheetState == SheetState.HALF || !mHasDisplayedBefore) {
-                        // The single theme collection bottom sheet will be shown in a half state if
-                        // it's either displayed for the first time or if the previous theme
-                        // collections bottom sheet was in a half state.
-                        mBottomSheetDelegate.getBottomSheetController().expandSheet();
-                    }
-
-                    if (!mHasDisplayedBefore) {
-                        // After setting items, apply the current selection from the manager.
-                        mNtpThemeCollectionsAdapter.setSelection(
-                                mNtpThemeCollectionManager.getSelectedThemeCollectionId(),
-                                mNtpThemeCollectionManager.getSelectedThemeCollectionImageUrl());
-                        mHasDisplayedBefore = true;
-                    }
+                    mSingleThemeCollectionBottomSheetRecyclerView.post(
+                            () -> {
+                                mBottomSheetDelegate.getBottomSheetController().expandSheet();
+                            });
                 });
     }
 
@@ -313,7 +296,7 @@ public class NtpSingleThemeCollectionCoordinator {
         // Temporarily detach the listener to prevent onCheckedChanged from being triggered
         // unnecessarily.
         mDailyRefreshSwitchButton.setOnCheckedChangeListener(null);
-        mDailyRefreshSwitchButton.setChecked(isChecked);
+        mDailyRefreshSwitchButton.setCheckedWithoutAnimation(isChecked);
         mDailyRefreshSwitchButton.setOnCheckedChangeListener(this::handleDailyRefreshClick);
     }
 

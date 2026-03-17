@@ -26,8 +26,8 @@
 @interface VivaldiSyncActivateAccountViewController
     : SettingsRootTableViewController
 
-@property(nonatomic, weak)
-    id<VivaldiSyncActivateAccountViewControllerDelegate> delegate;
+@property(nonatomic, weak) id<VivaldiSyncActivateAccountViewControllerDelegate>
+    delegate;
 
 // Initializes the view controller, configured with |style|. The default
 // ChromeTableViewStyler will be used.

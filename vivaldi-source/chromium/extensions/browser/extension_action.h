@@ -10,7 +10,6 @@
 #include <string>
 #include <vector>
 
-#include "base/containers/contains.h"
 #include "base/containers/map_util.h"
 #include "extensions/common/api/extension_action/action_info.h"
 #include "extensions/common/constants.h"
@@ -217,6 +216,10 @@ class ExtensionAction {
   IconImage* default_icon_image() { return default_icon_image_.get(); }
 
   void SetDefaultIconForTest(std::unique_ptr<ExtensionIconSet> default_icon);
+
+  // Vivaldi addition used to track state changes in known extensions. Like
+  // ProtonVPN.
+  std::string explicitly_set_icon_path_;
 
  private:
   // Populates the action from the `extension` and `manifest_data`, filling in

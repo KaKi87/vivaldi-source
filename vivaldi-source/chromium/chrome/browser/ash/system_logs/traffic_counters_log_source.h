@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_ASH_SYSTEM_LOGS_TRAFFIC_COUNTERS_LOG_SOURCE_H_
 #define CHROME_BROWSER_ASH_SYSTEM_LOGS_TRAFFIC_COUNTERS_LOG_SOURCE_H_
 
-#include <map>
 #include <optional>
 #include <string>
 
@@ -53,7 +52,7 @@ class TrafficCountersLogSource : public SystemLogsSource {
       remote_cros_network_config_;
 
   int total_guids_ = 0;
-  base::Value::Dict traffic_counters_;
+  base::DictValue traffic_counters_;
 
   base::WeakPtrFactory<TrafficCountersLogSource> weak_factory_{this};
 };

@@ -660,5 +660,294 @@ class CheckNewDEPSHooksHasRequiredReviewersTest(unittest.TestCase):
                     self.assertEqual(0, len(results))
 
 
+class CheckAyeAyeTest(unittest.TestCase):
+
+    def setUp(self):
+        super(CheckAyeAyeTest, self).setUp()
+        self.addCleanup(mock.patch.stopall)
+
+        self.input_api = MockInputApi()
+        self.output_api = MockOutputApi()
+
+        self.mock_repo_root = mock.patch.object(self.input_api.change,
+                                                'RepositoryRoot',
+                                                create=True).start()
+        self.mock_repo_root.return_value = '/fake/repo/root'
+
+        self.mock_popen = mock.patch.object(self.input_api.subprocess,
+                                            'Popen',
+                                            autospec=True).start()
+        self.mock_proc = mock.Mock()
+        self.mock_popen.return_value = self.mock_proc
+        self.input_api.subprocess.PIPE = subprocess.PIPE
+        self.input_api.subprocess.STDOUT = subprocess.STDOUT
+
+        self.mock_exists = mock.patch.object(presubmit_canned_checks._os.path,
+                                             'exists',
+                                             autospec=True).start()
+        self.mock_exists.return_value = True
+
+    def test_ayeaye_findings(self):
+        # Simulate alint output with color codes
+        alint_output = (
+            "\x1b[31mERROR:\x1b[0m This is an error.\n"
+            "Some other info line\n"
+            "\x1b[33mWARNING:\x1b[0m This is a warning.\n"
+            "\x1b[94mINFO:\x1b[0m This is an info.\n"
+            "\x1b[31mERROR:\x1b[0m Another error.\n"
+            "\x1b[33mWARNING:\x1b[0m Another warning.").encode('utf-8')
+        self.mock_proc.communicate.return_value = (alint_output, b'')
+        self.mock_proc.returncode = 0
+
+        results = presubmit_canned_checks.CheckAyeAye(self.input_api,
+                                                      self.output_api)
+
+        self.assertEqual(len(results), 4)
+
+        result_types = sorted([r.type for r in results])
+        self.assertEqual(result_types, ['error', 'error', 'warning', 'warning'])
+
+        messages = sorted([r.message for r in results])
+        expected_messages = sorted([
+            "This is an error.",
+            "Another error.",
+            "This is a warning.",
+            "Another warning.",
+        ])
+        self.assertEqual(messages, expected_messages)
+
+        self.mock_popen.assert_called_once_with(
+            ['/google/bin/releases/alint/alint', '--', '-t=9s'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            cwd='/fake/repo/root')
+
+    def test_ayeaye_no_findings(self):
+        self.mock_proc.communicate.return_value = (
+            b"\x1b[94mINFO:\x1b[0m All good", b'')
+        self.mock_proc.returncode = 0
+        results = presubmit_canned_checks.CheckAyeAye(self.input_api,
+                                                      self.output_api)
+        self.assertEqual(len(results), 0)
+
+    def test_ayeaye_alint_not_found(self):
+        self.mock_exists.return_value = False
+        results = presubmit_canned_checks.CheckAyeAye(self.input_api,
+                                                      self.output_api)
+        self.assertEqual(len(results), 0)
+
+    def test_ayeaye_subprocess_exception(self):
+        self.mock_popen.side_effect = Exception("BOOM")
+        results = presubmit_canned_checks.CheckAyeAye(self.input_api,
+                                                      self.output_api)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].type, 'error')
+        # Exact message depends on Exception type, so check for key parts
+        self.assertIn("Unexpected error in CheckAyeAye:", results[0].message)
+        self.assertIn("BOOM", results[0].message)
+
+    def test_ayeaye_alint_fails(self):
+        alint_output = (
+            "\x1b[31mERROR:\x1b[0m Failed to run.\n").encode('utf-8')
+        self.mock_proc.communicate.return_value = (alint_output, b'')
+        self.mock_proc.returncode = 1  # Non-zero return code
+        results = presubmit_canned_checks.CheckAyeAye(self.input_api,
+                                                      self.output_api)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].type, 'error')
+        self.assertIn("Failed to run.", results[0].message)
+
+
+class CheckForCommitObjectsTest(unittest.TestCase):
+
+    def setUp(self):
+        self.input_api = MockInputApi()
+        self.input_api.change.scm = 'git'
+        self.input_api.subprocess = mock.Mock()
+        self.output_api = MockOutputApi()
+
+        self.patcher = mock.patch('presubmit_canned_checks._ParseDeps')
+        self.mock_parse_deps = self.patcher.start()
+        self.mock_parse_deps.return_value = {'git_dependencies': 'DEPS'}
+        self.input_api.change.RepositoryRoot = lambda: ''
+
+    def tearDown(self):
+        self.patcher.stop()
+
+    def testNoGitlinks(self):
+        # No gitlinks at all.
+        self.input_api.subprocess.check_output.side_effect = [
+            b'',  # git show HEAD:DEPS
+            b'100644 blob 1234\tfile.txt\0'
+        ]
+
+        results = presubmit_canned_checks.CheckForCommitObjects(
+            self.input_api, self.output_api)
+        self.assertEqual(0, len(results))
+
+    def testGitlinkFound(self):
+        # One gitlink found.
+        self.input_api.subprocess.check_output.side_effect = [
+            b'',  # git show HEAD:DEPS
+            b'160000 commit 1234\tsubmodule\0'
+        ]
+
+        results = presubmit_canned_checks.CheckForCommitObjects(
+            self.input_api, self.output_api)
+        self.assertEqual(1, len(results))
+        self.assertEqual('submodule', results[0].items[0])
+
+    def testGitlinkMiddle(self):
+        # Gitlink in the middle of other files.
+        self.input_api.subprocess.check_output.side_effect = [
+            b'',  # git show HEAD:DEPS
+            b'100644 blob 1111\tfile1\0'
+            b'160000 commit 2222\tsubmodule\0'
+            b'100644 blob 3333\tfile2\0'
+        ]
+
+        results = presubmit_canned_checks.CheckForCommitObjects(
+            self.input_api, self.output_api)
+        self.assertEqual(1, len(results))
+        self.assertEqual('submodule', results[0].items[0])
+
+    def testGitlinkStart(self):
+        # Gitlink at the very start.
+        self.input_api.subprocess.check_output.side_effect = [
+            b'',  # git show HEAD:DEPS
+            b'160000 commit 2222\tsubmodule\0'
+            b'100644 blob 3333\tfile2\0'
+        ]
+
+        results = presubmit_canned_checks.CheckForCommitObjects(
+            self.input_api, self.output_api)
+        self.assertEqual(1, len(results))
+        self.assertEqual('submodule', results[0].items[0])
+
+    def testGitlinkEnd(self):
+        # Gitlink at the very end.
+        self.input_api.subprocess.check_output.side_effect = [
+            b'',  # git show HEAD:DEPS
+            b'100644 blob 3333\tfile2\0'
+            b'160000 commit 2222\tsubmodule\0'
+        ]
+
+        results = presubmit_canned_checks.CheckForCommitObjects(
+            self.input_api, self.output_api)
+        self.assertEqual(1, len(results))
+        self.assertEqual('submodule', results[0].items[0])
+
+    def testMultipleGitlinks(self):
+        # Multiple gitlinks.
+        self.input_api.subprocess.check_output.side_effect = [
+            b'',  # git show HEAD:DEPS
+            b'160000 commit 1111\tsub1\0'
+            b'100644 blob 2222\tfile\0'
+            b'160000 commit 3333\tsub2\0'
+        ]
+
+        results = presubmit_canned_checks.CheckForCommitObjects(
+            self.input_api, self.output_api)
+        self.assertEqual(1, len(results))
+        self.assertEqual(2, len(results[0].items))
+        self.assertIn('sub1', results[0].items)
+        self.assertIn('sub2', results[0].items)
+
+    def testFalsePositiveText(self):
+        # "160000" in filename but not mode.
+        self.input_api.subprocess.check_output.side_effect = [
+            b'',  # git show HEAD:DEPS
+            b'100644 blob 1234\t160000_file.txt\0'
+        ]
+
+        results = presubmit_canned_checks.CheckForCommitObjects(
+            self.input_api, self.output_api)
+        self.assertEqual(0, len(results))
+
+    def testRunFromSubdir_SmallFiles_NoSubmodules(self):
+        self.input_api.presubmit_local_path = os.path.join(ROOT_DIR, 'subdir')
+        self.input_api.change.RepositoryRoot = lambda: ROOT_DIR
+        self.input_api.files = [MockAffectedFile('foo.txt', 'content')]
+        self.input_api.subprocess.check_output.return_value = b''
+
+        results = presubmit_canned_checks.CheckForCommitObjects(
+            self.input_api, self.output_api)
+        self.assertEqual(0, len(results))
+
+    def testRunFromSubdir_SmallFiles_WithSubmodules(self):
+        self.input_api.presubmit_local_path = os.path.join(ROOT_DIR, 'subdir')
+        self.input_api.change.RepositoryRoot = lambda: ROOT_DIR
+        self.input_api.files = [MockAffectedFile('foo.txt', 'content')]
+        self.input_api.subprocess.check_output.return_value = b'160000 commit 1234\tsubmodule\0'
+
+        results = presubmit_canned_checks.CheckForCommitObjects(
+            self.input_api, self.output_api)
+        self.assertEqual(1, len(results))
+        self.assertIn('submodule', results[0].items)
+
+    def testRunFromSubdir_LargeFiles_NoSubmodules(self):
+        self.input_api.presubmit_local_path = os.path.join(ROOT_DIR, 'subdir')
+        self.input_api.change.RepositoryRoot = lambda: ROOT_DIR
+        self.input_api.files = [
+            MockAffectedFile(f'f{i}', '') for i in range(1001)
+        ]
+        self.input_api.subprocess.check_output.return_value = b''
+
+        results = presubmit_canned_checks.CheckForCommitObjects(
+            self.input_api, self.output_api)
+        self.assertEqual(0, len(results))
+
+    def testRunFromSubdir_LargeFiles_WithSubmodules(self):
+        self.input_api.presubmit_local_path = os.path.join(ROOT_DIR, 'subdir')
+        self.input_api.change.RepositoryRoot = lambda: ROOT_DIR
+        self.input_api.files = [
+            MockAffectedFile(f'f{i}', '') for i in range(1001)
+        ]
+        self.input_api.subprocess.check_output.return_value = b'160000 commit 1234\tsubmodule\0'
+
+        results = presubmit_canned_checks.CheckForCommitObjects(
+            self.input_api, self.output_api)
+        self.assertEqual(1, len(results))
+        self.assertIn('submodule', results[0].items)
+
+    def testWindowsCommandLineLimit(self):
+        # On Windows, if the command line is too long, we should fall back to a
+        # recursive ls-tree.
+        self.input_api.platform = 'win32'
+        self.input_api.files = [
+            MockAffectedFile('a' * 100, '') for i in range(100)
+        ]
+        self.input_api.subprocess.check_output.return_value = b''
+
+        presubmit_canned_checks.CheckForCommitObjects(
+            self.input_api, self.output_api)
+
+        # The first call is to `git show HEAD:DEPS`.
+        # The second call is to `git ls-tree`.
+        self.assertEqual(2, self.input_api.subprocess.check_output.call_count)
+        ls_tree_cmd = self.input_api.subprocess.check_output.call_args_list[1][0][0]
+        self.assertIn('-r', ls_tree_cmd)
+
+    def testWindowsCommandLineNotTooLong(self):
+        # On Windows, if the command line is not too long, we should pass the
+        # file list.
+        self.input_api.platform = 'win32'
+        self.input_api.files = [
+            MockAffectedFile('foo.txt', '')
+        ]
+        self.input_api.subprocess.check_output.return_value = b''
+
+        presubmit_canned_checks.CheckForCommitObjects(
+            self.input_api, self.output_api)
+
+        # The first call is to `git show HEAD:DEPS`.
+        # The second call is to `git ls-tree`.
+        self.assertEqual(2, self.input_api.subprocess.check_output.call_count)
+        ls_tree_cmd = self.input_api.subprocess.check_output.call_args_list[1][0][0]
+        self.assertNotIn('-r', ls_tree_cmd)
+        self.assertIn('--', ls_tree_cmd)
+        self.assertIn('foo.txt', ls_tree_cmd)
+
+
 if __name__ == '__main__':
     unittest.main()

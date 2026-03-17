@@ -33,18 +33,18 @@ const CGFloat imageViewHPadding = 20;
 @interface VivaldiSpeedDialAddGroupView ()
 
 // UI
-@property (nonatomic, weak) UIImageView *addGroupIllustrationView;
-@property (nonatomic, weak) UILabel *titleLabel;
-@property (nonatomic, weak) UILabel *descriptionLabel;
-@property (nonatomic, weak) UIButton *addButton;
+@property(nonatomic, weak) UIImageView* addGroupIllustrationView;
+@property(nonatomic, weak) UILabel* titleLabel;
+@property(nonatomic, weak) UILabel* descriptionLabel;
+@property(nonatomic, weak) UIButton* addButton;
 
 // Dynamic Constaints
 // Add group illustration is visible on all device and layout state except
 // Compact Height && Regular Width combo.
-@property (nonatomic, strong) NSArray<NSLayoutConstraint*>
-    *imageViewVisibleConstraints;
-@property (nonatomic, strong) NSArray<NSLayoutConstraint*>
-    *imageViewHiddenConstraints;
+@property(nonatomic, strong)
+    NSArray<NSLayoutConstraint*>* imageViewVisibleConstraints;
+@property(nonatomic, strong)
+    NSArray<NSLayoutConstraint*>* imageViewHiddenConstraints;
 
 @end
 
@@ -76,19 +76,17 @@ const CGFloat imageViewHPadding = 20;
   self.clipsToBounds = YES;
 
   // Add drop shadow
-  [self addShadowWithBackground:
-                        [UIColor colorNamed:vNTPSpeedDialCellBackgroundColor]
+  [self addShadowWithBackground:[UIColor
+                                    colorNamed:vNTPSpeedDialCellBackgroundColor]
                          offset:vSpeedDialItemShadowOffset
                     shadowColor:[UIColor colorNamed:vSpeedDialItemShadowColor]
                          radius:vSpeedDialItemShadowRadius
-                        opacity:vSpeedDialItemShadowOpacity
-  ];
+                        opacity:vSpeedDialItemShadowOpacity];
   self.backgroundColor = [UIColor colorNamed:vNTPSpeedDialCellBackgroundColor];
 
   // Add group illustration
-  UIImageView* imageView =
-      [[UIImageView alloc] initWithImage:
-            [UIImage imageNamed:vBookmarkAddGroupIllustration]];
+  UIImageView* imageView = [[UIImageView alloc]
+      initWithImage:[UIImage imageNamed:vBookmarkAddGroupIllustration]];
   self.addGroupIllustrationView = imageView;
   imageView.contentMode = UIViewContentModeScaleAspectFit;
   imageView.backgroundColor = UIColor.clearColor;
@@ -97,7 +95,8 @@ const CGFloat imageViewHPadding = 20;
   // Title Label
   UILabel* titleLabel = [[UILabel alloc] init];
   self.titleLabel = titleLabel;
-  titleLabel.text = GetNSString(IDS_IOS_START_PAGE_PROMO_CREATE_NEW_GROUP_TITLE);
+  titleLabel.text =
+      GetNSString(IDS_IOS_START_PAGE_PROMO_CREATE_NEW_GROUP_TITLE);
   titleLabel.adjustsFontForContentSizeCategory = YES;
   titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleTitle3];
   titleLabel.font = [UIFont boldSystemFontOfSize:titleLabel.font.pointSize];
@@ -112,7 +111,8 @@ const CGFloat imageViewHPadding = 20;
       GetNSString(IDS_IOS_START_PAGE_PROMO_CREATE_NEW_GROUP_DESCRIPTION);
   descriptionLabel.textColor = UIColor.secondaryLabelColor;
   descriptionLabel.adjustsFontForContentSizeCategory = YES;
-  descriptionLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+  descriptionLabel.font =
+      [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   descriptionLabel.numberOfLines = 0;
   descriptionLabel.textAlignment = NSTextAlignmentCenter;
   [self addSubview:descriptionLabel];
@@ -150,19 +150,18 @@ const CGFloat imageViewHPadding = 20;
 
 - (void)setUpConstraints {
   // Add group illustration.
-  [self.addGroupIllustrationView anchorTop:nil
-                                   leading:self.leadingAnchor
-                                    bottom:nil
-                                  trailing:self.trailingAnchor
-                                   padding:UIEdgeInsetsMake(
-                                        0, imageViewHPadding,
-                                        0, imageViewHPadding)];
+  [self.addGroupIllustrationView
+      anchorTop:nil
+        leading:self.leadingAnchor
+         bottom:nil
+       trailing:self.trailingAnchor
+        padding:UIEdgeInsetsMake(0, imageViewHPadding, 0, imageViewHPadding)];
 
   // Dynamic constraints
   self.imageViewVisibleConstraints = @[
     [self.addGroupIllustrationView.topAnchor
-          constraintEqualToAnchor:self.topAnchor
-                         constant:imageViewTopPadding],
+        constraintEqualToAnchor:self.topAnchor
+                       constant:imageViewTopPadding],
     [self.addGroupIllustrationView.widthAnchor
         constraintEqualToConstant:imageViewWidth],
     [self.addGroupIllustrationView.heightAnchor
@@ -172,42 +171,41 @@ const CGFloat imageViewHPadding = 20;
                        constant:commonPadding]
   ];
 
-  self.imageViewHiddenConstraints = @[
-    [self.titleLabel.topAnchor constraintEqualToAnchor:self.topAnchor
-                                              constant:commonPadding]
-  ];
+  self.imageViewHiddenConstraints =
+      @[ [self.titleLabel.topAnchor constraintEqualToAnchor:self.topAnchor
+                                                   constant:commonPadding] ];
 
-  if ([self shouldHideImageViewWithVerticalSizeClass:
-      self.traitCollection.verticalSizeClass]) {
+  if ([self shouldHideImageViewWithVerticalSizeClass:self.traitCollection
+                                                         .verticalSizeClass]) {
     [self deactivateImageViewConstraints];
   } else {
     [self activateImageViewConstraints];
   }
 
   // Title Label
-  [self.titleLabel anchorTop:nil
-                     leading:self.leadingAnchor
-                      bottom:nil
-                    trailing:self.trailingAnchor
-                     padding:UIEdgeInsetsMake(0, commonPadding,
-                                              0, commonPadding)];
+  [self.titleLabel
+      anchorTop:nil
+        leading:self.leadingAnchor
+         bottom:nil
+       trailing:self.trailingAnchor
+        padding:UIEdgeInsetsMake(0, commonPadding, 0, commonPadding)];
 
   // Description Label
-  [self.descriptionLabel anchorTop:self.titleLabel.bottomAnchor
-                           leading:self.leadingAnchor
-                            bottom:nil
-                          trailing:self.trailingAnchor
-                           padding:UIEdgeInsetsMake(descriptionTopPadding,
-                                                    commonPadding, 0,
-                                                    commonPadding)];
+  [self.descriptionLabel
+      anchorTop:self.titleLabel.bottomAnchor
+        leading:self.leadingAnchor
+         bottom:nil
+       trailing:self.trailingAnchor
+        padding:UIEdgeInsetsMake(descriptionTopPadding, commonPadding, 0,
+                                 commonPadding)];
 
   // Add Button
-  [self.addButton anchorTop:self.descriptionLabel.bottomAnchor
-                           leading:nil
-                            bottom:self.bottomAnchor
-                          trailing:nil
-                           padding:UIEdgeInsetsMake(buttonTopPadding, 0,
-                                                    commonPadding, 0)];
+  [self.addButton
+      anchorTop:self.descriptionLabel.bottomAnchor
+        leading:nil
+         bottom:self.bottomAnchor
+       trailing:nil
+        padding:UIEdgeInsetsMake(buttonTopPadding, 0, commonPadding, 0)];
   [self.addButton centerXInSuperview];
 }
 
@@ -231,12 +229,11 @@ const CGFloat imageViewHPadding = 20;
 
 - (BOOL)shouldHideImageViewWithVerticalSizeClass:
     (UIUserInterfaceSizeClass)verticalSizeClass {
-  return verticalSizeClass ==
-              UIUserInterfaceSizeClassCompact;
+  return verticalSizeClass == UIUserInterfaceSizeClassCompact;
 }
 
 #pragma mark - Action
-- (void)addButtonTapped:(UIButton *)sender {
+- (void)addButtonTapped:(UIButton*)sender {
   [self.delegate didTapAddNewGroup];
 }
 

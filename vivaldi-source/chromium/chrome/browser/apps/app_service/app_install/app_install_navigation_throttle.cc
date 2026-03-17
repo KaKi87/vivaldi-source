@@ -8,7 +8,6 @@
 #include <optional>
 #include <string_view>
 
-#include "base/containers/contains.h"
 #include "base/functional/callback.h"
 #include "base/strings/string_util.h"
 #include "base/unguessable_token.h"
@@ -77,16 +76,7 @@ bool IsNavigationUserInitiated(content::NavigationThrottleRegistry& registry) {
     return true;
   }
 
-  switch (handle.GetNavigationInitiatorActivationAndAdStatus()) {
-    case blink::mojom::NavigationInitiatorActivationAndAdStatus::
-        kDidNotStartWithTransientActivation:
-      return false;
-    case blink::mojom::NavigationInitiatorActivationAndAdStatus::
-        kStartedWithTransientActivationFromNonAd:
-    case blink::mojom::NavigationInitiatorActivationAndAdStatus::
-        kStartedWithTransientActivationFromAd:
-      return true;
-  }
+  return handle.StartedWithTransientActivation();
 }
 
 }  // namespace

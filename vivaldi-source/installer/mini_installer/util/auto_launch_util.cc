@@ -18,9 +18,9 @@
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
-#include "installer/mini_installer/util/util_constants.h"
 #include "components/app_launch_prefetch/app_launch_prefetch.h"
 #include "crypto/hash.h"
+#include "installer/mini_installer/util/util_constants.h"
 
 namespace auto_launch_util {
 
@@ -36,9 +36,9 @@ std::wstring GetAutoLaunchKeyName() {
   if (!base::PathService::Get(chrome::DIR_USER_DATA, &path)) {
     return {};
   }
-  // Background auto-launch is only supported for the Default profile at the
-  // moment, but keep the door opened to a multi-profile implementation by
-  // encoding the Default profile in the hash.
+  // Auto-launch is only supported for the Default profile at the moment, but
+  // keep the door opened to a multi-profile implementation by encoding the
+  // Default profile in the hash.
   path = path.AppendASCII(chrome::kInitialProfile);
 
   const auto hash = crypto::hash::Sha256(path.AsUTF8Unsafe());
@@ -51,24 +51,31 @@ std::wstring GetAutoLaunchKeyName() {
                        base::ASCIIToWide(base::HexEncode(truncated_hash))});
 }
 
-void EnableBackgroundStartAtLogin() {
+void EnableStartAtLogin(StartupLaunchMode startup_launch_mode) {
   base::FilePath application_dir;
   if (!base::PathService::Get(base::DIR_EXE, &application_dir)) {
     return;
   }
 
   base::CommandLine cmd_line(application_dir.Append(installer::kChromeExe));
-  cmd_line.AppendSwitch(switches::kNoStartupWindow);
-  cmd_line.AppendArgNative(app_launch_prefetch::GetPrefetchSwitch(
-      app_launch_prefetch::SubprocessType::kBrowserBackground));
 
+  switch (startup_launch_mode) {
+    case StartupLaunchMode::kBackground:
+      cmd_line.AppendSwitch(switches::kNoStartupWindow);
+      cmd_line.AppendArgNative(app_launch_prefetch::GetPrefetchSwitch(
+          app_launch_prefetch::SubprocessType::kBrowserBackground));
+      break;
+    case StartupLaunchMode::kForeground:
+      cmd_line.AppendSwitch(switches::kStartupForegroundLaunch);
+      break;
+  }
   if (auto key_name = GetAutoLaunchKeyName(); !key_name.empty()) {
     base::win::AddCommandToAutoRun(HKEY_CURRENT_USER, key_name,
                                    cmd_line.GetCommandLineString());
   }
 }
 
-void DisableBackgroundStartAtLogin() {
+void DisableStartAtLogin() {
   if (auto key_name = GetAutoLaunchKeyName(); !key_name.empty()) {
     base::win::RemoveCommandFromAutoRun(HKEY_CURRENT_USER, key_name);
   }

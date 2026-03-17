@@ -135,27 +135,27 @@ class FullStreamUIPolicyTest : public testing::Test {
 
   static void RetrieveActions_LogAndFetchActions(
       std::unique_ptr<std::vector<scoped_refptr<Action>>> i) {
-    ASSERT_EQ(2, static_cast<int>(i->size()));
+    ASSERT_EQ(2u, i->size());
   }
 
   static void RetrieveActions_FetchFilteredActions0(
       std::unique_ptr<std::vector<scoped_refptr<Action>>> i) {
-    ASSERT_EQ(0, static_cast<int>(i->size()));
+    ASSERT_EQ(0u, i->size());
   }
 
   static void RetrieveActions_FetchFilteredActions1(
       std::unique_ptr<std::vector<scoped_refptr<Action>>> i) {
-    ASSERT_EQ(1, static_cast<int>(i->size()));
+    ASSERT_EQ(1u, i->size());
   }
 
   static void RetrieveActions_FetchFilteredActions2(
       std::unique_ptr<std::vector<scoped_refptr<Action>>> i) {
-    ASSERT_EQ(2, static_cast<int>(i->size()));
+    ASSERT_EQ(2u, i->size());
   }
 
   static void RetrieveActions_FetchFilteredActions300(
       std::unique_ptr<std::vector<scoped_refptr<Action>>> i) {
-    ASSERT_EQ(300, static_cast<int>(i->size()));
+    ASSERT_EQ(300u, i->size());
   }
 
   static void Arguments_Present(std::unique_ptr<Action::ActionVector> i) {
@@ -167,7 +167,7 @@ class FullStreamUIPolicyTest : public testing::Test {
 
   static void Arguments_GetTodaysActions(
       std::unique_ptr<Action::ActionVector> actions) {
-    ASSERT_EQ(2, static_cast<int>(actions->size()));
+    ASSERT_EQ(2u, actions->size());
     CheckAction(*actions->at(0), "punky", Action::ACTION_DOM_ACCESS, "lets",
                 "[\"vamoose\"]", "http://www.google.com/", "Page Title",
                 "http://www.arg-url.com/");
@@ -177,7 +177,7 @@ class FullStreamUIPolicyTest : public testing::Test {
 
   static void Arguments_GetOlderActions(
       std::unique_ptr<Action::ActionVector> actions) {
-    ASSERT_EQ(2, static_cast<int>(actions->size()));
+    ASSERT_EQ(2u, actions->size());
     CheckAction(*actions->at(0), "punky", Action::ACTION_DOM_ACCESS, "lets",
                 "[\"vamoose\"]", "http://www.google.com/", "", "");
     CheckAction(*actions->at(1), "punky", Action::ACTION_API_CALL, "brewster",
@@ -185,7 +185,7 @@ class FullStreamUIPolicyTest : public testing::Test {
   }
 
   static void AllURLsRemoved(std::unique_ptr<Action::ActionVector> actions) {
-    ASSERT_EQ(2, static_cast<int>(actions->size()));
+    ASSERT_EQ(2u, actions->size());
     CheckAction(*actions->at(0), "punky", Action::ACTION_API_CALL, "lets",
                 "[\"vamoose\"]", "", "", "");
     CheckAction(*actions->at(1), "punky", Action::ACTION_DOM_ACCESS, "lets",
@@ -194,7 +194,7 @@ class FullStreamUIPolicyTest : public testing::Test {
 
   static void SomeURLsRemoved(std::unique_ptr<Action::ActionVector> actions) {
     // These will be in the vector in reverse time order.
-    ASSERT_EQ(5, static_cast<int>(actions->size()));
+    ASSERT_EQ(5u, actions->size());
     CheckAction(*actions->at(0), "punky", Action::ACTION_DOM_ACCESS, "lets",
                 "[\"vamoose\"]", "http://www.google.com/", "Google",
                 "http://www.args-url.com/");
@@ -277,12 +277,12 @@ class FullStreamUIPolicyTest : public testing::Test {
   }
 
   static void AllActionsDeleted(std::unique_ptr<Action::ActionVector> actions) {
-    ASSERT_EQ(0, static_cast<int>(actions->size()));
+    ASSERT_EQ(0u, actions->size());
   }
 
   static void NoActionsDeleted(std::unique_ptr<Action::ActionVector> actions) {
     // These will be in the vector in reverse time order.
-    ASSERT_EQ(4, static_cast<int>(actions->size()));
+    ASSERT_EQ(4u, actions->size());
     CheckAction(*actions->at(0), "punky2", Action::ACTION_API_CALL, "lets2",
                 "[\"vamoose2\"]", "http://www.google2.com/", "Google2",
                 "http://www.args-url2.com/");
@@ -303,7 +303,7 @@ class FullStreamUIPolicyTest : public testing::Test {
 
   static void Action1Deleted(std::unique_ptr<Action::ActionVector> actions) {
     // These will be in the vector in reverse time order.
-    ASSERT_EQ(2, static_cast<int>(actions->size()));
+    ASSERT_EQ(2u, actions->size());
     CheckAction(*actions->at(0), "punky2", Action::ACTION_API_CALL, "lets2",
                 "[\"vamoose2\"]", "http://www.google2.com/", "Google2",
                 "http://www.args-url2.com/");
@@ -316,7 +316,7 @@ class FullStreamUIPolicyTest : public testing::Test {
 
   static void Action2Deleted(std::unique_ptr<Action::ActionVector> actions) {
     // These will be in the vector in reverse time order.
-    ASSERT_EQ(2, static_cast<int>(actions->size()));
+    ASSERT_EQ(2u, actions->size());
     CheckAction(*actions->at(0), "punky1", Action::ACTION_DOM_ACCESS, "lets1",
                 "[\"vamoose1\"]", "http://www.google1.com/", "Google1",
                 "http://www.args-url1.com/");
@@ -346,7 +346,7 @@ TEST_F(FullStreamUIPolicyTest, Construct) {
   policy->Init();
   scoped_refptr<const Extension> extension =
       ExtensionBuilder()
-          .SetManifest(base::Value::Dict()
+          .SetManifest(base::DictValue()
                            .Set("name", "Test extension")
                            .Set("version", "1.0.0")
                            .Set("manifest_version", 2))
@@ -355,7 +355,7 @@ TEST_F(FullStreamUIPolicyTest, Construct) {
   scoped_refptr<Action> action =
       new Action(extension->id(), base::Time::Now(), Action::ACTION_API_CALL,
                  "tabs.testMethod");
-  action->set_args(base::Value::List());
+  action->set_args(base::ListValue());
   policy->ProcessAction(action);
   policy->Close();
 }
@@ -365,7 +365,7 @@ TEST_F(FullStreamUIPolicyTest, LogAndFetchActions) {
   policy->Init();
   scoped_refptr<const Extension> extension =
       ExtensionBuilder()
-          .SetManifest(base::Value::Dict()
+          .SetManifest(base::DictValue()
                            .Set("name", "Test extension")
                            .Set("version", "1.0.0")
                            .Set("manifest_version", 2))
@@ -377,13 +377,13 @@ TEST_F(FullStreamUIPolicyTest, LogAndFetchActions) {
   scoped_refptr<Action> action_api =
       new Action(extension->id(), base::Time::Now(), Action::ACTION_API_CALL,
                  "tabs.testMethod");
-  action_api->set_args(base::Value::List());
+  action_api->set_args(base::ListValue());
   policy->ProcessAction(action_api);
 
   scoped_refptr<Action> action_dom =
       new Action(extension->id(), base::Time::Now(), Action::ACTION_DOM_ACCESS,
                  "document.write");
-  action_dom->set_args(base::Value::List());
+  action_dom->set_args(base::ListValue());
   action_dom->set_page_url(gurl);
   policy->ProcessAction(action_dom);
 
@@ -400,7 +400,7 @@ TEST_F(FullStreamUIPolicyTest, LogAndFetchFilteredActions) {
   policy->Init();
   scoped_refptr<const Extension> extension =
       ExtensionBuilder()
-          .SetManifest(base::Value::Dict()
+          .SetManifest(base::DictValue()
                            .Set("name", "Test extension")
                            .Set("version", "1.0.0")
                            .Set("manifest_version", 2))
@@ -412,13 +412,13 @@ TEST_F(FullStreamUIPolicyTest, LogAndFetchFilteredActions) {
   scoped_refptr<Action> action_api =
       new Action(extension->id(), base::Time::Now(), Action::ACTION_API_CALL,
                  "tabs.testMethod");
-  action_api->set_args(base::Value::List());
+  action_api->set_args(base::ListValue());
   policy->ProcessAction(action_api);
 
   scoped_refptr<Action> action_dom =
       new Action(extension->id(), base::Time::Now(), Action::ACTION_DOM_ACCESS,
                  "document.write");
-  action_dom->set_args(base::Value::List());
+  action_dom->set_args(base::ListValue());
   action_dom->set_page_url(gurl);
   policy->ProcessAction(action_dom);
 
@@ -477,14 +477,14 @@ TEST_F(FullStreamUIPolicyTest, LogWithArguments) {
   policy->Init();
   scoped_refptr<const Extension> extension =
       ExtensionBuilder()
-          .SetManifest(base::Value::Dict()
+          .SetManifest(base::DictValue()
                            .Set("name", "Test extension")
                            .Set("version", "1.0.0")
                            .Set("manifest_version", 2))
           .Build();
   ExtensionRegistrar::Get(profile_.get())->AddExtension(extension);
 
-  auto args = base::Value::List().Append("hello");
+  auto args = base::ListValue().Append("hello");
   args.Append("world");
   scoped_refptr<Action> action =
       new Action(extension->id(), base::Time::Now(), Action::ACTION_API_CALL,
@@ -765,7 +765,7 @@ TEST_F(FullStreamUIPolicyTest, DeleteDatabase) {
   policy->Init();
   scoped_refptr<const Extension> extension =
       ExtensionBuilder()
-          .SetManifest(base::Value::Dict()
+          .SetManifest(base::DictValue()
                            .Set("name", "Test extension")
                            .Set("version", "1.0.0")
                            .Set("manifest_version", 2))
@@ -777,13 +777,13 @@ TEST_F(FullStreamUIPolicyTest, DeleteDatabase) {
   scoped_refptr<Action> action_api =
       new Action(extension->id(), base::Time::Now(), Action::ACTION_API_CALL,
                  "tabs.testMethod");
-  action_api->set_args(base::Value::List());
+  action_api->set_args(base::ListValue());
   policy->ProcessAction(action_api);
 
   scoped_refptr<Action> action_dom =
       new Action(extension->id(), base::Time::Now(), Action::ACTION_DOM_ACCESS,
                  "document.write");
-  action_dom->set_args(base::Value::List());
+  action_dom->set_args(base::ListValue());
   action_dom->set_page_url(gurl);
   policy->ProcessAction(action_dom);
 

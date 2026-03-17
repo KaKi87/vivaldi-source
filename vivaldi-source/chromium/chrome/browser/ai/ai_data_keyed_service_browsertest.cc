@@ -13,10 +13,9 @@
 #include "base/test/test_future.h"
 #include "build/build_config.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
+#include "chrome/browser/actor/actor_proto_conversion.h"
 #include "chrome/browser/actor/actor_switches.h"
 #include "chrome/browser/actor/actor_test_util.h"
-#include "chrome/browser/actor/browser_action_util.h"
-#include "chrome/browser/actor/shared_types.h"
 #include "chrome/browser/actor/tools/click_tool_request.h"
 #include "chrome/browser/actor/tools/navigate_tool_request.h"
 #include "chrome/browser/ai/ai_data_keyed_service_factory.h"
@@ -47,7 +46,7 @@
 #include "components/optimization_guide/content/browser/page_content_proto_provider.h"
 #include "components/optimization_guide/proto/features/actions_data.pb.h"
 #include "components/optimization_guide/proto/features/common_quality_data.pb.h"
-#include "components/passage_embeddings/passage_embeddings_test_util.h"
+#include "components/passage_embeddings/core/passage_embeddings_test_util.h"
 #include "components/tabs/public/tab_group.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_switches.h"
@@ -348,7 +347,6 @@ IN_PROC_BROWSER_TEST_F(AiDataKeyedServiceBrowserTest, AIPageContent) {
     EXPECT_EQ(content_attributes.attribute_type(),
               optimization_guide::proto::CONTENT_ATTRIBUTE_ROOT);
     EXPECT_TRUE(content_attributes.has_interaction_info());
-    EXPECT_FALSE(content_attributes.interaction_info().is_clickable());
 
     const auto& html = page_content.root_node().children_nodes().at(0);
     const auto& body = html.children_nodes().at(0);
@@ -356,7 +354,6 @@ IN_PROC_BROWSER_TEST_F(AiDataKeyedServiceBrowserTest, AIPageContent) {
     ASSERT_EQ(body.children_nodes().size(), 1);
     const auto& child = body.children_nodes().at(0);
     EXPECT_TRUE(child.content_attributes().has_interaction_info());
-    EXPECT_TRUE(child.content_attributes().interaction_info().is_clickable());
   }
 }
 

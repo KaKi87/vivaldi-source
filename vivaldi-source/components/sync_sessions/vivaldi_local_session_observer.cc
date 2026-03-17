@@ -24,8 +24,8 @@
 #else
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sync/device_info_sync_service_factory.h"
-#include "chrome/browser/sync/sessions/sync_sessions_web_contents_router_factory.h"
 #include "chrome/browser/sync/sessions/sync_sessions_web_contents_router.h"
+#include "chrome/browser/sync/sessions/sync_sessions_web_contents_router_factory.h"
 #endif
 
 namespace {
@@ -190,9 +190,8 @@ VivaldiLocalSessionObserver::VivaldiLocalSessionObserver(ProfileClass* profile)
       {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
        base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
       base::BindOnce(&syncer::GetPersonalizableDeviceNameBlocking),
-      base::BindOnce(
-          &VivaldiLocalSessionObserver::SetFallbackDeviceName,
-          weak_factory_.GetWeakPtr()));
+      base::BindOnce(&VivaldiLocalSessionObserver::SetFallbackDeviceName,
+                     weak_factory_.GetWeakPtr()));
 }
 
 void VivaldiLocalSessionObserver::OnDeviceInfoChange() {
@@ -212,7 +211,7 @@ void VivaldiLocalSessionObserver::UpdateSession() {
 #if BUILDFLAG(IS_IOS)
   IOSChromeLocalSessionEventRouter* router =
       static_cast<IOSChromeLocalSessionEventRouter*>(
-        sessions_client_->GetLocalSessionEventRouter());
+          sessions_client_->GetLocalSessionEventRouter());
 #else
   sync_sessions::SyncSessionsWebContentsRouter* router =
       sync_sessions::SyncSessionsWebContentsRouterFactory::GetForProfile(
@@ -236,7 +235,7 @@ void VivaldiLocalSessionObserver::UpdateSession() {
 }
 
 void VivaldiLocalSessionObserver::SetFallbackDeviceName(
-  const std::string& device_name) {
+    const std::string& device_name) {
   fallback_device_name_ = device_name;
 }
 
@@ -248,7 +247,7 @@ void VivaldiLocalSessionObserver::TriggerSync() {
 #if BUILDFLAG(IS_IOS)
   IOSChromeLocalSessionEventRouter* router =
       static_cast<IOSChromeLocalSessionEventRouter*>(
-        sessions_client_->GetLocalSessionEventRouter());
+          sessions_client_->GetLocalSessionEventRouter());
 #else
   sync_sessions::SyncSessionsWebContentsRouter* router =
       sync_sessions::SyncSessionsWebContentsRouterFactory::GetForProfile(

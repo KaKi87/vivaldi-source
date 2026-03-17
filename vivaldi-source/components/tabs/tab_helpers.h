@@ -22,6 +22,6 @@ bool IsTabInAWorkspace(const std::string& viv_extdata);
 std::optional<double> GetTabWorkspaceId(const std::string& viv_extdata);
 bool SetTabWorkspaceId(content::WebContents* contents, double workspace_id);
 
-}
+}  // namespace vivaldi
 
 #endif  // COMPONENTS_TABS_TAB_HELPERS_H_

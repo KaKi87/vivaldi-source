@@ -174,7 +174,7 @@
 <translation id="5416008465899576639">Vivaldi の更新があります。</translation>
 <translation id="5497042274492038489">ウィンドウを閉じる確認</translation>
 <translation id="5556459405103347317">再読み込み</translation>
-<translation id="5583322400766491358">パーソナルインサイトのデータはお使いのデバイスに安全に保存され、第三者と共有されることはありません。</translation>
+<translation id="5583322400766491358">データはお使いのデバイスに安全に保存され、第三者と共有されることはありません。</translation>
 <translation id="5594602170491763400">怪獣 5</translation>
 <translation id="5648110075441906505">新しいウィンドウで画像を開く</translation>
 <translation id="5648166631817621825">直近 7 日間</translation>
@@ -224,13 +224,13 @@
 <translation id="7321500017121629018">昨日アクティブ</translation>
 <translation id="7337881442233988129">Chromium</translation>
 <translation id="7382439465323652245">ソースプロファイルに「os_crypt」エントリが見つかりません</translation>
-<translation id="7421665776469827022">保存データ</translation>
+<translation id="7421665776469827022">節約されたデータ</translation>
 <translation id="7454640759045234067">トラッカーブロック数</translation>
 <translation id="7508642657131162635">ブラウザが開かれている間は、Brave の設定を利用できません。Vivaldi に設定をインポートするには、作業内容を保存し、すべての Brave ウィンドウを閉じてから［続行］をクリックしてください。</translation>
 <translation id="7515032462649518126">カスタムアバター画像を選択</translation>
 <translation id="7581266044164103589">更新インストーラーの起動に失敗しました。お使いのコンピューターに十分なメモリーとストレージの空き容量があることをご確認の上、後ほどもう一度お試しください。</translation>
 <translation id="7658239707568436148">キャンセル</translation>
-<translation id="7698231949697067951">オンラインで何をするかはあなたの自由です！以下では、どのようにしてあなたの保護に貢献してきたかをご覧いただけます。</translation>
+<translation id="7698231949697067951">オンラインで何をするかはあなたの自由！ここでは、Vivaldi がどのようにしてあなたのプライバシー保護に貢献してきたかを確認できます。</translation>
 <translation id="7724603315864178912">切り取り</translation>
 <translation id="7727481996062361502">更新を検証中...</translation>
 <translation id="7793738202466490491">カレンダーイベントとして追加</translation>
@@ -242,7 +242,7 @@
 <translation id="7981965265950405093">Vivaldi には独自の広告およびトラッカーブロッカー、多彩なカスタマイズオプション、内蔵のメールとカレンダー機能などが搭載されています。Google の厳格な Manifest V3 に従うのでしょうか？Vivaldi の開発者、ジュリアン・ピカラウサがこの問題を詳しく解説します。</translation>
 <translation id="7985415590384688462">パスワードを復号できませんでした</translation>
 <translation id="8027581147000338959">新しいウィンドウで開く</translation>
-<translation id="8034402064393340023">お客様のプライバシーへの当社の取り組み</translation>
+<translation id="8034402064393340023">プライバシーに対する Vivaldi の取り組み</translation>
 <translation id="8044382196220116469">サイトに動画の自動再生を許可しない</translation>
 <translation id="8099620695029051217">アドレスをコピー</translation>
 <translation id="8119307142152921512">トラッカーと広告</translation>

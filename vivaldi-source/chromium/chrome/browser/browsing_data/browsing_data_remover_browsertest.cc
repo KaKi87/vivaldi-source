@@ -777,9 +777,9 @@ IN_PROC_BROWSER_TEST_F(BrowsingDataRemoverBrowserTest,
   Profile* profile = GetBrowser()->profile();
   url::Origin test_origin = url::Origin::Create(GURL("https://example.test/"));
   const std::string serialized_test_origin = test_origin.Serialize();
-  base::Value::Dict allowed_protocols_for_origin;
+  base::DictValue allowed_protocols_for_origin;
   allowed_protocols_for_origin.Set("tel", true);
-  base::Value::Dict origin_pref;
+  base::DictValue origin_pref;
   origin_pref.Set(serialized_test_origin,
                   std::move(allowed_protocols_for_origin));
   profile->GetPrefs()->SetDict(prefs::kProtocolHandlerPerOriginAllowedProtocols,
@@ -1017,18 +1017,6 @@ IN_PROC_BROWSER_TEST_P(BrowsingDataRemoverBrowserTestP,
   // Start data removal.  This will CreateTaskCompletionClosureForMojo and
   // register it as a completion callback for mojo calls to NetworkContext
   // and other StorageParition-owned mojo::Remote(s).
-  //
-  // kRemoveMask contains:
-  // - DATA_TYPE_SITE_DATA - cargo-culted default from other tests
-  // - DEFERRED_COOKIE_DELETION_DATA_TYPES - to get non-empty result from
-  //   ChromeBrowsingDataRemoverDelegate::GetDomainsForDeferredCookieDeletion
-  //   (which is needed to touch StoragePartition in
-  //   BrowsingDataRemoverImpl::OnTaskComplete when it is called later,
-  //   after starting destruction of the BrowserContext - see the description
-  //   of the next test step below).
-  constexpr uint64_t kRemoveMask =
-      chrome_browsing_data_remover::DATA_TYPE_SITE_DATA |
-      chrome_browsing_data_remover::DEFERRED_COOKIE_DELETION_DATA_TYPES;
   content::BrowserContext* browser_context = GetBrowser()->profile();
   content::BrowsingDataRemover* remover =
       browser_context->GetBrowsingDataRemover();
@@ -1036,7 +1024,8 @@ IN_PROC_BROWSER_TEST_P(BrowsingDataRemoverBrowserTestP,
   remover->RemoveAndReply(
       base::Time(),       // delete_begin
       base::Time::Max(),  // delete_end
-      kRemoveMask, content::BrowsingDataRemover::ORIGIN_TYPE_UNPROTECTED_WEB,
+      chrome_browsing_data_remover::DATA_TYPE_SITE_DATA,
+      content::BrowsingDataRemover::ORIGIN_TYPE_UNPROTECTED_WEB,
       &completion_observer);
 
   // Close the incognito browser.  This will tear down its
@@ -1095,7 +1084,7 @@ IN_PROC_BROWSER_TEST_P(BrowsingDataRemoverBrowserTestP,
   EXPECT_FALSE(HasDataForType(type));
 }
 
-// Test that session storage is not counted until crbug.com/772337 is fixed.
+// Test that session storage is not counted until crbug.com/41348517 is fixed.
 IN_PROC_BROWSER_TEST_F(BrowsingDataRemoverBrowserTest, SessionStorageCounting) {
   EXPECT_EQ(0, GetSiteDataCount());
   ExpectTotalModelCount(0);
@@ -1258,7 +1247,7 @@ IN_PROC_BROWSER_TEST_F(BrowsingDataRemoverBrowserTest,
   // created. Deleting licenses checks for any file within the time range
   // specified in order to delete all the files for the domain, so this may
   // cause problems (especially with Macs that use second granularity).
-  // http://crbug.com/909829.
+  // http://crbug.com/40604237.
   EXPECT_FALSE(HasDataForType(kMediaLicenseType));
 
   SetDataForType(kMediaLicenseType);

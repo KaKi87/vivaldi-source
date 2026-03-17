@@ -21,9 +21,9 @@
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
-#include "base/strings/utf_string_conversions.h"
 #include "base/task/thread_pool.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/threading/thread.h"
@@ -111,10 +111,11 @@ bool ContactService::Init(
        base::TaskShutdownBehavior::BLOCK_SHUTDOWN});
 
   // Create the contact backend.
-  scoped_refptr<ContactBackend> backend(new ContactBackend(
-    new ContactBackendDelegate(weak_ptr_factory_.GetWeakPtr(),
-      base::SingleThreadTaskRunner::GetCurrentDefault()),
-    backend_task_runner_));
+  scoped_refptr<ContactBackend> backend(
+      new ContactBackend(new ContactBackendDelegate(
+                             weak_ptr_factory_.GetWeakPtr(),
+                             base::SingleThreadTaskRunner::GetCurrentDefault()),
+                         backend_task_runner_));
   contact_backend_.swap(backend);
 
   ScheduleTask(base::BindOnce(&ContactBackend::Init, contact_backend_, no_db,

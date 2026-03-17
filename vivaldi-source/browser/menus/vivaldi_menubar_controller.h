@@ -103,6 +103,7 @@ class MenubarController : public views::MenuDelegate,
       views::MenuItemView* menu,
       const gfx::Point& screen_point,
       gfx::Rect* rect,
+      bool* has_mnemonics,
       views::MenuAnchorPosition* anchor) override;
   views::MenuItemView* GetNextSiblingMenu(
       bool next,

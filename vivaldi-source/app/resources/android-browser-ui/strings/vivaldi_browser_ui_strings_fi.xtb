@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="fi">
+<translation id="3110967157686007724">Yksityisvälilehti</translation>
 <translation id="4165986682804962316">Sivustoasetukset</translation>
 <translation id="5216942107514965959">Viimeksi vierailtu tänään</translation>
+<translation id="5802121420922181398">Näytä lukunäkymäpainike osoitekentässä, kun käytettävissä.</translation>
 <translation id="5860033963881614850">Ei käytössä</translation>
 <translation id="5939518447894949180">Palauta</translation>
+<translation id="6877535416649928189">Verkkosivujen lukunäkymä</translation>
 </translationbundle>

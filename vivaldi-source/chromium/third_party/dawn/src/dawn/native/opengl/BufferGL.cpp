@@ -83,7 +83,10 @@ ResultOrError<Ref<Buffer>> Buffer::Create(Device* device,
             gl, BufferData(GL_ARRAY_BUFFER, buffer->mAllocatedSize, nullptr, GL_STATIC_DRAW));
     }
 
-    buffer->TrackUsage();
+    {
+        auto scopedUseBuffer = buffer->UseInternal();
+        buffer->TrackUsage();
+    }
 
     return std::move(buffer);
 }
@@ -204,6 +207,8 @@ MaybeError Buffer::MapAtCreationImpl() {
 }
 
 MaybeError Buffer::MapAsyncImpl(wgpu::MapMode mode, size_t offset, size_t size) {
+    auto deviceGuard = GetDevice()->GetGuard();
+
     const OpenGLFunctions& gl = ToBackend(GetDevice())->GetGL();
 
     // It is an error to map an empty range in OpenGL. We always have at least a 4-byte buffer
@@ -246,7 +251,9 @@ void* Buffer::GetMappedPointerImpl() {
     return mMappedData;
 }
 
-void Buffer::UnmapImpl(BufferState oldState) {
+void Buffer::UnmapImpl(BufferState oldState, BufferState newState) {
+    auto deviceGuard = GetDevice()->GetGuard();
+
     const OpenGLFunctions& gl = ToBackend(GetDevice())->GetGL();
 
     DAWN_GL_TRY_IGNORE_ERRORS(gl, BindBuffer(GL_ARRAY_BUFFER, mBuffer));
@@ -254,10 +261,10 @@ void Buffer::UnmapImpl(BufferState oldState) {
     mMappedData = nullptr;
 }
 
-void Buffer::DestroyImpl() {
+void Buffer::DestroyImpl(DestroyReason reason) {
     const OpenGLFunctions& gl = ToBackend(GetDevice())->GetGL();
 
-    BufferBase::DestroyImpl();
+    BufferBase::DestroyImpl(reason);
     DAWN_GL_TRY_IGNORE_ERRORS(gl, DeleteBuffers(1, &mBuffer));
     mBuffer = 0;
 }

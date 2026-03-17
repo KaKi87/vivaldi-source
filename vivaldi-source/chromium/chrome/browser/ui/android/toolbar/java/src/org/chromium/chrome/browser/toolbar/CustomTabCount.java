@@ -8,8 +8,10 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 
 import org.chromium.base.Callback;
 import org.chromium.base.lifetime.Destroyable;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
@@ -20,20 +22,22 @@ import org.chromium.ui.util.TokenHolder;
  * overwrite the tab count for purposes like animations.
  */
 @NullMarked
-public class CustomTabCount extends ObservableSupplierImpl<Integer> implements Destroyable {
-    private final ObservableSupplier<TabModelSelector> mTabModelSelectorSupplier;
+public class CustomTabCount implements Destroyable {
+    private final MonotonicObservableSupplier<TabModelSelector> mTabModelSelectorSupplier;
     private final Callback<TabModelSelector> mTabModelSelectorObserver =
             this::onTabModelSelectorAvailable;
     private final Callback<Integer> mTabCountObserver = this::onUpdateTabCount;
     private final TokenHolder mTokenHolder;
-    private @Nullable ObservableSupplier<Integer> mTabModelSelectorTabCountSupplier;
+    private final SettableNonNullObservableSupplier<Integer> mSupplier =
+            ObservableSuppliers.createNonNull(0);
+    private @Nullable NonNullObservableSupplier<Integer> mTabModelSelectorTabCountSupplier;
 
     /**
      * Creates an instance of {@link CustomTabCount}.
      *
      * @param tabModelSelectorSupplier Supplier for the {@link TabModelSelector}.
      */
-    public CustomTabCount(ObservableSupplier<TabModelSelector> tabModelSelectorSupplier) {
+    public CustomTabCount(MonotonicObservableSupplier<TabModelSelector> tabModelSelectorSupplier) {
         mTabModelSelectorSupplier = tabModelSelectorSupplier;
         mTabModelSelectorSupplier.addSyncObserverAndCallIfNonNull(mTabModelSelectorObserver);
         mTokenHolder = new TokenHolder(this::onTokenChanged);
@@ -42,20 +46,20 @@ public class CustomTabCount extends ObservableSupplierImpl<Integer> implements D
     private void onTabModelSelectorAvailable(TabModelSelector tabModelSelector) {
         mTabModelSelectorSupplier.removeObserver(mTabModelSelectorObserver);
         mTabModelSelectorTabCountSupplier = tabModelSelector.getCurrentModelTabCountSupplier();
-        mTabModelSelectorTabCountSupplier.addObserver(mTabCountObserver);
+        mTabModelSelectorTabCountSupplier.addSyncObserverAndPostIfNonNull(mTabCountObserver);
     }
 
     private void onUpdateTabCount(int tabCount) {
         if (!mTokenHolder.hasTokens()) {
             assumeNonNull(mTabModelSelectorTabCountSupplier);
-            super.set(mTabModelSelectorTabCountSupplier.get());
+            mSupplier.set(mTabModelSelectorTabCountSupplier.get());
         }
     }
 
     private void onTokenChanged() {
         if (!mTokenHolder.hasTokens()) {
             assumeNonNull(mTabModelSelectorTabCountSupplier);
-            super.set(mTabModelSelectorTabCountSupplier.get());
+            mSupplier.set(mTabModelSelectorTabCountSupplier.get());
         }
     }
 
@@ -65,7 +69,7 @@ public class CustomTabCount extends ObservableSupplierImpl<Integer> implements D
      * @param tabCount The tab count to set.
      */
     public int setCount(int tabCount) {
-        super.set(tabCount);
+        mSupplier.set(tabCount);
         return mTokenHolder.acquireToken();
     }
 
@@ -80,18 +84,22 @@ public class CustomTabCount extends ObservableSupplierImpl<Integer> implements D
     }
 
     @Override
-    public void set(Integer tabCount) {
-        assert false : "Use setCount instead.";
-    }
-
-    @Override
     public void destroy() {
         if (mTabModelSelectorTabCountSupplier != null) {
             mTabModelSelectorTabCountSupplier.removeObserver(mTabCountObserver);
         }
+        mSupplier.destroy();
     }
 
     public boolean hasTokensForTesting() {
         return mTokenHolder.hasTokens();
+    }
+
+    public int get() {
+        return mSupplier.get();
+    }
+
+    public NonNullObservableSupplier<Integer> getObservable() {
+        return mSupplier;
     }
 }

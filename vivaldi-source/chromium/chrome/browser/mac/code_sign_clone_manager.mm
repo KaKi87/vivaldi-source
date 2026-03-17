@@ -49,6 +49,9 @@
 #include "content/public/common/content_paths.h"
 #include "content/public/common/content_switches.h"
 
+// Vivaldi
+#include "app/vivaldi_apptools.h"
+
 //
 // Sourced from Libc-1592.100.35 (macOS 14.5)
 // https://github.com/apple-oss-distributions/Libc/blob/Libc-1592.100.35/gen/confstr.c#L78
@@ -521,6 +524,16 @@ CodeSignCloneManager::CodeSignCloneManager(
     CloneCallback callback)
     : task_runner_(base::ThreadPool::CreateSequencedTaskRunner(
           {base::MayBlock(), base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN})) {
+  if (vivaldi::IsVivaldiRunning()) {
+    // NOTE(tomas@vivaldi.com): VB-121824
+    // This class is only used for the chrome updater. We use Sparkle
+    // so we don't need this.
+    // The task that is posted below sets needs_cleanup_ = true
+    // As long as needs_cleanup_ is false the destructor will not
+    // launch the process that caused the crash in VB-121824
+    return;
+  } // End Vivaldi
+
   if (!base::FeatureList::IsEnabled(kMacAppCodeSignClone) || src_path.empty() ||
       main_executable_name.empty()) {
     return;

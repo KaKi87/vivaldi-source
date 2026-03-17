@@ -29,7 +29,6 @@
 
 using base::android::ConvertJavaStringToUTF8;
 using base::android::ConvertUTF8ToJavaString;
-using base::android::JavaParamRef;
 using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
 using base::android::ToJavaByteArray;
@@ -116,8 +115,7 @@ class LogoObserverAndroid : public search_provider_logos::LogoObserver {
 
 }  // namespace
 
-static jlong JNI_LogoBridge_Init(JNIEnv* env,
-                                 Profile* profile) {
+static int64_t JNI_LogoBridge_Init(JNIEnv* env, Profile* profile) {
   LogoBridge* logo_bridge = new LogoBridge(profile);
   return reinterpret_cast<intptr_t>(logo_bridge);
 }
@@ -135,7 +133,7 @@ void LogoBridge::Destroy(JNIEnv* env) {
 }
 
 void LogoBridge::GetCurrentLogo(JNIEnv* env,
-                                const JavaParamRef<jobject>& j_logo_observer) {
+                                const JavaRef<jobject>& j_logo_observer) {
   // |observer| is deleted in LogoObserverAndroid::OnObserverRemoved().
   LogoObserverAndroid* observer = new LogoObserverAndroid(
       weak_ptr_factory_.GetWeakPtr(), env, j_logo_observer);

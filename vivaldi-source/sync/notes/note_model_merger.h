@@ -8,13 +8,13 @@
 #include <list>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
 #include "base/uuid.h"
 #include "components/sync/base/unique_position.h"
 #include "components/sync/engine/commit_and_get_updates_types.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 
 namespace vivaldi {
 class NoteNode;
@@ -53,9 +53,9 @@ class NoteModelMerger {
   class RemoteTreeNode final {
    private:
     using UpdatesPerParentUuid =
-        std::unordered_map<base::Uuid,
-                           std::list<syncer::UpdateResponseData>,
-                           base::UuidHash>;
+        absl::flat_hash_map<base::Uuid,
+                            std::list<syncer::UpdateResponseData>,
+                            base::UuidHash>;
 
    public:
     // Constructs a tree given |update| as root and recursively all descendants
@@ -86,7 +86,7 @@ class NoteModelMerger {
     // Recursively emplaces all UUIDs (this node and descendants) into
     // |*uuid_to_remote_node_map|, which must not be null.
     void EmplaceSelfAndDescendantsByUuid(
-        std::unordered_map<base::Uuid, const RemoteTreeNode*, base::UuidHash>*
+        absl::flat_hash_map<base::Uuid, const RemoteTreeNode*, base::UuidHash>*
             uuid_to_remote_node_map) const;
 
    private:
@@ -104,7 +104,7 @@ class NoteModelMerger {
 
   // A forest composed of multiple trees where the root of each tree represents
   // a permanent node, keyed by server-defined unique tag of the root.
-  using RemoteForest = std::unordered_map<std::string, RemoteTreeNode>;
+  using RemoteForest = absl::flat_hash_map<std::string, RemoteTreeNode>;
 
   // Represents a pair of notes, one local and one remote, that have been
   // matched by UUID. They are guaranteed to have the same type and URL (if
@@ -129,7 +129,7 @@ class NoteModelMerger {
   // Computes note pairs that should be matched by UUID. Local note
   // UUIDs may be regenerated for the case where they collide with a remote UUID
   // that is not compatible (e.g. folder vs non-folder).
-  static std::unordered_map<base::Uuid, GuidMatch, base::UuidHash>
+  static absl::flat_hash_map<base::Uuid, GuidMatch, base::UuidHash>
   FindGuidMatchesOrReassignLocal(const RemoteForest& remote_forest,
                                  NoteModelView* note_model);
 
@@ -210,7 +210,7 @@ class NoteModelMerger {
   // Preprocessed remote nodes in the form a forest where each tree's root is a
   // permanent node. Computed upon construction via BuildRemoteForest().
   const RemoteForest remote_forest_;
-  std::unordered_map<base::Uuid, GuidMatch, base::UuidHash> uuid_to_match_map_;
+  absl::flat_hash_map<base::Uuid, GuidMatch, base::UuidHash> uuid_to_match_map_;
 };
 
 }  // namespace sync_notes

@@ -37,7 +37,8 @@ const CGSize vSpeedDialItemFaviconSizeRegularLayout = CGSizeMake(16.0, 16.0);
 // Speed Dial item favicon size for layout 'Small'
 const CGSize vSpeedDialItemFaviconSizeSmallLayout = CGSizeMake(28.0, 28.0);
 // Speed Dial item favicon size for layout 'Small' on tablet.
-const CGSize vSpeedDialItemFaviconSizeSmallLayoutTablet = CGSizeMake(36.0, 36.0);
+const CGSize vSpeedDialItemFaviconSizeSmallLayoutTablet =
+    CGSizeMake(36.0, 36.0);
 // Speed Dial item favicon size for layout 'Icon'
 const CGSize vSpeedDialItemFaviconSizeIconLayout = CGSizeMake(42.0, 42.0);
 // Speed Dial item favicon size for layout 'Icon' on tablet.
@@ -70,8 +71,7 @@ NSString* vNTPSpeedDialDomainTextColorLight =
 // Image name for add new speed dial
 NSString* vNTPAddNewSpeedDialIcon = @"vivaldi_ntp_add_new_speed_dial";
 // Image name for add new speed dial folder
-NSString* vNTPSpeedDialFolderIcon =
-    @"vivaldi_ntp_add_new_speed_dial_folder";
+NSString* vNTPSpeedDialFolderIcon = @"vivaldi_ntp_add_new_speed_dial_folder";
 // Image name for the icon on the speed dial empty view
 NSString* vNTPSDEmptyViewIcon = @"vivaldi_ntp_sd_empty_view_icon";
 // Image name for the icon for favicon fallback

@@ -25,44 +25,44 @@ class MenuUpgrade {
 
  private:
   // Returns the control node in the tree starting with 'value'
-  base::Value* FindControlNode(base::Value::List& list);
+  base::Value* FindControlNode(base::ListValue& list);
 
   // Examines all nodes in `list` recursively and returns the one using
   // 'needle_guid'.
-  base::Value::Dict* FindNodeByGuid(base::Value::List& list,
-                                    const std::string& needle_guid);
+  base::DictValue* FindNodeByGuid(base::ListValue& list,
+                                  const std::string& needle_guid);
 
   // Examines all nodes starting with `dict` and returns the one using
   // 'needle_guid'.
-  base::Value::Dict* FindNodeByGuid(base::Value::Dict& dict,
-                                    const std::string& needle_guid);
+  base::DictValue* FindNodeByGuid(base::DictValue& dict,
+                                  const std::string& needle_guid);
 
   // Examines all nodes starting with 'value' and returns the one using
   // 'needle_action'.
-  base::Value::Dict* FindNodeByAction(base::Value::List& list,
-                                      bool include_children,
-                                      const std::string& needle_action);
+  base::DictValue* FindNodeByAction(base::ListValue& list,
+                                    bool include_children,
+                                    const std::string& needle_action);
 
   // Examines all elements starting with 'bundle_dict' and adds them to the
   // profile tree if not already present and not deleted.
-  bool AddFromBundle(const base::Value::Dict& bundle_dict,
+  bool AddFromBundle(const base::DictValue& bundle_dict,
                      const std::string& parent_guid,
                      int bundle_index,
-                     base::Value::List& profile_list);
+                     base::ListValue& profile_list);
   // Examines all elements starting with 'profile_dict' and removed them from
   // the profile tree if not present in the bundled tree and is not a custom
   // element.
-  bool RemoveFromProfile(const base::Value::Dict& profile_dict,
+  bool RemoveFromProfile(const base::DictValue& profile_dict,
                          const std::string& parent_guid,
-                         base::Value::List& bundle_list,
-                         base::Value::List& profile_list);
+                         base::ListValue& bundle_list,
+                         base::ListValue& profile_list);
 
   // Modifies the profile based file to undo behavior we had for the first
   // releases (including 3.2).
-  bool FixupProfile(base::Value::Dict& profile_dict,
+  bool FixupProfile(base::DictValue& profile_dict,
                     const std::string& parent_guid,
-                    base::Value::List& bundle_root,
-                    base::Value::List& profile_root,
+                    base::ListValue& bundle_root,
+                    base::ListValue& profile_root,
                     const std::string& menu_action);
 
   // Returns true if the guid is registered as a deleted element.
@@ -71,15 +71,15 @@ class MenuUpgrade {
   bool PruneDeleted(const std::string& guid);
   // Adds the 'bundle_dict' to the profile tree as a child of the node using
   // 'parent_guid' at the given index or at the end if the child list.
-  bool Insert(const base::Value::Dict& bundle_dict,
+  bool Insert(const base::DictValue& bundle_dict,
               const std::string& parent_guid,
               int index,
-              base::Value::List& profile_list);
+              base::ListValue& profile_list);
   // Removes the 'profile_dict' from the profile tree. It must be a child of
   // the of the node using  'parent_guid'
-  bool Remove(const base::Value::Dict& profile_dict,
+  bool Remove(const base::DictValue& profile_dict,
               const std::string& parent_guid,
-              base::Value::List& profile_list);
+              base::ListValue& profile_list);
 
   // Contains a list of actions we want to remove from the list.
   std::vector<std::string> expired_;

@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Administrer kilder til annonceblokering</translation>
 <translation id="1577761519530347814">Synkroniser gemte websideadgangskoder</translation>
 <translation id="1620921465699122417">Indtast tekst til oversættelse</translation>
+<translation id="1624621765073396937">Stryg for at lukke fane</translation>
 <translation id="1631998297781042533">Populære sider</translation>
 <translation id="1644574205037202324">Historik</translation>
 <translation id="1655816024544228768">Sport</translation>
@@ -106,6 +107,7 @@
 <translation id="2330644510603114741">Faneadfærd</translation>
 <translation id="233493642829799329">Ændring af dette kan genindlæse nogle af dine faner</translation>
 <translation id="2336309953058658733">Tøm papirkurv</translation>
+<translation id="2336679896177818431">Åbner faneskifter ved strygning op eller ned på adresselinjen</translation>
 <translation id="2359808026110333948">Fortsæt</translation>
 <translation id="2386793615875593361">1 valgt</translation>
 <translation id="2387049655823108978">Synkroniser åbne faner fra andre enheder</translation>
@@ -127,6 +129,7 @@
 <translation id="261264557609353020">Startside</translation>
 <translation id="2619628557366098325">Portugisisk (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">System</translation>
+<translation id="2638305832232696831">Aktiver strygebevægelser på adresselinje</translation>
 <translation id="2653659639078652383">Indsend</translation>
 <translation id="2666092431469916601">Øverst</translation>
 <translation id="2677862276555105603">Annonce
@@ -153,6 +156,7 @@ blokeret</translation>
 <translation id="2862504765180635001">Det er vi kede af at høre!</translation>
 <translation id="2878511608894704031">Slet alt</translation>
 <translation id="2884735088411646852">Sortering</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (Blokerer forskellige irritationer)</translation>
 <translation id="2898963176829412617">Ny mappe…</translation>
 <translation id="2918704853620385162">Åbn ny fane ved lukning af sidste fane</translation>
 <translation id="2924890236896835588">Gruppenavn</translation>
@@ -172,6 +176,7 @@ blokeret</translation>
 <translation id="3142562627629111859">Ny gruppe</translation>
 <translation id="3157931365184549694">Gendan</translation>
 <translation id="3159285901314605198">Baggrundsbillede</translation>
+<translation id="317084213044777332">Indstil som standard til søgning</translation>
 <translation id="3177673846235066154">Server afviste dine loginoplysninger.</translation>
 <translation id="3180057018690062250">Streaming</translation>
 <translation id="3180358318770512945">Opdragelse</translation>
@@ -226,6 +231,7 @@ blokeret</translation>
 <translation id="383723620494271391">Ellers andet, du vil tilføje?</translation>
 <translation id="3842727926262967527">Vælg, hvor du foretrækker at have fanelinjen og adressefeltet.</translation>
 <translation id="3845564230651302310">Anvender nye blokeringsindstillinger...</translation>
+<translation id="385051799172605136">Tilbage</translation>
 <translation id="3858860766373142691">Navn</translation>
 <translation id="3861379244432690245">Aktivér direkte match</translation>
 <translation id="3866249974567520381">Beskrivelse</translation>
@@ -495,6 +501,7 @@ blokeret</translation>
 <translation id="6946395294519639514">Med paneler kan du beholde go-to-værktøjer inden for rækkevidde i browserens sidebjælke.</translation>
 <translation id="6951435330868954105">Administrer standardindstillinger</translation>
 <translation id="6951948201878750661">Tryk for at vælge denne farve</translation>
+<translation id="6954630860045222581">Vis panel</translation>
 <translation id="6967884871145366229">Administrer privatlivsindstillinger</translation>
 <translation id="6973630695168034713">Mapper</translation>
 <translation id="7000227144065890583">Forslags-URL</translation>
@@ -592,6 +599,7 @@ blokeret</translation>
 <translation id="8066170816074394954">Serverfejl.</translation>
 <translation id="8076492880354921740">Faner</translation>
 <translation id="8077675488769462025">Inaktive faner</translation>
+<translation id="8079925180539182073">Standardsøgemaskinen kan ikke fjernes.</translation>
 <translation id="8112996065264879835">Denne kode matcher ikke den, vi sendte til dig.
         Du har nået grænsen for forkerte forsøg. Anmod om en ny kode via “Send igen”-knappen nedenfor.</translation>
 <translation id="8131740175452115882">Bekræft</translation>
@@ -637,6 +645,7 @@ blokeret</translation>
 <translation id="856439694359429369">Tryk for flere valgmuligheder eller dobbelttryk for at åbne.</translation>
 <translation id="8591818185775466306">Slet <ph name="ITEM_TYPE" /></translation>
 <translation id="8605953154325672921">Brugernavn kræves</translation>
+<translation id="861259508026988871">TIlføj som søgemaskine</translation>
 <translation id="8675578805254882416">Indhenter</translation>
 <translation id="8677007239430848917">Tilføj din første note ved at trykke på plus-ikonet herunder</translation>
 <translation id="8684294196284714094">Klar til at gøre Vivaldi til din standardbrowser?</translation>

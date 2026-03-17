@@ -55,9 +55,10 @@ VivaldiIOSTranslateService::VivaldiIOSTranslateService()
           GetApplicationContext()->GetLocalState(),
           nullptr,
           base::BindOnce(&ApplicationContext::GetNetworkConnectionTracker,
-              base::Unretained(GetApplicationContext()))), weak_factory_(this) {
-  resource_request_allowed_notifier_.Init(
-      this, true /* leaky */, false /* wait_for_eula */);
+                         base::Unretained(GetApplicationContext()))),
+      weak_factory_(this) {
+  resource_request_allowed_notifier_.Init(this, true /* leaky */,
+                                          false /* wait_for_eula */);
 }
 
 VivaldiIOSTranslateService::~VivaldiIOSTranslateService() {}
@@ -118,7 +119,7 @@ void VivaldiIOSTranslateService::SetPrefsListAsDefault() {
 }
 
 void VivaldiIOSTranslateService::SetListInChromium(
-    const base::Value::List& list) {
+    const base::ListValue& list) {
   translate::TranslateLanguageList* language_list =
       translate::TranslateDownloadManager::GetInstance()->language_list();
   // Never allow LanguageList to make language update call as that is handled
@@ -201,7 +202,8 @@ void VivaldiIOSTranslateService::StartDownload() {
         }
       })");
 
-  auto url_loader_factory = GetApplicationContext()->GetSharedURLLoaderFactory();
+  auto url_loader_factory =
+      GetApplicationContext()->GetSharedURLLoaderFactory();
 
   url_loader_ = network::SimpleURLLoader::Create(std::move(resource_request),
                                                  traffic_annotation);
@@ -217,7 +219,7 @@ void VivaldiIOSTranslateService::StartDownload() {
 }
 
 void VivaldiIOSTranslateService::OnListDownloaded(
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   do {
     if (!response_body || response_body->empty()) {
       LOG(WARNING) << "Downloading language list from server "
@@ -231,7 +233,7 @@ void VivaldiIOSTranslateService::OnListDownloaded(
       LOG(ERROR) << "Invalid language list JSON";
       break;
     }
-    base::Value::List* list = json->GetIfList();
+    base::ListValue* list = json->GetIfList();
     if (!list ||
         !std::all_of(list->begin(), list->end(),
                      [](const base::Value& v) { return v.is_string(); })) {
@@ -276,7 +278,6 @@ bool VivaldiIOSTranslateService::IsTranslatableURL(const GURL& url) {
   // A URL is translatable unless it is one of the following:
   // - empty (can happen for popups created with window.open(""))
   // - an internal URL
-  return !url.is_empty() &&
-      (!url.SchemeIs(kChromeUIScheme) ||
-       !url.SchemeIs(vivaldi::kVivaldiUIScheme));
+  return !url.is_empty() && (!url.SchemeIs(kChromeUIScheme) ||
+                             !url.SchemeIs(vivaldi::kVivaldiUIScheme));
 }

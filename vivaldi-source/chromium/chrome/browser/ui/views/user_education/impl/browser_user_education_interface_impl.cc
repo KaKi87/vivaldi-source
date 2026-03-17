@@ -19,6 +19,8 @@
 #include "components/user_education/common/feature_promo/feature_promo_result.h"
 #include "components/user_education/common/user_education_storage_service.h"
 
+#include "app/vivaldi_apptools.h"
+
 BrowserUserEducationInterfaceImpl::BrowserUserEducationInterfaceImpl(
     BrowserWindowInterface* browser)
     : BrowserUserEducationInterface(browser), profile_(browser->GetProfile()) {}
@@ -133,6 +135,9 @@ BrowserUserEducationInterfaceImpl::CanShowFeaturePromo(
 
 void BrowserUserEducationInterfaceImpl::MaybeShowFeaturePromo(
     user_education::FeaturePromoParams params) {
+  if (vivaldi::IsVivaldiRunning()) {
+    return;
+  }
   // Trying to show a promo before the browser is initialized can result in a
   // failure to retrieve accelerators, which can cause issues for screen reader
   // users.
@@ -154,7 +159,7 @@ void BrowserUserEducationInterfaceImpl::MaybeShowFeaturePromo(
     LOG(ERROR) << "Attempting to show IPH " << params.feature->name
                << state_desc << "; IPH will not be shown.";
     user_education::FeaturePromoController::PostShowPromoResult(
-        std::move(params.show_promo_result_callback),
+        *params.feature, std::move(params.show_promo_result_callback),
         user_education::FeaturePromoResult::kError);
     return;
   }
@@ -165,7 +170,7 @@ void BrowserUserEducationInterfaceImpl::MaybeShowFeaturePromo(
   }
 
   user_education::FeaturePromoController::PostShowPromoResult(
-      std::move(params.show_promo_result_callback),
+      *params.feature, std::move(params.show_promo_result_callback),
       user_education::FeaturePromoResult::kBlockedByContext);
 }
 
@@ -181,7 +186,7 @@ void BrowserUserEducationInterfaceImpl::MaybeShowStartupFeaturePromo(
     LOG(ERROR) << "Attempting to show IPH " << params.feature->name
                << " after browser shutdown; IPH will not be shown.";
     user_education::FeaturePromoController::PostShowPromoResult(
-        std::move(params.show_promo_result_callback),
+        *params.feature, std::move(params.show_promo_result_callback),
         user_education::FeaturePromoResult::kError);
     return;
   }
@@ -193,7 +198,7 @@ void BrowserUserEducationInterfaceImpl::MaybeShowStartupFeaturePromo(
   }
 
   user_education::FeaturePromoController::PostShowPromoResult(
-      std::move(params.show_promo_result_callback),
+      *params.feature, std::move(params.show_promo_result_callback),
       user_education::FeaturePromoResult::kBlockedByContext);
 }
 
@@ -264,7 +269,7 @@ void BrowserUserEducationInterfaceImpl::ClearQueuedPromos(
     user_education::FeaturePromoResult::Failure failure) {
   for (auto& params : queued_params_) {
     user_education::FeaturePromoController::PostShowPromoResult(
-        std::move(params.show_promo_result_callback), failure);
+        *params.feature, std::move(params.show_promo_result_callback), failure);
   }
   queued_params_.clear();
 }

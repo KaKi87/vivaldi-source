@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/views/frame/layout/browser_view_layout_impl.h"
 
 #include "chrome/browser/ui/views/bookmarks/bookmark_bar_view.h"
+#include "chrome/browser/ui/views/frame/custom_corners_background.h"
 #include "chrome/browser/ui/views/frame/immersive_mode_controller.h"
 #include "chrome/browser/ui/views/frame/layout/browser_view_layout_delegate.h"
 #include "ui/base/ui_base_features.h"
@@ -34,6 +35,17 @@ BrowserViewLayoutImpl::ProposedLayout::AddChild(
   CHECK(emplace_result.second)
       << "Already added layout for " << child->GetClassName();
   return emplace_result.first->second;
+}
+
+void BrowserViewLayoutImpl::ProposedLayout::HideViewIfNotPresent(
+    views::View* child) {
+  // See if the child view already exists in the layout.
+  if (GetLayoutFor(child)) {
+    return;
+  }
+
+  // If not, give it empty bounds and set it to invisible.
+  AddChild(child, gfx::Rect(), false);
 }
 
 const BrowserViewLayoutImpl::ProposedLayout*
@@ -87,6 +99,20 @@ void BrowserViewLayoutImpl::ProposedLayout::ApplyLayout(
         << "Unapplied layout remains for " << leftover->GetClassName() << " in "
         << root->GetClassName();
   }
+}
+
+std::string BrowserViewLayoutImpl::ProposedLayout::ToString(int depth) const {
+  std::ostringstream oss;
+  for (auto& [child, layout] : children) {
+    oss << std::string(2 * depth, ' ') << child->GetClassName() << " at "
+        << layout.bounds.ToString();
+    if (layout.visibility) {
+      oss << (*layout.visibility ? " VISIBLE" : " NOT VISIBLE");
+    }
+    oss << std::endl;
+    oss << layout.ToString(depth + 1);
+  }
+  return oss.str();
 }
 
 // Common layout.
@@ -164,19 +190,14 @@ gfx::Rect BrowserViewLayoutImpl::GetTopContainerBoundsInParent(
     // If the immersive mode controller is animating the top container overlay,
     // it may be partly offscreen. The controller knows where the container
     // needs to be.
-    top =
-        delegate().GetImmersiveModeController()->GetTopContainerVerticalOffset(
-            gfx::Size(parent_params.visual_client_area.width(), height));
+    top = controller->GetTopContainerVerticalOffset(
+        gfx::Size(parent_params.visual_client_area.width(), height));
   }
 
   gfx::Rect bounds = local_bounds;
   bounds.set_y(top);
   bounds.Offset(parent_params.visual_client_area.OffsetFromOrigin());
   return bounds;
-}
-
-int BrowserViewLayoutImpl::GetMinWebContentsWidthForTesting() const {
-  return kContentsContainerMinimumWidth;
 }
 
 // Layout logic.
@@ -206,16 +227,16 @@ void BrowserViewLayoutImpl::Layout(views::View* host) {
     const gfx::Rect top_container_local_bounds = CalculateTopContainerLayout(
         top_container_layout, params, /*needs_exclusion=*/true);
 
-    // Position the top container in its parent, whatever that is.
-    views().top_container->SetBoundsRect(
-        GetTopContainerBoundsInParent(top_container_local_bounds, params));
-
     // Apply the child layouts for the top container.
     std::move(top_container_layout)
         .ApplyLayout(views().top_container,
                      [this](views::View* view, bool visible) {
                        SetViewVisibility(view, visible);
                      });
+
+    // Position the top container in its parent, whatever that is.
+    views().top_container->SetBoundsRect(
+        GetTopContainerBoundsInParent(top_container_local_bounds, params));
   }
 
   // The normal clipping created by `View::Paint()` may not cover the bottom of
@@ -245,11 +266,32 @@ void BrowserViewLayoutImpl::Layout(views::View* host) {
     apply_bottom_paint_allowance(views().top_container);
   }
 
+  // Change how the top container is painted based on layout.
+  auto* const background = static_cast<CustomCornersBackground*>(
+      views().top_container->background());
+  ConfigureTopContainerBackground(params, background);
+
   // Do any additional adjustments required by the specific layout.
-  DoPostLayoutVisualAdjustments();
+  DoPostLayoutVisualAdjustments(params);
 
   // Update bubbles (like the find bar).
   UpdateBubbles();
+}
+
+void BrowserViewLayoutImpl::ConfigureTopContainerBackground(
+    const BrowserLayoutParams& params,
+    CustomCornersBackground* background) {
+  if (delegate().GetBrowserWindowState() == WindowState::kFullscreen) {
+    // When in immersive mode, top container is painted with the frame color.
+    // The color matches the active frame, allowing the tabstrip to paint
+    // correctly.
+    background->SetVisible(true);
+    background->SetPrimaryColor(ui::kColorFrameActive);
+    background->SetCorners(CustomCornersBackground::Corners());
+  } else {
+    // No need to paint otherwise.
+    background->SetVisible(false);
+  }
 }
 
 // Dialog positioning.
@@ -289,9 +331,6 @@ gfx::Point BrowserViewLayoutImpl::GetDialogPosition(
   const int dialog_y = GetDialogTop(layout);
   gfx::Rect dialog_rect(dialog_x, dialog_y, dialog_size.width(),
                         dialog_size.height());
-
-  // Convert to widget coordinates.
-  dialog_rect = views().browser_view->ConvertRectToWidget(dialog_rect);
 
   // TODO: consider whether this should change in RTL?
   return gfx::Point(dialog_rect.origin());

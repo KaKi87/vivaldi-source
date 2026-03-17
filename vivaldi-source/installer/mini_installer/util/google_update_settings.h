@@ -16,9 +16,9 @@
 #include "base/time/time.h"
 #include "base/version.h"
 #include "build/build_config.h"
+#include "components/metrics/client_info.h"
 #include "installer/mini_installer/util/google_update_constants.h"
 #include "installer/mini_installer/util/util_constants.h"
-#include "components/metrics/client_info.h"
 
 namespace installer {
 class InstallationState;

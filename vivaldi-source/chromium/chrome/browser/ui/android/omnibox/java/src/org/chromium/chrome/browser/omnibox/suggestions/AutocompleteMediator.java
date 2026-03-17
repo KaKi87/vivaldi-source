@@ -5,6 +5,7 @@
 package org.chromium.chrome.browser.omnibox.suggestions;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNonNativeNtpGurl;
 
 import android.content.Context;
 import android.content.Intent;
@@ -22,8 +23,8 @@ import org.chromium.base.Callback;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.base.supplier.ObservableSupplier.NotifyBehavior;
 import org.chromium.build.BuildConfig;
+import org.chromium.build.annotations.EnsuresNonNullIf;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider.ControlsPosition;
@@ -34,11 +35,11 @@ import org.chromium.chrome.browser.lifecycle.TopResumedActivityChangedObserver;
 import org.chromium.chrome.browser.omnibox.DeferredIMEWindowInsetApplicationCallback;
 import org.chromium.chrome.browser.omnibox.LocationBarDataProvider;
 import org.chromium.chrome.browser.omnibox.OmniboxMetrics;
-import org.chromium.chrome.browser.omnibox.OmniboxMetrics.RefineActionUsage;
-import org.chromium.chrome.browser.omnibox.R;
+	import org.chromium.chrome.browser.omnibox.R;
 import org.chromium.chrome.browser.omnibox.UrlBarEditingTextStateProvider;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxAttachmentModelList.FuseboxAttachmentChangeListener;
 import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator;
+import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxState;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
 import org.chromium.chrome.browser.omnibox.suggestions.AutocompleteController.OnSuggestionsReceivedListener;
 import org.chromium.chrome.browser.omnibox.suggestions.AutocompleteCoordinator.OmniboxSuggestionsVisualStateObserver;
@@ -47,14 +48,15 @@ import org.chromium.chrome.browser.omnibox.suggestions.action.OmniboxActionFacto
 import org.chromium.chrome.browser.omnibox.suggestions.action.OmniboxActionInSuggest;
 import org.chromium.chrome.browser.omnibox.suggestions.basic.BasicSuggestionProcessor.BookmarkState;
 import org.chromium.chrome.browser.omnibox.voice.VoiceRecognitionHandler;
+import org.chromium.chrome.browser.preloading.PreloadingFeatureMap;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.share.ShareDelegate;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.Tab.LoadUrlResult;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
-import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
 import org.chromium.components.omnibox.AutocompleteInput;
+import org.chromium.components.omnibox.AutocompleteInput.RefineActionUsage;
 import org.chromium.components.omnibox.AutocompleteMatch;
 import org.chromium.components.omnibox.AutocompleteRequestType;
 import org.chromium.components.omnibox.AutocompleteResult;
@@ -119,12 +121,13 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     private final DeferredIMEWindowInsetApplicationCallback
             mDeferredIMEWindowInsetApplicationCallback;
     private final OmniboxSuggestionsDropdownEmbedder mEmbedder;
-    private final AutocompleteInput mAutocompleteInput = new AutocompleteInput();
+    private @Nullable AutocompleteInput mAutocompleteInput;
     private final boolean mForcePhoneStyleOmnibox;
     private final Callback<@ControlsPosition Integer> mToolbarPositionChangedCallback =
             this::onToolbarPositionChanged;
     private final Callback<@AutocompleteRequestType Integer> mOnAutocompleteRequestTypeChanged =
             this::onAutocompleteRequestTypeChanged;
+    private final Callback<Integer> mOnFuseboxStateChanged = this::onFuseboxStateChanged;
 
     private @Nullable AutocompleteController mAutocomplete;
     /* Vivaldi */ public  @Nullable AutocompleteResult mAutocompleteResult;
@@ -133,9 +136,6 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     private @Nullable PropertyModel mDeleteDialogModel;
 
     /* Vivaldi */ public boolean mNativeInitialized;
-    private long mUrlFocusTime;
-    // When set, indicates if the omnibox is focused.
-    private boolean mOmniboxFocused;
     // Tracks whether the activity window is currently focused.
     // This flag is updated via the onTopResumedActivityChanged(boolean) callback:
     // https://developer.android.com/reference/android/app/Activity#onTopResumedActivityChanged(boolean)
@@ -154,8 +154,6 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     private @Nullable SearchEngineSuggestionView mSearchEngineSuggestionView;
     // End Vivaldi
 
-    private @RefineActionUsage int mRefineActionUsage = RefineActionUsage.NOT_USED;
-
     // The timestamp (using SystemClock.elapsedRealtime()) at the point when the user started
     // modifying the omnibox with new input.
     private long mNewOmniboxEditSessionTimestamp = -1;
@@ -164,8 +162,6 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     private boolean mOmniboxFocusResultedInNavigation;
     // Facilitate detection of Autocomplete actions being scheduled from an Autocomplete action.
     private boolean mIsExecutingAutocompleteAction;
-    // Whether user scrolled the suggestions list.
-    private boolean mSuggestionsListScrolled;
     // The value of the last ZPS suppress metric recorded for the current ZPS session.
     // The value is reset to null for each new ZPS session.
     private @Nullable Boolean mLastRecordedZpsSuppressionValue;
@@ -248,13 +244,11 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
         mAnimationDriver = initializeAnimationDriver();
 
         mFuseboxCoordinator.addAttachmentChangeListener(this);
-        mFuseboxCoordinator
-                .getAutocompleteRequestTypeSupplier()
-                .addSyncObserver(mOnAutocompleteRequestTypeChanged);
+        mFuseboxCoordinator.getFuseboxStateSupplier().addSyncObserver(mOnFuseboxStateChanged);
 
         mDataProvider
                 .getToolbarPositionSupplier()
-                .addObserver(mToolbarPositionChangedCallback, NotifyBehavior.NOTIFY_ON_ADD);
+                .addSyncObserverAndCallIfNonNull(mToolbarPositionChangedCallback);
     }
 
     /**
@@ -283,6 +277,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
 
     public void destroy() {
         stopAutocomplete(false);
+        endInput();
         mDataProvider.getToolbarPositionSupplier().removeObserver(mToolbarPositionChangedCallback);
         if (mAutocomplete != null) {
             mAutocomplete.removeOnSuggestionsReceivedListener(this);
@@ -292,9 +287,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
             OmniboxActionFactoryImpl.get().destroyNativeFactory();
         }
         mFuseboxCoordinator.removeAttachmentChangeListener(this);
-        mFuseboxCoordinator
-                .getAutocompleteRequestTypeSupplier()
-                .removeObserver(mOnAutocompleteRequestTypeChanged);
+        mFuseboxCoordinator.getFuseboxStateSupplier().removeObserver(mOnFuseboxStateChanged);
         mHandler.removeCallbacksAndMessages(null);
         mDropdownViewInfoListBuilder.destroy();
         mLifecycleDispatcher.unregister(this);
@@ -404,7 +397,9 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
 
     /** Save AutocompleteResult to Cache for early serving. */
     private void maybeCacheResult(AutocompleteResult result) {
-        if (!mAutocompleteInput.isInCacheableContext() || result.isFromCachedResult()) {
+        if (!isInInputSession()
+                || !mAutocompleteInput.isInCacheableContext()
+                || result.isFromCachedResult()) {
             return;
         }
 
@@ -418,10 +413,11 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
         // Note(Nagamani): Search engine suggestion layout is loaded after the native
         // initialization. Hence we skip showing the cached suggestion till the native is loaded to
         // avoid blank white space.
-        if (!mAutocompleteInput.isInCacheableContext() || mAutocomplete != null
+        if (!isInInputSession()
+                || !mAutocompleteInput.isInCacheableContext()
                 || (mSearchEngineSuggestionView != null
                            && mSearchEngineSuggestionView.showSearchEngineSuggestionBar())
-          ) {
+                || mAutocomplete != null) {
             return;
         }
         onSuggestionsReceived(
@@ -448,33 +444,36 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     }
 
     /**
-     * Take necessary action to update the autocomplete system state and record metrics when the
-     * omnibox session state changes.
+     * Starts a new / resumes existing omnibox session.
      *
-     * @param activated Whether the autocomplete session should be activated when the omnibox
-     *     session state changes, {@code true} if this will be activated, {@code false} otherwise.
+     * <p>This method initializes the mediator's state for a new omnibox interaction, including
+     * setting up the {@link AutocompleteInput}, attaching necessary observers, and triggering the
+     * initial zero-prefix suggestion request.
+     *
+     * @param input The input state for the new session. The input may be replaced without going
+     *     through the endInput() (valid -> valid). This is the case for tab switching.
      */
-    void onOmniboxSessionStateChange(boolean activated) {
-        if (mOmniboxFocused == activated) return;
-        mOmniboxFocused = activated;
+    void beginInput(AutocompleteInput input) {
+        boolean alreadyInInput = mAutocompleteInput != null;
+        cancelAutocompleteRequests();
+        setAutocompleteInput(input);
 
-        // Propagate the information about omnibox session state change to all the processors first.
-        // Processors need this for accounting purposes.
-        // The change information should be passed before Processors receive first
-        // batch of suggestions, that is:
-        // - before any call to startZeroSuggest() (when first suggestions are populated), and
-        // - before stopAutocomplete() (when current suggestions are erased).
-        mDropdownViewInfoListBuilder.onOmniboxSessionStateChange(activated);
+        if (!alreadyInInput) {
+            // Propagate the information about omnibox session state change to all the processors
+            // first.
+            // Processors need this for accounting purposes.
+            // The change information should be passed before Processors receive first
+            // batch of suggestions, that is:
+            // - before any call to startZeroSuggest() (when first suggestions are populated), and
+            // - before stopAutocomplete() (when current suggestions are erased).
+            mDropdownViewInfoListBuilder.onOmniboxSessionStateChange(true);
 
-        if (mAnimationDriver.isAnimationEnabled()) {
-            mAnimationDriver.onOmniboxSessionStateChange(activated);
-            if (activated) {
+            if (mAnimationDriver.isAnimationEnabled()) {
+                mAnimationDriver.onOmniboxSessionStateChange(true);
                 mDelegate.setKeyboardVisibility(true, false);
             }
-        }
 
-        if (activated) {
-            initAutocompleteInput();
+            updateModel();
 
             // Do not attach IME observer when omnibox autofocus feature enabled and Incognito NTP
             // visible.
@@ -483,55 +482,94 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
             }
 
             dismissDeleteDialog(DialogDismissalCause.DISMISSED_BY_NATIVE);
-            mRefineActionUsage = RefineActionUsage.NOT_USED;
+
             mOmniboxFocusResultedInNavigation = false;
-            mSuggestionsListScrolled = false;
-            mUrlFocusTime = System.currentTimeMillis();
+        }
 
-            // Ask directly for zero-suggestions related to current input, unless the user is
-            // currently visiting SearchActivity and the input is populated from the launch intent.
-            // In all contexts, the input will most likely be empty, triggering the same response
-            // (starting zero suggestions), but if the SearchActivity was launched with a QUERY,
-            // then the query might point to a different URL than the reported Page, and the
-            // suggestion would take the user to the DSE home page.
-            // This is tracked by MobileStartup.LaunchCause / EXTERNAL_SEARCH_ACTION_INTENT
-            // metric.
-            // Note(david@vivaldi.com): Trigger directly for zero-suggestions related to current
-            // input. See ref. VAB-9411.
-            if (mDataProvider.getPageClassification(false)
-                    != PageClassification.ANDROID_SEARCH_WIDGET_VALUE) {
-                postAutocompleteRequest(
-                        () -> startZeroSuggest(), SCHEDULE_FOR_IMMEDIATE_EXECUTION);
-            } else {
-            String text = mUrlBarEditingTextProvider.getTextWithoutAutocomplete();
-            onTextChanged(
-                    text, /* isOnFocusContext= */ OmniboxFeatures.shouldRetainOmniboxOnFocus());
-            } // End Vivaldi
-        } else {
-            mFuseboxCoordinator.notifyOmniboxSessionEnded(mOmniboxFocusResultedInNavigation);
-            mDeferredIMEWindowInsetApplicationCallback.detach();
-            stopMeasuringSuggestionRequestToUiModelTime();
-            cancelAutocompleteRequests();
-            OmniboxMetrics.recordOmniboxFocusResultedInNavigation(
-                    mAutocompleteInput.getRequestType(),
-                    mOmniboxFocusResultedInNavigation,
-                    mFuseboxCoordinator.getAttachmentsCount() > 0);
-            OmniboxMetrics.recordRefineActionUsage(mRefineActionUsage);
-            OmniboxMetrics.recordSuggestionsListScrolled(
-                    mAutocompleteInput.getPageClassification(), mSuggestionsListScrolled);
+        // Ask directly for zero-suggestions related to current input, unless the user is
+        // currently visiting SearchActivity and the input is populated from the launch intent.
+        // In all contexts, the input will most likely be empty, triggering the same response
+        // (starting zero suggestions), but if the SearchActivity was launched with a QUERY,
+        // then the query might point to a different URL than the reported Page, and the
+        // suggestion would take the user to the DSE home page.
+        // This is tracked by MobileStartup.LaunchCause / EXTERNAL_SEARCH_ACTION_INTENT
+        // metric.
 
-            // Reset the per omnibox session state of touch down prefetch.
-            OmniboxMetrics.recordNumPrefetchesStartedInOmniboxSession(
-                    mNumPrefetchesStartedInOmniboxSession);
-            mNumTouchDownEventForwardedInOmniboxSession = 0;
-            mNumPrefetchesStartedInOmniboxSession = 0;
-            mLastPrefetchStartedSuggestion = null;
+        // Note(david@vivaldi.com): Trigger directly for zero-suggestions related to current
+        // input. See ref. VAB-9411.
+        if (mDataProvider.getPageClassification(false)
+                != PageClassification.ANDROID_SEARCH_WIDGET_VALUE) {
+            postAutocompleteRequest(
+                    () -> startZeroSuggest(), SCHEDULE_FOR_IMMEDIATE_EXECUTION);
+        } else { // Vivaldi
+        onTextChanged(
+                assumeNonNull(mAutocompleteInput).getUserText(),
+                /* isOnFocusContext= */ OmniboxFeatures.shouldRetainOmniboxOnFocus());
+        } // End Vivaldi
+    }
 
-            mOmniboxInZeroPrefixState = null;
-            mNewOmniboxEditSessionTimestamp = -1;
-            // Prevent any upcoming omnibox suggestions from showing once a URL is loaded (and as
-            // a consequence the omnibox is unfocused).
-            clearSuggestions();
+    /**
+     * Concludes the current omnibox session.
+     *
+     * <p>This method records metrics for the completed session, detaches observers, and cleans up
+     * the mediator's state.
+     */
+    void endInput() {
+        // Session already inactive - stop.
+        if (mAutocompleteInput == null) return;
+
+        // Propagate the information about omnibox session state change to all the processors first.
+        // Processors need this for accounting purposes.
+        // The change information should be passed before Processors receive first
+        // batch of suggestions, that is:
+        // - before any call to startZeroSuggest() (when first suggestions are populated), and
+        // - before stopAutocomplete() (when current suggestions are erased).
+        mDropdownViewInfoListBuilder.onOmniboxSessionStateChange(true);
+
+        if (mAnimationDriver.isAnimationEnabled()) {
+            mAnimationDriver.onOmniboxSessionStateChange(false);
+        }
+
+        mFuseboxCoordinator.notifyOmniboxSessionEnded(mOmniboxFocusResultedInNavigation);
+        mDeferredIMEWindowInsetApplicationCallback.detach();
+        stopMeasuringSuggestionRequestToUiModelTime();
+        cancelAutocompleteRequests();
+        OmniboxMetrics.recordOmniboxFocusResultedInNavigation(
+                mAutocompleteInput.getRequestType(),
+                mOmniboxFocusResultedInNavigation,
+                mFuseboxCoordinator.getAttachmentsCount() > 0);
+        OmniboxMetrics.recordRefineActionUsage(mAutocompleteInput.getRefineActionUsage());
+
+        OmniboxMetrics.recordSuggestionsListScrolled(
+                mAutocompleteInput.getPageClassification(),
+                mAutocompleteInput.isSuggestionsListScrolled());
+
+        // Reset the per omnibox session state of touch down prefetch.
+        OmniboxMetrics.recordNumPrefetchesStartedInOmniboxSession(
+                mNumPrefetchesStartedInOmniboxSession);
+        mNumTouchDownEventForwardedInOmniboxSession = 0;
+        mNumPrefetchesStartedInOmniboxSession = 0;
+        mLastPrefetchStartedSuggestion = null;
+
+        mOmniboxInZeroPrefixState = null;
+        mNewOmniboxEditSessionTimestamp = -1;
+        // Prevent any upcoming omnibox suggestions from showing once a URL is loaded (and as
+        // a consequence the omnibox is unfocused).
+        clearSuggestions();
+        setAutocompleteInput(null);
+    }
+
+    private void setAutocompleteInput(@Nullable AutocompleteInput input) {
+        if (mAutocompleteInput != null) {
+            mAutocompleteInput
+                    .getRequestTypeSupplier()
+                    .removeObserver(mOnAutocompleteRequestTypeChanged);
+        }
+        mAutocompleteInput = input;
+        if (mAutocompleteInput != null) {
+            mAutocompleteInput
+                    .getRequestTypeSupplier()
+                    .addSyncObserver(mOnAutocompleteRequestTypeChanged);
         }
     }
 
@@ -539,13 +577,13 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
      * @see
      *     org.chromium.chrome.browser.omnibox.UrlFocusChangeListener#onUrlAnimationFinished(boolean)
      */
-    void onUrlAnimationFinished(boolean hasFocus) {
+    void onUrlAnimationFinished() {
         // mAnimationDriver has the responsibility of calling propagateOmniboxSessionStateChange if
         // it's present and currently active.
-        if (hasFocus && mAnimationDriver.isAnimationEnabled()) {
+        if (isInInputSession() && mAnimationDriver.isAnimationEnabled()) {
             return;
         }
-        propagateOmniboxSessionStateChange(hasFocus);
+        propagateOmniboxSessionStateChange();
     }
 
     /**
@@ -598,6 +636,8 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
      */
     @Override
     public void onSuggestionClicked(AutocompleteMatch suggestion, int matchIndex, GURL url) {
+        if (!isInInputSession()) return;
+
         // Android hub should always switch to tab if one is available.
         // TODO(crbug.com/369438026): Remove this block once switch-to-tab is the default action.
         boolean isAndroidHub =
@@ -687,26 +727,26 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
      */
     @Override
     public void onRefineSuggestion(AutocompleteMatch suggestion) {
+        if (!isInInputSession()) return;
         stopAutocomplete(false);
         boolean isSearchSuggestion = suggestion.isSearchSuggestion();
-        boolean isZeroPrefix =
-                TextUtils.isEmpty(mUrlBarEditingTextProvider.getTextWithoutAutocomplete());
+        boolean isZeroPrefix = mAutocompleteInput.isInZeroPrefixContext();
         String refineText = suggestion.getFillIntoEdit();
         if (isSearchSuggestion) refineText = TextUtils.concat(refineText, " ").toString();
 
         mDelegate.setOmniboxEditingText(refineText);
-        onTextChanged(
-                mUrlBarEditingTextProvider.getTextWithoutAutocomplete(),
-                /* isOnFocusContext= */ false);
+        onTextChanged(refineText, /* isOnFocusContext= */ false);
 
         if (isSearchSuggestion) {
             // Note: the logic below toggles assumes individual values to be represented by
             // individual bits. This allows proper reporting of different refine button uses
             // during single interaction with the Omnibox.
-            mRefineActionUsage |=
-                    isZeroPrefix
-                            ? RefineActionUsage.SEARCH_WITH_ZERO_PREFIX
-                            : RefineActionUsage.SEARCH_WITH_PREFIX;
+            assumeNonNull(mAutocompleteInput)
+                    .setRefineActionUsage(
+                            mAutocompleteInput.getRefineActionUsage()
+                                    | (isZeroPrefix
+                                            ? RefineActionUsage.SEARCH_WITH_ZERO_PREFIX
+                                            : RefineActionUsage.SEARCH_WITH_PREFIX));
         }
     }
 
@@ -717,9 +757,11 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
 
     @Override
     public void onGesture(boolean isGestureUp, long timestamp) {
-        stopAutocomplete(false);
-        if (isGestureUp) {
-            mLastActionUpTimestamp = timestamp;
+        try (TraceEvent e = TraceEvent.scoped("AutocompleteMediator.onGesture")) {
+            stopAutocomplete(false);
+            if (isGestureUp) {
+                mLastActionUpTimestamp = timestamp;
+            }
         }
     }
 
@@ -777,7 +819,6 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     @Override
     public void finishInteraction() {
         mDelegate.clearOmniboxFocus();
-        mAutocompleteInput.reset();
         mListPropertyModel.set(SuggestionListProperties.CONTAINER_ALWAYS_VISIBLE, false);
     }
 
@@ -884,18 +925,21 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
      * @return The url to navigate to.
      */
     private GURL updateSuggestionUrlIfNeeded(AutocompleteMatch suggestion, GURL url) {
-        if (mAutocomplete == null) return url;
-        // TODO(crbug.com/40279214): this should exclude TILE variants when horizontal render group
-        // is ready.
-        if (suggestion.getType() == OmniboxSuggestionType.TILE_NAVSUGGEST) {
-            return url;
+        try (TraceEvent e = TraceEvent.scoped("AutocompleteMediator.updateSuggestionUrlIfNeeded")) {
+            if (mAutocomplete == null) return url;
+            // TODO(crbug.com/40279214): this should exclude TILE variants when horizontal render
+            // group
+            // is ready.
+            if (suggestion.getType() == OmniboxSuggestionType.TILE_NAVSUGGEST) {
+                return url;
+            }
+
+            GURL updatedGurl =
+                    mAutocomplete.updateMatchDestinationUrlWithQueryFormulationTime(
+                            suggestion, getElapsedTimeSinceInputChange());
+
+            return updatedGurl != null ? updatedGurl : url;
         }
-
-        GURL updatedGurl =
-                mAutocomplete.updateMatchDestinationUrlWithQueryFormulationTime(
-                        suggestion, getElapsedTimeSinceInputChange());
-
-        return updatedGurl != null ? updatedGurl : url;
     }
 
     /**
@@ -911,6 +955,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
      * @param isOnFocusContext whether Omnibox is currently gaining focus
      */
     public void onTextChanged(String textWithoutAutocomplete, boolean isOnFocusContext) {
+        if (!isInInputSession()) return;
         if (mShouldPreventOmniboxAutocomplete) return;
 
         // Always re-set the list's final state when we're about to request new suggestions.
@@ -961,7 +1006,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
             postAutocompleteRequest(
                     () -> {
                         startMeasuringSuggestionRequestToUiModelTime();
-                        if (mAutocomplete != null) {
+                        if (isInInputSession() && mAutocomplete != null) {
                             mAutocomplete.start(
                                     mAutocompleteInput, cursorPosition, preventAutocomplete);
                         }
@@ -974,6 +1019,8 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
 
     @Override
     public void onSuggestionsReceived(AutocompleteResult autocompleteResult, boolean isFinal) {
+        if (!isInInputSession()) return;
+
         // Persist AutocompleteResult in cache even if the interaction has just finished.
         // This allows us to cache most up-to-date information even after navigation was initiated.
         if (isFinal && !autocompleteResult.getSuggestionsList().isEmpty()) {
@@ -981,13 +1028,20 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
         }
 
         // Reject results if the current session is inactive.
-        if (!isActive()) return;
+        if (!isInInputSession()) return;
+
+        if (mAutocomplete != null
+                && PreloadingFeatureMap.getInstance().shouldPrewarmOnAutocomplete()) {
+            Tab tab = mDataProvider.getTab();
+            WebContents webContents = tab != null ? tab.getWebContents() : null;
+            mAutocomplete.startPrewarm(webContents);
+        }
 
         @Nullable AutocompleteMatch defaultMatch = autocompleteResult.getDefaultMatch();
         String inlineAutocompleteText =
                 defaultMatch != null ? defaultMatch.getInlineAutocompletion() : "";
 
-        String userText = mUrlBarEditingTextProvider.getTextWithoutAutocomplete();
+        String userText = mAutocompleteInput.getUserText();
         mUrlTextAfterSuggestionsReceived = userText + inlineAutocompleteText;
 
         if (!(mAutocompleteResult != null && mAutocompleteResult.equals(autocompleteResult))) {
@@ -1003,14 +1057,15 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
         measureSuggestionRequestToUiModelTime(isFinal);
     }
 
-    public void onAutocompleteRequestTypeChanged(@AutocompleteRequestType int type) {
-        if (mOmniboxFocused) {
-            mAutocompleteInput.setRequestType(type);
-            mAutocompleteInput.setPageClassification(mDataProvider.getPageClassification(false));
-            onTextChanged(
-                    mUrlBarEditingTextProvider.getTextWithoutAutocomplete(),
-                    /* isOnFocusContext= */ false);
-        }
+    private void onAutocompleteRequestTypeChanged(@AutocompleteRequestType int type) {
+        if (!isInInputSession()) return;
+        onTextChanged(mAutocompleteInput.getUserText(), /* isOnFocusContext= */ false);
+    }
+
+    private void onFuseboxStateChanged(@FuseboxState int fuseboxState) {
+        boolean fuseboxOnTablet = mEmbedder.isTablet() && fuseboxState != FuseboxState.DISABLED;
+        mListPropertyModel.set(SuggestionListProperties.ROUND_TOP_CORNERS, !fuseboxOnTablet);
+        mListPropertyModel.set(SuggestionListProperties.DRAW_OVER_ANCHOR, !fuseboxOnTablet);
     }
 
     /**
@@ -1024,23 +1079,32 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
      *     current window.
      */
     /* Vivaldi */ public void loadTypedOmniboxText(long eventTime, boolean openInNewTab, boolean openInNewWindow) {
-        assert !openInNewTab || !openInNewWindow
-                : "Unable to determine if the URL should be loaded in a new tab in the current"
-                        + " window or in a new window.";
+        // TODO(crbug.com/478783240): investigate what flows lead to <enter> key triggering
+        // navigation while the Omnibox input session is not active.
+        try (TraceEvent e = TraceEvent.scoped("AutocompleteMediator.loadTypedOmniboxText")) {
+            if (!isInInputSession()) return;
+            assert !openInNewTab || !openInNewWindow
+                    : "Unable to determine if the URL should be loaded in a new tab in the current"
+                            + " window or in a new window.";
 
-        final String urlText = mUrlBarEditingTextProvider.getTextWithAutocomplete();
-        cancelAutocompleteRequests();
+            final String urlText = mUrlBarEditingTextProvider.getTextWithAutocomplete();
+            cancelAutocompleteRequests();
 
-        if (mAutocompleteInput.getPageClassification() == PageClassification.ANDROID_HUB_VALUE) {
-            RecordUserAction.record("HubSearch.KeyboardEnterPressed");
-            // For Hub Search, default behavior kicks off search by pressing enter, do not return.
-        }
+            if (mAutocompleteInput.getPageClassification()
+                    == PageClassification.ANDROID_HUB_VALUE) {
+                RecordUserAction.record("HubSearch.KeyboardEnterPressed");
+                // For Hub Search, default behavior kicks off search by pressing enter, do not
+                // return.
+            }
 
-        if (mAutocomplete != null) {
-            findMatchAndLoadUrl(urlText, eventTime, openInNewTab, openInNewWindow);
-        } else {
-            mDeferredLoadAction =
-                    () -> findMatchAndLoadUrl(urlText, eventTime, openInNewTab, openInNewWindow);
+            if (mAutocomplete != null) {
+                findMatchAndLoadUrl(urlText, eventTime, openInNewTab, openInNewWindow);
+            } else {
+                mDeferredLoadAction =
+                        () ->
+                                findMatchAndLoadUrl(
+                                        urlText, eventTime, openInNewTab, openInNewWindow);
+            }
         }
     }
 
@@ -1108,7 +1172,9 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
             boolean openInNewTab,
             boolean openInNewWindow) {
         try (TraceEvent e = TraceEvent.scoped("AutocompleteMediator.loadUrlFromOmniboxMatch")) {
-            OmniboxMetrics.recordFocusToOpenTime(System.currentTimeMillis() - mUrlFocusTime);
+            OmniboxMetrics.recordFocusToOpenTime(
+                    System.currentTimeMillis()
+                            - assumeNonNull(mAutocompleteInput).getUrlFocusTime());
 
             // Clear the deferred site load action in case it executes. Reclaims a bit of memory.
             mDeferredLoadAction = null;
@@ -1150,7 +1216,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
                                 finalTransition);
                     };
 
-            switch (mFuseboxCoordinator.getAutocompleteRequestTypeSupplier().get()) {
+            switch (assumeNonNull(mAutocompleteInput).getRequestType()) {
                 case AutocompleteRequestType.AI_MODE ->
                         mFuseboxCoordinator.getAimUrl(url, onUrlReady);
                 case AutocompleteRequestType.IMAGE_GENERATION ->
@@ -1167,34 +1233,37 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
             boolean openInNewTab,
             boolean openInNewWindow,
             int transition) {
-        // Kick off an action to clear focus and dismiss the suggestions list.
-        // This normally happens when the target site loads and focus is moved to the
-        // webcontents. On Android T we occasionally observe focus events to be lost, resulting
-        // with Suggestions list obscuring the view.
-        var autocompleteLoadCallback =
-                new AutocompleteLoadCallback() {
-                    @Override
-                    public void onLoadUrl(LoadUrlParams params, LoadUrlResult loadUrlResult) {
-                        if (loadUrlResult.navigationHandle != null) {
-                            if (mAutocomplete != null) {
-                                mAutocomplete.createNavigationObserver(
-                                        loadUrlResult.navigationHandle, suggestion);
+        try (TraceEvent e =
+                TraceEvent.scoped("AutocompleteMediator.finishLoadUrlForOmniboxMatch")) {
+            // Kick off an action to clear focus and dismiss the suggestions list.
+            // This normally happens when the target site loads and focus is moved to the
+            // webcontents. On Android T we occasionally observe focus events to be lost, resulting
+            // with Suggestions list obscuring the view.
+            var autocompleteLoadCallback =
+                    new AutocompleteLoadCallback() {
+                        @Override
+                        public void onLoadUrl(LoadUrlParams params, LoadUrlResult loadUrlResult) {
+                            if (loadUrlResult.navigationHandle != null) {
+                                if (mAutocomplete != null) {
+                                    mAutocomplete.createNavigationObserver(
+                                            loadUrlResult.navigationHandle, suggestion);
+                                }
                             }
                         }
-                    }
-                };
+                    };
 
-        mDelegate.loadUrl(
-                new OmniboxLoadUrlParams.Builder(url.getSpec(), transition)
-                        .setInputStartTimestamp(inputStart)
-                        .setPostData(suggestion.getPostData())
-                        .setOpenInNewTab(openInNewTab)
-                        .setOpenInNewWindow(openInNewWindow)
-                        .setExtraHeaders(suggestion.getExtraHeaders())
-                        .setAutocompleteLoadCallback(autocompleteLoadCallback)
-                        .build());
+            mDelegate.loadUrl(
+                    new OmniboxLoadUrlParams.Builder(url.getSpec(), transition)
+                            .setInputStartTimestamp(inputStart)
+                            .setPostData(suggestion.getPostData())
+                            .setOpenInNewTab(openInNewTab)
+                            .setOpenInNewWindow(openInNewWindow)
+                            .setExtraHeaders(suggestion.getExtraHeaders())
+                            .setAutocompleteLoadCallback(autocompleteLoadCallback)
+                            .build());
 
-        mHandler.post(this::finishInteraction);
+            mHandler.post(this::finishInteraction);
+        }
     }
 
     /**
@@ -1231,22 +1300,16 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
         mNewOmniboxEditSessionTimestamp = -1;
         startMeasuringSuggestionRequestToUiModelTime();
 
-        if (mDelegate.isUrlBarFocused()) {
-            if (mAutocomplete != null) {
-                mAutocomplete.startZeroSuggest(mAutocompleteInput);
-            }
+        if (isInInputSession() && mAutocomplete != null) {
+            mAutocomplete.startZeroSuggest(mAutocompleteInput);
         }
     }
 
-    /**
-     * Update whether the Omnibox session is active.
-     *
-     * @param isActive whether session is currently active
-     */
+    /** Update whether the Omnibox session is active. */
     @VisibleForTesting
-    void propagateOmniboxSessionStateChange(boolean isActive) {
+    void propagateOmniboxSessionStateChange() {
+        boolean isActive = mAutocompleteInput != null;
         boolean wasActive = mListPropertyModel.get(SuggestionListProperties.OMNIBOX_SESSION_ACTIVE);
-        mListPropertyModel.set(SuggestionListProperties.OMNIBOX_SESSION_ACTIVE, isActive);
 
         // Note(david@vivaldi.com): Handle the visibility of the |SearchSuggestView|.
         if (mSearchEngineSuggestionView != null) {
@@ -1257,7 +1320,8 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
         }
 
         if (isActive != wasActive) {
-            mIgnoreOmniboxItemSelection |= isActive; // Reset to default value.
+            mListPropertyModel.set(SuggestionListProperties.OMNIBOX_SESSION_ACTIVE, isActive);
+            mIgnoreOmniboxItemSelection |= isActive;
             if (mOmniboxSuggestionsVisualStateObserver != null) {
                 mOmniboxSuggestionsVisualStateObserver.onOmniboxSessionStateChange(isActive);
             }
@@ -1303,14 +1367,8 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
      * every time the new Omnibox session is started.
      */
     @VisibleForTesting
-    void initAutocompleteInput() {
-        mAutocompleteInput.setPageClassification(
-                mDataProvider.getPageClassification(/* prefetch= */ false));
-        mAutocompleteInput.setRequestType(
-                mFuseboxCoordinator.getAutocompleteRequestTypeSupplier().get());
-        mAutocompleteInput.setPageUrl(mDataProvider.getCurrentGurl());
-        mAutocompleteInput.setPageTitle(mDataProvider.getTitle());
-
+    void updateModel() {
+        if (!isInInputSession()) return;
         mListPropertyModel.set(
                 SuggestionListProperties.CONTAINER_ALWAYS_VISIBLE,
                 mAutocompleteInput.getPageClassification() == PageClassification.ANDROID_HUB_VALUE);
@@ -1324,8 +1382,9 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
 
     /** Trigger autocomplete for the given query. */
     void startAutocompleteForQuery(String query) {
+        assert isInInputSession();
+
         stopAutocomplete(false);
-        initAutocompleteInput();
         mAutocompleteInput.setUserText(query);
         if (mAutocomplete != null) {
             mAutocomplete.start(mAutocompleteInput, -1, false);
@@ -1355,7 +1414,8 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
 
     @Override
     public void onSuggestionDropdownScroll() {
-        mSuggestionsListScrolled = true;
+        if (mAutocompleteInput == null) return;
+        mAutocompleteInput.setSuggestionsListScrolled();
         mDelegate.setKeyboardVisibility(false, false);
     }
 
@@ -1373,38 +1433,41 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
             @Nullable OmniboxAction action,
             int suggestionLine,
             int disposition) {
-        if (mAutocompleteResult == null) return;
+        try (TraceEvent e = TraceEvent.scoped("AutocompleteMediator.recordMetrics")) {
+            if (mAutocompleteResult == null) return;
+            assert isInInputSession();
 
-        boolean autocompleteResultIsFromCache =
-                mAutocompleteResult != null ? mAutocompleteResult.isFromCachedResult() : true;
+            boolean autocompleteResultIsFromCache =
+                    mAutocompleteResult != null ? mAutocompleteResult.isFromCachedResult() : true;
 
-        OmniboxMetrics.recordUsedSuggestionFromCache(autocompleteResultIsFromCache);
-        OmniboxMetrics.recordTouchDownPrefetchResult(match, mLastPrefetchStartedSuggestion);
+            OmniboxMetrics.recordUsedSuggestionFromCache(autocompleteResultIsFromCache);
+            OmniboxMetrics.recordTouchDownPrefetchResult(match, mLastPrefetchStartedSuggestion);
 
-        // Do not attempt to record other metrics for cached suggestions if the source of the list
-        // is local cache. These suggestions do not have corresponding native objects and will fail
-        // validation.
-        if (autocompleteResultIsFromCache) return;
+            // Do not attempt to record other metrics for cached suggestions if the source of the
+            // list is local cache. These suggestions do not have corresponding native objects and
+            // will fail validation.
+            if (autocompleteResultIsFromCache) return;
 
-        GURL currentPageUrl = mAutocompleteInput.getPageUrl();
-        long elapsedTimeSinceModified = getElapsedTimeSinceInputChange();
-        int autocompleteLength =
-                mUrlBarEditingTextProvider.getTextWithAutocomplete().length()
-                        - mUrlBarEditingTextProvider.getTextWithoutAutocomplete().length();
-        var tab = mDataProvider.getTab();
-        WebContents webContents = tab != null ? tab.getWebContents() : null;
+            GURL currentPageUrl = mAutocompleteInput.getPageUrl();
+            long elapsedTimeSinceModified = getElapsedTimeSinceInputChange();
+            int autocompleteLength =
+                    mUrlBarEditingTextProvider.getTextWithAutocomplete().length()
+                            - mAutocompleteInput.getUserText().length();
+            var tab = mDataProvider.getTab();
+            WebContents webContents = tab != null ? tab.getWebContents() : null;
 
-        if (mAutocomplete != null) {
-            mAutocomplete.onSuggestionSelected(
-                    match,
-                    suggestionLine,
-                    disposition,
-                    currentPageUrl,
-                    mAutocompleteInput.getPageClassification(),
-                    elapsedTimeSinceModified,
-                    autocompleteLength,
-                    webContents,
-                    action);
+            if (mAutocomplete != null) {
+                mAutocomplete.onSuggestionSelected(
+                        match,
+                        suggestionLine,
+                        disposition,
+                        currentPageUrl,
+                        mAutocompleteInput.getPageClassification(),
+                        elapsedTimeSinceModified,
+                        autocompleteLength,
+                        webContents,
+                        action);
+            }
         }
     }
 
@@ -1479,10 +1542,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
     private void runPendingAutocompleteRequests() {
         if (!mNativeInitialized || mAutocomplete == null) return;
 
-        // Set the Page URL now. This is a corner case for the SearchActivity, which is unable to
-        // resolve the Page URL until Profile is available.
-        // All other scenarios should rely on `onOmniboxSessionStateChange()` handling.
-        initAutocompleteInput();
+        updateModel();
 
         if (mDeferredLoadAction != null) {
             // If deferred load action is present, cancel all autocomplete and load the URL.
@@ -1550,7 +1610,7 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
             driver =
                     new UnsyncedSuggestionsListAnimationDriver(
                             mListPropertyModel,
-                            () -> propagateOmniboxSessionStateChange(true),
+                            () -> propagateOmniboxSessionStateChange(),
                             mDelegate::isToolbarBottomAnchored,
                             mEmbedder::getVerticalTranslationForAnimation,
                             mContext);
@@ -1571,25 +1631,23 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
 
     private void onToolbarPositionChanged(@ControlsPosition Integer newPosition) {
         mListPropertyModel.set(SuggestionListProperties.TOOLBAR_POSITION, newPosition);
-        if (isActive()) {
+        if (isInInputSession()) {
             // Hacky solution: rebuild the list if we're active when the position changes,
             // triggering recalculation of refine arrow icon. TODO(http://crbug.com/446058347):
             // refactor to enable updates to the icon property of the model once the list is already
             // built.
-            onTextChanged(
-                    mUrlBarEditingTextProvider.getTextWithoutAutocomplete(),
-                    /* isOnFocusContext= */ false);
+            onTextChanged(mAutocompleteInput.getUserText(), /* isOnFocusContext= */ false);
         }
     }
 
     /** Returns the current AutocompleteInput instance. */
-    AutocompleteInput getAutocompleteInputForTesting() {
+    @Nullable AutocompleteInput getAutocompleteInputForTesting() {
         return mAutocompleteInput;
     }
 
     /** Returns whether Omnibox session is active (the user is interacting with the Omnibox). */
     boolean isOmniboxSessionActiveForTesting() {
-        return mOmniboxFocused;
+        return isInInputSession();
     }
 
     /** Returns the current Animation Driver instance. */
@@ -1602,13 +1660,11 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
      */
     @Override
     public void onAttachmentListChanged() {
-        if (!isActive()) return;
+        if (!isInInputSession()) return;
 
         mAutocompleteInput.setHasAttachments(mFuseboxCoordinator.getAttachmentsCount() > 0);
         // Re-request ZPS in the event of attachments being removed/replaced.
-        onTextChanged(
-                mUrlBarEditingTextProvider.getTextWithoutAutocomplete(),
-                /* isOnFocusContext= */ false);
+        onTextChanged(mAutocompleteInput.getUserText(), /* isOnFocusContext= */ false);
     }
 
     /**
@@ -1616,17 +1672,16 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
      */
     @Override
     public void onAttachmentUploadStatusChanged() {
-        if (!isActive()) return;
+        if (!isInInputSession()) return;
 
         // Re-request ZPS in the event of new attachments being uploaded.
-        onTextChanged(
-                mUrlBarEditingTextProvider.getTextWithoutAutocomplete(),
-                /* isOnFocusContext= */ false);
+        onTextChanged(mAutocompleteInput.getUserText(), /* isOnFocusContext= */ false);
     }
 
     @Override
     public void onTopResumedActivityChanged(boolean isTopResumedActivity) {
         mActivityWindowFocused = isTopResumedActivity;
+        if (!isInInputSession()) return;
         // Always set the window activity focused property to true for hub search so that the
         // dropdown container persists when search activity is dismissed.
         // TODO(crbug.com/390011136): Find a better way to create a seamless animation when
@@ -1636,15 +1691,17 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
                 mAutocompleteInput.getPageClassification() == PageClassification.ANDROID_HUB_VALUE
                         ? true
                         : isTopResumedActivity);
-        if (isActive()) {
-            onTextChanged(
-                    mUrlBarEditingTextProvider.getTextWithoutAutocomplete(),
-                    /* isOnFocusContext= */ false);
-        }
+
+        onTextChanged(mAutocompleteInput.getUserText(), /* isOnFocusContext= */ false);
     }
 
-    private boolean isActive() {
-        return mOmniboxFocused && mActivityWindowFocused;
+    /**
+     * @return Whether there is currently an active omnibox session. An active session is defined by
+     *     the presence of an {@link AutocompleteInput} and the activity window having focus.
+     */
+    @EnsuresNonNullIf("mAutocompleteInput")
+    private boolean isInInputSession() {
+        return mAutocompleteInput != null && mActivityWindowFocused;
     }
 
     @Override
@@ -1665,10 +1722,10 @@ import org.vivaldi.browser.suggestions.SearchEngineSuggestionView;
         if (!OmniboxFeatures.isJumpStartOmniboxEnabled()) return;
 
         // Abort early if Autocomplete has not initialized yet.
-        if (mAutocomplete == null) return;
+        if (!isInInputSession() || mAutocomplete == null) return;
 
         // Default page context to prefetch suggestions for.
-        GURL pageUrl = UrlConstants.ntpGurl();
+        GURL pageUrl = getOriginalNonNativeNtpGurl();
         int pageClass = PageClassification.INSTANT_NTP_WITH_OMNIBOX_AS_STARTING_FOCUS_VALUE;
 
         // Preserve current page context for Jump-start Omnibox feature.

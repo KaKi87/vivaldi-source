@@ -203,6 +203,26 @@ class RequestHandler : public SimpleIndexBaseQuery, RulesIndex::RequestQuery {
         return;
       }
 
+      if (group_ == RuleGroup::kAdBlockingRules) {
+        std::optional<uint32_t> rule_source_id;
+        if (activations_->by_type[ActivationType::kWholeDocument].rule_stub) {
+          rule_source_id = activations_->by_type[ActivationType::kWholeDocument]
+                               .rule_stub->rule_source_id;
+        } else if (rule_stub) {
+          rule_source_id = rule_stub->rule_source_id;
+        }
+        if (rule_source_id &&
+            rule_service_->GetKnownSourcesHandler()->GetPresetIdForSourceId(
+                RuleGroup::kAdBlockingRules, *rule_source_id) ==
+                base::Uuid::ParseLowercase(
+                    adblock_filter::KnownRuleSourcesHandler::
+                        kPartnersListUuid)) {
+          std::move(callback).Run(vivaldi::RequestFilter::kPreventCancel, false,
+                                  GURL());
+          return;
+        }
+      }
+
       std::move(callback).Run(vivaldi::RequestFilter::kAllow, false, GURL());
       return;
     }

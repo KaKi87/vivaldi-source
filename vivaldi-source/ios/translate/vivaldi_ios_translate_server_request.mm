@@ -14,11 +14,11 @@
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "net/base/load_flags.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 #import "services/network/public/cpp/resource_request.h"
 #import "services/network/public/cpp/shared_url_loader_factory.h"
-#import "services/network/public/cpp/simple_url_loader_stream_consumer.h"
 #import "services/network/public/cpp/simple_url_loader.h"
+#import "services/network/public/cpp/simple_url_loader_stream_consumer.h"
 
 namespace vivaldi {
 
@@ -88,7 +88,8 @@ void VivaldiIOSTranslateServerRequest::StartRequest(
   // See
   // https://chromium.googlesource.com/chromium/src/+/lkgr/docs/network_traffic_annotations.md
   net::NetworkTrafficAnnotationTag traffic_annotation =
-      net::DefineNetworkTrafficAnnotation("vivaldi_translate_server_request", R"(
+      net::DefineNetworkTrafficAnnotation("vivaldi_translate_server_request",
+                                          R"(
         semantics {
           sender: "Vivaldi Translate Server Request"
           description: "Translate text to a specific language."
@@ -103,7 +104,8 @@ void VivaldiIOSTranslateServerRequest::StartRequest(
         }
       })");
 
-  auto url_loader_factory = GetApplicationContext()->GetSharedURLLoaderFactory();
+  auto url_loader_factory =
+      GetApplicationContext()->GetSharedURLLoaderFactory();
 
   url_loader_ = network::SimpleURLLoader::Create(std::move(resource_request),
                                                  traffic_annotation);
@@ -134,32 +136,29 @@ void VivaldiIOSTranslateServerRequest::AbortRequest() {
 }
 
 void VivaldiIOSTranslateServerRequest::OnRequestResponse(
-    std::unique_ptr<std::string> response_body) {
-
+    std::optional<std::string> response_body) {
   if (!response_body || response_body->empty()) {
     LOG(WARNING) << "Translate from server "
                  << " failed with error " << url_loader_->NetError();
     if (callback_) {
-      callback_(TranslateError::kNetwork,
-                std::string(),
-                std::vector<std::string>(),
-                std::vector<std::string>());
+      callback_(TranslateError::kNetwork, std::string(),
+                std::vector<std::string>(), std::vector<std::string>());
     }
   } else {
     base::JSONParserOptions options = base::JSON_ALLOW_TRAILING_COMMAS;
     std::optional<base::Value> json =
         base::JSONReader::Read(*response_body, options);
     if (json) {
-      const base::Value::List* translated_values;
-      const base::Value::List* source_values;
+      const base::ListValue* translated_values;
+      const base::ListValue* source_values;
       if (json->is_dict()) {
         std::vector<std::string> translated_strings;
         std::vector<std::string> source_strings;
         /*
           Typical error, check for that first:
           {
-            "message": "Both or one lang is invalid - source: [object Object], target: en",
-            "code": "INVALID_LANG_CODE"
+            "message": "Both or one lang is invalid - source: [object Object],
+          target: en", "code": "INVALID_LANG_CODE"
           }
           {
             "message": "Unable to recognize source language",
@@ -201,8 +200,7 @@ void VivaldiIOSTranslateServerRequest::OnRequestResponse(
         if (callback_) {
           callback_(error,
                     detected_source_language ? *detected_source_language : "",
-                    source_strings,
-                    translated_strings);
+                    source_strings, translated_strings);
         }
 
         // Reset the callback to prevent multiple invocations

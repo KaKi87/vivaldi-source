@@ -1014,10 +1014,31 @@ class GitCredsAuthenticator(_Authenticator):
                 self._authenticator.get_access_token()
             else:
                 self._authenticator.get_authorization_header(reauth_context)
+                # Also check that the user's Git config has useHttpPath set.
+                if not self._is_usehttppath_set(f'https://{git_host}'):
+                    return (
+                        False,
+                        'You have not set credential.useHttpPath in your Git config.'
+                        ' You can set this by running:\n'
+                        '  git config credential.useHttpPath true')
             return (True, '')
         except (auth.GitLoginRequiredError, auth.GitReAuthRequiredError,
                 auth.GitUnknownError) as e:
             return (False, str(e))
+
+    @staticmethod
+    def _is_usehttppath_set(url: str) -> bool:
+        try:
+            # scm.GIT doesn't support --get-urlmatch
+            output = subprocess.check_output([
+                'git', 'config', '--get-urlmatch', 'credential.usehttppath', url
+            ])
+            return output.decode().rstrip() in ['true', 'yes', 'on']
+        except subprocess.CalledProcessError as e:
+            LOGGER.warning(
+                'credential.useHttpPath check failed (exit: %r, output: %r)',
+                e.returncode, e.output)
+            return False
 
 
 
@@ -1090,10 +1111,9 @@ class ChainedAuthenticator(_Authenticator):
                 git_host=git_host,
                 reauth_context=reauth_context)
             if err_msg:
-                logging.info(
-                    "%s.ensure_authenticated() returns an %s error: %s",
-                    a.__class__.__name__,
-                    "a bypassable" if bypassable else "an", err_msg)
+                LOGGER.info("%s.ensure_authenticated() returns an %s error: %s",
+                            a.__class__.__name__,
+                            "a bypassable" if bypassable else "an", err_msg)
             return bypassable, err_msg
         return (False,
                 f'{self!r} has no applicable authenticator for {gerrit_host}')
@@ -1682,7 +1702,8 @@ def CherryPick(host,
                destination,
                revision='current',
                message=None,
-               base=None):
+               base=None,
+               allow_conflicts=False):
     """Create a cherry-pick commit from the given change, onto the given
     destination.
     """
@@ -1692,6 +1713,8 @@ def CherryPick(host,
         body['message'] = message
     if base:
         body['base'] = base
+    if allow_conflicts:
+        body['allow_conflicts'] = True
     conn = CreateHttpConn(host, path, reqtype='POST', body=body)
 
     # If a cherry pick fails due to a merge conflict, Gerrit returns 409.
@@ -1709,14 +1732,14 @@ def CherryPickCommit(host, project, commit, destination):
     return ReadHttpJsonResponse(conn)
 
 
-def GetFileContents(host, change, path):
+def GetFileContents(host, change, path, revision='current'):
     """Get the contents of a file with the given path in the given revision.
 
     Returns:
         A bytes object with the file's contents.
     """
-    path = 'changes/%s/revisions/current/files/%s/content' % (
-        change, urllib.parse.quote(path, ''))
+    path = 'changes/%s/revisions/%s/files/%s/content' % (
+        change, revision, urllib.parse.quote(path, ''))
     conn = CreateHttpConn(host, path, reqtype='GET')
     return base64.b64decode(ReadHttpResponse(conn).read())
 

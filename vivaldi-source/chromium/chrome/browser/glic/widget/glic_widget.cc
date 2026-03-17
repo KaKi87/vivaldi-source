@@ -16,8 +16,8 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/views/chrome_widget_sublevel.h"
+#include "chrome/browser/ui/views/glic/glic_button_interface.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
-#include "chrome/browser/ui/views/tabs/glic_button.h"
 #include "chrome/common/chrome_features.h"
 #include "ui/base/base_window.h"
 #include "ui/base/hit_test.h"
@@ -30,6 +30,7 @@
 #include "ui/gfx/geometry/insets.h"
 #include "ui/gfx/geometry/outsets.h"
 #include "ui/gfx/geometry/rounded_corners_f.h"
+#include "ui/views/controls/button/label_button.h"
 #include "ui/views/view.h"
 #include "ui/views/widget/native_widget.h"
 #include "ui/views/widget/widget.h"
@@ -119,7 +120,7 @@ class GlicWidgetDelegate : public views::WidgetDelegate {
       gfx::NativeView child,
       const gfx::Point& location) override {
     if (base::FeatureList::IsEnabled(features::kGlicHandleDraggingNatively)) {
-      return !glic_view()->IsPointWithinDraggableArea(location);
+      return !glic_view()->IsPointWithinDraggableRegion(location);
     }
 
     return true;
@@ -152,7 +153,7 @@ class GlicFrameViewChromeOS : public ash::FrameViewAsh {
     // If point falls into the client area (i.e web-contents), check if it
     // within the draggable regions of web-contents.
     if (component == HTCLIENT &&
-        glic_view()->IsPointWithinDraggableArea(point)) {
+        glic_view()->IsPointWithinDraggableRegion(point)) {
       return HTCAPTION;
     }
 
@@ -197,11 +198,14 @@ std::optional<gfx::Rect> GetInitialDetachedBoundsFromBrowser(
 
   // Set the origin so the top right of the glic widget meets the bottom left
   // of the glic button.
-  GlicButton* glic_button = GlicButton::FromBrowser(browser);
+  views::LabelButton* glic_button =
+      glic::GlicButtonInterface::FromBrowser(browser);
   if (!glic_button) {
     return std::nullopt;
   }
-  gfx::Rect glic_button_inset_bounds = glic_button->GetBoundsWithInset();
+  gfx::Rect glic_bounds = glic_button->GetBoundsInScreen();
+  glic_bounds.Inset(glic_button->GetInsets());
+  gfx::Rect glic_button_inset_bounds = glic_bounds;
 
   gfx::Point origin(glic_button_inset_bounds.x() - target_size.width() -
                         kInitialPositionBuffer,
@@ -463,6 +467,10 @@ gfx::Rect GlicWidget::WidgetToVisibleBounds(gfx::Rect widget_bounds) {
     widget_bounds.Inset(-GetTargetOutsets(widget_bounds).ToInsets());
   }
   return widget_bounds;
+}
+
+void GlicWidget::SetIsDragging(bool is_dragging) {
+  is_dragging_ = is_dragging;
 }
 
 base::WeakPtr<GlicWidget> GlicWidget::GetWeakPtr() {

@@ -84,14 +84,6 @@ public class AwWebContentsObserver extends WebContentsObserver {
     }
 
     @Override
-    public void firstContentfulPaintInPrimaryMainFrame(Page page, long durationUs) {
-        AwContents awContents = mAwContents.get();
-        if (awContents != null) {
-            awContents.getNavigationClient().onFirstContentfulPaint(page, durationUs);
-        }
-    }
-
-    @Override
     public void didStartLoading(GURL gurl) {
         AwContents awContents = mAwContents.get();
         if (awContents != null) {
@@ -192,6 +184,8 @@ public class AwWebContentsObserver extends WebContentsObserver {
         if (!navigation.hasCommitted()) return;
 
         mCommittedNavigation = true;
+
+        navigation.getCommittedPage().setUrl(navigation.getUrl());
 
         AwContentsClient client = mAwContentsClient.get();
         if (client != null) {

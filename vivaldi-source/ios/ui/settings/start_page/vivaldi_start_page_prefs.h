@@ -25,7 +25,7 @@ class PrefService;
 + (PrefService*)localPrefService;
 
 /// Static method to set the PrefService
-+ (void)setPrefService:(PrefService *)pref;
++ (void)setPrefService:(PrefService*)pref;
 + (void)setLocalPrefService:(PrefService*)pref;
 
 /// Registers the feature preferences.
@@ -61,8 +61,15 @@ class PrefService;
 + (NSString*)getWallpaperName;
 
 /// Retrieves the UIImage from the stored Base64 encoded string
-+ (UIImage *)getPortraitWallpaper;
-+ (UIImage *)getLandscapeWallpaper;
++ (UIImage*)getPortraitWallpaper;
++ (UIImage*)getLandscapeWallpaper;
+
+/// Daily Mix wallpaper (downloaded once per day).
++ (NSString*)getDailyMixLastFetchDate;
+/// Retrieves the UIImage from the stored Base64 encoded string
++ (UIImage*)getDailyMixWallpaper;
+/// Returns the raw JSON metadata string for the current daily mix image.
++ (NSString*)getDailyMixMetadata;
 
 #pragma mark - Setters
 /// Sets the speed dial sorting mode to the prefs.
@@ -95,6 +102,13 @@ class PrefService;
 /// Stores the UIImage as a Base64 encoded string
 + (void)setPortraitWallpaper:(UIImage*)image;
 + (void)setLandscapeWallpaper:(UIImage*)image;
+
+/// Daily Mix wallpaper (downloaded once per day).
++ (void)setDailyMixLastFetchDate:(NSString*)date;
+/// Stores the UIImage as a Base64 encoded string
++ (void)setDailyMixWallpaper:(UIImage*)image;
+/// Stores the raw JSON metadata string for the current daily mix image.
++ (void)setDailyMixMetadata:(NSString*)jsonString;
 
 @end
 

@@ -22,7 +22,7 @@ VivaldiBrowserWindow* FindWindowForEmbedderWebContents(
 
 Browser* FindBrowserWithTab(const content::WebContents* web_contents);
 Browser* FindBrowserWithNonTabContent(const content::WebContents* web_contents);
-Browser* FindBrowserByWindowId(SessionID::id_type window_id);
+Browser* FindBrowserByWindowId(int32_t window_id);
 
 int GetBrowserCountOfType(Browser::Type type);
 

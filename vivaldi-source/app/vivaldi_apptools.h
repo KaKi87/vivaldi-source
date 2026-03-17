@@ -24,10 +24,10 @@ BASE_EXPORT base::CallbackListSubscription AddExtDataUpdatedCallback(
     base::RepeatingCallback<void(content::WebContents*)>);
 BASE_EXPORT base::RepeatingCallbackList<void(content::WebContents*)>&
 GetExtDataUpdatedCallbackList();
-BASE_EXPORT base::RepeatingCallbackList<void()>& GetSystemColorsUpdatedCallbackList();
+BASE_EXPORT base::RepeatingCallbackList<void()>&
+GetSystemColorsUpdatedCallbackList();
 BASE_EXPORT base::CallbackListSubscription SystemColorsUpdatedCallback(
     base::RepeatingCallback<void()> system_colors_callback);
-
 
 bool BASE_EXPORT IsVivaldiApp(std::string_view extension_id);
 bool BASE_EXPORT IsVivaldiUrl(const std::string& url_str);
@@ -44,9 +44,8 @@ void BASE_EXPORT SetTabDragInProgress(bool tab_drag_in_progress);
 
 void BASE_EXPORT CommandLineAppendSwitchNoDup(base::CommandLine* const cmd_line,
                                               const std::string& switch_string);
-inline void
-CommandLineAppendSwitchNoDup(base::CommandLine& cmd_line,
-                             const std::string& switch_string) {
+inline void CommandLineAppendSwitchNoDup(base::CommandLine& cmd_line,
+                                         const std::string& switch_string) {
   CommandLineAppendSwitchNoDup(&cmd_line, switch_string);
 }
 

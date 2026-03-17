@@ -21,9 +21,13 @@ import org.chromium.base.Callback;
 import org.chromium.base.Token;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.supplier.LazyOneshotSupplier;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplier;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -73,8 +77,8 @@ public class TabGroupUiCoordinator implements TabGroupUiMediator.ResetHandler, T
     static final String COMPONENT_NAME = "TabStrip";
 
     /** Set by {@code mMediator}, but owned by the coordinator so access is safe pre-native. */
-    private final ObservableSupplierImpl<Boolean> mHandleBackPressChangedSupplier =
-            new ObservableSupplierImpl<>();
+    private final SettableNonNullObservableSupplier<Boolean> mHandleBackPressChangedSupplier =
+            ObservableSuppliers.createNonNull(false);
 
     private final Activity mActivity;
     private final BrowserControlsStateProvider mBrowserControlsStateProvider;
@@ -82,7 +86,7 @@ public class TabGroupUiCoordinator implements TabGroupUiMediator.ResetHandler, T
     private final TabGroupUiToolbarView mToolbarView;
     private final ViewGroup mTabListContainerView;
     private final ScrimManager mScrimManager;
-    private final ObservableSupplier<Boolean> mOmniboxFocusStateSupplier;
+    private final NonNullObservableSupplier<Boolean> mOmniboxFocusStateSupplier;
     private final BottomSheetController mBottomSheetController;
     private final DataSharingTabManager mDataSharingTabManager;
     private final TabModelSelector mTabModelSelector;
@@ -90,12 +94,12 @@ public class TabGroupUiCoordinator implements TabGroupUiMediator.ResetHandler, T
     private final TabCreatorManager mTabCreatorManager;
     private final TabContentManager mTabContentManager;
     private final ModalDialogManager mModalDialogManager;
-    private final ObservableSupplierImpl<@Nullable Token> mCurrentTabGroupId =
-            new ObservableSupplierImpl<>();
+    private final SettableNullableObservableSupplier<Token> mCurrentTabGroupId =
+            ObservableSuppliers.createNullable();
     private final ThemeColorProvider mThemeColorProvider;
     private final UndoBarThrottle mUndoBarThrottle;
-    private final ObservableSupplier<TabBookmarker> mTabBookmarkerSupplier;
-    private final Supplier<ShareDelegate> mShareDelegateSupplier;
+    private final MonotonicObservableSupplier<TabBookmarker> mTabBookmarkerSupplier;
+    private final Supplier<@Nullable ShareDelegate> mShareDelegateSupplier;
 
     private @Nullable PropertyModelChangeProcessor mModelChangeProcessor;
     private @Nullable TabGridDialogCoordinator mTabGridDialogCoordinator;
@@ -111,7 +115,7 @@ public class TabGroupUiCoordinator implements TabGroupUiMediator.ResetHandler, T
             ViewGroup parentView,
             BrowserControlsStateProvider browserControlsStateProvider,
             ScrimManager scrimManager,
-            ObservableSupplier<Boolean> omniboxFocusStateSupplier,
+            NonNullObservableSupplier<Boolean> omniboxFocusStateSupplier,
             BottomSheetController bottomSheetController,
             DataSharingTabManager dataSharingTabManager,
             TabModelSelector tabModelSelector,
@@ -121,8 +125,8 @@ public class TabGroupUiCoordinator implements TabGroupUiMediator.ResetHandler, T
             ModalDialogManager modalDialogManager,
             ThemeColorProvider themeColorProvider,
             UndoBarThrottle undoBarThrottle,
-            ObservableSupplier<TabBookmarker> tabBookmarkerSupplier,
-            Supplier<ShareDelegate> shareDelegateSupplier) {
+            MonotonicObservableSupplier<TabBookmarker> tabBookmarkerSupplier,
+            Supplier<@Nullable ShareDelegate> shareDelegateSupplier) {
         try (TraceEvent e = TraceEvent.scoped("TabGroupUiCoordinator.constructor")) {
             mActivity = activity;
             mBrowserControlsStateProvider = browserControlsStateProvider;
@@ -162,10 +166,9 @@ public class TabGroupUiCoordinator implements TabGroupUiMediator.ResetHandler, T
         ViewGroup dialogContainer = containerView.findViewById(R.id.tab_group_ui_dialog_container);
 
         var currentTabGroupModelFilterSupplier =
-                mTabModelSelector
-                        .getTabGroupModelFilterProvider()
-                        .getCurrentTabGroupModelFilterSupplier();
-        ObservableSupplierImpl<@Nullable View> childViewSupplier = new ObservableSupplierImpl<>();
+                mTabModelSelector.getCurrentTabGroupModelFilterSupplier();
+        SettableNullableObservableSupplier<View> childViewSupplier =
+                ObservableSuppliers.createNullable();
         mSingleChildViewManager = new SingleChildViewManager(dialogContainer, childViewSupplier);
         mTabGridDialogCoordinator =
                 new TabGridDialogCoordinator(
@@ -200,12 +203,11 @@ public class TabGroupUiCoordinator implements TabGroupUiMediator.ResetHandler, T
     public void initializeWithNative(
             BottomControlsCoordinator.BottomControlsVisibilityController visibilityController,
             Callback<Object> onSnapshotTokenChange) {
-        ObservableSupplierImpl<Object> tabStripTokenSupplier = new ObservableSupplierImpl<>();
+        SettableMonotonicObservableSupplier<Object> tabStripTokenSupplier =
+                ObservableSuppliers.createMonotonic();
 
         var currentTabGroupModelFilterSupplier =
-                mTabModelSelector
-                        .getTabGroupModelFilterProvider()
-                        .getCurrentTabGroupModelFilterSupplier();
+                mTabModelSelector.getCurrentTabGroupModelFilterSupplier();
         try (TraceEvent e = TraceEvent.scoped("TabGroupUiCoordinator.initializeWithNative")) {
             mTabStripCoordinator =
                     new TabListCoordinator(
@@ -235,7 +237,8 @@ public class TabGroupUiCoordinator implements TabGroupUiMediator.ResetHandler, T
                             /* tabSwitcherDragHandler= */ null,
                             /* undoBarExplicitTrigger= */ null,
                             null,
-                            0);
+                            0,
+                            /* isSingleContextMode= */ false);
             mTabStripCoordinator.initWithNative(
                     assumeNonNull(mTabModelSelector.getModel(false).getProfile()));
 
@@ -372,7 +375,7 @@ public class TabGroupUiCoordinator implements TabGroupUiMediator.ResetHandler, T
     }
 
     @Override
-    public ObservableSupplier<Boolean> getHandleBackPressChangedSupplier() {
+    public NonNullObservableSupplier<Boolean> getHandleBackPressChangedSupplier() {
         return mHandleBackPressChangedSupplier;
     }
 

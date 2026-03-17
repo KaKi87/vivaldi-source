@@ -12,7 +12,7 @@
 #include "extensions/buildflags/buildflags.h"
 #include "ui/base/unowned_user_data/user_data_factory.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 namespace glic {
 class GlicButtonController;
 class GlicIphController;
@@ -20,12 +20,12 @@ class GlicLegacySidePanelCoordinator;
 }  // namespace glic
 
 namespace tabs {
-class GlicActorTaskIconController;
 class GlicActorNudgeController;
 }  // namespace tabs
 #endif
 
 class ActorUiWindowController;
+class ContextHighlightWindowFeature;
 
 class ActorBorderViewController;
 class ActorTaskListBubbleController;
@@ -49,11 +49,13 @@ class LocationBar;
 class CommentsSidePanelCoordinator;
 class ContentsBorderController;
 class ContextualTasksEphemeralButtonController;
+class ContextualTasksCloseButtonController;
 class CookieControlsBubbleCoordinator;
 class DataSharingBubbleController;
 class DesktopBrowserWindowCapabilities;
 class DevtoolsUIController;
 class EmbedderBrowserWindowFeatures;
+class ExtensionInstalledWatcher;
 class ExtensionKeybindingRegistryViews;
 class ExclusiveAccessManager;
 class FindBarController;
@@ -65,10 +67,12 @@ class IncognitoClearBrowsingDataDialogCoordinator;
 class ImmersiveModeController;
 class IOSPromoController;
 class InitialWebUIManager;
+class InitialWebUIWindowMetricsManager;
 class LocationBarModel;
 class MemorySaverOptInIPHController;
 class PinnedToolbarActionsController;
 class ProfileMenuCoordinator;
+class ProjectsPanelStateController;
 class ReadingListSidePanelCoordinator;
 class RecentActivityBubbleCoordinator;
 class BrowserSelectFileDialogController;
@@ -116,6 +120,12 @@ class SessionRestoreInfobarController;
 }
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
 
+#if BUILDFLAG(IS_CHROMEOS)
+namespace ash::boca {
+class OnTaskLockedController;
+}
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
 #if !BUILDFLAG(IS_CHROMEOS)
 class DownloadToolbarUIController;
 #endif
@@ -141,10 +151,6 @@ class VerticalTabStripStateController;
 namespace chrome {
 class BrowserCommandController;
 }  // namespace chrome
-
-namespace commerce {
-class ProductSpecificationsEntryPointController;
-}  // namespace commerce
 
 namespace contextual_tasks {
 class ActiveTaskContextProvider;
@@ -208,6 +214,10 @@ class AiModePageActionController;
 class OmniboxPopupCloser;
 }  // namespace omnibox
 
+namespace skills {
+class SkillsUiWindowController;
+}  // namespace skills
+
 namespace vivaldi {
   class SidePanelCoordinator;
 }  // namespace vivaldi
@@ -219,6 +229,10 @@ namespace vivaldi {
 // feature compatible with `UnownedUserDataHost` and then use
 // `GetUserDataFactoryForTesting()` to inject your test-specific feature
 // object(s).
+//
+// Do not add more public accessors. Instead use the UnownedUserData design
+// pattern, see ui/base/unowned_user_data/README.md.
+// TODO(crbug.com/481268779a): Remove existing public accessors.
 class BrowserWindowFeatures {
  public:
   BrowserWindowFeatures();
@@ -258,11 +272,6 @@ class BrowserWindowFeatures {
     return chrome_labs_coordinator_.get();
   }
 
-  contextual_tasks::ActiveTaskContextProvider*
-  contextual_tasks_active_task_context_provider() {
-    return contextual_tasks_active_task_context_provider_.get();
-  }
-
   media_router::CastBrowserController* cast_browser_controller() {
     return cast_browser_controller_.get();
   }
@@ -279,7 +288,11 @@ class BrowserWindowFeatures {
     return comments_side_panel_coordinator_.get();
   }
 
-#if BUILDFLAG(ENABLE_GLIC)
+  ExtensionInstalledWatcher* extension_installed_watcher() {
+    return extension_installed_watcher_.get();
+  }
+
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   glic::GlicLegacySidePanelCoordinator* glic_side_panel_coordinator() {
     return glic_side_panel_coordinator_.get();
   }
@@ -310,10 +323,6 @@ class BrowserWindowFeatures {
   // implementation is not inlined.
   SidePanelUI* side_panel_ui();
 
-  SidePanelCoordinator* side_panel_coordinator() {
-    return side_panel_coordinator_.get();
-  }
-
   lens::LensOverlayEntryPointController* lens_overlay_entry_point_controller() {
     return lens_overlay_entry_point_controller_.get();
   }
@@ -324,10 +333,6 @@ class BrowserWindowFeatures {
 
   tabs::TabDeclutterController* tab_declutter_controller() {
     return tab_declutter_controller_.get();
-  }
-
-  tabs::VerticalTabStripStateController* vertical_tab_strip_state_controller() {
-    return vertical_tab_strip_state_controller_.get();
   }
 
   tabs::GlicNudgeController* glic_nudge_controller() {
@@ -558,9 +563,6 @@ class BrowserWindowFeatures {
 
   std::unique_ptr<ChromeLabsCoordinator> chrome_labs_coordinator_;
 
-  std::unique_ptr<commerce::ProductSpecificationsEntryPointController>
-      product_specifications_entry_point_controller_;
-
   std::unique_ptr<ImmersiveModeController> immersive_mode_controller_;
 
   std::unique_ptr<WebUIBrowserExclusiveAccessContext>
@@ -571,6 +573,9 @@ class BrowserWindowFeatures {
   std::unique_ptr<FullscreenControlHost> fullscreen_control_host_;
 
   std::unique_ptr<InitialWebUIManager> initial_web_ui_manager_;
+
+  std::unique_ptr<InitialWebUIWindowMetricsManager>
+      initial_webui_window_metrics_manager_;
 
   std::unique_ptr<IOSPromoController> ios_promo_controller_;
 
@@ -588,6 +593,9 @@ class BrowserWindowFeatures {
   std::unique_ptr<tabs::VerticalTabStripStateController>
       vertical_tab_strip_state_controller_;
 
+  std::unique_ptr<ProjectsPanelStateController>
+      projects_panel_state_controller_;
+
   std::unique_ptr<MemorySaverOptInIPHController>
       memory_saver_opt_in_iph_controller_;
 
@@ -601,6 +609,8 @@ class BrowserWindowFeatures {
 
   std::unique_ptr<PinnedToolbarActionsController>
       pinned_toolbar_actions_controller_;
+
+  std::unique_ptr<ExtensionInstalledWatcher> extension_installed_watcher_;
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   std::unique_ptr<pdf::infobar::PdfInfoBarController> pdf_infobar_controller_;
@@ -664,11 +674,12 @@ class BrowserWindowFeatures {
   std::unique_ptr<ContextualTasksEphemeralButtonController>
       contextual_tasks_ephemeral_button_controller_;
 
+  std::unique_ptr<ContextualTasksCloseButtonController>
+      contextual_tasks_close_button_controller_;
+
   std::unique_ptr<tabs::GlicNudgeController> glic_nudge_controller_;
 
-#if BUILDFLAG(ENABLE_GLIC)
-  std::unique_ptr<tabs::GlicActorTaskIconController>
-      glic_actor_task_icon_controller_;
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   std::unique_ptr<tabs::GlicActorNudgeController> glic_actor_nudge_controller_;
   std::unique_ptr<ActorTaskListBubbleController>
       actor_task_list_bubble_controller_;
@@ -678,11 +689,11 @@ class BrowserWindowFeatures {
       glic_side_panel_coordinator_;
 #endif
 
-  std::unique_ptr<contextual_tasks::ContextualTasksSidePanelCoordinator>
-      contextual_tasks_side_panel_coordinator_;
-
   std::unique_ptr<contextual_tasks::ActiveTaskContextProvider>
       contextual_tasks_active_task_context_provider_;
+
+  std::unique_ptr<contextual_tasks::ContextualTasksSidePanelCoordinator>
+      contextual_tasks_side_panel_coordinator_;
 
   std::unique_ptr<tab_groups::MostRecentSharedTabUpdateStore>
       most_recent_shared_tab_update_store_;
@@ -811,6 +822,16 @@ class BrowserWindowFeatures {
   std::unique_ptr<SearchboxContextData> searchbox_context_data_;
 
   std::unique_ptr<omnibox::OmniboxPopupCloser> omnibox_popup_closer_;
+
+  std::unique_ptr<skills::SkillsUiWindowController>
+      skills_ui_window_controller_;
+
+#if BUILDFLAG(IS_CHROMEOS)
+  std::unique_ptr<ash::boca::OnTaskLockedController> on_task_locked_controller_;
+#endif  // BUILDFLAG(IS_CHROMEOS)
+
+  std::unique_ptr<ContextHighlightWindowFeature>
+      context_highlight_window_feature_;
 
   // Keep this member last to ensure embedder features are torn down first, in
   // reverse order of initialization.

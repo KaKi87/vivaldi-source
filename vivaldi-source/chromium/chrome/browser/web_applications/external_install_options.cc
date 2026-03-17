@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "base/strings/string_util.h"
+#include "base/strings/to_string.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
@@ -96,10 +97,10 @@ bool ExternalInstallOptions::operator==(
 }
 
 base::Value ExternalInstallOptions::AsDebugValue() const {
-  base::Value::Dict root;
+  base::DictValue root;
 
   auto ConvertStringList = [](const std::vector<std::string>& list) {
-    base::Value::List list_json;
+    base::ListValue list_json;
     for (const std::string& item : list)
       list_json.Append(item);
     return list_json;

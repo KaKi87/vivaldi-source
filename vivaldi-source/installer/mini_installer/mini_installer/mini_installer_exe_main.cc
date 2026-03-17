@@ -51,8 +51,7 @@ extern "C" {
 // Marking memset as used is necessary in order to link with LLVM link-time
 // optimization (LTO). It prevents LTO from discarding the memset symbol,
 // allowing for compiler-generated references to memset to be satisfied.
-__attribute__((used))
-void* memset(void* dest, int c, size_t count) {
+__attribute__((used)) void* memset(void* dest, int c, size_t count) {
   uint8_t* scan = reinterpret_cast<uint8_t*>(dest);
   while (count--)
     *scan++ = static_cast<uint8_t>(c);
@@ -63,8 +62,9 @@ void* memset(void* dest, int c, size_t count) {
 // The compiler generates calls to memcpy for ARM64 debug builds so we need to
 // supply a memcpy implementation in that configuration.
 // See comments above for why we do this incantation.
-__attribute__((used))
-void* memcpy(void* destination, const void* source, size_t count) {
+__attribute__((used)) void* memcpy(void* destination,
+                                   const void* source,
+                                   size_t count) {
   auto* dst = reinterpret_cast<uint8_t*>(destination);
   auto* src = reinterpret_cast<const uint8_t*>(source);
   while (count--)

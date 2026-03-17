@@ -1,7 +1,7 @@
 #pragma once
 
-#include "content/public/browser/web_contents_user_data.h"
 #include "components/sessions/core/session_id.h"
+#include "content/public/browser/web_contents_user_data.h"
 
 namespace extensions {
 
@@ -15,15 +15,13 @@ class VivaldiPanelHelper
 
   ~VivaldiPanelHelper() override;
 
-  int tab_id() const {
-    return id_.id();
-  }
+  int tab_id() const { return id_.id(); }
 
  private:
   std::string view_name_;
   SessionID id_;
 
-  static const int &kUserDataKey;
+  static const int& kUserDataKey;
 };
 
 }  // namespace extensions

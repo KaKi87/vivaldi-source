@@ -58,7 +58,7 @@ const CGFloat kNoteCellHorizonalInset = 17.0;
   self.createdLabel.text = nil;
 }
 
-#pragma mark:- PRIVATE
+#pragma mark :- PRIVATE
 - (void)setUpUI {
   self.selectionStyle = UITableViewCellSelectionStyleGray;
   self.isAccessibilityElement = YES;
@@ -74,23 +74,22 @@ const CGFloat kNoteCellHorizonalInset = 17.0;
   UILabel* createdLabel = [UILabel new];
   _createdLabel = createdLabel;
   createdLabel.adjustsFontForContentSizeCategory = YES;
-  createdLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
+  createdLabel.font =
+      [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
   createdLabel.textColor = UIColor.secondaryLabelColor;
   createdLabel.textAlignment = NSTextAlignmentLeft;
 
   UIImageView* imageView = [UIImageView new];
   _imageView = imageView;
   self.imageView.contentMode = UIViewContentModeScaleAspectFit;
-  [self.imageView
-      setContentHuggingPriority:UILayoutPriorityRequired
-                        forAxis:UILayoutConstraintAxisHorizontal];
+  [self.imageView setContentHuggingPriority:UILayoutPriorityRequired
+                                    forAxis:UILayoutConstraintAxisHorizontal];
   [self.imageView
       setContentCompressionResistancePriority:UILayoutPriorityRequired
-                                      forAxis:
-                                          UILayoutConstraintAxisHorizontal];
+                                      forAxis:UILayoutConstraintAxisHorizontal];
 
-  UIStackView* textVStack = [[UIStackView alloc] initWithArrangedSubviews:@[
-     titleLabel, createdLabel]];
+  UIStackView* textVStack = [[UIStackView alloc]
+      initWithArrangedSubviews:@[ titleLabel, createdLabel ]];
   textVStack.axis = UILayoutConstraintAxisVertical;
   textVStack.spacing = textStackSpacing;
   textVStack.distribution = UIStackViewDistributionFillProportionally;
@@ -98,10 +97,8 @@ const CGFloat kNoteCellHorizonalInset = 17.0;
   textVStack.translatesAutoresizingMaskIntoConstraints = NO;
 
   // Container StackView.
-  UIStackView* horizontalStack =
-      [[UIStackView alloc] initWithArrangedSubviews:@[
-        self.imageView, textVStack
-      ]];
+  UIStackView* horizontalStack = [[UIStackView alloc]
+      initWithArrangedSubviews:@[ self.imageView, textVStack ]];
   horizontalStack.axis = UILayoutConstraintAxisHorizontal;
   horizontalStack.spacing = kNoteCellViewSpacing;
   horizontalStack.distribution = UIStackViewDistributionFill;
@@ -128,13 +125,13 @@ const CGFloat kNoteCellHorizonalInset = 17.0;
   ]];
 }
 
-#pragma mark: GETTERS
+#pragma mark : GETTERS
 
 - (NSString*)accessibilityLabelString {
   return self.titleLabel.text;
 }
 
-#pragma mark: SETTERS
+#pragma mark : SETTERS
 
 - (void)configureNoteWithTitle:(NSString*)title
                      createdAt:(NSDate*)createdAt
@@ -145,9 +142,9 @@ const CGFloat kNoteCellHorizonalInset = 17.0;
   } else {
     NSString* modifiedMarker =
         l10n_util::GetNSString(IDS_VIVALDI_NOTE_ROW_MODIFIED);
-    self.createdLabel.text =
-        [NSString stringWithFormat:@"%@ %@",
-            [self.formatter stringFromDate:modifiedAt], modifiedMarker];
+    self.createdLabel.text = [NSString
+        stringWithFormat:@"%@ %@", [self.formatter stringFromDate:modifiedAt],
+                         modifiedMarker];
   }
 }
 

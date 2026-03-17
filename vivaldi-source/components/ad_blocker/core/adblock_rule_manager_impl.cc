@@ -232,6 +232,16 @@ bool RuleManagerImpl::IsExemptOfFiltering(RuleGroup group,
   return default_exempt;
 }
 
+void RuleManagerImpl::ResetCompiler(
+    RuleGroup group,
+    RuleSourceHandler::RulesCompiler rules_compiler) {
+  auto& rule_sources = GetSourceMap(group);
+
+  for (const auto& [id, source] : rule_sources) {
+    source->ResetCompiler(rules_compiler);
+  }
+}
+
 void RuleManagerImpl::OnSourceUpdated(RuleGroup group,
                                       RuleSourceHandler* rule_source_handler) {
   schedule_save_.Run();

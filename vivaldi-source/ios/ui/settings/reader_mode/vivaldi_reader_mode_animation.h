@@ -7,7 +7,6 @@
 // Tweaked to fit the reader mode animation & conflicts.
 // Rest of the code is original from chromium codebase.
 
-
 #ifndef IOS_UI_SETTINGS_READER_MODE_VIVALDI_READER_VIEW_ANIMATION_H_
 #define IOS_UI_SETTINGS_READER_MODE_VIVALDI_READER_VIEW_ANIMATION_H_
 

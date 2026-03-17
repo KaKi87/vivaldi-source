@@ -21,24 +21,23 @@ const CGFloat vNTPSearchBarCornerRadius = 6.0;
 // Search bar padding
 // In order - Top, Left, Bottom, Right
 const UIEdgeInsets vNTPSearchBarPadding =
-  UIEdgeInsetsMake(4.0, 16.0, 0.0, 16.0);
+    UIEdgeInsetsMake(4.0, 16.0, 0.0, 16.0);
 // Search bar search icon padding
 // In order - Top, Left, Bottom, Right
 const UIEdgeInsets vNTPSearchBarSearchIconPadding =
-  UIEdgeInsetsMake(0.0, 0.0, 0.0, 8.0);
+    UIEdgeInsetsMake(0.0, 0.0, 0.0, 8.0);
 // Search bar search icon size
 // In order - Width, Height
 const CGSize vNTPSearchBarSearchIconSize = CGSizeMake(16.0, 16.0);
 // Padding for Vivaldi Menu button
 const UIEdgeInsets vNTPVivaldiMenuButtonPadding =
-  UIEdgeInsetsMake(0.f, 16.f, 0.f, 18.f);
+    UIEdgeInsetsMake(0.f, 16.f, 0.f, 18.f);
 // Padding for Vivaldi Menu button
 const CGSize vNTPVivaldiMenuButtonSize = CGSizeMake(28.f, 28.f);
 
 #pragma mark - COLORS
 // Color for the regular tab page background
-NSString* const vNTPBackgroundColor =
-    @"vivaldi_ntp_background_color";
+NSString* const vNTPBackgroundColor = @"vivaldi_ntp_background_color";
 // Color for the private tab page background
 NSString* const vPrivateNTPBackgroundColor =
     @"vivaldi_private_ntp_background_color";
@@ -58,8 +57,7 @@ NSString* const vPrivateModeTabSelectedBackgroundColor =
 NSString* const vNTPToolbarSelectionLineColor =
     @"vivaldi_ntp_toolbar_selectionline_color";
 // Color for the new tab page toolbar item when not selected or highlighted
-NSString* const vNTPToolbarTextColor =
-    @"vivaldi_ntp_toolbar_text_color";
+NSString* const vNTPToolbarTextColor = @"vivaldi_ntp_toolbar_text_color";
 // Color for the new tab page toolbar item when selected or highlighted
 NSString* const vNTPToolbarTextHighlightedColor =
     @"vivaldi_ntp_toolbar_text_highlighted_color";

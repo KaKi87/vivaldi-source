@@ -6,8 +6,9 @@
 
 - (void)prepareLayout {
   [super prepareLayout];
-  UICollectionView *collectionView = self.collectionView;
-  if (!collectionView) return;
+  UICollectionView* collectionView = self.collectionView;
+  if (!collectionView)
+    return;
 
   self.itemSize = CGSizeMake(collectionView.bounds.size.width,
                              collectionView.bounds.size.height);
@@ -20,7 +21,7 @@
   CGFloat offsety = self.collectionView.contentOffset.y;
   CGFloat width = self.collectionView.frame.size.width;
   self.collectionView.contentOffset =
-      CGPointMake(ceil(offsetX/width)*width, offsety);
+      CGPointMake(ceil(offsetX / width) * width, offsety);
 }
 
 @end

@@ -6,6 +6,6 @@
 class ProfileIOS;
 
 namespace vivaldi {
-void PostBrowserStateInit (ProfileIOS* profile);
+void PostBrowserStateInit(ProfileIOS* profile);
 }
-#endif //IOS_CHROME_BROWSER_BROWSER_STATE_VIVALDI_POST_BROWSER_STATE_INIT_H_
+#endif  // IOS_CHROME_BROWSER_BROWSER_STATE_VIVALDI_POST_BROWSER_STATE_INIT_H_

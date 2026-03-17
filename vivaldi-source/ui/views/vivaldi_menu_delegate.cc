@@ -8,6 +8,7 @@ MenuItemView* MenuDelegate::GetVivaldiSiblingMenu(
     MenuItemView* menu,
     const gfx::Point& screen_point,
     gfx::Rect* rect,
+    bool* has_mnemonics,
     MenuAnchorPosition* anchor) {
   return nullptr;
 }
@@ -31,8 +32,5 @@ void MenuDelegate::VivaldiGetContextMenuPosition(
     gfx::Rect* menu_bounds,
     const gfx::Rect& monitor_bounds,
     const gfx::Rect& anchor_bounds) const {}
-
-
-
 
 }  // namespace views

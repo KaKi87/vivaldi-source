@@ -249,75 +249,30 @@ constexpr const char* const kA11yPrefsForRecommendedValueOnSignin[]{
 
 // List of accessibility prefs that are to be copied (if changed by the user) on
 // signin screen profile to a newly created user profile or a guest session.
+// Add prefs here if they can be enabled in the OOBE or login screen from either
+// the accessibility screen or from the login screen accessibility shortcut
+// menu.
 constexpr const char* const kCopiedOnSigninAccessibilityPrefs[]{
-    prefs::kAccessibilityAutoclickDelayMs,
     prefs::kAccessibilityAutoclickEnabled,
-    prefs::kAccessibilityBounceKeysDelayMs,
-    prefs::kAccessibilityBounceKeysEnabled,
     prefs::kAccessibilityCaretHighlightEnabled,
-    prefs::kAccessibilityChromeVoxAutoRead,
-    prefs::kAccessibilityChromeVoxAnnounceDownloadNotifications,
-    prefs::kAccessibilityChromeVoxAnnounceRichTextAttributes,
-    prefs::kAccessibilityChromeVoxAudioStrategy,
-    prefs::kAccessibilityChromeVoxBrailleSideBySide,
     prefs::kAccessibilityChromeVoxBrailleTable,
-    prefs::kAccessibilityChromeVoxBrailleTable6,
-    prefs::kAccessibilityChromeVoxBrailleTable8,
     prefs::kAccessibilityChromeVoxBrailleTableType,
-    prefs::kAccessibilityChromeVoxBrailleWordWrap,
-    prefs::kAccessibilityChromeVoxCapitalStrategy,
-    prefs::kAccessibilityChromeVoxCapitalStrategyBackup,
-    prefs::kAccessibilityChromeVoxEnableBrailleLogging,
-    prefs::kAccessibilityChromeVoxEnableEarconLogging,
-    prefs::kAccessibilityChromeVoxEnableEventStreamLogging,
-    prefs::kAccessibilityChromeVoxEnableSpeechLogging,
-    prefs::kAccessibilityChromeVoxEventStreamFilters,
-    prefs::kAccessibilityChromeVoxLanguageSwitching,
-    prefs::kAccessibilityChromeVoxMenuBrailleCommands,
-    prefs::kAccessibilityChromeVoxNumberReadingStyle,
-    prefs::kAccessibilityChromeVoxPreferredBrailleDisplayAddress,
     prefs::kAccessibilityChromeVoxPunctuationEcho,
     prefs::kAccessibilityChromeVoxSmartStickyMode,
-    prefs::kAccessibilityChromeVoxSpeakTextUnderMouse,
-    prefs::kAccessibilityChromeVoxUsePitchChanges,
-    prefs::kAccessibilityChromeVoxUseVerboseMode,
-    prefs::kAccessibilityChromeVoxVirtualBrailleColumns,
-    prefs::kAccessibilityChromeVoxVirtualBrailleRows,
-    prefs::kAccessibilityChromeVoxVoiceName,
-    prefs::kAccessibilityColorCorrectionEnabled,
     prefs::kAccessibilityCursorHighlightEnabled,
-    prefs::kAccessibilityCursorColorEnabled,
-    prefs::kAccessibilityCursorColor,
     prefs::kAccessibilityDictationEnabled,
     prefs::kAccessibilityDictationLocale,
     prefs::kAccessibilityDictationLocaleOfflineNudge,
-    prefs::kAccessibilityDisableTrackpadEnabled,
-    prefs::kAccessibilityDisableTrackpadMode,
     prefs::kAccessibilityFocusHighlightEnabled,
     prefs::kAccessibilityHighContrastEnabled,
     prefs::kAccessibilityLargeCursorEnabled,
     prefs::kAccessibilityFaceGazeEnabled,
     prefs::kAccessibilityMonoAudioEnabled,
-    prefs::kAccessibilityReducedAnimationsEnabled,
-    prefs::kAccessibilityAlwaysShowScrollbarsEnabled,
-    prefs::kAccessibilityMouseKeysEnabled,
-    prefs::kAccessibilityMouseKeysAcceleration,
-    prefs::kAccessibilityMouseKeysMaxSpeed,
-    prefs::kAccessibilityMouseKeysUsePrimaryKeys,
-    prefs::kAccessibilityMouseKeysDominantHand,
     prefs::kAccessibilityScreenMagnifierEnabled,
-    prefs::kAccessibilityScreenMagnifierFocusFollowingEnabled,
-    prefs::kAccessibilityMagnifierFollowsChromeVox,
-    prefs::kAccessibilityMagnifierFollowsSts,
-    prefs::kAccessibilityScreenMagnifierMouseFollowingMode,
     prefs::kAccessibilityScreenMagnifierScale,
     prefs::kAccessibilitySelectToSpeakEnabled,
-    prefs::kAccessibilitySlowKeysDelayMs,
-    prefs::kAccessibilitySlowKeysEnabled,
     prefs::kAccessibilitySpokenFeedbackEnabled,
     prefs::kAccessibilityStickyKeysEnabled,
-    prefs::kAccessibilityShortcutsEnabled,
-    prefs::kAccessibilitySwitchAccessEnabled,
     prefs::kAccessibilityVirtualKeyboardEnabled,
     prefs::kDockedMagnifierEnabled,
     prefs::kDockedMagnifierScale,
@@ -357,14 +312,14 @@ bool VerifyFeaturesData() {
   // All feature prefs must be unique.
   std::set<const char*> feature_prefs;
   for (auto feature_data : kFeatures) {
-    if (base::Contains(feature_prefs, feature_data.pref)) {
+    if (feature_prefs.contains(feature_data.pref)) {
       return false;
     }
     feature_prefs.insert(feature_data.pref);
   }
 
   for (auto dialog_data : kFeatureDialogs) {
-    if (base::Contains(feature_prefs, dialog_data.pref)) {
+    if (feature_prefs.contains(dialog_data.pref)) {
       return false;
     }
     feature_prefs.insert(dialog_data.pref);
@@ -1331,7 +1286,7 @@ void AccessibilityController::RegisterProfilePrefs(
   registry->RegisterBooleanPref(
       prefs::kAccessibilityChromeVoxEnableSpeechLogging, false);
   registry->RegisterDictionaryPref(
-      prefs::kAccessibilityChromeVoxEventStreamFilters, base::Value::Dict());
+      prefs::kAccessibilityChromeVoxEventStreamFilters, base::DictValue());
   registry->RegisterBooleanPref(prefs::kAccessibilityChromeVoxLanguageSwitching,
                                 false);
   registry->RegisterBooleanPref(
@@ -1398,14 +1353,10 @@ void AccessibilityController::RegisterProfilePrefs(
       prefs::kAccessibilityAutoclickMenuPosition,
       static_cast<int>(kDefaultAutoclickMenuPosition),
       user_prefs::PrefRegistrySyncable::SYNCABLE_OS_PREF);
-
-  if (::features::IsAccessibilityBounceKeysEnabled()) {
-    registry->RegisterIntegerPref(
-        prefs::kAccessibilityBounceKeysDelayMs,
-        kDefaultAccessibilityBounceKeysDelay.InMilliseconds(),
-        user_prefs::PrefRegistrySyncable::SYNCABLE_OS_PREF);
-  }
-
+  registry->RegisterIntegerPref(
+      prefs::kAccessibilityBounceKeysDelayMs,
+      kDefaultAccessibilityBounceKeysDelay.InMilliseconds(),
+      user_prefs::PrefRegistrySyncable::SYNCABLE_OS_PREF);
   registry->RegisterIntegerPref(
       prefs::kAccessibilityFloatingMenuPosition,
       static_cast<int>(kDefaultFloatingMenuPosition),
@@ -1418,12 +1369,10 @@ void AccessibilityController::RegisterProfilePrefs(
   registry->RegisterBooleanPref(
       prefs::kAccessibilityScreenMagnifierFocusFollowingEnabled, true,
       user_prefs::PrefRegistrySyncable::SYNCABLE_OS_PREF);
-  if (::features::IsAccessibilitySlowKeysEnabled()) {
-    registry->RegisterIntegerPref(
-        prefs::kAccessibilitySlowKeysDelayMs,
-        kDefaultAccessibilitySlowKeysDelay.InMilliseconds(),
-        user_prefs::PrefRegistrySyncable::SYNCABLE_OS_PREF);
-  }
+  registry->RegisterIntegerPref(
+      prefs::kAccessibilitySlowKeysDelayMs,
+      kDefaultAccessibilitySlowKeysDelay.InMilliseconds(),
+      user_prefs::PrefRegistrySyncable::SYNCABLE_OS_PREF);
   registry->RegisterDictionaryPref(
       prefs::kAccessibilitySwitchAccessSelectDeviceKeyCodes,
       user_prefs::PrefRegistrySyncable::SYNCABLE_OS_PREF);
@@ -1967,18 +1916,6 @@ void AccessibilityController::SetSpokenFeedbackEnabled(
   }
   ShowAccessibilityNotification(A11yNotificationWrapper(
       type, kNotificationId, std::vector<std::u16string>()));
-
-  if (::features::IsAccessibilityManifestV3EnabledForChromeVox() &&
-      accessibility_event_rewriter_ && !enabled) {
-    // SetSpokenFeedbackMv3KeyHandlingEnabled(true) is called once the
-    // ChromeVox service worker is ready to receive key events
-    // (after the service worker starts and listeners are registered).
-    // SetSpokenFeedbackMv3KeyHandlingEnabled(false) needs to be called
-    // here (as opposed to the extension) to ensure that mv3 key handling
-    // is only enabled if we're guaranteed a response from the extension.
-    accessibility_event_rewriter_->SetSpokenFeedbackMv3KeyHandlingEnabled(
-        false);
-  }
 }
 
 bool AccessibilityController::IsSpokenFeedbackSettingVisibleInTray() {
@@ -2630,6 +2567,9 @@ void AccessibilityController::OnDisplayTabletStateChanged(
 
 void AccessibilityController::ObservePrefs(PrefService* prefs) {
   DCHECK(prefs);
+  if (active_user_prefs_ == prefs) {
+    return;
+  }
 
   active_user_prefs_ = prefs;
 
@@ -2682,20 +2622,15 @@ void AccessibilityController::ObservePrefs(PrefService* prefs) {
       base::BindRepeating(
           &AccessibilityController::UpdateAutoclickMenuPositionFromPref,
           base::Unretained(this)));
-  if (::features::IsAccessibilityBounceKeysEnabled()) {
-    pref_change_registrar_->Add(
-        prefs::kAccessibilityBounceKeysDelayMs,
-        base::BindRepeating(
-            &AccessibilityController::UpdateBounceKeysDelayFromPref,
-            base::Unretained(this)));
-  }
-  if (::features::IsAccessibilitySlowKeysEnabled()) {
-    pref_change_registrar_->Add(
-        prefs::kAccessibilitySlowKeysDelayMs,
-        base::BindRepeating(
-            &AccessibilityController::UpdateSlowKeysDelayFromPref,
-            base::Unretained(this)));
-  }
+  pref_change_registrar_->Add(
+      prefs::kAccessibilityBounceKeysDelayMs,
+      base::BindRepeating(
+          &AccessibilityController::UpdateBounceKeysDelayFromPref,
+          base::Unretained(this)));
+  pref_change_registrar_->Add(
+      prefs::kAccessibilitySlowKeysDelayMs,
+      base::BindRepeating(&AccessibilityController::UpdateSlowKeysDelayFromPref,
+                          base::Unretained(this)));
   if (::features::IsAccessibilityMouseKeysEnabled()) {
     pref_change_registrar_->Add(
         prefs::kAccessibilityMouseKeysAcceleration,
@@ -2822,12 +2757,8 @@ void AccessibilityController::ObservePrefs(PrefService* prefs) {
   UpdateAutoclickStabilizePositionFromPref();
   UpdateAutoclickMovementThresholdFromPref();
   UpdateAutoclickMenuPositionFromPref();
-  if (::features::IsAccessibilityBounceKeysEnabled()) {
-    UpdateBounceKeysDelayFromPref();
-  }
-  if (::features::IsAccessibilitySlowKeysEnabled()) {
-    UpdateSlowKeysDelayFromPref();
-  }
+  UpdateBounceKeysDelayFromPref();
+  UpdateSlowKeysDelayFromPref();
   if (::features::IsAccessibilityMouseKeysEnabled()) {
     UpdateMouseKeysAccelerationFromPref();
     UpdateMouseKeysMaxSpeedFromPref();
@@ -3200,7 +3131,7 @@ void AccessibilityController::OnTouchpadConnected(
 }
 
 void AccessibilityController::ExternalDeviceConnected() {
-  if (!disable_touchpad_event_rewriter_) {
+  if (!disable_touchpad_event_rewriter_ || !active_user_prefs_) {
     return;
   }
 
@@ -3413,8 +3344,7 @@ void AccessibilityController::UpdateSwitchAccessKeyCodesFromPref(
   }
 
   std::string pref_key = PrefKeyForSwitchAccessCommand(command);
-  const base::Value::Dict& key_codes_pref =
-      active_user_prefs_->GetDict(pref_key);
+  const base::DictValue& key_codes_pref = active_user_prefs_->GetDict(pref_key);
   std::map<int, std::set<std::string>> key_codes;
   for (const auto v : key_codes_pref) {
     int key_code;
@@ -3888,7 +3818,6 @@ void AccessibilityController::UpdateFeatureFromPref(FeatureType feature) {
       Shell::Get()->UpdateCursorCompositingEnabled();
       break;
     case FeatureType::kLiveCaption:
-      live_caption().SetEnabled(enabled);
       break;
     case FeatureType::kMonoAudio:
       CrasAudioHandler::Get()->SetOutputMonoEnabled(enabled);
@@ -3904,6 +3833,17 @@ void AccessibilityController::UpdateFeatureFromPref(FeatureType feature) {
       message_center::MessageCenter::Get()->SetSpokenFeedbackEnabled(enabled);
       // TODO(warx): ChromeVox loading/unloading requires browser process
       // started, thus it is still handled on Chrome side.
+      if (::features::IsAccessibilityManifestV3EnabledForChromeVox() &&
+          accessibility_event_rewriter_ && !enabled) {
+        // SetSpokenFeedbackMv3KeyHandlingEnabled(true) is called once the
+        // ChromeVox service worker is ready to receive key events
+        // (after the service worker starts and listeners are registered).
+        // SetSpokenFeedbackMv3KeyHandlingEnabled(false) needs to be called
+        // here (as opposed to the extension) to ensure that mv3 key handling
+        // is only enabled if we're guaranteed a response from the extension.
+        accessibility_event_rewriter_->SetSpokenFeedbackMv3KeyHandlingEnabled(
+            false);
+      }
 
       // ChromeVox focus highlighting overrides the other focus highlighting.
       focus_highlight().UpdateFromPref();
@@ -3925,11 +3865,9 @@ void AccessibilityController::UpdateFeatureFromPref(FeatureType feature) {
       }
       break;
     case FeatureType::kSlowKeys:
-      if (::features::IsAccessibilitySlowKeysEnabled()) {
-        input_method::InputMethodManager::Get()
-            ->GetImeKeyboard()
-            ->SetSlowKeysEnabled(enabled);
-      }
+      input_method::InputMethodManager::Get()
+          ->GetImeKeyboard()
+          ->SetSlowKeysEnabled(enabled);
       break;
     case FeatureType::kStickyKeys:
       Shell::Get()->sticky_keys_controller()->Enable(enabled);

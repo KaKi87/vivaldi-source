@@ -4,6 +4,7 @@
 
 #include "chrome/browser/web_applications/test/os_integration_test_override_impl.h"
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <optional>
@@ -14,7 +15,6 @@
 
 #include "base/base_paths.h"
 #include "base/check_is_test.h"
-#include "base/containers/contains.h"
 #include "base/containers/span.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
@@ -69,7 +69,6 @@
 #include <shellapi.h>
 
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/strings/strcat.h"
@@ -82,6 +81,7 @@
 #include "base/win/shortcut.h"
 #include "base/win/windows_types.h"
 #include "chrome/browser/web_applications/os_integration/web_app_handler_registration_utils_win.h"
+#include "chrome/browser/web_applications/os_integration/web_app_shortcut_win.h"
 #include "chrome/browser/web_applications/os_integration/web_app_uninstallation_via_os_settings_registration.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/win/jumplist_updater.h"
@@ -102,18 +102,6 @@ namespace {
 #if BUILDFLAG(IS_WIN)
 constexpr wchar_t kUninstallRegistryKey[] =
     L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\";
-
-base::FilePath GetShortcutProfile(base::FilePath shortcut_path) {
-  base::FilePath shortcut_profile;
-  std::wstring cmd_line_string;
-  if (base::win::ResolveShortcut(shortcut_path, nullptr, &cmd_line_string)) {
-    base::CommandLine shortcut_cmd_line =
-        base::CommandLine::FromString(L"program " + cmd_line_string);
-    shortcut_profile =
-        shortcut_cmd_line.GetSwitchValuePath(switches::kProfileDirectory);
-  }
-  return shortcut_profile;
-}
 
 std::vector<std::wstring> GetFileExtensionsForProgId(
     const std::wstring& file_handler_prog_id) {
@@ -149,7 +137,7 @@ std::optional<SkBitmap> IconManagerReadIconForSize(
       app_id, {size_px}, IconPurpose::ANY,
       base::BindLambdaForTesting([&](IconMetadataFromDisk icon_metadata) {
         SizeToBitmap icon_bitmaps = std::move(icon_metadata.icons_map);
-        CHECK(base::Contains(icon_bitmaps, size_px));
+        CHECK(icon_bitmaps.contains(size_px));
         result = icon_bitmaps[size_px];
         run_loop.Quit();
       }));
@@ -414,7 +402,7 @@ bool OsIntegrationTestOverrideImpl::IsFileExtensionHandled(
   for (const auto& file_handler_prog_id : file_handler_prog_ids) {
     const std::vector<std::wstring> supported_file_extensions =
         GetFileExtensionsForProgId(file_handler_prog_id);
-    if (base::Contains(supported_file_extensions, extension)) {
+    if (std::ranges::contains(supported_file_extensions, extension)) {
       const std::wstring reg_key = std::wstring(ShellUtil::kRegClasses) +
                                    base::FilePath::kSeparators[0] + extension +
                                    base::FilePath::kSeparators[0] +
@@ -439,12 +427,11 @@ bool OsIntegrationTestOverrideImpl::IsFileExtensionHandled(
   base::FilePath user_applications_dir = applications();
   bool database_update_called = false;
   for (const LinuxFileRegistration& command : linux_file_registration_) {
-    if (base::Contains(command.xdg_command, app_id) &&
-        base::Contains(command.xdg_command,
-                       profile->GetPath().BaseName().value())) {
+    if (command.xdg_command.contains(app_id) &&
+        command.xdg_command.contains(profile->GetPath().BaseName().value())) {
       if (base::StartsWith(command.xdg_command, "xdg-mime install")) {
-        is_file_handled = base::Contains(command.file_contents,
-                                         "\"*" + file_extension + "\"");
+        is_file_handled =
+            command.file_contents.contains("\"*" + file_extension + "\"");
       } else {
         CHECK(base::StartsWith(command.xdg_command, "xdg-mime uninstall"))
             << command.xdg_command;
@@ -456,7 +443,7 @@ bool OsIntegrationTestOverrideImpl::IsFileExtensionHandled(
     // web_app_file_handler_registration_linux.cc for more information.
     if (base::StartsWith(command.xdg_command, "update-desktop-database")) {
       database_update_called =
-          base::Contains(command.xdg_command, user_applications_dir.value());
+          command.xdg_command.contains(user_applications_dir.value());
     }
   }
   is_file_handled = is_file_handled && database_update_called;
@@ -528,9 +515,10 @@ base::FilePath OsIntegrationTestOverrideImpl::GetShortcutPath(
     const std::string narrowed_filename =
         base::WideToUTF8(enumerator.GetInfo().GetName().value());
     if (re2::RE2::FullMatch(narrowed_filename, app_name + "(.*).lnk")) {
-      base::FilePath shortcut_path = shortcut_dir.Append(shortcut_filename);
-      if (GetShortcutProfile(shortcut_path) == profile->GetBaseName()) {
-        return shortcut_path;
+      base::FilePath shortcut_file = shortcut_dir.Append(shortcut_filename);
+      if (internals::IsAppShortcutForProfile(shortcut_file,
+                                             profile->GetBaseName(), app_id)) {
+        return shortcut_file;
       }
     }
   }
@@ -615,7 +603,7 @@ int OsIntegrationTestOverrideImpl::GetCountOfShortcutIconsCreated(
 
 bool OsIntegrationTestOverrideImpl::IsShortcutsMenuRegisteredForApp(
     const std::wstring& app_user_model_id) {
-  return base::Contains(jump_list_entry_map_, app_user_model_id);
+  return jump_list_entry_map_.contains(app_user_model_id);
 }
 
 #endif  // BUILDFLAG(IS_WIN)
@@ -708,7 +696,7 @@ OsIntegrationTestOverrideImpl::IsUninstallRegisteredWithOs(
   }
   std::wstring expected_uninstall_substr =
       base::StrCat({L"--uninstall-app-id=", base::UTF8ToWide(app_id)});
-  if (!base::Contains(uninstall_string, expected_uninstall_substr)) {
+  if (!uninstall_string.contains(expected_uninstall_substr)) {
     return base::unexpected(base::StrCat({"Could not find uninstall flag: ",
                                           base::WideToUTF8(uninstall_string)}));
   }

@@ -5,17 +5,6 @@ Use of this source code is governed by a BSD-style license that can be
 found in the LICENSE file.
 -->
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Omnibox -->
-    <style
-        name="TextAppearance.OmniboxVerboseStatus"
-        parent="@android:style/TextAppearance.Medium">
-
-        <item name="android:textSize">
-            @dimen/location_bar_url_text_size
-        </item>
-
-    </style>
-
     <!-- Omnibox suggestions -->
     <style name="TextAppearance.OmniboxAnswerDescriptionNegative">
         <item name="android:textColor">
@@ -32,7 +21,7 @@ found in the LICENSE file.
     <!-- Fusebox bar styles -->
     <style name="Fusebox"/>
     <style name="Fusebox.PopupMenu"/>
-    <style name="Fusebox.PopupMenu.Header" parent="@style/TextButton">
+    <style name="Fusebox.PopupMenu.Item" parent="@style/TextButton">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">
             @dimen/min_touch_target_size
@@ -41,7 +30,7 @@ found in the LICENSE file.
         <item name="android:singleLine">true</item>
         <item name="android:textAlignment">viewStart</item>
         <item name="android:textAppearance">
-            @style/TextAppearance.TextSmall.Primary
+            @style/TextAppearance.TextMedium.Primary
         </item>
         <item name="layout_constraintStart_toStartOf">parent</item>
         <item name="layout_constraintEnd_toEndOf">parent</item>
@@ -51,21 +40,11 @@ found in the LICENSE file.
         <item name="buttonTextColor">@null</item>
     </style>
 
-    <style
-        name="Fusebox.PopupMenu.Item"
-        parent="@style/Fusebox.PopupMenu.Header">
-
-        <item name="android:textAppearance">
-            @style/TextAppearance.TextMedium.Primary
-        </item>
-
-    </style>
-
     <style name="Fusebox.PopupMenu.Divider">
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">1dp</item>
-        <item name="android:layout_marginTop">8dp</item>
-        <item name="android:layout_marginBottom">8dp</item>
+        <item name="android:layout_marginTop">4dp</item>
+        <item name="android:layout_marginBottom">4dp</item>
         <item name="android:background">?android:attr/listDivider</item>
         <item name="layout_constraintStart_toStartOf">parent</item>
         <item name="layout_constraintEnd_toEndOf">parent</item>

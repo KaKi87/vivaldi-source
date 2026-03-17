@@ -43,7 +43,7 @@
 #include "extensions/browser/extension_registry_factory.h"
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
@@ -54,7 +54,7 @@
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 namespace {
 
 // Checks that `contents` is for glic.
@@ -213,7 +213,7 @@ CertificateSelector::~CertificateSelector() {
 
 // static
 bool CertificateSelector::CanShow(content::WebContents* web_contents) {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (UseGlicDevFlow(web_contents)) {
     return true;
   }
@@ -226,7 +226,7 @@ bool CertificateSelector::CanShow(content::WebContents* web_contents) {
 }
 
 void CertificateSelector::Show() {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   // In the event that glic is showing and glic-dev is enabled, always show the
   // certificate picker on the glic window. This is not fully correct, but
   // satisfies the main dev use case with minimal overhead.

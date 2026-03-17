@@ -25,7 +25,7 @@
 @property(nonatomic, assign) BOOL is_loaded;
 @property(nonatomic, assign) NSInteger list_priority;
 
-#pragma mark: GETTERS
+#pragma mark : GETTERS
 - (NSString*)subtitle;
 
 @end

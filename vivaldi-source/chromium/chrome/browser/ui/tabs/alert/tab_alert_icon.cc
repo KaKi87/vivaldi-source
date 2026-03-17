@@ -13,7 +13,7 @@
 #include "components/vector_icons/vector_icons.h"
 #include "ui/base/models/image_model.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
 #endif
 
@@ -32,8 +32,10 @@ ui::ColorId GetAlertIndicatorColor(TabAlert state,
       break;
     case tabs::TabAlert::kTabCapturing:
     case tabs::TabAlert::kPipPlaying:
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
     case tabs::TabAlert::kGlicAccessing:
     case tabs::TabAlert::kGlicSharing:
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
     case tabs::TabAlert::kActorWaitingOnUser:
     case tabs::TabAlert::kActorAccessing:
       group = 1;
@@ -97,20 +99,15 @@ const gfx::VectorIcon& GetAlertIcon(TabAlert alert_state) {
       return vector_icons::kCardboardIcon;
     case TabAlert::kActorWaitingOnUser:
     case TabAlert::kActorAccessing:
-#if BUILDFLAG(ENABLE_GLIC)
-      if (base::FeatureList::IsEnabled(features::kGlicActorUiTaskIconV2)) {
-        return glic::GlicVectorIconManager::GetVectorIcon(
-            IDR_ACTOR_AUTO_BROWSE_ICON);
-      }
-#endif
+#if !BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
       return kTvIcon;
+#else
+      return glic::GlicVectorIconManager::GetVectorIcon(
+          IDR_ACTOR_AUTO_BROWSE_ICON);
     case TabAlert::kGlicAccessing:
     case TabAlert::kGlicSharing:
-#if BUILDFLAG(ENABLE_GLIC)
       return glic::GlicVectorIconManager::GetVectorIcon(
           IDR_GLIC_ACCESSING_ICON);
-#else
-      return kTvIcon;
 #endif
   }
 }
@@ -121,8 +118,8 @@ ui::ImageModel GetAlertImageModel(TabAlert alert_state,
   // the other tab alert indicator icons.
   const int image_width =
       GetLayoutConstant(alert_state == tabs::TabAlert::kTabCapturing
-                            ? TAB_ALERT_INDICATOR_CAPTURE_ICON_WIDTH
-                            : TAB_ALERT_INDICATOR_ICON_WIDTH);
+                            ? LayoutConstant::kTabAlertIndicatorCaptureIconWidth
+                            : LayoutConstant::kTabAlertIndicatorIconWidth);
 
   return ui::ImageModel::FromVectorIcon(GetAlertIcon(alert_state), icon_color,
                                         image_width);

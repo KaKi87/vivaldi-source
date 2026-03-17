@@ -39,6 +39,7 @@ import androidx.annotation.VisibleForTesting;
 import org.jni_zero.CalledByNative;
 import org.jni_zero.CalledByNativeForTesting;
 import org.jni_zero.JNINamespace;
+import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.AconfigFlaggedApiDelegate;
@@ -54,8 +55,9 @@ import org.chromium.base.UnownedUserDataHost;
 import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.lifetime.LifetimeAssert;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.build.annotations.NullMarked;
@@ -124,8 +126,8 @@ public class WindowAndroid
     private @Nullable View mAnimationPlaceholderView;
 
     /** A mechanism for observing and updating the application window's bottom inset. */
-    private final ApplicationViewportInsetSupplier mApplicationBottomInsetSupplier =
-            new ApplicationViewportInsetSupplier();
+    private final ApplicationViewportInsetTracker mApplicationBottomInsetSupplier =
+            new ApplicationViewportInsetTracker();
 
     private @Nullable AndroidPermissionDelegate mPermissionDelegate;
 
@@ -211,8 +213,8 @@ public class WindowAndroid
     private final boolean mTrackOcclusion;
 
     /** True when this window is occluded. */
-    private final ObservableSupplierImpl<Boolean> mOcclusionSupplier =
-            new ObservableSupplierImpl<>(false);
+    private final SettableNonNullObservableSupplier<Boolean> mOcclusionSupplier =
+            ObservableSuppliers.createNonNull(false);
 
     private boolean mIsTopResumedActivity;
     private final boolean mActivityTopResumedSupported;
@@ -246,9 +248,7 @@ public class WindowAndroid
         mIntentRequestTracker = (IntentRequestTrackerImpl) tracker;
         mInsetObserver = insetObserver;
         mApplicationBottomInsetSupplier.setInsetObserver(mInsetObserver);
-        if (mInsetObserver != null
-                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-                && UiAndroidFeatureList.sAndroidUseCorrectWindowBounds.isEnabled()) {
+        if (mInsetObserver != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             mWindowInsetObserver =
                     new WindowInsetObserver() {
                         @Override
@@ -277,6 +277,7 @@ public class WindowAndroid
         mLifetimeAssert = LifetimeAssert.create(this);
         // context does not have the same lifetime guarantees as an application context so we can't
         // hold a strong reference to it.
+        assert context != null : "Context when creating WindowAndroid must not be null.";
         mContextRef = new ImmutableWeakReference<>(context);
         mDisplayAndroid = display;
         mDisplayAndroid.addObserver(this);
@@ -378,7 +379,7 @@ public class WindowAndroid
     }
 
     /** A supplier that returns whether the window is occluded or not. */
-    public ObservableSupplier<Boolean> getOcclusionSupplier() {
+    public NonNullObservableSupplier<Boolean> getOcclusionSupplier() {
         return mOcclusionSupplier;
     }
 
@@ -999,7 +1000,7 @@ public class WindowAndroid
     /**
      * @return A mechanism for updating and observing the bottom inset of the browser window.
      */
-    public ApplicationViewportInsetSupplier getApplicationBottomInsetSupplier() {
+    public ApplicationViewportInsetTracker getApplicationBottomInsetTracker() {
         return mApplicationBottomInsetSupplier;
     }
 
@@ -1110,11 +1111,25 @@ public class WindowAndroid
     @Override
     public void onAdaptiveRefreshRateInfoChanged(DisplayAndroid.AdaptiveRefreshRateInfo arrInfo) {
         if (mNativeWindowAndroid == 0) return;
+        int velocityArraySize =
+                arrInfo.velocityMapping == null ? 0 : arrInfo.velocityMapping.size();
+        float[] framePerSecondArray = new float[velocityArraySize];
+        float[] dpPerSecondArray = new float[velocityArraySize];
+        if (arrInfo.velocityMapping != null) {
+            int index = 0;
+            for (AconfigFlaggedApiDelegate.FrameRateVelocityPoint point : arrInfo.velocityMapping) {
+                framePerSecondArray[index] = point.getFramePerSecond();
+                dpPerSecondArray[index] = point.getDpPerSecond();
+                ++index;
+            }
+        }
         WindowAndroidJni.get()
                 .onAdaptiveRefreshRateInfoChanged(
                         mNativeWindowAndroid,
                         arrInfo.supportsAdaptiveRefreshRate,
-                        arrInfo.suggestedFrameRateHigh);
+                        arrInfo.suggestedFrameRateHigh,
+                        framePerSecondArray,
+                        dpPerSecondArray);
     }
 
     @CalledByNative
@@ -1377,12 +1392,10 @@ public class WindowAndroid
         mPointerLockingViewPrvFocusChangeListener = null;
     }
 
-    @VisibleForTesting(otherwise = PRIVATE)
     @Nullable View getPointerLockChangeViewForTesting() {
         return mPointerLockChangeView;
     }
 
-    @VisibleForTesting(otherwise = PRIVATE)
     View.@Nullable OnFocusChangeListener getPointerLockingViewFocusChangeListenerForTesting() {
         return mPointerLockingViewFocusChangeListener;
     }
@@ -1391,10 +1404,14 @@ public class WindowAndroid
     private boolean setHasKeyboardCapture(boolean hasCapture) {
         Window window = getWindow();
         if (window == null) return false;
-        AconfigFlaggedApiDelegate aconfigFlaggedApiDelegate =
-                AconfigFlaggedApiDelegate.getInstance();
-        if (aconfigFlaggedApiDelegate == null) return false;
-        return aconfigFlaggedApiDelegate.setKeyboardCaptureEnabled(window, hasCapture);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA
+                && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
+            WindowManager.LayoutParams params = window.getAttributes();
+            params.setKeyboardCaptureEnabled(hasCapture);
+            window.setAttributes(params);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -1474,7 +1491,9 @@ public class WindowAndroid
         void onAdaptiveRefreshRateInfoChanged(
                 long nativeWindowAndroid,
                 boolean supportsAdaptiveRefreshRate,
-                float suggestedFrameRateHigh);
+                float suggestedFrameRateHigh,
+                @JniType("std::vector<jfloat>") float[] framePerSecondArray,
+                @JniType("std::vector<jfloat>") float[] dpPerSecondArray);
 
         void onOverlayTransformUpdated(long nativeWindowAndroid);
 

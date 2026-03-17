@@ -5,7 +5,11 @@
 package org.chromium.chrome.browser.ui.system;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,20 +30,21 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowLooper;
 
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ActivityTabProvider;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.layouts.LayoutManager;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
+import org.chromium.chrome.browser.ntp.NewTabPage;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationConfigManager;
-import org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundImageType;
+import org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType;
 import org.chromium.chrome.browser.ntp_customization.theme.chrome_colors.NtpThemeColorInfo;
 import org.chromium.chrome.browser.ntp_customization.theme.chrome_colors.NtpThemeColorInfo.NtpThemeColorId;
 import org.chromium.chrome.browser.ntp_customization.theme.chrome_colors.NtpThemeColorUtils;
+import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiThemeUtil;
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.browser.ui.desktop_windowing.AppHeaderUtils;
@@ -59,15 +64,19 @@ public class StatusBarColorControllerUnitTest {
             new ActivityScenarioRule<>(TestActivity.class);
 
     @Mock private StatusBarColorProvider mStatusBarColorProvider;
-    @Mock private ObservableSupplier<LayoutManager> mLayoutManagerSupplier;
     @Mock private ActivityLifecycleDispatcher mActivityLifecycleDispatcher;
-    @Mock private ActivityTabProvider mActivityTabProvider;
     @Mock private TopUiThemeColorProvider mTopUiThemeColorProvider;
     @Mock private EdgeToEdgeSystemBarColorHelper mSystemBarColorHelper;
     @Mock private DesktopWindowStateManager mDesktopWindowStateManager;
+    @Mock private Tab mNtpTab;
+    @Mock private NewTabPage mNewTabPage;
 
-    private final ObservableSupplierImpl<Integer> mOverviewColorSupplier =
-            new ObservableSupplierImpl<>(Color.TRANSPARENT);
+    private final MonotonicObservableSupplier<LayoutManager> mLayoutManagerSupplier =
+            ObservableSuppliers.alwaysNull();
+
+    private final ActivityTabProvider mActivityTabProvider = new ActivityTabProvider();
+    private final SettableNonNullObservableSupplier<Integer> mOverviewColorSupplier =
+            ObservableSuppliers.createNonNull(Color.TRANSPARENT);
     private StatusBarColorController mStatusBarColorController;
     private Activity mActivity;
 
@@ -81,14 +90,25 @@ public class StatusBarColorControllerUnitTest {
     }
 
     @Test
-    @Features.EnableFeatures({ChromeFeatureList.EDGE_TO_EDGE_EVERYWHERE})
     @Config(sdk = 30) // Min version needed for e2e everywhere
     public void testSetStatusBarColor_EdgeToEdgeEnabled() {
         StatusBarColorController.setStatusBarColor(mSystemBarColorHelper, mActivity, Color.BLUE);
-        verify(mSystemBarColorHelper).setStatusBarColor(Color.BLUE);
+        verify(mSystemBarColorHelper).setStatusBarColor(Color.BLUE, false);
 
         StatusBarColorController.setStatusBarColor(mSystemBarColorHelper, mActivity, Color.RED);
-        verify(mSystemBarColorHelper).setStatusBarColor(Color.RED);
+        verify(mSystemBarColorHelper).setStatusBarColor(Color.RED, false);
+    }
+
+    @Test
+    @Config(sdk = 30) // Min version needed for e2e everywhere
+    public void testSetStatusBarColor_EdgeToEdgeEnabled_UseLightIconColor() {
+        StatusBarColorController.setStatusBarColor(
+                mSystemBarColorHelper, mActivity, Color.BLUE, /* forceLightIconColor= */ true);
+        verify(mSystemBarColorHelper).setStatusBarColor(Color.BLUE, true);
+
+        StatusBarColorController.setStatusBarColor(
+                mSystemBarColorHelper, mActivity, Color.RED, /* forceLightIconColor= */ true);
+        verify(mSystemBarColorHelper).setStatusBarColor(Color.RED, true);
     }
 
     @Test
@@ -150,7 +170,7 @@ public class StatusBarColorControllerUnitTest {
     public void testOverviewModeOverlay() {
         initialize(/* isTablet= */ false, /* isInDesktopWindow= */ false);
         mStatusBarColorController.updateStatusBarColor();
-        mStatusBarColorController.setScrimColor(Color.TRANSPARENT);
+        mStatusBarColorController.onScrimColorChanged(Color.TRANSPARENT);
 
         @ColorInt int expectedColor = ColorUtils.setAlphaComponentWithFloat(Color.RED, 0.5f);
         mOverviewColorSupplier.set(expectedColor);
@@ -222,8 +242,7 @@ public class StatusBarColorControllerUnitTest {
                 new NtpCustomizationConfigManager();
         NtpCustomizationConfigManager.setInstanceForTesting(ntpCustomizationConfigManager);
 
-        ntpCustomizationConfigManager.setBackgroundImageTypeForTesting(
-                NtpBackgroundImageType.CHROME_COLOR);
+        ntpCustomizationConfigManager.setBackgroundTypeForTesting(NtpBackgroundType.CHROME_COLOR);
         ntpCustomizationConfigManager.setNtpThemeColorInfoForTesting(colorInfo);
 
         // Verifies when customized NTP background isn't supported, the status bar color is set to
@@ -261,16 +280,10 @@ public class StatusBarColorControllerUnitTest {
                 mStatusBarColorController.getBackgroundColorForNtpForTesting());
 
         mStatusBarColorController.onToolbarExpandingOnNtp(true);
-        assertEquals(
-                mActivity.getColor(
-                        R.color.status_bar_background_color_on_ntp_with_toolbar_expanding),
-                mStatusBarColorController.getBackgroundColorForNtpForTesting());
+        assertFalse(mStatusBarColorController.getForceLightIconColorForNtpForTesting());
 
         mStatusBarColorController.onToolbarExpandingOnNtp(false);
-        assertEquals(
-                mActivity.getColor(
-                        R.color.status_bar_background_color_on_ntp_with_toolbar_collapsed),
-                mStatusBarColorController.getBackgroundColorForNtpForTesting());
+        assertTrue(mStatusBarColorController.getForceLightIconColorForNtpForTesting());
     }
 
     @Test
@@ -285,11 +298,32 @@ public class StatusBarColorControllerUnitTest {
                 defaultNtpBackground,
                 mStatusBarColorController.getBackgroundColorForNtpForTesting());
 
-        mStatusBarColorController.onBackgroundImageChangedImpl();
-        assertEquals(
-                mActivity.getColor(
-                        R.color.status_bar_background_color_on_ntp_with_toolbar_collapsed),
-                mStatusBarColorController.getBackgroundColorForNtpForTesting());
+        mStatusBarColorController.updateForceLightIconColorForNtp();
+        assertTrue(mStatusBarColorController.getForceLightIconColorForNtpForTesting());
+    }
+
+    @Test
+    @Config(sdk = 30) // Min version needed for e2e everywhere
+    public void testForceLightIconColorForNtp_DisabledWhenOmniboxFocused() {
+        // Set up a mock NTP tab.
+        when(mNtpTab.getNativePage()).thenReturn(mNewTabPage);
+
+        initialize(
+                /* isTablet= */ false,
+                /* isInDesktopWindow= */ false,
+                /* supportEdgeToEdge= */ true);
+
+        // Set the NTP tab after initialization so the tab observer can pick it up.
+        mActivityTabProvider.setForTesting(mNtpTab);
+        mStatusBarColorController.updateForceLightIconColorForNtp();
+
+        // When omnibox not gains focus, should force light icon color.
+        mStatusBarColorController.onUrlFocusChange(/* hasFocus= */ false);
+        verify(mSystemBarColorHelper, atLeastOnce()).setStatusBarColor(anyInt(), eq(true));
+
+        // When omnibox gains focus, should NOT force light icon color.
+        mStatusBarColorController.onUrlFocusChange(/* hasFocus= */ true);
+        verify(mSystemBarColorHelper, atLeastOnce()).setStatusBarColor(anyInt(), eq(false));
     }
 
     private void initialize(boolean isTablet, boolean isInDesktopWindow) {

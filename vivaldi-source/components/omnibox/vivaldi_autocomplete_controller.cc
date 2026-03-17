@@ -57,16 +57,16 @@ bool AutocompleteController::VivaldiShouldRunProvider(
       case AutocompleteProvider::TYPE_HISTORY_URL:
       case AutocompleteProvider::TYPE_HISTORY_EMBEDDINGS:
         return (keyword_turl->starter_pack_id() ==
-                template_url_starter_pack_data::kHistory);
+                template_url_starter_pack_data::StarterPackId::kHistory);
       // @bookmark keyword
       case AutocompleteProvider::TYPE_BOOKMARK:
       case AutocompleteProvider::TYPE_BOOKMARK_NICKNAME:
         return (keyword_turl->starter_pack_id() ==
-                template_url_starter_pack_data::kBookmarks);
+                template_url_starter_pack_data::StarterPackId::kBookmarks);
       // @tabs keyword
       case AutocompleteProvider::TYPE_OPEN_TAB:
         return (keyword_turl->starter_pack_id() ==
-                template_url_starter_pack_data::kTabs);
+                template_url_starter_pack_data::StarterPackId::kTabs);
       default:
         return false;
     }

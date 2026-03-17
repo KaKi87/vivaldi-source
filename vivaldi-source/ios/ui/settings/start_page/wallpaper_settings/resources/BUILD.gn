@@ -71,5 +71,9 @@ bundle_data_xcassets("wallpaper_assets") {
     # ios_background_13
     "Wallpapers.xcassets/ios_background_13.imageset/Contents.json",
     "Wallpapers.xcassets/ios_background_13.imageset/ios_background_13.jpg",
+
+    # daily_mix (Daily Mix thumbnail)
+    "Wallpapers.xcassets/daily_mix.imageset/Contents.json",
+    "Wallpapers.xcassets/daily_mix.imageset/daily_mix.png",
   ]
 }

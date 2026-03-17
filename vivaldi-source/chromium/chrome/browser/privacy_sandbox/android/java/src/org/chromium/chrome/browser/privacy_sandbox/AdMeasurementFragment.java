@@ -4,6 +4,7 @@
 
 package org.chromium.chrome.browser.privacy_sandbox;
 
+import android.content.Context;
 import android.os.Bundle;
 import android.text.style.ClickableSpan;
 import android.view.View;
@@ -11,19 +12,21 @@ import android.view.View;
 import androidx.preference.Preference;
 
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.settings.ChromeManagedPreferenceDelegate;
-import org.chromium.chrome.browser.settings.search.BaseSearchIndexProvider;
+import org.chromium.chrome.browser.settings.search.ChromeBaseSearchIndexProvider;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
 import org.chromium.components.browser_ui.settings.ClickableSpansTextMessagePreference;
 import org.chromium.components.browser_ui.settings.SettingsFragment;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
 import org.chromium.components.browser_ui.settings.TextMessagePreference;
+import org.chromium.components.browser_ui.settings.search.SettingsIndexData;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefs;
@@ -36,8 +39,21 @@ public class AdMeasurementFragment extends PrivacySandboxSettingsBaseFragment
     public static final String TOGGLE_PREFERENCE = "ad_measurement_toggle";
     public static final String DISCLAIMER_PREFERENCE = "ad_measurement_page_disclaimer";
     public static final String CONSIDER_BULLET_THREE = "ad_measurement_consider_bullet_three";
+    public static final String AD_MEASUREMENT_ENABLED_BULLET_ONE_PREF =
+            "ad_measurement_enabled_bullet_one";
+    public static final String AD_MEASUREMENT_ENABLED_BULLET_TWO_PREF =
+            "ad_measurement_enabled_bullet_two";
+    public static final String AD_MEASUREMENT_ENABLED_BULLET_THREE_PREF =
+            "ad_measurement_enabled_bullet_three";
+    public static final String AD_MEASUREMENT_CONSIDER_BULLET_ONE_PREF =
+            "ad_measurement_consider_bullet_one";
+    public static final String AD_MEASUREMENT_CONSIDER_BULLET_TWO_PREF =
+            "ad_measurement_consider_bullet_two";
+    public static final String AD_MEASUREMENT_CONSIDER_BULLET_THREE_PREF =
+            "ad_measurement_consider_bullet_three";
 
-    private final ObservableSupplierImpl<String> mPageTitle = new ObservableSupplierImpl<>();
+    private final SettableMonotonicObservableSupplier<String> mPageTitle =
+            ObservableSuppliers.createMonotonic();
 
     static boolean isAdMeasurementPrefEnabled(Profile profile) {
         PrefService prefService = UserPrefs.get(profile);
@@ -88,7 +104,7 @@ public class AdMeasurementFragment extends PrivacySandboxSettingsBaseFragment
     }
 
     @Override
-    public ObservableSupplier<String> getPageTitle() {
+    public MonotonicObservableSupplier<String> getPageTitle() {
         return mPageTitle;
     }
 
@@ -133,7 +149,18 @@ public class AdMeasurementFragment extends PrivacySandboxSettingsBaseFragment
         return SettingsFragment.AnimationType.PROPERTY;
     }
 
-    public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
-            new BaseSearchIndexProvider(
-                    AdMeasurementFragment.class.getName(), R.xml.ad_measurement_preference);
+    public static final ChromeBaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+            new ChromeBaseSearchIndexProvider(
+                    AdMeasurementFragment.class.getName(), R.xml.ad_measurement_preference) {
+                @Override
+                public void updateDynamicPreferences(Context context, SettingsIndexData indexData) {
+                    indexData.removeEntry(getUniqueId(AD_MEASUREMENT_ENABLED_BULLET_ONE_PREF));
+                    indexData.removeEntry(getUniqueId(AD_MEASUREMENT_ENABLED_BULLET_TWO_PREF));
+                    indexData.removeEntry(getUniqueId(AD_MEASUREMENT_ENABLED_BULLET_THREE_PREF));
+                    indexData.removeEntry(getUniqueId(AD_MEASUREMENT_CONSIDER_BULLET_ONE_PREF));
+                    indexData.removeEntry(getUniqueId(AD_MEASUREMENT_CONSIDER_BULLET_TWO_PREF));
+                    indexData.removeEntry(getUniqueId(AD_MEASUREMENT_CONSIDER_BULLET_THREE_PREF));
+                    indexData.removeEntry(getUniqueId(DISCLAIMER_PREFERENCE));
+                }
+            };
 }

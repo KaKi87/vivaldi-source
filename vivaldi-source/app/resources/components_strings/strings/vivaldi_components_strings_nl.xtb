@@ -35,7 +35,7 @@
 <translation id="2337852623177822836">Instelling beheerd door je beheerder</translation>
 <translation id="2355395290879513365">Aanvallers kunnen mogelijk de afbeeldingen zien die je op deze website bekijkt en je misleiden door deze aan te passen.</translation>
 <translation id="2359808026110333948">Doorgaan</translation>
-<translation id="2388886110302389394">Pagina in een nieuw privévenster openen (CTRL-Shift-N)</translation>
+<translation id="2388886110302389394">Pagina in een nieuw privévenster openen (Ctrl+Shift+N)</translation>
 <translation id="2467694685043708798"><ph name="BEGIN_LINK" />Probleemoplosser voor netwerken uitvoeren<ph name="END_LINK" /></translation>
 <translation id="2491414235131909199">Deze pagina is geblokkeerd door een extensie</translation>
 <translation id="255002559098805027"><ph name="HOST_NAME" /> heeft een ongeldige reactie verzonden.</translation>
@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Je verbinding met deze website is niet volledig beveiligd</translation>
 <translation id="4265872034478892965">Toegestaan door je beheerder</translation>
 <translation id="4305666528087210886">Het bestand kan niet worden geopend</translation>
-<translation id="4408413947728134509">Cookies <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> heeft je aanmeldingscertificaat niet geaccepteerd of er is geen aanmeldingscertificaat geleverd.</translation>
 <translation id="4506599922270137252">Neem contact op met de systeembeheerder</translation>
 <translation id="4522570452068850558">Details</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Geen resultaten</translation>
 <translation id="5017554619425969104">Tekst die je hebt gekopieerd</translation>
 <translation id="5023310440958281426">Neem het beleid van je beheerder door</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1{(1 in gebruik)}other{(# in gebruik)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Proxyadres controleren<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bits)</translation>
 <translation id="5216942107514965959">Vandaag nog bezocht</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Je moet geen gevoelige gegevens (zoals wachtwoorden of creditcards) opgeven op deze website, omdat ze kunnen worden gestolen door aanvallers.</translation>
 <translation id="5863515189965725638">IBAN bewerken</translation>
 <translation id="5869405914158311789">Deze website is niet bereikbaar</translation>
-<translation id="5920262536204764679">{NUM_COOKIES, plural, =1 {1 in gebruik} other {# in gebruik}}</translation>
 <translation id="5932224571077948991">Website geeft opdringerige of misleidende advertenties weer</translation>
 <translation id="6051221802930200923">Je kunt <ph name="SITE" /> momenteel niet bezoeken, omdat de website gebruikmaakt van certificaatpinning. Netwerkfouten en aanvallen zijn doorgaans tijdelijk, dus deze pagina werkt later waarschijnlijk correct.</translation>
 <translation id="6146055958333702838">Controleer alle kabels en start alle routers, modems of andere gebruikte netwerkapparaten, opnieuw op.</translation>

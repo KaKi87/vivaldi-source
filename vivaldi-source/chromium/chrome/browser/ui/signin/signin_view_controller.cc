@@ -12,6 +12,7 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_helpers.h"
+#include "base/metrics/histogram_functions.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
@@ -19,9 +20,9 @@
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/signin/signin_ui_util.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/profiles/signin_intercept_first_run_experience_dialog.h"
 #include "chrome/browser/ui/signin/signin_modal_dialog.h"
 #include "chrome/browser/ui/signin/signin_modal_dialog_impl.h"
@@ -59,9 +60,9 @@
 #include "chrome/browser/signin/logout_tab_helper.h"
 #include "chrome/browser/signin/signin_promo.h"
 #include "chrome/browser/sync/sync_service_factory.h"
-#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_navigator_params.h"
+#include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/signin/chrome_signout_confirmation_prompt.h"
 #include "chrome/browser/ui/singleton_tabs.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -292,6 +293,28 @@ void FinishProfileCreationWhenNoCustomizeProfileIsShown(
     entry->SetIsEphemeral(false);
   }
 }
+
+ChromeSignoutConfirmationPromptVariant GetSignoutConfirmationPromptVariant(
+    size_t unsynced_data_count,
+    bool is_bookmarks_limit_exceeded,
+    bool needs_reauth) {
+  if (unsynced_data_count == 0 && !is_bookmarks_limit_exceeded) {
+    return ChromeSignoutConfirmationPromptVariant::kNoUnsyncedData;
+  }
+
+  if (needs_reauth) {
+    return ChromeSignoutConfirmationPromptVariant::
+        kUnsyncedDataWithReauthButton;
+  }
+
+  if (unsynced_data_count > 0) {
+    return ChromeSignoutConfirmationPromptVariant::kUnsyncedData;
+  }
+
+  CHECK(is_bookmarks_limit_exceeded);
+  return ChromeSignoutConfirmationPromptVariant::kTooManyBookmarks;
+}
+
 #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
 
 }  // namespace
@@ -301,6 +324,8 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(SigninViewController,
 
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(SigninViewController,
                                       kHistorySyncOptinViewId);
+
+DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(SigninViewController, kSigninErrorViewId);
 
 SigninViewController::SigninViewController(BrowserWindowInterface* browser,
                                            Profile* profile,
@@ -746,11 +771,19 @@ void SigninViewController::SignoutOrReauthWithPromptWithUnsyncedDataTypes(
     return;
   }
 
+  syncer::SyncService* sync_service =
+      SyncServiceFactory::GetForProfile(GetProfile());
+  const bool is_bookmarks_limit_exceeded =
+      sync_service &&
+      sync_service->GetUserActionableError() ==
+          syncer::SyncService::UserActionableError::kBookmarksLimitExceeded;
+
   const bool needs_reauth =
       !identity_manager->HasAccountWithRefreshToken(primary_account_id) ||
       identity_manager->HasAccountWithRefreshTokenInPersistentErrorState(
           primary_account_id);
-  bool sign_out_immediately = unsynced_datatypes.empty() && needs_reauth;
+  bool sign_out_immediately = unsynced_datatypes.empty() && needs_reauth &&
+                              !is_bookmarks_limit_exceeded;
   const size_t unsynced_data_count =
       std::accumulate(unsynced_datatypes.begin(), unsynced_datatypes.end(), 0,
                       [](size_t current_sum, const auto& pair) {
@@ -776,14 +809,12 @@ void SigninViewController::SignoutOrReauthWithPromptWithUnsyncedDataTypes(
     return;
   }
 
+  base::UmaHistogramBoolean("Sync.BookmarksLimitExceededOnSignoutPrompt",
+                            is_bookmarks_limit_exceeded);
+
   ChromeSignoutConfirmationPromptVariant prompt_variant =
-      ChromeSignoutConfirmationPromptVariant::kNoUnsyncedData;
-  if (unsynced_data_count > 0) {
-    prompt_variant =
-        needs_reauth ? ChromeSignoutConfirmationPromptVariant::
-                           kUnsyncedDataWithReauthButton
-                     : ChromeSignoutConfirmationPromptVariant::kUnsyncedData;
-  }
+      GetSignoutConfirmationPromptVariant(
+          unsynced_data_count, is_bookmarks_limit_exceeded, needs_reauth);
   auto extended_account_info =
       identity_manager->FindExtendedAccountInfoByAccountId(primary_account_id);
   if (base::FeatureList::IsEnabled(
@@ -797,6 +828,7 @@ void SigninViewController::SignoutOrReauthWithPromptWithUnsyncedDataTypes(
   switch (prompt_variant) {
     case ChromeSignoutConfirmationPromptVariant::kNoUnsyncedData:
     case ChromeSignoutConfirmationPromptVariant::kProfileWithParentalControls:
+    case ChromeSignoutConfirmationPromptVariant::kTooManyBookmarks:
       break;
     case ChromeSignoutConfirmationPromptVariant::kUnsyncedData:
       syncer::SyncRecordDataTypeNumUnsyncedEntitiesFromDataCounts(
@@ -851,12 +883,11 @@ void SigninViewController::ShowChromeSigninDialogForExtensions(
                 extension_name_for_display);
 
   std::u16string continue_as_text =
-      base::UTF8ToUTF16(!account_info_for_promos.given_name.empty()
-                            ? account_info_for_promos.given_name
-                            : account_info_for_promos.email);
+      base::UTF8ToUTF16(account_info_for_promos.GetGivenName().value_or(
+          account_info_for_promos.GetEmail()));
   std::u16string body = l10n_util::GetStringFUTF16(
       IDS_EXTENSION_ASKS_IDENTITY_WHILE_SIGNED_IN_WEB_ONLY_BODY_PART_1,
-      base::UTF8ToUTF16(account_info_for_promos.email));
+      base::UTF8ToUTF16(account_info_for_promos.GetEmail()));
 
   ui::DialogModel::Builder dialog_builder;
   dialog_builder.SetInternalName("ChromeSigninChoiceForExtensionsPrompt")

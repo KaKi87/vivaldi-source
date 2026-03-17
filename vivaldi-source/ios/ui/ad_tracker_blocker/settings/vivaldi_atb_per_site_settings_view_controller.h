@@ -6,12 +6,11 @@
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_controller.h"
 
-@interface VivaldiATBPerSiteSettingsViewController :
-  LegacyChromeTableViewController <UIAdaptivePresentationControllerDelegate>
+@interface VivaldiATBPerSiteSettingsViewController
+    : LegacyChromeTableViewController <UIAdaptivePresentationControllerDelegate>
 
 // INITIALIZER
-- (instancetype)initWithBrowser:(Browser*)browser
-                          title:(NSString*)title;
+- (instancetype)initWithBrowser:(Browser*)browser title:(NSString*)title;
 
 @end
 

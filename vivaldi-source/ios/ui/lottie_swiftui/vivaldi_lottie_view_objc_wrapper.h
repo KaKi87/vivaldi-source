@@ -19,7 +19,7 @@
 - (instancetype)initWithConfig:(LottieAnimationConfiguration*)config;
 - (instancetype)init NS_UNAVAILABLE;
 
-#pragma mark: Public methods
+#pragma mark : Public methods
 
 // Called to plays the lottie animation.
 - (void)play;
@@ -41,6 +41,5 @@
 - (UIView*)animationView;
 
 @end
-
 
 #endif  // IOS_UI_LOTTIE_SIWFTUI_VIVALDI_LOTTIE_VIEW_OBJC_WRAPPER_H_

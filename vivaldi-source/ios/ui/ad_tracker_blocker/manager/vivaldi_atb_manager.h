@@ -11,7 +11,8 @@
 #import "ios/ui/ad_tracker_blocker/vivaldi_atb_source_item.h"
 #import "ios/ui/ad_tracker_blocker/vivaldi_atb_source_type.h"
 
-/// VivaldiATBManager handles the communication between UI and the backend of AdBlocker.
+/// VivaldiATBManager handles the communication between UI and the backend of
+/// AdBlocker.
 @interface VivaldiATBManager : NSObject
 
 @property(nonatomic, weak) id<VivaldiATBConsumer> consumer;
@@ -28,9 +29,9 @@
 /// Returns setting for the give domain.
 - (ATBSettingType)blockingSettingForDomain:(NSString*)domain;
 /// Returns true if trackers blocking enabled globally.
--(BOOL)isTrackerBlockingEnabled;
+- (BOOL)isTrackerBlockingEnabled;
 /// Returns true if ads blocking enabled globally.
--(BOOL)isAdBlockingEnabled;
+- (BOOL)isAdBlockingEnabled;
 /// Compute and returns setting options through consumer.
 - (void)getSettingOptions;
 /// Returns the exceptions list through consumer.
@@ -57,8 +58,7 @@
 /// Removes exception for a given domain.
 - (void)removeExceptionForDomain:(NSString*)domain;
 /// Add rule source for the given blocking type.
-- (void)addRuleSource:(NSString*)source
-           sourceType:(ATBSourceType)sourceType;
+- (void)addRuleSource:(NSString*)source sourceType:(ATBSourceType)sourceType;
 /// Remove rule source of the given key and blocking type.
 - (void)removeRuleSourceForKey:(uint32_t)key
                     sourceType:(ATBSourceType)sourceType;
@@ -67,7 +67,7 @@
                     sourceType:(ATBSourceType)sourceType;
 /// Disable rule source of the given key and blocking type.
 - (void)disableRuleSourceForKey:(uint32_t)key
-                   sourceType:(ATBSourceType)sourceType;
+                     sourceType:(ATBSourceType)sourceType;
 /// Restore preset rule source of the given blocking type.
 - (void)restoreRuleSourceForType:(ATBSourceType)sourceType;
 

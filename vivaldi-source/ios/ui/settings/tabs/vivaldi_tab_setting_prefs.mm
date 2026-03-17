@@ -9,50 +9,63 @@
 #import "components/prefs/pref_service.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/tabs/model/inactive_tabs/features.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 @implementation VivaldiTabSettingPrefs
 
+static PrefService* _prefService = nil;
+
+// Static variable to store prefService
++ (PrefService*)prefService {
+  return _prefService;
+}
+
+// Static method to set the PrefService, must be set before calling any method
+// of this class.
++ (void)setPrefService:(PrefService*)pref {
+  _prefService = pref;
+}
+
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry {
-  registry->RegisterBooleanPref(vivaldiprefs::kVivaldiDesktopTabsEnabled,
-                                NO);
-  registry->RegisterBooleanPref(vivaldiprefs::kVivaldiTabStackEnabled,
-                                NO);
+  registry->RegisterBooleanPref(vivaldiprefs::kVivaldiDesktopTabsEnabled, NO);
+  registry->RegisterBooleanPref(vivaldiprefs::kVivaldiTabStackEnabled, NO);
   registry->RegisterBooleanPref(
       vivaldiprefs::kVivaldiReverseSearchResultsEnabled, NO);
   registry->RegisterBooleanPref(
       vivaldiprefs::kVivaldiShowXButtonBackgroundTabsEnabled, NO);
   registry->RegisterBooleanPref(
       vivaldiprefs::kVivaldiOpenNTPOnClosingLastTabEnabled, YES);
-  registry->RegisterBooleanPref(
-      vivaldiprefs::kVivaldiFocusOmniboxOnNTPEnabled, YES);
+  registry->RegisterBooleanPref(vivaldiprefs::kVivaldiFocusOmniboxOnNTPEnabled,
+                                YES);
+  registry->RegisterBooleanPref(vivaldiprefs::kVivaldiSwipeToCloseTabEnabled,
+                                NO);
   registry->RegisterStringPref(vivaldiprefs::kVivaldiNewTabURL, "");
-  registry->RegisterIntegerPref(
-      vivaldiprefs::kVivaldiNewTabSetting, VivaldiNTPTypeStartpage);
+  registry->RegisterIntegerPref(vivaldiprefs::kVivaldiNewTabSetting,
+                                VivaldiNTPTypeStartpage);
 }
 
 /// Returns the desktop style tab status
-+ (BOOL)getDesktopTabsModeWithPrefService:
-  (PrefService*)prefService {
-  return prefService->GetBoolean(vivaldiprefs::kVivaldiDesktopTabsEnabled);;
++ (BOOL)getDesktopTabsModeWithPrefService:(PrefService*)prefService {
+  return prefService->GetBoolean(vivaldiprefs::kVivaldiDesktopTabsEnabled);
+  ;
 }
 /// Returns the setting for tab stack
-+ (BOOL)getUseTabStackWithPrefService:
-  (PrefService*)prefService {
-  return prefService->GetBoolean(vivaldiprefs::kVivaldiTabStackEnabled);;
++ (BOOL)getUseTabStackWithPrefService:(PrefService*)prefService {
+  return prefService->GetBoolean(vivaldiprefs::kVivaldiTabStackEnabled);
+  ;
 }
 
 /// Returns Homepage Url
 + (NSString*)getHomepageUrlWithPrefService:(PrefService*)prefService {
-  NSString *url = base::SysUTF8ToNSString(
-                     prefService->GetString(vivaldiprefs::kVivaldiHomepageURL));
+  NSString* url = base::SysUTF8ToNSString(
+      prefService->GetString(vivaldiprefs::kVivaldiHomepageURL));
   return url;
 }
 
 /// Get new tab settings
 + (VivaldiNTPType)getNewTabSettingWithPrefService:(PrefService*)prefService {
   int settingIndex =
-    prefService->GetInteger(vivaldiprefs::kVivaldiNewTabSetting);
+      prefService->GetInteger(vivaldiprefs::kVivaldiNewTabSetting);
   switch (settingIndex) {
     case 0:
       return VivaldiNTPTypeStartpage;
@@ -68,10 +81,19 @@
 }
 
 /// Returns Newtab Url
-+ (NSString*)getNewTabUrlWithPrefService: (PrefService*)prefService {
-  NSString *url = base::SysUTF8ToNSString(
-                     prefService->GetString(vivaldiprefs::kVivaldiNewTabURL));
++ (NSString*)getNewTabUrlWithPrefService:(PrefService*)prefService {
+  NSString* url = base::SysUTF8ToNSString(
+      prefService->GetString(vivaldiprefs::kVivaldiNewTabURL));
   return url;
+}
+
+/// Returns YES when swipe-to-close is enabled in tab switcher.
++ (BOOL)swipeToCloseTabEnabled {
+  PrefService* prefService = [VivaldiTabSettingPrefs prefService];
+  if (!prefService) {
+    return NO;
+  }
+  return prefService->GetBoolean(vivaldiprefs::kVivaldiSwipeToCloseTabEnabled);
 }
 
 /// Sets the desktop style tab mode.
@@ -80,8 +102,7 @@
   prefService->SetBoolean(vivaldiprefs::kVivaldiDesktopTabsEnabled, enabled);
 }
 /// Sets the setting for tab stack
-+ (void)setUseTabStack:(BOOL)enabled
-        inPrefServices:(PrefService*)prefService {
++ (void)setUseTabStack:(BOOL)enabled inPrefServices:(PrefService*)prefService {
   prefService->SetBoolean(vivaldiprefs::kVivaldiTabStackEnabled, enabled);
 }
 
@@ -108,7 +129,7 @@
 /// Save the new tab setting
 + (void)setNewTabSettingWithPrefService:(PrefService*)prefService
                              andSetting:(VivaldiNTPType)setting
-                                withURL:(NSString *)url {
+                                withURL:(NSString*)url {
   prefService->SetInteger(vivaldiprefs::kVivaldiNewTabSetting, setting);
   prefService->SetString(vivaldiprefs::kVivaldiNewTabURL,
                          base::SysNSStringToUTF8(url));

@@ -6,7 +6,7 @@
 namespace flags_ui {
 class FlagsStorage;
 struct FeatureEntry;
-}
+}  // namespace flags_ui
 
 namespace vivaldi {
 

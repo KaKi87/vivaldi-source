@@ -37,7 +37,6 @@
 #include "base/version_info/version_info.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/apps/app_service/app_launch_params.h"
 #include "chrome/browser/apps/app_service/app_registry_cache_waiter.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
@@ -116,6 +115,7 @@
 #include "components/policy/core/common/policy_pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "components/search_engines/template_url_service.h"
+#include "components/services/app_service/public/cpp/app_launch_params.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "components/sessions/core/command_storage_manager_test_helper.h"
 #include "components/strings/grit/components_strings.h"
@@ -253,8 +253,7 @@ class TabClosingObserver : public TabStripModelObserver {
 
     auto* remove = change.GetRemove();
     for (const auto& contents : remove->contents) {
-      if (contents.remove_reason ==
-          TabStripModelChange::RemoveReason::kDeleted) {
+      if (contents.remove_reason == TabRemovedReason::kDeleted) {
         closing_count_ += 1;
       }
     }
@@ -1356,9 +1355,11 @@ IN_PROC_BROWSER_TEST_F(BrowserTest, ReattachDevToolsWindow) {
   ASSERT_EQ(2u, chrome::GetBrowserCount(browser()->profile()));
 
   // Re-attach the dev tools window. This resets its Browser*.
+  ui_test_utils::BrowserDestroyedObserver observer(
+      chrome::FindBrowserWithTab(devtools_main_web_contents));
   devtools_delegate->SetIsDocked(true);
   // Wait until the browser actually gets closed.
-  ui_test_utils::WaitForBrowserToClose();
+  observer.Wait();
   ASSERT_EQ(1u, chrome::GetBrowserCount(browser()->profile()));
 
   // Do something that will make SearchTabHelper access its OmniboxView. This
@@ -1526,7 +1527,7 @@ IN_PROC_BROWSER_TEST_F(BrowserTest, StartMinimized) {
   });
   for (auto& param : params) {
     param.initial_show_state = ui::mojom::WindowShowState::kMinimized;
-    AddBlankTabAndShow(Browser::Create(param));
+    AddBlankTabAndShow(Browser::Create(param), /*wait_for_activation=*/false);
   }
 }
 
@@ -1595,29 +1596,6 @@ IN_PROC_BROWSER_TEST_F(BrowserTest, DisableMenuItemsWhenIncognitoIsForced) {
   EXPECT_FALSE(new_command_updater->IsCommandEnabled(IDC_OPTIONS));
   EXPECT_TRUE(new_command_updater->IsCommandEnabled(IDC_NEW_INCOGNITO_WINDOW));
 }
-
-#if BUILDFLAG(IS_CHROMEOS)
-IN_PROC_BROWSER_TEST_F(BrowserTest, ArcBrowserWindowFeaturesSetCorrectly) {
-  Browser* new_browser = Browser::Create(
-      Browser::CreateParams(Browser::TYPE_CUSTOM_TAB, browser()->profile(),
-                            /* user_gesture= */ true));
-  ASSERT_TRUE(new_browser);
-
-  EXPECT_FALSE(new_browser->SupportsWindowFeature(
-      Browser::WindowFeature::kFeatureLocationBar));
-  EXPECT_FALSE(new_browser->SupportsWindowFeature(
-      Browser::WindowFeature::kFeatureTitleBar));
-  EXPECT_FALSE(new_browser->SupportsWindowFeature(
-      Browser::WindowFeature::kFeatureTabStrip));
-  EXPECT_FALSE(new_browser->SupportsWindowFeature(
-      Browser::WindowFeature::kFeatureBookmarkBar));
-  EXPECT_FALSE(
-      new_browser->SupportsWindowFeature(Browser::WindowFeature::kFeatureNone));
-
-  EXPECT_TRUE(new_browser->SupportsWindowFeature(
-      Browser::WindowFeature::kFeatureToolbar));
-}
-#endif
 
 // Makes sure New Incognito Window command is disabled when Incognito mode is
 // not available.
@@ -1972,21 +1950,7 @@ IN_PROC_BROWSER_TEST_F(BrowserTest, FullscreenBookmarkBar) {
 // require some additional flags to work.
 // See chrome/browser/ui/views/fullscreen_mac_browsertest.cc
 #if !BUILDFLAG(IS_MAC)
-class SideBySideBrowserTest : public BrowserTest {
- public:
-  SideBySideBrowserTest() {
-    scoped_feature_list_.InitAndEnableFeature(features::kSideBySide);
-  }
-
-  SideBySideBrowserTest(const SideBySideBrowserTest&) = delete;
-  SideBySideBrowserTest& operator=(const SideBySideBrowserTest&) = delete;
-
- protected:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(SideBySideBrowserTest,
-                       BrowserFullscreenShowBookmarkBarSplitView) {
+IN_PROC_BROWSER_TEST_F(BrowserTest, BrowserFullscreenShowBookmarkBarSplitView) {
   chrome::AddTabAt(browser(), GURL("chrome://new-tab-page"), -1, true);
   chrome::AddTabAt(browser(), GURL(), -1, true);
 
@@ -2010,8 +1974,7 @@ IN_PROC_BROWSER_TEST_F(SideBySideBrowserTest,
             BookmarkBarController::From(browser())->bookmark_bar_state());
 }
 
-IN_PROC_BROWSER_TEST_F(SideBySideBrowserTest,
-                       TabFullscreenHiddenBookmarkBarSplitView) {
+IN_PROC_BROWSER_TEST_F(BrowserTest, TabFullscreenHiddenBookmarkBarSplitView) {
   chrome::AddTabAt(browser(), GURL("chrome://new-tab-page"), -1, true);
   chrome::AddTabAt(browser(), GURL(), -1, true);
 
@@ -2744,7 +2707,9 @@ IN_PROC_BROWSER_TEST_F(BrowserTest, TestPopupBounds) {
     // Should be EXPECT_EQ, but this width is inconsistent across platforms.
     // See https://crbug.com/567925.
     EXPECT_GE(bounds.width(), 100);
-    EXPECT_EQ(122, bounds.height());
+
+    // EXPECT_GE as Mac will have a larger height with the additional title bar.
+    EXPECT_GE(bounds.height(), 122);
     browser->window()->Close();
   }
 
@@ -2792,19 +2757,21 @@ IN_PROC_BROWSER_TEST_F(BrowserTest, TestPopupBounds) {
     // Should be EXPECT_EQ, but this width is inconsistent across platforms.
     // See https://crbug.com/567925.
     EXPECT_GE(bounds.width(), 100);
-    EXPECT_EQ(122, bounds.height());
+
+    // EXPECT_GE as Mac will have a larger height with the additional title bar.
+    EXPECT_GE(bounds.height(), 122);
     browser->window()->Close();
   }
 }
 
 IN_PROC_BROWSER_TEST_F(BrowserTest, IsOffTheRecordBrowserInUse) {
-  EXPECT_FALSE(BrowserList::IsOffTheRecordBrowserInUse(browser()->profile()));
+  EXPECT_FALSE(chrome::IsOffTheRecordBrowserInUse(browser()->profile()));
 
   Browser* incognito_browser = CreateIncognitoBrowser(browser()->profile());
-  EXPECT_TRUE(BrowserList::IsOffTheRecordBrowserInUse(browser()->profile()));
+  EXPECT_TRUE(chrome::IsOffTheRecordBrowserInUse(browser()->profile()));
 
   CloseBrowserSynchronously(incognito_browser);
-  EXPECT_FALSE(BrowserList::IsOffTheRecordBrowserInUse(browser()->profile()));
+  EXPECT_FALSE(chrome::IsOffTheRecordBrowserInUse(browser()->profile()));
 }
 
 IN_PROC_BROWSER_TEST_F(BrowserTest, TestActiveTabChangedUserAction) {
@@ -3177,22 +3144,22 @@ IN_PROC_BROWSER_TEST_F(BrowserTest, PreventCloseYieldsCancelledEvent) {
   const absl::Cleanup policy_cleanup = [this]() {
     // Clear policy values, otherwise we won't be able to gracefully close the
     // browser test.
-    profile()->GetPrefs()->SetList(prefs::kWebAppSettings, base::Value::List());
+    profile()->GetPrefs()->SetList(prefs::kWebAppSettings, base::ListValue());
   };
 
   // Set up policy values.
   static constexpr char kCalculatorAppUrl[] = "https://calculator.apps.chrome/";
   profile()->GetPrefs()->SetList(
       prefs::kWebAppSettings,
-      base::Value::List().Append(
-          base::Value::Dict()
+      base::ListValue().Append(
+          base::DictValue()
               .Set(web_app::kManifestId, kCalculatorAppUrl)
               .Set(web_app::kRunOnOsLogin, web_app::kRunWindowed)
               .Set(web_app::kPreventClose, true)));
   profile()->GetPrefs()->SetList(
       prefs::kWebAppInstallForceList,
-      base::Value::List().Append(
-          base::Value::Dict()
+      base::ListValue().Append(
+          base::DictValue()
               .Set(web_app::kUrlKey, kCalculatorAppUrl)
               .Set(web_app::kDefaultLaunchContainerKey,
                    web_app::kDefaultLaunchContainerWindowValue)));

@@ -256,23 +256,24 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 #pragma mark - UITextViewDelegate
 
-- (UIAction*)textView:(UITextView*) textView
-primaryActionForTextItem:(UITextItem*)textItem
-        defaultAction:(UIAction*) defaultAction {
+- (UIAction*)textView:(UITextView*)textView
+    primaryActionForTextItem:(UITextItem*)textItem
+               defaultAction:(UIAction*)defaultAction {
   __weak __typeof__(self) weakSelf = self;
   return [UIAction actionWithHandler:^(UIAction* action) {
     __strong __typeof(self) strongSelf = weakSelf;
-    if (!strongSelf) return;
+    if (!strongSelf)
+      return;
     if ([textItem.link isEqual:strongSelf->_resetURL]) {
       [strongSelf showDeleteDataDialog];
     }
     if ([textItem.link isEqual:strongSelf->_importURL]) {
       UIDocumentPickerViewController* picker =
-          [[UIDocumentPickerViewController alloc]
-              initForOpeningContentTypes:@[
-                  [UTType typeWithFilenameExtension:@"txt"]]];
-      picker.directoryURL =
-          [NSURL fileURLWithPath:GetDocumentsFolderPath() isDirectory:YES];
+          [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[
+            [UTType typeWithFilenameExtension:@"txt"]
+          ]];
+      picker.directoryURL = [NSURL fileURLWithPath:GetDocumentsFolderPath()
+                                       isDirectory:YES];
       picker.delegate = weakSelf;
       [strongSelf presentViewController:picker animated:YES completion:nil];
     }

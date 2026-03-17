@@ -101,9 +101,8 @@ public class CookieControlsBridge {
     private void onStatusChanged(
             @CookieControlsState int controlsState,
             @CookieControlsEnforcement int enforcement,
-            @CookieBlocking3pcdStatus int blockingStatus,
             long expiration) {
-        mObserver.onStatusChanged(controlsState, enforcement, blockingStatus, expiration);
+        mObserver.onStatusChanged(controlsState, enforcement, expiration);
     }
 
     @CalledByNative

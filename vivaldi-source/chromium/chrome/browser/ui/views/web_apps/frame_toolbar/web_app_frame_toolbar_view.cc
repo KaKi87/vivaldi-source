@@ -11,9 +11,9 @@
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_button.h"
-#include "chrome/browser/ui/views/extensions/extensions_toolbar_container.h"
-#include "chrome/browser/ui/views/extensions/extensions_toolbar_container_view_controller.h"
 #include "chrome/browser/ui/views/extensions/extensions_toolbar_coordinator.h"
+#include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
+#include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop_view_controller.h"
 #include "chrome/browser/ui/views/frame/browser_frame_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_controller.h"
@@ -21,7 +21,6 @@
 #include "chrome/browser/ui/views/page_action/page_action_view.h"
 #include "chrome/browser/ui/views/toolbar/back_forward_button.h"
 #include "chrome/browser/ui/views/toolbar/reload_button.h"
-#include "chrome/browser/ui/views/toolbar/reload_button_web_view.h"
 #include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_content_settings_container.h"
 #include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_menu_button.h"
 #include "chrome/browser/ui/views/web_apps/frame_toolbar/web_app_navigation_button_container.h"
@@ -32,6 +31,7 @@
 #include "ui/base/hit_test.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/layout/flex_layout.h"
+#include "ui/views/property_effects.h"
 #include "ui/views/view_utils.h"
 #include "ui/views/window/hit_test_utils.h"
 
@@ -262,8 +262,8 @@ void WebAppFrameToolbarView::LayoutForWindowControlsOverlay(
   SetBounds(x, available_space.y(), width, available_space.height());
 }
 
-ExtensionsToolbarContainer*
-WebAppFrameToolbarView::GetExtensionsToolbarContainer() {
+ExtensionsToolbarDesktop*
+WebAppFrameToolbarView::GetExtensionsToolbarDesktop() {
   return right_container_->extensions_container();
 }
 
@@ -273,13 +273,13 @@ WebAppFrameToolbarView::GetPinnedToolbarActionsContainer() {
 }
 
 gfx::Size WebAppFrameToolbarView::GetToolbarButtonSize() const {
-  const int size = GetLayoutConstant(WEB_APP_MENU_BUTTON_SIZE);
+  const int size = GetLayoutConstant(LayoutConstant::kWebAppMenuButtonSize);
   return gfx::Size(size, size);
 }
 
 views::View* WebAppFrameToolbarView::GetDefaultExtensionDialogAnchorView() {
-  ExtensionsToolbarContainer* extensions_container =
-      GetExtensionsToolbarContainer();
+  ExtensionsToolbarDesktop* extensions_container =
+      GetExtensionsToolbarDesktop();
   if (extensions_container && extensions_container->GetVisible()) {
     return extensions_container->GetExtensionsButton();
   }
@@ -386,6 +386,10 @@ IntentChipButton* WebAppFrameToolbarView::GetIntentChipButton() {
 
 ToolbarButton* WebAppFrameToolbarView::GetDownloadButton() {
   return right_container_ ? right_container_->GetDownloadButton() : nullptr;
+}
+
+WebUIToolbarWebView* WebAppFrameToolbarView::GetWebUIToolbarViewForTesting() {
+  return nullptr;
 }
 
 void WebAppFrameToolbarView::OnWindowControlsOverlayEnabledChanged() {

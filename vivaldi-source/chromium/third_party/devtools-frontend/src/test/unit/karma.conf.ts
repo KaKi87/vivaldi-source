@@ -50,6 +50,8 @@ const CustomChrome = function(this: any, _baseBrowserDecorator: unknown, args: B
       executablePath: TestConfig.chromeBinary,
       defaultViewport: null,
       dumpio: true,
+      // We do not need to process network in unit tests.
+      networkEnabled: false,
       args,
       ignoreDefaultArgs: ['--hide-scrollbars'],
     });
@@ -184,6 +186,7 @@ module.exports = function(config: any) {
     autoWatchBatchDelay: 1000,
 
     customContextFile: path.join(GEN_DIR, 'test/unit/context.html'),
+    customDebugFile: path.join(GEN_DIR, 'test/unit/debug.html'),
 
     files: [
       // Global hooks in test_setup must go first

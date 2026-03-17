@@ -1,15 +1,18 @@
 // Copyright (c) 2024 Vivaldi Technologies AS. All rights reserved
 
 #include "chrome/browser/extensions/extension_tab_util.h"
-#include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
 #include "extensions/api/guest_view/parent_tab_user_data.h"
 
 #include "extensions/vivaldi_associated_tabs.h"
+
+constexpr char kDiscardedKey[] = "discarded";
 
 namespace vivaldi {
 namespace {
@@ -24,14 +27,32 @@ void DoRelatedMoves(std::vector<int> moved_tabs_vector) {
   std::set<int> moved_tabs(moved_tabs_vector.begin(), moved_tabs_vector.end());
   std::map<int, TabStripModel*> tab_id_to_tab_strip;
 
-  // Find, where the parents are and remember their tab-strips.
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    TabStripModel* tab_strip = browser->tab_strip_model();
+  std::vector<BrowserWindowInterface*> all_browsers =
+      GetAllBrowserWindowInterfaces();
+  for (auto* browser_window_interface : all_browsers) {
+    TabStripModel* tab_strip = browser_window_interface->GetTabStripModel();
     if (!tab_strip)
       continue;
 
     for (int i = 0; i < tab_strip->count(); ++i) {
-      auto * contents = tab_strip->GetWebContentsAt(i);
+      auto* contents = tab_strip->GetWebContentsAt(i);
+      int tab_id = IdForTab(contents);
+      if (tab_id == -1)
+        continue;
+
+      if (moved_tabs.count(tab_id)) {
+        tab_id_to_tab_strip[tab_id] = tab_strip;
+      }
+    }
+  }
+  // Find, where the parents are and remember their tab-strips.
+  for (auto* browser_window_interface : all_browsers) {
+    TabStripModel* tab_strip = browser_window_interface->GetTabStripModel();
+    if (!tab_strip)
+      continue;
+
+    for (int i = 0; i < tab_strip->count(); ++i) {
+      auto* contents = tab_strip->GetWebContentsAt(i);
       int tab_id = IdForTab(contents);
       if (tab_id == -1)
         continue;
@@ -47,8 +68,8 @@ void DoRelatedMoves(std::vector<int> moved_tabs_vector) {
     return;
 
   // Iterate over all tabs.
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    TabStripModel* tab_strip = browser->tab_strip_model();
+  for (auto* browser_window_interface : all_browsers) {
+    TabStripModel* tab_strip = browser_window_interface->GetTabStripModel();
     if (!tab_strip)
       continue;
 
@@ -88,12 +109,14 @@ std::vector<int> FindAssociatedTabs(std::vector<int> parent_tabs_vector) {
                             parent_tabs_vector.end());
   std::vector<int> res;
 
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    TabStripModel* tab_strip = browser->tab_strip_model();
+  std::vector<BrowserWindowInterface*> all_browsers =
+      GetAllBrowserWindowInterfaces();
+  for (auto* browser_window_interface : all_browsers) {
+    TabStripModel* tab_strip = browser_window_interface->GetTabStripModel();
     if (!tab_strip)
       continue;
     for (int i = 0; i < tab_strip->count(); ++i) {
-      auto * contents = tab_strip->GetWebContentsAt(i);
+      auto* contents = tab_strip->GetWebContentsAt(i);
       auto parent_id = ParentTabUserData::GetParentTabId(contents);
       if (!parent_id || *parent_id == 0)
         continue;
@@ -109,12 +132,14 @@ void RemoveChildren(std::vector<int> parent_tabs) {
   using ::vivaldi::ParentTabUserData;
 
   std::set<int> tabs(parent_tabs.begin(), parent_tabs.end());
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    TabStripModel* tab_strip = browser->tab_strip_model();
+  std::vector<BrowserWindowInterface*> all_browsers =
+      GetAllBrowserWindowInterfaces();
+  for (auto* browser_window_interface : all_browsers) {
+    TabStripModel* tab_strip = browser_window_interface->GetTabStripModel();
     if (!tab_strip)
       continue;
     for (int i = 0; i < tab_strip->count(); ++i) {
-      auto * contents = tab_strip->GetWebContentsAt(i);
+      auto* contents = tab_strip->GetWebContentsAt(i);
       int tab_id = IdForTab(contents);
       if (tabs.count(tab_id)) {
         tabs.erase(tab_id);
@@ -126,28 +151,26 @@ void RemoveChildren(std::vector<int> parent_tabs) {
 }
 
 struct FoundTab {
-  Browser * browser = nullptr;
-  TabStripModel * tab_strip = nullptr;
-  content::WebContents * contents = nullptr;
+  TabStripModel* tab_strip = nullptr;
+  content::WebContents* contents = nullptr;
   int index = -1;
 
-  void Delete() {
-    tab_strip->DetachAndDeleteWebContentsAt(index);
-  }
+  void Delete() { tab_strip->DetachAndDeleteWebContentsAt(index); }
 };
 
-bool FindTab(int tab_id, FoundTab * result) {
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    TabStripModel *tab_strip = browser->tab_strip_model();
+bool FindTab(int tab_id, FoundTab* result) {
+  std::vector<BrowserWindowInterface*> all_browsers =
+      GetAllBrowserWindowInterfaces();
+  for (auto* browser_window_interface : all_browsers) {
+    TabStripModel* tab_strip = browser_window_interface->GetTabStripModel();
     if (!tab_strip)
       continue;
     for (int i = 0; i < tab_strip->count(); ++i) {
-      auto * contents = tab_strip->GetWebContentsAt(i);
+      auto* contents = tab_strip->GetWebContentsAt(i);
       if (!contents)
         continue;
       if (IdForTab(contents) == tab_id) {
         result->contents = contents;
-        result->browser = browser;
         result->tab_strip = tab_strip;
         result->index = i;
         return true;
@@ -167,7 +190,7 @@ void HandleDetachedTabInternal(int tab_id) {
   }
 }
 
-} // namespace
+}  // namespace
 
 void HandleDetachedTab(int tab_id) {
   if (tab_id == -1)
@@ -205,8 +228,7 @@ void HandleAssociatedTabs(TabStripModel* tab_strip_model,
     auto* remove = change.GetRemove();
     // Collect the tabId's of the removed tabs.
     for (auto& context_with_index : remove->contents) {
-      if (context_with_index.remove_reason !=
-          TabStripModelChange::RemoveReason::kDeleted)
+      if (context_with_index.remove_reason != TabRemovedReason::kDeleted)
         continue;
       // Not deleted, but detached to move...
       // Ignore children tabs.
@@ -226,11 +248,18 @@ void HandleAssociatedTabs(TabStripModel* tab_strip_model,
 }
 
 void AddVivaldiTabItemsToEvent(content::WebContents* contents,
-                               base::Value::Dict& object_args) {
+                               base::DictValue& object_args) {
+  // NOTE(andre@vivaldi.com): If NavigationController::NeedsReload is set this
+  // is a lazy-loaded tab. Report this to the client so we can act the right
+  // way.
+  bool is_lazy_loaded_tab = contents->GetController().NeedsReload();
+  bool is_discarded = extensions::ExtensionTabUtil::IsDiscarded(contents);
+  object_args.Set(kDiscardedKey, is_discarded || is_lazy_loaded_tab);
+
   auto parent_tab_id = ::vivaldi::ParentTabUserData::GetParentTabId(contents);
   if (parent_tab_id) {
     object_args.Set("parentTabId", *parent_tab_id);
   }
 }
 
-} // namespace vivaldi
+}  // namespace vivaldi

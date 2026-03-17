@@ -13,10 +13,13 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.components.download.DownloadDangerType;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.embedder_support.util.UrlUtilities;
+import org.chromium.components.offline_items_collection.FailState;
+import org.chromium.components.offline_items_collection.OfflineItem;
 import org.chromium.components.offline_items_collection.OfflineItemState;
 import org.chromium.components.url_formatter.SchemeDisplay;
 import org.chromium.components.url_formatter.UrlFormatter;
 import org.chromium.url.GURL;
+import org.chromium.url.Origin;
 
 /** A class containing some utility static methods. */
 @NullMarked
@@ -91,6 +94,9 @@ public class DownloadUtils {
      * Adjusts a URL for display to the user in a text view subject to char limits. Could elide
      * parts the URL if it is too long as per readability and security aspects.
      *
+     * <p>This returns null for invalid or non-standard URLs, or if there is no suitable way to
+     * format the URL within the character limit.
+     *
      * @param url The full URL.
      * @param limit Character limit.
      * @return The text to display, or null if the input was invalid or cannot be shortened enough.
@@ -98,6 +104,17 @@ public class DownloadUtils {
     public static @Nullable String formatUrlForDisplayInNotification(
             @Nullable GURL url, int limit) {
         if (GURL.isEmptyOrInvalid(url)) return null;
+
+        // Don't attempt to format and display invalid or non-standard URLs which have opaque
+        // origins. For such URLs (e.g. "data:" scheme URLs), it is not quite meaningful to display
+        // (parts of) the URL in the UI, unlike normal "webby" schemes ("http" and "https") where an
+        // eTLD+1 may be meaningfully extracted from the host part to help the user make a security
+        // decision about the download.
+        // TODO(chlily): Consider exposing url::Origin::Resolve() to JNI and using it to get the
+        // precursor origin to display to the user in cases where the origin itself is opaque.
+        if (Origin.create(url).isOpaque()) {
+            return null;
+        }
 
         String formattedUrl =
                 UrlFormatter.formatUrlForSecurityDisplay(url, SchemeDisplay.OMIT_HTTP_AND_HTTPS);
@@ -108,12 +125,12 @@ public class DownloadUtils {
         // The formatted URL is unsuitable. One possible fallback is eTLD+1, but we should be
         // careful to only parse for eTLD+1 if the origin has a host portion (some URL schemes
         // don't).
-        GURL origin = url.getOrigin();
+        GURL originAsUrl = url.getOrigin();
         String fallback =
-                !GURL.isEmptyOrInvalid(origin) && !origin.getHost().isEmpty()
+                !GURL.isEmptyOrInvalid(originAsUrl) && !originAsUrl.getHost().isEmpty()
                         ? UrlUtilities.getDomainAndRegistry(
-                                origin.getSpec(), /* includePrivateRegistries= */ true)
-                        : origin.getPossiblyInvalidSpec();
+                                originAsUrl.getSpec(), /* includePrivateRegistries= */ true)
+                        : originAsUrl.getPossiblyInvalidSpec();
         if (!TextUtils.isEmpty(fallback) && fallback.length() <= limit) {
             return fallback;
         }
@@ -134,5 +151,12 @@ public class DownloadUtils {
                 dangerType == DownloadDangerType.DANGEROUS_CONTENT
                         || dangerType == DownloadDangerType.POTENTIALLY_UNWANTED;
         return dangerTypeShouldDisplayAsDangerous && state != OfflineItemState.CANCELLED;
+    }
+
+    /** Returns whether a download is blocked due to sensitive content. */
+    public static boolean isBlockedSensitiveDownload(OfflineItem item) {
+        return item.state == OfflineItemState.FAILED
+                && item.failState == FailState.FILE_BLOCKED
+                && item.dangerType == DownloadDangerType.SENSITIVE_CONTENT_BLOCK;
     }
 }

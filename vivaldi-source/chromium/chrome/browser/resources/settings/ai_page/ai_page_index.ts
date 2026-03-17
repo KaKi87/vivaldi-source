@@ -11,7 +11,7 @@ import 'chrome://resources/cr_elements/cr_view_manager/cr_view_manager.js';
 import '/shared/settings/prefs/prefs.js';
 import './ai_info_card.js';
 import './ai_page.js';
-// <if expr="enable_glic">
+// <if expr="enable_glic"> // Vivaldi keep disabled
 import '../glic_page/glic_page.js';
 import '../glic_page/glic_subpage.js';
 
@@ -59,7 +59,7 @@ export class SettingsAiPageIndexElement extends SettingsAiPageIndexElementBase
         value: () => routes,
       },
 
-      // <if expr="enable_glic">
+      // <if expr="enable_glic"> // Vivaldi keep disabled
       showGlicSettings_: {
         type: Boolean,
         value: () => loadTimeData.getBoolean('showGlicSettings'),
@@ -76,11 +76,6 @@ export class SettingsAiPageIndexElement extends SettingsAiPageIndexElementBase
         value: () => loadTimeData.getBoolean('showComposeControl'),
       },
 
-      showCompareControl_: {
-        type: Boolean,
-        value: () => loadTimeData.getBoolean('showCompareControl'),
-      },
-
       showHistorySearchControl_: {
         type: Boolean,
         value: () => loadTimeData.getBoolean('showHistorySearchControl'),
@@ -95,12 +90,11 @@ export class SettingsAiPageIndexElement extends SettingsAiPageIndexElementBase
 
   declare prefs: {[key: string]: any};
   declare private routes_: SettingsRoutes;
-  // <if expr="enable_glic">
+  // <if expr="enable_glic"> // Vivaldi keep disabled
   declare private showGlicSettings_: boolean;
   // </if>
   declare private showAiPageAiFeatureSection_: boolean;
   declare private showComposeControl_: boolean;
-  declare private showCompareControl_: boolean;
   declare private showHistorySearchControl_: boolean;
   declare private showTabOrganizationControl_: boolean;
 
@@ -111,7 +105,7 @@ export class SettingsAiPageIndexElement extends SettingsAiPageIndexElementBase
       defaultViews.push('parent');
     }
 
-    // <if expr="enable_glic">
+    // <if expr="enable_glic"> // Vivaldi keep disabled
     if (this.showGlicSettings_) {
       defaultViews.push('glic');
     }
@@ -151,12 +145,7 @@ export class SettingsAiPageIndexElement extends SettingsAiPageIndexElementBase
           this.$.viewManager.switchView(
               'compose', 'no-animation', 'no-animation');
           break;
-        case routes.COMPARE:
-          assert(this.showCompareControl_);
-          this.$.viewManager.switchView(
-              'compare', 'no-animation', 'no-animation');
-          break;
-        // <if expr="enable_glic">
+        // <if expr="enable_glic"> // Vivaldi keep disabled
         case routes.GEMINI:
           assert(this.showGlicSettings_);
           this.$.viewManager.switchView(

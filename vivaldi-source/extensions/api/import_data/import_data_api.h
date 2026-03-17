@@ -3,9 +3,9 @@
 #ifndef EXTENSIONS_API_IMPORT_DATA_IMPORT_DATA_API_H_
 #define EXTENSIONS_API_IMPORT_DATA_IMPORT_DATA_API_H_
 
+#include <fstream>
 #include <memory>
 #include <string>
-#include <fstream>
 
 #include "base/memory/ref_counted.h"
 #include "chrome/browser/importer/importer_list.h"
@@ -135,22 +135,22 @@ class ImportDataStartImportFunction : public ExtensionFunction {
 };
 
 class ImportDataOpenThunderbirdMailboxFunction : public ExtensionFunction {
-  public:
-   DECLARE_EXTENSION_FUNCTION("importData.openThunderbirdMailbox",
-                              IMPORTDATA_OPENTHUNDERBIRDMAILBOX)
-   ImportDataOpenThunderbirdMailboxFunction() = default;
+ public:
+  DECLARE_EXTENSION_FUNCTION("importData.openThunderbirdMailbox",
+                             IMPORTDATA_OPENTHUNDERBIRDMAILBOX)
+  ImportDataOpenThunderbirdMailboxFunction() = default;
 
-  private:
-   ~ImportDataOpenThunderbirdMailboxFunction() override = default;
+ private:
+  ~ImportDataOpenThunderbirdMailboxFunction() override = default;
 
-   ResponseAction Run() override;
+  ResponseAction Run() override;
 };
 
 class ImportDataCloseThunderbirdMailboxFunction : public ExtensionFunction {
-  public:
-   DECLARE_EXTENSION_FUNCTION("importData.closeThunderbirdMailbox",
-                              IMPORTDATA_CLOSETHUNDERBIRDMAILBOX)
-   ImportDataCloseThunderbirdMailboxFunction() = default;
+ public:
+  DECLARE_EXTENSION_FUNCTION("importData.closeThunderbirdMailbox",
+                             IMPORTDATA_CLOSETHUNDERBIRDMAILBOX)
+  ImportDataCloseThunderbirdMailboxFunction() = default;
 
  private:
   ~ImportDataCloseThunderbirdMailboxFunction() override = default;
@@ -159,16 +159,16 @@ class ImportDataCloseThunderbirdMailboxFunction : public ExtensionFunction {
 };
 
 class ImportDataReadMessageFromThunderbirdMailboxFunction
-  : public ExtensionFunction {
-  public:
-   DECLARE_EXTENSION_FUNCTION("importData.readMessageFromThunderbirdMailbox",
-                              IMPORTDATA_READMESSAGEFROMTHUNDERBIRMAILBOX)
-   ImportDataReadMessageFromThunderbirdMailboxFunction() = default;
+    : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("importData.readMessageFromThunderbirdMailbox",
+                             IMPORTDATA_READMESSAGEFROMTHUNDERBIRMAILBOX)
+  ImportDataReadMessageFromThunderbirdMailboxFunction() = default;
 
-  private:
-   ~ImportDataReadMessageFromThunderbirdMailboxFunction() override = default;
+ private:
+  ~ImportDataReadMessageFromThunderbirdMailboxFunction() override = default;
 
-   ResponseAction Run() override;
+  ResponseAction Run() override;
 };
 
 }  // namespace extensions

@@ -14,15 +14,16 @@ import org.jni_zero.NativeMethods;
 import org.chromium.base.Callback;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.browser.WebSigninTrackerResult;
+import org.chromium.google_apis.gaia.CoreAccountId;
 
 import java.util.Objects;
 
 /**
  * Used by the web sign-in flow to detect when the flow is completed or failed. Every instance of
- * this class should be explicitly destroyed using {@link #destroy()} to correctly release native
- * resources.
+ * this class will be destroyed once the callback is run correctly to release native resources but
+ * the case where where the callback was not invoked {@link #destroy()} must still be explicitly
+ * called.
  */
 @MainThread
 @NullMarked
@@ -36,15 +37,49 @@ public class WebSigninBridge {
          * @param account The primary account account used for the sign-in process.
          * @param callback The callback to be notified about sign-in result.
          */
-        public WebSigninBridge create(
+        public WebSigninBridge createWithCoreAccountId(
                 Profile profile,
-                CoreAccountInfo account,
+                CoreAccountId accountId,
                 Callback<@WebSigninTrackerResult Integer> callback) {
-            return new WebSigninBridge(profile, account, callback);
+            return new WebSigninBridge(profile, accountId, callback);
+        }
+
+        /**
+         * Creates a WebSigninBridge object.
+         *
+         * @param profile The profile to use for the sign-in.
+         * @param email The primary account account email used for the sign-in process.
+         * @param callback The callback to be notified about sign-in result.
+         */
+        public WebSigninBridge createWithEmail(
+                Profile profile, String email, Callback<@WebSigninTrackerResult Integer> callback) {
+            return new WebSigninBridge(profile, email, callback);
         }
     }
 
     private long mNativeWebSigninBridge;
+
+    /**
+     * Notifies the passed {@link Listener} when the sign-in process completes either successfully
+     * or with an error. Successful completion means that the primary account is available in
+     * cookies.
+     *
+     * @param account The primary account account used for the sign-in process.
+     * @param callback The callback to be notified about sign-in result.
+     */
+    private WebSigninBridge(
+            Profile profile,
+            CoreAccountId accountId,
+            Callback<@WebSigninTrackerResult Integer> callback) {
+        Objects.requireNonNull(accountId);
+        Objects.requireNonNull(callback);
+        mNativeWebSigninBridge =
+                WebSigninBridgeJni.get()
+                        .createWithCoreAccountId(
+                                profile, accountId, createDestroyCallback(callback));
+
+        assert mNativeWebSigninBridge != 0 : "Couldn't create native WebSigninBridge object!";
+    }
 
     /**
      * Notifies the passed {@link Listener} when the sign-in process completes either successfully
@@ -55,19 +90,34 @@ public class WebSigninBridge {
      * @param callback The callback to be notified about sign-in result.
      */
     private WebSigninBridge(
-            Profile profile,
-            CoreAccountInfo account,
-            Callback<@WebSigninTrackerResult Integer> callback) {
-        Objects.requireNonNull(account);
+            Profile profile, String email, Callback<@WebSigninTrackerResult Integer> callback) {
+        Objects.requireNonNull(email);
         Objects.requireNonNull(callback);
-        mNativeWebSigninBridge = WebSigninBridgeJni.get().create(profile, account, callback);
+        mNativeWebSigninBridge =
+                WebSigninBridgeJni.get()
+                        .createWithEmail(profile, email, createDestroyCallback(callback));
         assert mNativeWebSigninBridge != 0 : "Couldn't create native WebSigninBridge object!";
+    }
+
+    /**
+     * Creates a wrapped callback that releases the native class and allows it to be correctly
+     * destroyed when the native class returns the WebSigninTrackerResult.
+     */
+    private Callback<@WebSigninTrackerResult Integer> createDestroyCallback(
+            Callback<@WebSigninTrackerResult Integer> callback) {
+        return result -> {
+            callback.onResult(result);
+            destroy();
+        };
     }
 
     /** Releases native resources used by this class. */
     public void destroy() {
-        WebSigninBridgeJni.get().destroy(mNativeWebSigninBridge);
+        if (mNativeWebSigninBridge == 0) return;
+
+        long nativeWebSigninBridge = mNativeWebSigninBridge;
         mNativeWebSigninBridge = 0;
+        WebSigninBridgeJni.get().destroy(nativeWebSigninBridge);
     }
 
     @VisibleForTesting
@@ -80,9 +130,14 @@ public class WebSigninBridge {
 
     @NativeMethods
     interface Natives {
-        long create(
+        long createWithCoreAccountId(
                 @JniType("Profile*") Profile profile,
-                @JniType("CoreAccountInfo") CoreAccountInfo account,
+                @JniType("CoreAccountId") CoreAccountId account,
+                Callback<@WebSigninTrackerResult Integer> callback);
+
+        long createWithEmail(
+                @JniType("Profile*") Profile profile,
+                @JniType("std::string") String email,
                 Callback<@WebSigninTrackerResult Integer> callback);
 
         void destroy(long webSigninBridgePtr);

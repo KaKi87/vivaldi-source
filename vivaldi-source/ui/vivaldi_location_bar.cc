@@ -29,9 +29,13 @@ OmniboxController* VivaldiLocationBar::GetOmniboxController() {
   return nullptr;
 }
 
-content::WebContents* VivaldiLocationBar::GetWebContents() { return nullptr; }
+content::WebContents* VivaldiLocationBar::GetWebContents() {
+  return nullptr;
+}
 
-LocationBarModel* VivaldiLocationBar::GetLocationBarModel() { return nullptr; }
+LocationBarModel* VivaldiLocationBar::GetLocationBarModel() {
+  return nullptr;
+}
 
 std::optional<bubble_anchor_util::AnchorConfiguration>
 VivaldiLocationBar::GetChipAnchor() {
@@ -87,4 +91,48 @@ void VivaldiLocationBar::UpdateContentSettingsIcons() {
       }
     }
   }
+}
+
+ChipController* VivaldiLocationBar::GetChipController() {
+  return nullptr;
+}
+
+ui::TrackedElement* VivaldiLocationBar::GetAnchorOrNull() {
+  return nullptr;
+}
+
+Browser* VivaldiLocationBar::GetBrowser() {
+  return nullptr;
+}
+
+bool VivaldiLocationBar::IsVisible() const {
+  return false;
+}
+
+bool VivaldiLocationBar::IsDrawn() const {
+  return false;
+}
+
+bool VivaldiLocationBar::IsTopLevelFullscreen() const {
+  return false;
+}
+
+bool VivaldiLocationBar::IsEditingOrEmpty() const {
+  return false;
+}
+
+gfx::Rect VivaldiLocationBar::Bounds() const {
+  return {};
+}
+
+gfx::Size VivaldiLocationBar::MinimumSize() const {
+  return {};
+}
+
+gfx::Size VivaldiLocationBar::PreferredSize() const {
+  return {};
+}
+
+bool VivaldiLocationBar::HasSecurityStateChanged() {
+  return false;
 }

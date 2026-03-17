@@ -6,6 +6,7 @@
 
 #import <UIKit/UIKit.h>
 
+#import "base/check.h"
 #import "base/containers/adapters.h"
 #import "base/functional/callback_helpers.h"
 #import "base/metrics/user_metrics.h"
@@ -35,11 +36,21 @@
 FontSizeTabHelper::FontSizeTabHelper(web::WebState* web_state)
     : web_state_(web_state), weak_factory_(this) {
   DCHECK(ios::provider::IsTextZoomEnabled());
-  web_state->AddObserver(this);
+  CHECK(web_state_->IsRealized());
+  web_state_->AddObserver(this);
+  FontSizeJavaScriptFeature* feature = FontSizeJavaScriptFeature::GetInstance();
+  feature->GetWebFramesManager(web_state_)->AddObserver(this);
 
-  if (web_state->IsRealized()) {
-    CreateNotificationObserver();
-  }
+  base::RepeatingCallback<void(NSNotification*)> callback =
+      base::IgnoreArgs<NSNotification*>(
+          base::BindRepeating(&FontSizeTabHelper::OnContentSizeCategoryChanged,
+                              weak_factory_.GetWeakPtr()));
+
+  notification_observer_ = [[NSNotificationCenter defaultCenter]
+      addObserverForName:UIContentSizeCategoryDidChangeNotification
+                  object:nil
+                   queue:nil
+              usingBlock:base::CallbackToBlock(callback)];
 }
 
 FontSizeTabHelper::~FontSizeTabHelper() {}
@@ -193,27 +204,6 @@ void FontSizeTabHelper::DidFinishNavigation(web::WebState* web_state,
   }
 }
 
-void FontSizeTabHelper::WebStateRealized(web::WebState* web_state) {
-  CHECK(!notification_observer_);
-  CreateNotificationObserver();
-}
-
-void FontSizeTabHelper::CreateNotificationObserver() {
-  FontSizeJavaScriptFeature* feature = FontSizeJavaScriptFeature::GetInstance();
-  feature->GetWebFramesManager(web_state_)->AddObserver(this);
-
-  base::RepeatingCallback<void(NSNotification*)> callback =
-      base::IgnoreArgs<NSNotification*>(
-          base::BindRepeating(&FontSizeTabHelper::OnContentSizeCategoryChanged,
-                              weak_factory_.GetWeakPtr()));
-
-  notification_observer_ = [[NSNotificationCenter defaultCenter]
-      addObserverForName:UIContentSizeCategoryDidChangeNotification
-                  object:nil
-                   queue:nil
-              usingBlock:base::CallbackToBlock(callback)];
-}
-
 void FontSizeTabHelper::WebFrameBecameAvailable(
     web::WebFramesManager* web_frames_manager,
     web::WebFrame* web_frame) {
@@ -264,7 +254,7 @@ std::string FontSizeTabHelper::GetUserZoomMultiplierKeyUrlPart() const {
 }
 
 double FontSizeTabHelper::GetCurrentUserZoomMultiplier() const {
-  const base::Value::Dict& pref =
+  const base::DictValue& pref =
       GetPrefService()->GetDict(prefs::kIosUserZoomMultipliers);
 
   if (vivaldi::IsVivaldiRunning()) {

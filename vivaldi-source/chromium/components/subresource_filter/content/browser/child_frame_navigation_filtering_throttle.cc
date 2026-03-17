@@ -4,76 +4,47 @@
 
 #include "components/subresource_filter/content/browser/child_frame_navigation_filtering_throttle.h"
 
+#include <optional>
 #include <sstream>
+#include <utility>
 
+#include "base/check.h"
 #include "base/check_op.h"
 #include "base/debug/alias.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/stringprintf.h"
-#include "components/subresource_filter/content/browser/content_subresource_filter_web_contents_helper.h"
-#include "components/subresource_filter/content/browser/subresource_filter_observer_manager.h"
-#include "components/subresource_filter/content/common/subresource_filter_utils.h"
+#include "components/subresource_filter/content/browser/utils.h"
 #include "components/subresource_filter/core/browser/subresource_filter_constants.h"
 #include "components/subresource_filter/core/common/common_features.h"
 #include "components/subresource_filter/core/common/time_measurements.h"
 #include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/navigation_handle.h"
+#include "content/public/browser/page.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "third_party/blink/public/mojom/devtools/console_message.mojom.h"
 
-namespace features {
-
-// Enables or disables performing SubresourceFilter checks from the Browser
-// against any aliases for the requested URL found from DNS CNAME records.
-BASE_FEATURE(kSendCnameAliasesToSubresourceFilterFromBrowser,
-             "SendCnameAliasesToSubresourceFilterFromBrowser",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-}  // namespace features
-
 namespace subresource_filter {
 
 ChildFrameNavigationFilteringThrottle::ChildFrameNavigationFilteringThrottle(
-    content::NavigationHandle* handle,
+    content::NavigationThrottleRegistry& registry,
     AsyncDocumentSubresourceFilter* parent_frame_filter,
-    blink::FrameAdEvidence ad_evidence)
-    : content::NavigationThrottle(handle),
+    bool alias_check_enabled,
+    base::RepeatingCallback<std::string(const GURL& url)>
+        disallow_message_callback)
+    : content::NavigationThrottle(registry),
       parent_frame_filter_(parent_frame_filter),
-      alias_check_enabled_(base::FeatureList::IsEnabled(
-          ::features::kSendCnameAliasesToSubresourceFilterFromBrowser)),
-      ad_evidence_(std::move(ad_evidence)) {
-  DCHECK(!IsInSubresourceFilterRoot(handle));
-  DCHECK(parent_frame_filter_);
-  // Complete the ad evidence as it will be used to make best-effort tagging
-  // decisions by request time for ongoing subframe navs.
-  ad_evidence_.set_is_complete();
+      alias_check_enabled_(alias_check_enabled),
+      disallow_message_callback_(std::move(disallow_message_callback)) {
+  CHECK(!IsInSubresourceFilterRoot(&registry.GetNavigationHandle()));
+  CHECK(parent_frame_filter_);
 }
 
 ChildFrameNavigationFilteringThrottle::
-    ~ChildFrameNavigationFilteringThrottle() {
-  switch (load_policy_) {
-    case LoadPolicy::EXPLICITLY_ALLOW:
-      [[fallthrough]];
-    case LoadPolicy::ALLOW:
-      UMA_HISTOGRAM_CUSTOM_MICRO_TIMES(
-          "SubresourceFilter.DocumentLoad.SubframeFilteringDelay.Allowed",
-          total_defer_time_, base::Microseconds(1), base::Seconds(10), 50);
-      break;
-    case LoadPolicy::WOULD_DISALLOW:
-      UMA_HISTOGRAM_CUSTOM_MICRO_TIMES(
-          "SubresourceFilter.DocumentLoad.SubframeFilteringDelay.WouldDisallow",
-          total_defer_time_, base::Microseconds(1), base::Seconds(10), 50);
-      break;
-    case LoadPolicy::DISALLOW:
-      UMA_HISTOGRAM_CUSTOM_MICRO_TIMES(
-          "SubresourceFilter.DocumentLoad.SubframeFilteringDelay.Disallowed2",
-          total_defer_time_, base::Microseconds(1), base::Seconds(10), 50);
-      break;
-  }
-}
+    ~ChildFrameNavigationFilteringThrottle() = default;
 
 content::NavigationThrottle::ThrottleCheckResult
 ChildFrameNavigationFilteringThrottle::WillStartRequest() {
@@ -87,14 +58,14 @@ ChildFrameNavigationFilteringThrottle::WillRedirectRequest() {
 
 content::NavigationThrottle::ThrottleCheckResult
 ChildFrameNavigationFilteringThrottle::WillProcessResponse() {
-  DCHECK_NE(load_policy_, LoadPolicy::DISALLOW);
+  CHECK_NE(load_policy_, LoadPolicy::DISALLOW);
 
   if (alias_check_enabled_) {
     std::vector<GURL> alias_urls;
     const GURL& base_url = navigation_handle()->GetURL();
 
     for (const auto& alias : navigation_handle()->GetDnsAliases()) {
-      if (alias == navigation_handle()->GetURL().host_piece()) {
+      if (alias == navigation_handle()->GetURL().host()) {
         continue;
       }
 
@@ -122,9 +93,9 @@ ChildFrameNavigationFilteringThrottle::WillProcessResponse() {
   // and there are outstanding load policy calculations, we are either in dry
   // run mode or checking aliases.
   if (pending_load_policy_calculations_ > 0) {
-    DCHECK(parent_frame_filter_->activation_state().activation_level ==
-               mojom::ActivationLevel::kDryRun ||
-           navigation_handle()->GetDnsAliases().size() > 0);
+    CHECK(parent_frame_filter_->activation_state().activation_level ==
+              mojom::ActivationLevel::kDryRun ||
+          navigation_handle()->GetDnsAliases().size() > 0);
     DeferStart(DeferStage::kWillProcessResponse);
     return DEFER;
   }
@@ -133,15 +104,11 @@ ChildFrameNavigationFilteringThrottle::WillProcessResponse() {
   return PROCEED;
 }
 
-const char* ChildFrameNavigationFilteringThrottle::GetNameForLogging() {
-  return "ChildFrameNavigationFilteringThrottle";
-}
-
 void ChildFrameNavigationFilteringThrottle::HandleDisallowedLoad() {
   if (parent_frame_filter_->activation_state().enable_logging) {
-    std::string console_message = base::StringPrintf(
-        kDisallowChildFrameConsoleMessageFormat,
-        navigation_handle()->GetURL().possibly_invalid_spec().c_str());
+    std::string console_message =
+        disallow_message_callback_.Run(navigation_handle()->GetURL());
+
     // Use the parent's Page to log a message to the console so that if this
     // frame is the root of a nested frame tree (e.g. fenced frame), the log
     // message won't be associated with a to-be-destroyed Page.
@@ -158,7 +125,7 @@ void ChildFrameNavigationFilteringThrottle::HandleDisallowedLoad() {
 
 content::NavigationThrottle::ThrottleCheckResult
 ChildFrameNavigationFilteringThrottle::MaybeDeferToCalculateLoadPolicy() {
-  DCHECK_NE(load_policy_, LoadPolicy::DISALLOW);
+  CHECK_NE(load_policy_, LoadPolicy::DISALLOW);
   if (load_policy_ == LoadPolicy::WOULD_DISALLOW) {
     return PROCEED;
   }
@@ -167,22 +134,10 @@ ChildFrameNavigationFilteringThrottle::MaybeDeferToCalculateLoadPolicy() {
   parent_frame_filter_->GetLoadPolicyForSubdocument(
       navigation_handle()->GetURL(),
       base::BindOnce(
-          &ChildFrameNavigationFilteringThrottle::OnCalculatedLoadPolicy,
+          &ChildFrameNavigationFilteringThrottle::OnCalculatedLoadPolicyForUrl,
           weak_ptr_factory_.GetWeakPtr()));
 
-  // If the embedder document has activation enabled, we calculate frame load
-  // policy before proceeding with navigation as filtered navigations are not
-  // allowed to get a response. As a result, we must defer while
-  // we wait for the ruleset check to complete and pass handling the navigation
-  // decision to the callback.
-  //
-  // If `kTPCDAdHeuristicSubframeRequestTagging`, we always need to defer
-  // navigation start to ensure we have the load policy calculated in order
-  // to properly tag the navigation handle as an ad before it goes to the
-  // network.
-  if (parent_frame_filter_->activation_state().activation_level ==
-          mojom::ActivationLevel::kEnabled ||
-      base::FeatureList::IsEnabled(kTPCDAdHeuristicSubframeRequestTagging)) {
+  if (ShouldDeferNavigation()) {
     DeferStart(DeferStage::kWillStartOrRedirectRequest);
     return DEFER;
   }
@@ -193,7 +148,7 @@ ChildFrameNavigationFilteringThrottle::MaybeDeferToCalculateLoadPolicy() {
 
 void ChildFrameNavigationFilteringThrottle::OnCalculatedLoadPolicy(
     LoadPolicy policy) {
-  // TODO(https://crbug.com/1046806): Modify this call in cases where the new
+  // TODO(https://crbug.com/40116607): Modify this call in cases where the new
   // |policy| matches an explicitly allowed rule, rather than using the most
   // restrictive policy for the redirect chain.
   load_policy_ = MoreRestrictiveLoadPolicy(policy, load_policy_);
@@ -204,8 +159,8 @@ void ChildFrameNavigationFilteringThrottle::OnCalculatedLoadPolicy(
     return;
   }
 
-  DCHECK(defer_stage_ == DeferStage::kWillProcessResponse ||
-         defer_stage_ == DeferStage::kWillStartOrRedirectRequest);
+  CHECK(defer_stage_ == DeferStage::kWillProcessResponse ||
+        defer_stage_ == DeferStage::kWillStartOrRedirectRequest);
 
   // If we have an activation enabled and `load_policy_` is DISALLOW, we need
   // to cancel the navigation.
@@ -221,56 +176,56 @@ void ChildFrameNavigationFilteringThrottle::OnCalculatedLoadPolicy(
     return;
   }
 
-  if (defer_stage_ == DeferStage::kWillStartOrRedirectRequest) {
-    // Tag the navigation handle based on the current load policy + evidence
-    // before the request starts.
-    ad_evidence_.UpdateFilterListResult(
-        InterpretLoadPolicyAsEvidence(load_policy_));
-    if (ad_evidence_.IndicatesAdFrame()) {
-      navigation_handle()->SetIsAdTagged();
-    }
-  }
-
+  OnReadyToResumeNavigationWithLoadPolicy();
   ResumeNavigation();
+}
+
+void ChildFrameNavigationFilteringThrottle::OnCalculatedLoadPolicyForUrl(
+    LoadPolicy policy) {
+  if (policy != load_policy_ &&
+      policy == MoreRestrictiveLoadPolicy(policy, load_policy_)) {
+    // Child frame's hostname check determined the load policy.
+    did_alias_check_determine_load_policy_ = false;
+  }
+  OnCalculatedLoadPolicy(policy);
 }
 
 void ChildFrameNavigationFilteringThrottle::
     OnCalculatedLoadPoliciesFromAliasUrls(std::vector<LoadPolicy> policies) {
   // We deferred to check aliases in WillProcessResponse.
-  DCHECK(defer_stage_ == DeferStage::kWillProcessResponse);
-  DCHECK(!policies.empty());
+  CHECK(defer_stage_ == DeferStage::kWillProcessResponse);
+  CHECK(alias_check_enabled_);
+  CHECK(!policies.empty());
 
-  LoadPolicy most_restricive_alias_policy = LoadPolicy::EXPLICITLY_ALLOW;
+  did_alias_check_ = true;
+
+  LoadPolicy most_restrictive_alias_policy = LoadPolicy::EXPLICITLY_ALLOW;
 
   for (LoadPolicy policy : policies) {
-    most_restricive_alias_policy =
-        MoreRestrictiveLoadPolicy(most_restricive_alias_policy, policy);
+    most_restrictive_alias_policy =
+        MoreRestrictiveLoadPolicy(most_restrictive_alias_policy, policy);
   }
 
-  OnCalculatedLoadPolicy(most_restricive_alias_policy);
+  if (most_restrictive_alias_policy != load_policy_ &&
+      most_restrictive_alias_policy ==
+          MoreRestrictiveLoadPolicy(most_restrictive_alias_policy,
+                                    load_policy_)) {
+    did_alias_check_determine_load_policy_ = true;
+  }
+
+  OnCalculatedLoadPolicy(most_restrictive_alias_policy);
 }
 
 void ChildFrameNavigationFilteringThrottle::DeferStart(DeferStage stage) {
-  DCHECK(defer_stage_ == DeferStage::kNotDeferring);
-  DCHECK(stage != DeferStage::kNotDeferring);
+  CHECK(defer_stage_ == DeferStage::kNotDeferring);
+  CHECK(stage != DeferStage::kNotDeferring);
   defer_stage_ = stage;
   last_defer_timestamp_ = base::TimeTicks::Now();
 }
 
-void ChildFrameNavigationFilteringThrottle::NotifyLoadPolicy() const {
-  auto* observer_manager = SubresourceFilterObserverManager::FromWebContents(
-      navigation_handle()->GetWebContents());
-  if (!observer_manager) {
-    return;
-  }
-
-  observer_manager->NotifyChildFrameNavigationEvaluated(navigation_handle(),
-                                                        load_policy_);
-}
-
 void ChildFrameNavigationFilteringThrottle::UpdateDeferInfo() {
-  DCHECK(defer_stage_ != DeferStage::kNotDeferring);
-  DCHECK(!last_defer_timestamp_.is_null());
+  CHECK(defer_stage_ != DeferStage::kNotDeferring);
+  CHECK(!last_defer_timestamp_.is_null());
   total_defer_time_ += base::TimeTicks::Now() - last_defer_timestamp_;
   defer_stage_ = DeferStage::kNotDeferring;
 }

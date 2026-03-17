@@ -38,8 +38,8 @@ class RuleParser {
 
   std::optional<Result> ParseContentInjectionRule(std::string_view rule_string,
                                                   size_t first_sseparator);
-  bool ParseCosmeticRule(std::string_view body,
-                         ContentInjectionRuleCore rule_core);
+  Result ParseCosmeticRule(std::string_view body,
+                           ContentInjectionRuleCore rule_core);
   bool ParseScriptletInjectionRule(std::string_view body,
                                    ContentInjectionRuleCore rule_core);
   Result ParseRequestFilterRule(std::string_view rule_string,

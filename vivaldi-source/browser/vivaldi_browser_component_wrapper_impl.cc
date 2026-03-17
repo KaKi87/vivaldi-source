@@ -38,18 +38,20 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/performance_controls/tab_resource_usage_collector.h"
 #include "chrome/browser/ui/performance_controls/tab_resource_usage_tab_helper.h"
 #include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/tab_helpers.h"
 #include "chrome/browser/ui/tab_modal_confirm_dialog.h"
-#include "chrome/browser/ui/tabs/tab_muted_utils.h"
-#include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert.h"
+#include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
+#include "chrome/browser/ui/tabs/tab_muted_utils.h"
 #include "chrome/browser/ui/tabs/tab_utils.h"
 #include "chrome/browser/ui/views/eye_dropper/eye_dropper.h"
 #include "chrome/browser/ui/views/tab_dialogs_views.h"
@@ -83,6 +85,7 @@
 #include "content/public/browser/render_frame_host.h"
 
 #include "extensions/api/tabs/tabs_private_api.h"
+#include "extensions/api/window/window_private_api.h"
 #include "extensions/browser/extension_action.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/guest_view/web_view/web_view_guest.h"
@@ -124,7 +127,31 @@
 /*static*/ VivaldiBrowserComponentWrapperImpl* wrapper_impl_ = nullptr;
 
 // Helpers
+namespace extensions {
+namespace vivaldi {
+VivaldiBrowserWindow::WindowType ConvertFromJSToVivaldiBrowserWindowType(
+    window_private::WindowType type) {
+  using window_private::WindowType;
 
+  switch (type) {
+    case WindowType::kNormal:
+      return VivaldiBrowserWindow::WindowType::NORMAL;
+    case WindowType::kPopup:
+      return VivaldiBrowserWindow::WindowType::POPUP;
+    case WindowType::kSettings:
+      return VivaldiBrowserWindow::WindowType::SETTINGS;
+    case WindowType::kMailComposer:
+      return VivaldiBrowserWindow::WindowType::MAIL_COMPOSER;
+    case WindowType::kDevtools:
+      return VivaldiBrowserWindow::WindowType::DEVTOOLS;
+    case WindowType::kNone:
+      break;
+      // fallthrough
+  }
+  NOTREACHED();
+}
+}  // namespace vivaldi
+}  // namespace extensions
 namespace {
 
 void SetAllowRunningInsecureContent(content::RenderFrameHost* frame) {
@@ -176,7 +203,7 @@ void VivaldiBrowserComponentWrapperImpl::AddContentSettingChangeObserver(
 void VivaldiBrowserComponentWrapperImpl::RemoveContentSettingChangeObserver(
     content::BrowserContext* context,
     ContentSettingChangedBridge::Observer* observer) {
-  ContentSettingChangedBridgeImpl *observerimpl =
+  ContentSettingChangedBridgeImpl* observerimpl =
       profile_content_bridge_impl_[context];
 
   CHECK(observerimpl);
@@ -228,7 +255,7 @@ void VivaldiBrowserComponentWrapperImpl::
     RemoveExtensionActionDispatcherObserver(
         content::BrowserContext* context,
         ExtensionActionDispatcherBridge::Observer* observer) {
-  ExtensionActionDispatcherBridgeImpl *observerimpl =
+  ExtensionActionDispatcherBridgeImpl* observerimpl =
       extension_action_dispatcher_bridge_impl_[context];
 
   CHECK(observerimpl);
@@ -256,40 +283,41 @@ void ExtensionActionDispatcherBridgeImpl::OnExtensionActionUpdated(
 // External methods below.
 
 int VivaldiBrowserComponentWrapperImpl::BrowserListGetCount() {
-  return BrowserList::GetInstance()->size();
+  std::vector<BrowserWindowInterface*> all_browsers =
+      GetAllBrowserWindowInterfaces();
+  return all_browsers.size();
 }
 
-bool VivaldiBrowserComponentWrapperImpl::BrowserListHasActive() {
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->window() && browser->window()->IsActive()) {
-      return true;
-    }
-  }
-  return false;
+bool VivaldiBrowserComponentWrapperImpl::BrowserListHasActive(
+    Profile* profile) {
+  bool hasActiveWindow = false;
+  ForEachCurrentAndNewBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->GetProfile() != profile) {
+          return true;  // continue iterating
+        }
+        if (browser->GetWindow() && browser->GetWindow()->IsActive()) {
+          hasActiveWindow = true;
+          return false;  // stop iterating
+        }
+        return true;  // continue iterating
+      });
+  return hasActiveWindow;
 }
 
 void VivaldiBrowserComponentWrapperImpl::BrowserListInitVivaldiCommandState() {
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    chrome::BrowserCommandController* command_controller =
-        browser->command_controller();
-    command_controller->InitVivaldiCommandState();
-  }
+  ForEachCurrentAndNewBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser_window_interface) {
+        browser_window_interface->GetFeatures()
+            .browser_command_controller()
+            ->InitVivaldiCommandState();
+        return true;  // continue iterating
+      });
 }
 
 Browser* VivaldiBrowserComponentWrapperImpl::FindBrowserWithTab(
     content::WebContents* tab) {
   return chrome::FindBrowserWithTab(tab);
-}
-
-Browser* VivaldiBrowserComponentWrapperImpl::FindBrowserWithWindowId(
-    int window_id) {
-  BrowserList* list = BrowserList::GetInstance();
-  for (auto it: *list) {
-    if (it->session_id().id() == window_id) {
-      return it;
-    }
-  }
-  return nullptr;
 }
 
 Browser* VivaldiBrowserComponentWrapperImpl::FindLastActiveBrowserWithProfile(
@@ -521,7 +549,7 @@ int VivaldiBrowserComponentWrapperImpl::GetContentSetting(
   Profile* source_profile =
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
   return HostContentSettingsMapFactory::GetForProfile(source_profile)
-             ->GetContentSetting(primary_url, secondary_url, content_type);
+      ->GetContentSetting(primary_url, secondary_url, content_type);
 }
 
 void VivaldiBrowserComponentWrapperImpl::SetContentSettingCustomScope(
@@ -642,22 +670,24 @@ content::WebContents* VivaldiBrowserComponentWrapperImpl::GetFollowerTab(
 
 Browser* VivaldiBrowserComponentWrapperImpl::GetWorkspaceBrowser(
     const double workspace_id) {
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser == nullptr) {
-      continue;
-    }
-    TabStripModel* tab_strip = browser->tab_strip_model();
-    for (int i = 0; i < tab_strip->count(); ++i) {
-      content::WebContents* web_contents = tab_strip->GetWebContentsAt(i);
-      auto tabWorkspaceId =
-          ::vivaldi::GetTabWorkspaceId(web_contents->GetVivExtData());
-      if (tabWorkspaceId.has_value() &&
-          workspace_id == tabWorkspaceId.value()) {
-        return browser;
-      }
-    }
-  }
-  return nullptr;
+  Browser* browser = nullptr;
+  ForEachCurrentAndNewBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser_interface) {
+        TabStripModel* tab_strip = browser_interface->GetTabStripModel();
+        for (int i = 0; i < tab_strip->count(); ++i) {
+          content::WebContents* web_contents = tab_strip->GetWebContentsAt(i);
+          auto tabWorkspaceId =
+              ::vivaldi::GetTabWorkspaceId(web_contents->GetVivExtData());
+          if (tabWorkspaceId.has_value() &&
+              workspace_id == tabWorkspaceId.value()) {
+            browser =
+                chrome::FindBrowserWithID(browser_interface->GetSessionID());
+            return false;  // stop iterating
+          }
+        }
+        return true;  // continue iterating
+      });
+  return browser;
 }
 
 int VivaldiBrowserComponentWrapperImpl::CountTabsInWorkspace(
@@ -701,7 +731,6 @@ int VivaldiBrowserComponentWrapperImpl::WindowPrivateCreate(
     const std::string& viv_ext_data,
     const std::string& tab_url,
     base::OnceCallback<void(VivaldiBrowserWindow* window)> callback) {
-
   VivaldiBrowserWindow* window = nullptr;
   if (!window_key.empty()) {
     window = vivaldi::WindowRegistryService::Get(profile)->GetNamedWindow(
@@ -711,32 +740,37 @@ int VivaldiBrowserComponentWrapperImpl::WindowPrivateCreate(
       window->Activate();
       return window->id();
     }
-
   }
 
   window = new VivaldiBrowserWindow();
 
-  Browser::Type window_type = Browser::TYPE_NORMAL;
+  Browser::Type browser_type = Browser::TYPE_NORMAL;
   // Popup and settingswindow should open as popup and not stored in session.
   if (param_window_type ==
           extensions::vivaldi::window_private::WindowType::kPopup ||
       param_window_type ==
-          extensions::vivaldi::window_private::WindowType::kSettings) {
-    window_type = Browser::TYPE_POPUP;
+          extensions::vivaldi::window_private::WindowType::kSettings ||
+      param_window_type ==
+          extensions::vivaldi::window_private::WindowType::kMailComposer) {
+    browser_type = Browser::TYPE_POPUP;
   } else if (param_window_type ==
              extensions::vivaldi::window_private::WindowType::kDevtools) {
-    window_type = Browser::TYPE_DEVTOOLS;
+    browser_type = Browser::TYPE_DEVTOOLS;
   }
 
-
+  // This is important as Browser calls session_service->WindowOpened(), and the
+  // type from extdata is not set until CreateWebContents.
+  window->SetWindowType(
+      extensions::vivaldi::ConvertFromJSToVivaldiBrowserWindowType(
+          param_window_type));
   Browser* browser;
-  if (window_type == Browser::TYPE_DEVTOOLS) {
+  if (browser_type == Browser::TYPE_DEVTOOLS) {
     Browser::CreateParams create_params =
         Browser::CreateParams::CreateForDevToolsForVivaldi(profile);
     create_params.window = window;
     browser = Browser::Create(create_params);
   } else {
-    Browser::CreateParams create_params(window_type, profile, true);
+    Browser::CreateParams create_params(browser_type, profile, true);
     create_params.is_vivaldi = true;
     create_params.viv_ext_data = viv_ext_data;
 #if BUILDFLAG(IS_WIN)
@@ -777,24 +811,36 @@ Browser* VivaldiBrowserComponentWrapperImpl::FindBrowserByWindowId(
   return ::vivaldi::FindBrowserByWindowId(window_id);
 }
 
+BrowserWindowInterface*
+VivaldiBrowserComponentWrapperImpl::FindBrowserWindowInterfaceByWindowId(
+    int32_t window_id) {
+  return chrome::FindBrowserWithID(SessionID::FromSerializedValue(window_id));
+}
+
 content::WebContents*
 VivaldiBrowserComponentWrapperImpl::FindActiveTabContentsInThisProfile(
     content::BrowserContext* context) {
   Profile* profile = Profile::FromBrowserContext(context);
-  BrowserList* browser_list = BrowserList::GetInstance();
-  for (auto browser_iterator : *browser_list) {
-    Browser* browser = browser_iterator;
-    // TODO: Make this into an utility-method.
-    bool is_vivaldi_settings =
-        (browser->is_vivaldi() &&
-         static_cast<VivaldiBrowserWindow*>(browser->window())->type() ==
-             VivaldiBrowserWindow::WindowType::SETTINGS);
-    if (browser->profile()->GetOriginalProfile() == profile &&
-        !is_vivaldi_settings) {
-      return browser->tab_strip_model()->GetActiveWebContents();
-    }
-  }
-  return nullptr;
+  content::WebContents* web_contents = nullptr;
+  ForEachCurrentAndNewBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->GetProfile() != profile) {
+          return true;  // continue iterating
+        }
+
+        bool is_vivaldi_settings =
+            (browser->is_vivaldi() &&
+             static_cast<VivaldiBrowserWindow*>(browser->GetWindow())
+                     ->window_type() ==
+                 VivaldiBrowserWindow::WindowType::SETTINGS);
+
+        if (!is_vivaldi_settings) {
+          web_contents = browser->GetTabStripModel()->GetActiveWebContents();
+          return false;  // stop iterating
+        }
+        return true;  // continue iterating
+      });
+  return web_contents;
 }
 
 void VivaldiBrowserComponentWrapperImpl::UpdateMuting(
@@ -810,36 +856,41 @@ void VivaldiBrowserComponentWrapperImpl::UpdateMuting(
   Profile* active_profile =
       Profile::FromBrowserContext(active_web_contents->GetBrowserContext());
 
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->profile()->GetOriginalProfile() == active_profile) {
-      for (int i = 0, tab_count = browser->tab_strip_model()->count();
-           i < tab_count; ++i) {
-        content::WebContents* tab =
-            browser->tab_strip_model()->GetWebContentsAt(i);
-
-        GURL url = tab->GetLastCommittedURL();
-        const raw_ptr<HostContentSettingsMap> host_content_settings_map =
-            HostContentSettingsMapFactory::GetForProfile(active_profile);
-
-        bool contentsetting_says_mute =
-            host_content_settings_map->GetContentSetting(
-                url, url, ContentSettingsType::SOUND) == CONTENT_SETTING_BLOCK;
-
-        if (!contentsetting_says_mute && !::vivaldi::IsTabMuted(tab)) {
-          bool is_active = (tab == active_web_contents);
-          bool mute = (mute_rule != vivaldiprefs::TabsAutoMutingValues::kOff);
-          if (mute_rule == vivaldiprefs::TabsAutoMutingValues::kOnlyactive) {
-            mute = !is_active;
-          } else if (mute_rule ==
-                     vivaldiprefs::TabsAutoMutingValues::kPrioritizeactive) {
-            // Only unmute background tabs if the active is not audible.
-            mute = (active_is_audible && !is_active);
-          }
-          tab->SetAudioMuted(mute);
+  ForEachCurrentAndNewBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->GetProfile() != active_profile) {
+          return true;  // continue iterating
         }
-      }
-    }
-  }
+
+        for (int i = 0, tab_count = browser->GetTabStripModel()->count();
+             i < tab_count; ++i) {
+          content::WebContents* tab =
+              browser->GetTabStripModel()->GetWebContentsAt(i);
+
+          GURL url = tab->GetLastCommittedURL();
+          const raw_ptr<HostContentSettingsMap> host_content_settings_map =
+              HostContentSettingsMapFactory::GetForProfile(active_profile);
+
+          bool contentsetting_says_mute =
+              host_content_settings_map->GetContentSetting(
+                  url, url, ContentSettingsType::SOUND) ==
+              CONTENT_SETTING_BLOCK;
+
+          if (!contentsetting_says_mute && !::vivaldi::IsTabMuted(tab)) {
+            bool is_active = (tab == active_web_contents);
+            bool mute = (mute_rule != vivaldiprefs::TabsAutoMutingValues::kOff);
+            if (mute_rule == vivaldiprefs::TabsAutoMutingValues::kOnlyactive) {
+              mute = !is_active;
+            } else if (mute_rule ==
+                       vivaldiprefs::TabsAutoMutingValues::kPrioritizeactive) {
+              // Only unmute background tabs if the active is not audible.
+              mute = (active_is_audible && !is_active);
+            }
+            tab->SetAudioMuted(mute);
+          }
+        }
+        return true;  // continue iterating
+      });
 }
 
 int VivaldiBrowserComponentWrapperImpl::GetTabId(

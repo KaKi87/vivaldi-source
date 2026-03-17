@@ -123,12 +123,12 @@ constexpr CGFloat kTintCornerRadius = 6.0f;
       @(Code),
     ]],
     [self getButtonGroup:@[
-      @(Heading1),  // block type
-      @(Heading2),  // block type
-      @(Heading3),  // block type
-      @(Heading4),  // block type
-      @(Paragraph), // block type
-      @(CodeBlock), // block type
+      @(Heading1),   // block type
+      @(Heading2),   // block type
+      @(Heading3),   // block type
+      @(Heading4),   // block type
+      @(Paragraph),  // block type
+      @(CodeBlock),  // block type
     ]],
     [self getButtonGroup:@[
       @(OrderedList),
@@ -161,7 +161,7 @@ constexpr CGFloat kTintCornerRadius = 6.0f;
       fillSuperviewToSafeAreaInsetWithPadding:UIEdgeInsetsMake(
                                                   kDefaultPadding,
                                                   kDefaultPadding,
-                                                  kDefaultPadding/2,
+                                                  kDefaultPadding / 2,
                                                   kDefaultPadding)];
   [containerView addSubview:keysLayout];
 
@@ -171,8 +171,7 @@ constexpr CGFloat kTintCornerRadius = 6.0f;
         constraintEqualToAnchor:containerView.leadingAnchor],
     [keysLayout.bottomAnchor
         constraintEqualToAnchor:containerView.bottomAnchor],
-    [keysLayout.widthAnchor
-        constraintEqualToAnchor:containerView.widthAnchor]
+    [keysLayout.widthAnchor constraintEqualToAnchor:containerView.widthAnchor]
   ]];
 }
 
@@ -187,13 +186,13 @@ constexpr CGFloat kTintCornerRadius = 6.0f;
     [self getButtonGroup:@[
       @(Heading1),  // block type
       @(Heading2),  // block type
-      @(Heading3),   // block type
-      @(Heading4),   // block type
+      @(Heading3),  // block type
+      @(Heading4),  // block type
     ]],
     [self getButtonGroup:@[
       @(Subscript),
       @(Superscript),
-      @(Paragraph), // block type
+      @(Paragraph),  // block type
       @(Code),
     ]],
     [self getButtonGroup:@[
@@ -208,17 +207,17 @@ constexpr CGFloat kTintCornerRadius = 6.0f;
     [self getButtonGroup:@[
       @(Image),
       @(Link),
-      @(CodeBlock),    // block type
+      @(CodeBlock),  // block type
       @(BlankSpace),
     ]],
     [self getButtonGroup:@[
-      @(BlankSpace), // Blank row
+      @(BlankSpace),  // Blank row
     ]],
     [self getButtonGroup:@[
-      @(BlankSpace), // Blank row
+      @(BlankSpace),  // Blank row
     ]],
     [self getButtonGroup:@[
-      @(BlankSpace), // Blank row
+      @(BlankSpace),  // Blank row
     ]],
   ];
 
@@ -247,7 +246,7 @@ constexpr CGFloat kTintCornerRadius = 6.0f;
       fillSuperviewToSafeAreaInsetWithPadding:UIEdgeInsetsMake(
                                                   kDefaultPadding,
                                                   kDefaultPadding,
-                                                  kDefaultPadding/2,
+                                                  kDefaultPadding / 2,
                                                   kDefaultPadding)];
 
   UIView* containerView = [[UIView alloc] init];

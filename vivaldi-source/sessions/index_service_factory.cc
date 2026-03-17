@@ -8,8 +8,8 @@
 
 #include "sessions/index_service_factory.h"
 
-#include "base/task/deferred_sequenced_task_runner.h"
 #include "base/memory/singleton.h"
+#include "base/task/deferred_sequenced_task_runner.h"
 #include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
@@ -20,8 +20,8 @@ namespace sessions {
 
 IndexServiceFactory::IndexServiceFactory()
     : BrowserContextKeyedServiceFactory(
-        "IndexService",
-        BrowserContextDependencyManager::GetInstance()) {}
+          "IndexService",
+          BrowserContextDependencyManager::GetInstance()) {}
 
 IndexServiceFactory::~IndexServiceFactory() {}
 
@@ -58,8 +58,7 @@ content::BrowserContext* IndexServiceFactory::GetBrowserContextToUse(
 std::unique_ptr<KeyedService>
 IndexServiceFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
-  std::unique_ptr<Index_Model> service(
-      new Index_Model(context));
+  std::unique_ptr<Index_Model> service(new Index_Model(context));
   // We do not load the model data here. That happens from the api when the
   // first request arrives.
   return service;

@@ -437,6 +437,10 @@ TEST_P(QueueWriteTextureTests, VaryingTextureSize) {
 
 // Test uploading a large amount of data with writeTexture.
 TEST_P(QueueWriteTextureTests, LargeWriteTexture) {
+    // TODO(crbug.com/473870505): [Capture] support depth/stencil and multi-planar textures.
+    DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled() &&
+                          utils::IsDepthOrStencilFormat(GetParam().mTextureFormat));
+
     TextureSpec textureSpec;
     textureSpec.textureSize = {2048, 2048, 2};
     textureSpec.copyOrigin = {0, 0, 0};
@@ -630,6 +634,8 @@ TEST_P(QueueWriteTextureTests, VaryingBytesPerRow) {
 // Test with bytesPerRow greater than needed for cube textures.
 // Made for testing compat behavior.
 TEST_P(QueueWriteTextureTests, VaryingBytesPerRowCube) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     auto format = GetParam().mTextureFormat;
     // TODO(crbug.com/dawn/2295): diagnose this failure on Pixel 4 OpenGLES
     DAWN_SUPPRESS_TEST_IF(IsOpenGLES() && IsAndroid() && IsQualcomm());
@@ -855,6 +861,9 @@ TEST_P(QueueWriteTextureSimpleTests, WriteStencilAspectWithSourceOffsetUnaligned
     // TODO(crbug.com/dawn/2095): Failing on ANGLE + SwiftShader, needs investigation.
     DAWN_SUPPRESS_TEST_IF(IsANGLESwiftShader());
 
+    // TODO(crbug.com/473870505): [Capture] support depth/stencil and multi-planar textures.
+    DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
+
     wgpu::TextureDescriptor textureDescriptor;
     textureDescriptor.format = wgpu::TextureFormat::Depth24PlusStencil8;
     textureDescriptor.usage = wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::CopyDst;
@@ -924,6 +933,9 @@ TEST_P(QueueWriteTextureSimpleTests, WriteStencilAspectWithSourceOffsetUnaligned
 // another texture always works. On some D3D12 backends the buffer offset of buffer-to-texture
 // copies must be a multiple of 512 when the destination texture is a depth stencil texture.
 TEST_P(QueueWriteTextureSimpleTests, WriteDepthAspectAfterOtherQueueWriteTextureCalls) {
+    // TODO(crbug.com/473870505): [Capture] support depth/stencil and multi-planar textures.
+    DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
+
     wgpu::TextureDescriptor textureDescriptor;
     textureDescriptor.format = wgpu::TextureFormat::Depth16Unorm;
     textureDescriptor.usage = wgpu::TextureUsage::CopySrc | wgpu::TextureUsage::CopyDst;
@@ -959,6 +971,9 @@ TEST_P(QueueWriteTextureSimpleTests, WriteDepthAspectAfterOtherQueueWriteTexture
 TEST_P(QueueWriteTextureSimpleTests, WriteStencilAspectAfterOtherQueueWriteTextureCalls) {
     // TODO(crbug.com/dawn/2095): Failing on ANGLE + SwiftShader, needs investigation.
     DAWN_SUPPRESS_TEST_IF(IsANGLESwiftShader());
+
+    // TODO(crbug.com/473870505): [Capture] support depth/stencil and multi-planar textures.
+    DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
 
     wgpu::TextureDescriptor textureDescriptor;
     textureDescriptor.format = wgpu::TextureFormat::Depth24PlusStencil8;

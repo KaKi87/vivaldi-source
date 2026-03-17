@@ -14,6 +14,6 @@ enum VivaldiPathKey {
 };
 
 void RegisterVivaldiPaths();
-}
+}  // namespace vivaldi
 
 #endif  // BASE_VIVALDI_PATHS_H_

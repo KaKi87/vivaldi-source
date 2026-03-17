@@ -11,7 +11,9 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -46,10 +48,12 @@ import org.robolectric.annotation.Config;
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.task.test.CustomShadowAsyncTask;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features;
+import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.chrome.browser.autofill.PersonalDataManager;
 import org.chromium.chrome.browser.autofill.PersonalDataManagerFactory;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -97,6 +101,7 @@ import java.util.function.Supplier;
         shadows = {CustomShadowAsyncTask.class})
 @Features.EnableFeatures({
     ChromeFeatureList.AUTOFILL_ANDROID_DESKTOP_KEYBOARD_ACCESSORY_REVAMP,
+    ChromeFeatureList.AUTOFILL_ANDROID_KEYBOARD_ACCESSORY_DYNAMIC_POSITIONING,
     ChromeFeatureList.AUTOFILL_ENABLE_KEYBOARD_ACCESSORY_CHIP_REDESIGN,
     ChromeFeatureList.AUTOFILL_ENABLE_KEYBOARD_ACCESSORY_CHIP_WIDTH_ADJUSTMENT,
 })
@@ -120,19 +125,19 @@ public class KeyboardAccessoryControllerTest {
     @Mock private Runnable mMockDismissRunnable;
 
     private final KeyboardAccessoryData.Tab mTestTab =
-            new KeyboardAccessoryData.Tab("Passwords", null, null, 0, 0, null);
+            new KeyboardAccessoryData.Tab("Passwords", 0, null, 0, 0, null);
 
     private KeyboardAccessoryCoordinator mCoordinator;
     private PropertyModel mModel;
     private KeyboardAccessoryMediator mMediator;
-    private ObservableSupplierImpl<EdgeToEdgeController> mEdgeToEdgeControllerSupplier;
+    private SettableNonNullObservableSupplier<EdgeToEdgeController> mEdgeToEdgeControllerSupplier;
 
     @Before
     public void setUp() {
         when(mMockButtonGroup.getTabSwitchingDelegate()).thenReturn(mMockTabSwitchingDelegate);
         FillingProductBridgeJni.setInstanceForTesting(mMockFillingProductBridgeJni);
         PersonalDataManagerFactory.setInstanceForTesting(mMockPersonalDataManager);
-        mEdgeToEdgeControllerSupplier = new ObservableSupplierImpl<>(mEdgeToEdgeController);
+        mEdgeToEdgeControllerSupplier = ObservableSuppliers.createNonNull(mEdgeToEdgeController);
         when(mMockIsLargeFormFactorSupplier.get()).thenReturn(false);
 
         when(mMockFillingProductBridgeJni.getFillingProductFromSuggestionType(
@@ -630,8 +635,7 @@ public class KeyboardAccessoryControllerTest {
     @Test
     public void testStyle() {
         KeyboardAccessoryStyle style =
-                new KeyboardAccessoryStyle(
-                        /* isDocked= */ true, /* offset= */ 1, /* maxWidth= */ 1);
+                KeyboardAccessoryStyle.createDockedKeyboardAccessoryStyle(/* verticalOffset= */ 1);
         mCoordinator.setStyle(style);
         assertThat(mModel.get(STYLE), is(equalTo(style)));
     }
@@ -655,6 +659,7 @@ public class KeyboardAccessoryControllerTest {
     }
 
     @Test
+    @DisableFeatures(ChromeFeatureList.AUTOFILL_ANDROID_KEYBOARD_ACCESSORY_DYNAMIC_POSITIONING)
     public void testLargeFormFactorHasDismissButton() {
         when(mMockIsLargeFormFactorSupplier.get()).thenReturn(true);
 
@@ -667,6 +672,19 @@ public class KeyboardAccessoryControllerTest {
     }
 
     @Test
+    public void testLargeFormFactorDynamicPositioningHasNoDismissButton() {
+        when(mMockIsLargeFormFactorSupplier.get()).thenReturn(true);
+
+        mCoordinator.setSuggestions(List.of(mock(AutofillSuggestion.class)), mMockAutofillDelegate);
+
+        assertThat(mModel.get(BAR_ITEMS), contains(instanceOf(AutofillBarItem.class)));
+
+        assertThat(mModel.get(BAR_ITEMS_FIXED), not(hasItem(instanceOf(DismissBarItem.class))));
+        assertThat(mModel.get(BAR_ITEMS_FIXED), contains(instanceOf(SheetOpenerBarItem.class)));
+    }
+
+    @Test
+    @DisableFeatures(ChromeFeatureList.AUTOFILL_ANDROID_KEYBOARD_ACCESSORY_DYNAMIC_POSITIONING)
     public void testLargeFormFactorHasFixedItems() {
         when(mMockIsLargeFormFactorSupplier.get()).thenReturn(true);
         Provider<Action[]> generationProvider = new Provider<>(GENERATE_PASSWORD_AUTOMATIC);
@@ -835,8 +853,11 @@ public class KeyboardAccessoryControllerTest {
 
         when(mMockIsLargeFormFactorSupplier.get()).thenReturn(true);
         mCoordinator.setStyle(
-                new KeyboardAccessoryStyle(
-                        /* isDocked= */ false, /* offset= */ 1, /* maxWidth= */ 1));
+                KeyboardAccessoryStyle.createUndockedKeyboardAccessoryStyle(
+                        /* horizontalOffset= */ 1,
+                        /* verticalOffset= */ 1,
+                        /* maxWidth= */ 1,
+                        KeyboardAccessoryStyle.NotchPosition.TOP));
         // The suggestions should not be grouped because the style was changed to undocked.
         // TODO: crbug.com/431185714 - Mediator should remove the sheet opener when the style is
         // changed to undocked.
@@ -847,8 +868,7 @@ public class KeyboardAccessoryControllerTest {
 
         when(mMockIsLargeFormFactorSupplier.get()).thenReturn(false);
         mCoordinator.setStyle(
-                new KeyboardAccessoryStyle(
-                        /* isDocked= */ true, /* offset= */ 1, /* maxWidth= */ 1));
+                KeyboardAccessoryStyle.createDockedKeyboardAccessoryStyle(/* verticalOffset= */ 1));
         // The suggestions should be grouped again since the style was changed to docked.
         assertThat(mModel.get(BAR_ITEMS).size(), is(2));
         assertThat(mModel.get(BAR_ITEMS).get(0), instanceOf(GroupBarItem.class));

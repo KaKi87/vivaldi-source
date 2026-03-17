@@ -12,6 +12,7 @@
 #include "chrome/browser/chrome_content_browser_client.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/data/grit/webui_test_resources.h"
 #include "chrome/test/data/webui/mojo/foobar.mojom.h"
@@ -22,6 +23,7 @@
 #include "content/public/browser/web_ui_browser_interface_broker_registry.h"
 #include "content/public/browser/web_ui_controller_factory.h"
 #include "content/public/browser/web_ui_data_source.h"
+#include "content/public/common/bindings_policy.h"
 #include "content/public/common/content_client.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/common/url_constants.h"
@@ -67,6 +69,9 @@ class FooUI : public content::WebUIController, public ::test::mojom::Foo {
 
     // Allow requesting chrome-untrusted://bar in iframe.
     web_ui->AddRequestableScheme(content::kChromeUIUntrustedScheme);
+
+    web_ui->SetBindings(
+        content::BindingsPolicySet{content::BindingsPolicyValue::kMojoWebUi});
   }
 
   void BindInterface(mojo::PendingReceiver<::test::mojom::Foo> receiver) {
@@ -113,6 +118,9 @@ class BarUI : public ui::UntrustedWebUIController, public ::test::mojom::Bar {
                content::WebUIDataSource::GotDataCallback callback) {
               std::move(callback).Run(nullptr);
             }));
+
+    web_ui->SetBindings(
+        content::BindingsPolicySet{content::BindingsPolicyValue::kMojoWebUi});
   }
 
   void BindInterface(mojo::PendingReceiver<::test::mojom::Bar> receiver) {
@@ -203,14 +211,17 @@ class MojoJSInterfaceBrokerBrowserTest : public InProcessBrowserTest {
     content::WebUIControllerFactory::RegisterFactory(factory_.get());
   }
 
+  void CreatedBrowserMainParts(content::BrowserMainParts* parts) override {
+    InProcessBrowserTest::CreatedBrowserMainParts(parts);
+    content::SetBrowserClientForTesting(&test_content_browser_client_);
+  }
+
   void SetUpOnMainThread() override {
     base::FilePath pak_path;
     ASSERT_TRUE(base::PathService::Get(base::DIR_ASSETS, &pak_path));
     pak_path = pak_path.AppendASCII("browser_tests.pak");
     ui::ResourceBundle::GetSharedInstance().AddDataPackFromPath(
         pak_path, ui::kScaleFactorNone);
-
-    content::SetBrowserClientForTesting(&test_content_browser_client_);
   }
 
   void SetUpCommandLine(base::CommandLine* command_line) override {
@@ -258,10 +269,25 @@ class MojoJSInterfaceBrokerBrowserTest : public InProcessBrowserTest {
         delete;
     ~TestContentBrowserClient() override = default;
 
-    void RegisterWebUIInterfaceBrokers(
+    void RegisterTrustedWebUIInterfaceBrokers(
         content::WebUIBrowserInterfaceBrokerRegistry& registry) override {
+      ChromeContentBrowserClient::RegisterTrustedWebUIInterfaceBrokers(
+          registry);
       registry.ForWebUI<FooUI>().Add<::test::mojom::Foo>();
+    }
+
+    void RegisterUntrustedWebUIInterfaceBrokers(
+        content::WebUIBrowserInterfaceBrokerRegistry& registry) override {
+      ChromeContentBrowserClient::RegisterUntrustedWebUIInterfaceBrokers(
+          registry);
       registry.ForWebUI<BarUI>().Add<::test::mojom::Bar>();
+    }
+
+    std::vector<base::FilePath> GetNetworkContextsParentDirectory() override {
+      base::FilePath user_data_dir;
+      base::PathService::Get(chrome::DIR_USER_DATA, &user_data_dir);
+      DCHECK(!user_data_dir.empty());
+      return {user_data_dir};
     }
   };
 
@@ -284,8 +310,6 @@ IN_PROC_BROWSER_TEST_F(MojoJSInterfaceBrokerBrowserTest, FooWorks) {
                                  "  return resp.value;"
                                  "})()"));
 
-  auto* broker1 =
-      web_contents->GetWebUI()->GetController()->broker_for_testing();
   // Refresh to trigger a RenderFrame reuse.
   content::TestNavigationObserver observer(web_contents, 1);
   // TODO(crbug.com/40160974): migrate to ExecJs.
@@ -293,9 +317,6 @@ IN_PROC_BROWSER_TEST_F(MojoJSInterfaceBrokerBrowserTest, FooWorks) {
   observer.Wait();
 
   // Verify a new broker is created, and Foo still works.
-  auto* broker2 =
-      web_contents->GetWebUI()->GetController()->broker_for_testing();
-  EXPECT_NE(broker1, broker2);
   EXPECT_EQ("foo", EvalStatement("(async () => {"
                                  "  let fooRemote = window.Foo.getRemote();"
                                  "  let resp = await fooRemote.getFoo();"
@@ -305,9 +326,6 @@ IN_PROC_BROWSER_TEST_F(MojoJSInterfaceBrokerBrowserTest, FooWorks) {
   // Perform a same-document navigation, verify the current broker persists, and
   // Foo still works.
   ASSERT_TRUE(NavigateToURL(web_contents, GURL(kFooURL).Resolve("#fragment")));
-  auto* broker3 =
-      web_contents->GetWebUI()->GetController()->broker_for_testing();
-  EXPECT_EQ(broker2, broker3);
   EXPECT_EQ("foo", EvalStatement("(async () => {"
                                  "  let fooRemote = window.Foo.getRemote();"
                                  "  let resp = await fooRemote.getFoo();"

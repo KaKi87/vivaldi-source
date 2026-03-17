@@ -23,8 +23,8 @@
            withStyler:(ChromeTableViewStyler*)styler {
   [super configureCell:tableCell withStyler:styler];
   VivaldiTableViewAttributedTextViewCell* cell =
-    base::apple::ObjCCastStrict<VivaldiTableViewAttributedTextViewCell>(
-      tableCell);
+      base::apple::ObjCCastStrict<VivaldiTableViewAttributedTextViewCell>(
+          tableCell);
   cell.textView.attributedText = _text;
   cell.selectionStyle = UITableViewCellSelectionStyleNone;
   cell.backgroundColor = UIColor.clearColor;

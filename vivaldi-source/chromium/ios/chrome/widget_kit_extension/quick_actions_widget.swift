@@ -31,7 +31,7 @@ struct ConfigureQuickActionsWidgetEntryProvider: TimelineProvider {
     let entry = ConfigureQuickActionsWidgetEntry(
       date: Date(),
       useLens: shouldUseLens(),
-      useColorLensAndVoiceIcons: shouldUseColorLensAndVoiceIcons(),
+      useColorLensAndVoiceIcons: shouldUseLens(),
       isPreview: context.isPreview,
       avatar: nil,
       gaiaID: nil,
@@ -48,7 +48,7 @@ struct ConfigureQuickActionsWidgetEntryProvider: TimelineProvider {
     let entry = ConfigureQuickActionsWidgetEntry(
       date: Date(),
       useLens: shouldUseLens(),
-      useColorLensAndVoiceIcons: shouldUseColorLensAndVoiceIcons(),
+      useColorLensAndVoiceIcons: shouldUseLens(),
       isPreview: context.isPreview,
       avatar: nil,
       gaiaID: nil,
@@ -60,16 +60,16 @@ struct ConfigureQuickActionsWidgetEntryProvider: TimelineProvider {
     completion(timeline)
   }
 }
-
-struct QuickActionsWidget: Widget {
+struct QuickActionsWidgetConfigurable: Widget {
   // Changing 'kind' or deleting this widget will cause all installed instances of this widget to
   // stop updating and show the placeholder state.
   let kind: String = "QuickActionsWidget"
 
   var body: some WidgetConfiguration {
-    StaticConfiguration(
+    AppIntentConfiguration(
       kind: kind,
-      provider: ConfigureQuickActionsWidgetEntryProvider()
+      intent: SelectAccountIntent.self,
+      provider: ConfigurableQuickActionsWidgetEntryProvider()
     ) { entry in
       QuickActionsWidgetEntryView(entry: entry)
     }
@@ -79,90 +79,64 @@ struct QuickActionsWidget: Widget {
     .description(Text("IDS_IOS_WIDGET_KIT_EXTENSION_QUICK_ACTIONS_DESCRIPTION"))
     .supportedFamilies([.systemMedium])
     .crDisfavoredLocations()
-    .crContentMarginsDisabled()
-    .crContainerBackgroundRemovable(false)
+    .contentMarginsDisabled()
+    .containerBackgroundRemovable(false)
   }
 }
 
-#if IOS_ENABLE_WIDGETS_FOR_MIM
-  struct QuickActionsWidgetConfigurable: Widget {
-    // Changing 'kind' or deleting this widget will cause all installed instances of this widget to
-    // stop updating and show the placeholder state.
-    let kind: String = "QuickActionsWidget"
+// Advises WidgetKit when to update a widget’s display.
+struct ConfigurableQuickActionsWidgetEntryProvider: AppIntentTimelineProvider {
 
-    var body: some WidgetConfiguration {
-      AppIntentConfiguration(
-        kind: kind,
-        intent: SelectAccountIntent.self,
-        provider: ConfigurableQuickActionsWidgetEntryProvider()
-      ) { entry in
-        QuickActionsWidgetEntryView(entry: entry)
-      }
-      .configurationDisplayName(
-        Text("IDS_IOS_WIDGET_KIT_EXTENSION_QUICK_ACTIONS_DISPLAY_NAME")
-      )
-      .description(Text("IDS_IOS_WIDGET_KIT_EXTENSION_QUICK_ACTIONS_DESCRIPTION"))
-      .supportedFamilies([.systemMedium])
-      .crDisfavoredLocations()
-      .crContentMarginsDisabled()
-      .crContainerBackgroundRemovable(false)
-    }
+  func placeholder(in context: Context) -> ConfigureQuickActionsWidgetEntry {
+    ConfigureQuickActionsWidgetEntry(
+      date: Date(), useLens: false, useColorLensAndVoiceIcons: false, isPreview: true,
+      avatar: nil, gaiaID: nil, email: nil, deleted: false)
   }
 
-  // Advises WidgetKit when to update a widget’s display.
-  struct ConfigurableQuickActionsWidgetEntryProvider: AppIntentTimelineProvider {
+  func snapshot(for configuration: SelectAccountIntent, in context: Context) async
+    -> ConfigureQuickActionsWidgetEntry
+  {
+    let avatar: Image? = configuration.avatar()
+    let gaiaID: String? = configuration.gaia()
+    let email: String? = configuration.email()
+    let deleted: Bool = configuration.deleted()
 
-    func placeholder(in context: Context) -> ConfigureQuickActionsWidgetEntry {
-      ConfigureQuickActionsWidgetEntry(
-        date: Date(), useLens: false, useColorLensAndVoiceIcons: false, isPreview: true,
-        avatar: nil, gaiaID: nil, email: nil, deleted: false)
-    }
-
-    func snapshot(for configuration: SelectAccountIntent, in context: Context) async
-      -> ConfigureQuickActionsWidgetEntry
-    {
-      let avatar: Image? = configuration.avatar()
-      let gaiaID: String? = configuration.gaia()
-      let email: String? = configuration.email()
-      let deleted: Bool = configuration.deleted()
-
-      let entry = ConfigureQuickActionsWidgetEntry(
-        date: Date(),
-        useLens: shouldUseLens(),
-        useColorLensAndVoiceIcons: shouldUseColorLensAndVoiceIcons(),
-        isPreview: context.isPreview,
-        avatar: avatar,
-        gaiaID: gaiaID,
-        email: email,
-        deleted: deleted
-      )
-      return entry
-    }
-
-    func timeline(for configuration: SelectAccountIntent, in context: Context) async -> Timeline<
-      ConfigureQuickActionsWidgetEntry
-    > {
-      let avatar: Image? = configuration.avatar()
-      let gaiaID: String? = configuration.gaia()
-      let email: String? = configuration.email()
-      let deleted: Bool = configuration.deleted()
-
-      let entry = ConfigureQuickActionsWidgetEntry(
-        date: Date(),
-        useLens: shouldUseLens(),
-        useColorLensAndVoiceIcons: shouldUseColorLensAndVoiceIcons(),
-        isPreview: context.isPreview,
-        avatar: avatar,
-        gaiaID: gaiaID,
-        email: email,
-        deleted: deleted
-      )
-      let entries: [ConfigureQuickActionsWidgetEntry] = [entry]
-      let timeline: Timeline = Timeline(entries: entries, policy: .never)
-      return timeline
-    }
+    let entry = ConfigureQuickActionsWidgetEntry(
+      date: Date(),
+      useLens: shouldUseLens(),
+      useColorLensAndVoiceIcons: shouldUseLens(),
+      isPreview: context.isPreview,
+      avatar: avatar,
+      gaiaID: gaiaID,
+      email: email,
+      deleted: deleted
+    )
+    return entry
   }
-#endif
+
+  func timeline(for configuration: SelectAccountIntent, in context: Context) async -> Timeline<
+    ConfigureQuickActionsWidgetEntry
+  > {
+    let avatar: Image? = configuration.avatar()
+    let gaiaID: String? = configuration.gaia()
+    let email: String? = configuration.email()
+    let deleted: Bool = configuration.deleted()
+
+    let entry = ConfigureQuickActionsWidgetEntry(
+      date: Date(),
+      useLens: shouldUseLens(),
+      useColorLensAndVoiceIcons: shouldUseLens(),
+      isPreview: context.isPreview,
+      avatar: avatar,
+      gaiaID: gaiaID,
+      email: email,
+      deleted: deleted
+    )
+    let entries: [ConfigureQuickActionsWidgetEntry] = [entry]
+    let timeline: Timeline = Timeline(entries: entries, policy: .never)
+    return timeline
+  }
+}
 
 func shouldUseLens() -> Bool {
   let sharedDefaults: UserDefaults = AppGroupHelper.groupUserDefaults()
@@ -172,17 +146,6 @@ func shouldUseLens() -> Bool {
     && sharedDefaults.bool(
       forKey: WidgetConstants.QuickActionsWidget.enableLensInWidgetKey)
   return useLens
-}
-
-func shouldUseColorLensAndVoiceIcons() -> Bool {
-  // On iOS 15, color icons are not supported in widget, always return false
-  // as no icon would be displayed.
-  // On iOS 16, color icons are displayed in monochrome, so still present
-  // the monochrome icon as it may be better adapted.
-  if #available(iOS 17, *) {
-    return shouldUseLens()
-  }
-  return false
 }
 
 struct QuickActionsWidgetEntryView: View {
@@ -208,8 +171,7 @@ struct QuickActionsWidgetEntryView: View {
   }
 
   var body: some View {
-    // The account to display was deleted (entry.deleted can only be true if
-    // IOS_ENABLE_WIDGETS_FOR_MIM is true).
+    // The account to display was deleted.
     if entry.deleted && !entry.isPreview {
       MediumWidgetDeletedAccountView()
     } else {
@@ -241,9 +203,7 @@ struct QuickActionsWidgetEntryView: View {
                   .foregroundColor(Color("widget_text_color"))
                   .accessibilityHidden(true)
                 Spacer()
-                #if IOS_ENABLE_WIDGETS_FOR_MIM
-                  Avatar(entry: entry)
-                #endif
+                Avatar(entry: entry)
               }
             }
             .frame(minWidth: 0, maxWidth: .infinity)
@@ -319,7 +279,9 @@ struct QuickActionsWidgetEntryView: View {
           .padding([.leading, .trailing], 11)
         }
       }
-      .crContainerBackground(Color("widget_background_color").unredacted())
+      .containerBackground(for: .widget) {
+        Color("widget_background_color").unredacted()
+      }
     }
   }
 }

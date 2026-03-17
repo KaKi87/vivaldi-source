@@ -1,120 +1,102 @@
-/*
- * Copyright (c) 2021, Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 #ifndef THIRD_PARTY_BLINK_RENDERER_PLATFORM_IMAGE_DECODERS_JXL_JXL_IMAGE_DECODER_H_
 #define THIRD_PARTY_BLINK_RENDERER_PLATFORM_IMAGE_DECODERS_JXL_JXL_IMAGE_DECODER_H_
 
-#include "third_party/blink/renderer/platform/image-decoders/fast_shared_buffer_reader.h"
-#include "third_party/blink/renderer/platform/image-decoders/image_decoder.h"
+#include <optional>
 
-#include "third_party/libjxl/src/lib/include/jxl/decode.h"
-#include "third_party/libjxl/src/lib/include/jxl/decode_cxx.h"
+#include "third_party/blink/renderer/platform/image-decoders/image_decoder.h"
+#include "third_party/blink/renderer/platform/wtf/functional.h"
+#include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
+#include "third_party/blink/renderer/platform/wtf/vector.h"
+#include "third_party/rust/jxl/v0_3/wrapper/lib.rs.h"
+#include "third_party/skia/include/core/SkImageInfo.h"
 
 namespace blink {
 
-// This class decodes the JXL image format.
+class FastSharedBufferReader;
+
 class PLATFORM_EXPORT JXLImageDecoder final : public ImageDecoder {
  public:
   JXLImageDecoder(AlphaOption,
-                  HighBitDepthDecodingOption high_bit_depth_decoding_option,
-                  const ColorBehavior&,
-                  wtf_size_t max_decoded_bytes);
+                  HighBitDepthDecodingOption,
+                  ColorBehavior,
+                  cc::AuxImage,
+                  wtf_size_t max_decoded_bytes,
+                  AnimationOption);
+  JXLImageDecoder(const JXLImageDecoder&) = delete;
+  JXLImageDecoder& operator=(const JXLImageDecoder&) = delete;
+  ~JXLImageDecoder() override;
 
   // ImageDecoder:
-  String FilenameExtension() const override { return "jxl"; }
-  bool ImageIsHighBitDepth() override { return is_hdr_; }
+  String FilenameExtension() const override;
+  const AtomicString& MimeType() const override;
+  bool ImageIsHighBitDepth() override;
+  int RepetitionCount() const override;
+  bool FrameIsReceivedAtIndex(wtf_size_t) const override;
+  std::optional<base::TimeDelta> FrameTimestampAtIndex(
+      wtf_size_t) const override;
+  base::TimeDelta FrameDurationAtIndex(wtf_size_t) const override;
+  wtf_size_t ClearCacheExceptFrame(wtf_size_t) override;
 
-  // Returns true if the data in fast_reader begins with
+  // Returns true if the data in fast_reader begins with a valid JXL signature.
   static bool MatchesJXLSignature(const FastSharedBufferReader& fast_reader);
 
  private:
+  // C++-managed Rust Box for JxlRsDecoder.
+  using JxlRsDecoderPtr = rust::Box<jxl_rs::JxlRsDecoder>;
+
+  // Decoder state machine.
+  enum class DecoderState {
+    kInitial,          // Waiting for basic info
+    kHaveBasicInfo,    // Have basic info, waiting for frame header
+    kHaveFrameHeader,  // Have frame header, ready to decode pixels
+    kDone              // Decoding is done
+  };
+
+  // Frame information tracked during decoding.
+  struct FrameInfo {
+    base::TimeDelta duration;
+    base::TimeDelta timestamp;
+  };
+
   // ImageDecoder:
-  void DecodeSize() override { DecodeImpl(0, true); }
+  void DecodeSize() override;
   wtf_size_t DecodeFrameCount() override;
-  void Decode(wtf_size_t frame) override { DecodeImpl(frame); }
   void InitializeNewFrame(wtf_size_t) override;
+  void Decode(wtf_size_t) override;
+  bool CanReusePreviousFrameBuffer(wtf_size_t) const override;
 
-  // Decodes up to a given frame.  If |only_size| is true, stops decoding after
-  // calculating the image size. If decoding fails but there is no more
-  // data coming, sets the "decode failure" flag.
-  void DecodeImpl(wtf_size_t frame, bool only_size = false);
+  // Internal decode function that optionally stops after metadata.
+  void Decode(wtf_size_t index, bool only_size);
 
-  bool FrameIsReceivedAtIndex(wtf_size_t) const override;
-  base::TimeDelta FrameDurationAtIndex(wtf_size_t) const override;
-  int RepetitionCount() const override;
-  bool CanReusePreviousFrameBuffer(wtf_size_t) const override { return false; }
+  // Eagerly decode all animation frames upfront.
+  void DecodeAllFrames();
 
-  // Reads bytes from the segment reader, after releasing input from the JXL
-  // decoder, which required `remaining` previous bytes to still be available.
-  // Starts reading from *offset - remaining, and ensures more than remaining
-  // bytes are read, if possible. Returns false if not enough bytes are
-  // available or if Failed() was set.
-  bool ReadBytes(size_t remaining,
-                 wtf_size_t* offset,
-                 WTF::Vector<uint8_t>* segment,
-                 FastSharedBufferReader* reader,
-                 const uint8_t** jxl_data,
-                 size_t* jxl_size);
+  // Converts JXL pixel format to Skia color type.
+  SkColorType GetSkColorType() const;
 
-  JxlDecoderPtr dec_ = nullptr;
-  wtf_size_t offset_ = 0;
+  // Decoder state.
+  std::optional<JxlRsDecoderPtr> decoder_;
+  DecoderState decoder_state_ = DecoderState::kInitial;
+  jxl_rs::JxlRsBasicInfo basic_info_{};
+  bool have_basic_info_ = false;
+  wtf_size_t num_decoded_frames_ = 0;     // Frames whose pixels we've decoded.
+  size_t input_offset_ = 0;  // Current position in input stream.
 
-  JxlDecoderPtr frame_count_dec_ = nullptr;
-  wtf_size_t frame_count_offset_ = 0;
+  // Animation frame tracking.
+  Vector<FrameInfo> frame_info_;
 
-  // The image is considered to be HDR, such as using PQ or HLG transfer
-  // function in the color space.
-  bool is_hdr_ = false;
+  // Color management.
+  bool is_high_bit_depth_ = false;
   bool decode_to_half_float_ = false;
 
-  JxlBasicInfo info_;
-  bool have_color_info_ = false;
-
-  // Preserved for JXL pixel callback. Not owned.
-  ColorProfileTransform* xform_;
-
-  // Fields for animation support.
-
-  // The amount of frames the JXL decoder has decoded. This can be reset to
-  // an earlier amount if frame buffers were cleared and decoding was
-  // restarted from an earlier frame. This is used to keep track of the index
-  // in the frame_buffer_cache_.
-  wtf_size_t num_decoded_frames_ = 0;
-  bool has_full_frame_count_ = false;
-  size_t size_at_last_frame_count_ = 0;
-  WTF::Vector<float> frame_durations_;
-  // Multiple concatenated segments from the FastSharedBufferReader, these are
-  // only used when a single segment did not contain enough data for the JXL
-  // parser.
-  WTF::Vector<uint8_t> segment_;
-  WTF::Vector<uint8_t> frame_count_segment_;
+  // Used to call UpdateBppHistogram<"Jxl">() at most once to record the
+  // bits-per-pixel value of the image when the image is successfully decoded.
+  CrossThreadOnceFunction<void(gfx::Size, size_t)>
+      update_bpp_histogram_callback_;
 };
 
 }  // namespace blink

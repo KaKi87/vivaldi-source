@@ -11,18 +11,19 @@
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/no_destructor.h"
+#include "base/strings/to_string.h"
 #include "base/types/expected_macros.h"
 #include "base/types/optional_util.h"
 #include "chrome/browser/web_applications/callback_utils.h"
 #include "chrome/browser/web_applications/isolated_web_apps/commands/install_isolated_web_app_command.h"
 #include "chrome/browser/web_applications/isolated_web_apps/policy/isolated_web_app_external_install_options.h"
+#include "chrome/browser/web_applications/isolated_web_apps/runtime_data/chrome_iwa_runtime_data_provider.h"
 #include "chrome/browser/web_applications/isolated_web_apps/update_manifest/update_manifest.h"
 #include "chrome/browser/web_applications/isolated_web_apps/update_manifest/update_manifest_fetcher.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/common/chrome_features.h"
 #include "chromeos/components/kiosk/kiosk_utils.h"
 #include "components/webapps/isolated_web_apps/download/bundle_downloader.h"
-#include "components/webapps/isolated_web_apps/iwa_key_distribution_info_provider.h"
 #include "components/webapps/isolated_web_apps/types/source.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
@@ -157,8 +158,8 @@ void IwaInstaller::IwaInstallCommandWrapperImpl::Install(
 IwaInstallerResult::IwaInstallerResult(Type type, std::string message)
     : type_(type), message_(std::move(message)) {}
 
-base::Value::Dict IwaInstallerResult::ToDebugValue() const {
-  return base::Value::Dict()
+base::DictValue IwaInstallerResult::ToDebugValue() const {
+  return base::DictValue()
       .Set("type", base::ToString(type_))
       .Set("message", message_);
 }
@@ -168,7 +169,7 @@ IwaInstaller::IwaInstaller(
     InstallSourceType install_source_type,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
     std::unique_ptr<IwaInstallCommandWrapper> install_command_wrapper,
-    base::Value::List& log,
+    base::ListValue& log,
     WebAppProvider* provider,
     ResultCallback callback)
     : install_options_(std::move(install_options)),
@@ -189,7 +190,7 @@ IwaInstaller::IwaInstaller(
 IwaInstaller::~IwaInstaller() = default;
 
 void IwaInstaller::Start() {
-  if (!IwaKeyDistributionInfoProvider::GetInstance().IsManagedInstallPermitted(
+  if (!ChromeIwaRuntimeDataProvider::GetInstance().IsManagedInstallPermitted(
           install_options_.web_bundle_id().id())) {
     base::UmaHistogramEnumeration(
         kNonAllowlistedAppInstallationRejectedHistogramName,
@@ -461,7 +462,7 @@ std::unique_ptr<IwaInstaller> IwaInstallerFactory::Create(
     IsolatedWebAppExternalInstallOptions install_options,
     IwaInstaller::InstallSourceType install_source_type,
     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-    base::Value::List& log,
+    base::ListValue& log,
     WebAppProvider* provider,
     IwaInstaller::ResultCallback callback) {
   return GetIwaInstallerFactory().Run(
@@ -484,7 +485,7 @@ IwaInstallerFactory::GetDefaultIwaInstallerFactory() {
       [](IsolatedWebAppExternalInstallOptions install_options,
          IwaInstaller::InstallSourceType install_source_type,
          scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-         base::Value::List& log, WebAppProvider* provider,
+         base::ListValue& log, WebAppProvider* provider,
          IwaInstaller::ResultCallback callback) {
         return std::make_unique<IwaInstaller>(
             std::move(install_options), install_source_type,

@@ -48,14 +48,15 @@
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/model/url/url_util.h"
 #import "ios/chrome/browser/shared/model/web_state_list/browser_util.h"
+#import "ios/chrome/browser/shared/model/web_state_list/removing_indexes.h"
 #import "ios/chrome/browser/shared/model/web_state_list/tab_group.h"
 #import "ios/chrome/browser/shared/model/web_state_list/tab_group_utils.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_opener.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/bookmarks_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/reading_list_add_command.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/shared_tab_group_last_tab_closed_alert_command.h"
 #import "ios/chrome/browser/shared/public/commands/tab_grid_commands.h"
 #import "ios/chrome/browser/shared/public/commands/tab_grid_toolbar_commands.h"
@@ -1021,6 +1022,36 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
   }
 }
 
+- (void)closeTabsExceptID:(web::WebStateID)itemID {
+  CHECK(IsCloseOtherTabsEnabled());
+  if (!self.webStateList) {
+    return;
+  }
+
+  int index = GetWebStateIndex(self.webStateList,
+                               WebStateSearchCriteria{.identifier = itemID});
+  if (index == WebStateList::kInvalidIndex) {
+    return;
+  }
+
+  const TabGroup* group = self.webStateList->GetGroupOfWebStateAt(index);
+  if (!group) {
+    CloseOtherWebStates(*(self.webStateList), index,
+                        WebStateList::ClosingReason::kUserAction);
+    return;
+  }
+
+  std::vector<int> indicesToRemove;
+  for (int i : group->range()) {
+    if (i != index) {
+      indicesToRemove.push_back(i);
+    }
+  }
+  self.webStateList->CloseWebStatesAtIndices(
+      WebStateList::ClosingReason::kUserAction,
+      RemovingIndexes(indicesToRemove));
+}
+
 - (void)selectTabGroup:(const TabGroup*)tabGroup {
   WebStateList* webStateList = self.webStateList;
 
@@ -1063,11 +1094,11 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
     return;
   }
 
-  id<ApplicationCommands> applicationHandler =
-      HandlerForProtocol(browser->GetCommandDispatcher(), ApplicationCommands);
+  id<SceneCommands> sceneHandler =
+      HandlerForProtocol(browser->GetCommandDispatcher(), SceneCommands);
   TabGridOpeningMode openingMode =
       incognito ? TabGridOpeningMode::kIncognito : TabGridOpeningMode::kRegular;
-  [applicationHandler displayTabGridInMode:openingMode];
+  [sceneHandler displayTabGridInMode:openingMode];
 
   id<TabGroupsCommands> tabGroupsHandler =
       HandlerForProtocol(browser->GetCommandDispatcher(), TabGroupsCommands);
@@ -1873,6 +1904,10 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
   NOTREACHED() << "Should be implemented in a subclass.";
 }
 
+- (void)closeOtherTabsButtonTapped:(id)sender {
+  NOTREACHED() << "Should be implemented in a subclass.";
+}
+
 - (void)doneButtonTapped:(id)sender {
   // Tapping Done when in selection mode, should only return back to the normal
   // mode.
@@ -1923,7 +1958,11 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
   _modeHolder.mode = TabGridMode::kNormal;
 }
 
-- (void)closeSelectedTabs:(id)sender {
+- (void)pageActionMenuEntrypointTapped:(id)sender {
+  NOTREACHED() << "Should be implemented in a subclass.";
+}
+
+- (void)closeSelectedTabs:(UIView*)sender {
   [self.delegate dismissPopovers];
 
   std::set<web::WebStateID> selectedTabIDs;
@@ -1961,7 +2000,7 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
                                anchor:sender];
 }
 
-- (void)shareSelectedTabs:(id)sender {
+- (void)shareSelectedTabs:(UIView*)sender {
   [self.delegate dismissPopovers];
 
   base::RecordAction(
@@ -1976,6 +2015,14 @@ web::WebState* WebStateWithSnapshotID(WebStateList& web_state_list,
 - (void)selectTabsButtonTapped:(id)sender {
   base::RecordAction(base::UserMetricsAction("MobileTabGridSelectTabs"));
   _modeHolder.mode = TabGridMode::kSelection;
+}
+
+- (void)createNewTabGroupButtonTapped:(id)sender {
+  [self.tabGroupsHandler showTabGroupCreationWithoutTabs];
+}
+
+- (void)deleteBrowsingDataButtonTapped:(id)sender {
+  NOTREACHED() << "Should be implemented in a subclass.";
 }
 
 #pragma mark - GridViewControllerMutator

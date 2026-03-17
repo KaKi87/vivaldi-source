@@ -3,8 +3,8 @@
 #ifndef IOS_UI_BOOKMARKS_EDITOR_VIVALDI_BOOKMARKS_CONSTANTS_H_
 #define IOS_UI_BOOKMARKS_EDITOR_VIVALDI_BOOKMARKS_CONSTANTS_H_
 
-#import "UIKit/UIKit.h"
 #import <Foundation/Foundation.h>
+#import "UIKit/UIKit.h"
 
 #pragma mark - ICONS
 // Image name for the bookmark folder icon.
@@ -37,5 +37,9 @@ extern CGFloat vBookmarkFolderSelectionHeaderViewHeight;
 #pragma mark - OTHERS
 // Maximum number of entries to fetch when searching on bookmarks folder page.
 extern const int vMaxBookmarkFolderSearchResults;
+
+#pragma mark - Safari Data Import
+// Image name for the safari data import image
+extern NSString* vSafariDataImportImage;
 
 #endif  // IOS_UI_BOOKMARKS_EDITOR_VIVALDI_BOOKMARKS_CONSTANTS_H_

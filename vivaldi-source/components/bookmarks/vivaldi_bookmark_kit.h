@@ -158,8 +158,8 @@ void SetNodeDescription(BookmarkModel* model,
                         const BookmarkNode* node,
                         const std::string& description);
 void SetNodeDisplayURL(BookmarkModel* model,
-                        const BookmarkNode* node,
-                        const std::string& description);
+                       const BookmarkNode* node,
+                       const std::string& description);
 void SetNodeSpeeddial(BookmarkModel* model,
                       const BookmarkNode* node,
                       bool speeddial);
@@ -171,7 +171,7 @@ void SetNodeThemeColor(BookmarkModel* model,
                        SkColor theme_color);
 
 typedef base::RepeatingCallback<bool(const std::string&)> BookmarkWriteFunc;
-bool WriteBookmarkData(const base::Value::Dict& value,
+bool WriteBookmarkData(const base::DictValue& value,
                        BookmarkWriteFunc write_func,
                        BookmarkWriteFunc write_func_att);
 

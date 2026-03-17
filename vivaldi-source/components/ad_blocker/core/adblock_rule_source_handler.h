@@ -26,7 +26,7 @@ class RuleSourceHandler {
  public:
   using OnUpdateCallback = base::RepeatingCallback<void(RuleSourceHandler*)>;
   using OnTrackerInfosUpdateCallback = base::RepeatingCallback<
-      void(RuleGroup group, const ActiveRuleSource&, base::Value::Dict)>;
+      void(RuleGroup group, const ActiveRuleSource&, base::DictValue)>;
   using RulesCompiler =
       base::RepeatingCallback<bool(const ParseResult& parse_result,
                                    const RuleSourceSettings& source_settings,
@@ -55,6 +55,10 @@ class RuleSourceHandler {
   // in progress, its result will be used and a new one won't be triggered.
   void FetchNow(bool recompile_needed);
 
+  // Specifies a new compiler, if the compilation parameters have changed. This
+  // will call FetchNow(true).
+  void ResetCompiler(RulesCompiler rules_compiler);
+
   // Remove the rules list file associated with this data source.
   void Clear();
 
@@ -70,7 +74,7 @@ class RuleSourceHandler {
   void ReadRulesFromFile(bool from_previous_download,
                          const base::FilePath& file);
   void OnRulesRead(bool from_previous_download, RulesReadResult result);
-  void OnTrackerInfosLoaded(std::optional<base::Value::Dict> tracker_infos);
+  void OnTrackerInfosLoaded(std::optional<base::DictValue> tracker_infos);
 
   static RulesReadResult ReadRules(
       const base::FilePath& source_path,

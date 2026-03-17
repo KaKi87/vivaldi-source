@@ -37,15 +37,15 @@ Index_Model::~Index_Model() {
 }
 
 std::unique_ptr<IndexLoadDetails> Index_Model::CreateLoadDetails() {
-  Index_Node* items = new Index_Node(Index_Node::items_node_guid(),
-                                     Index_Node::items_node_id(),
-                                     Index_Node::kFolder);
-  Index_Node* backup = new Index_Node(Index_Node::backup_node_guid(),
-                                      Index_Node::backup_node_id(),
-                                      Index_Node::kNode);
-  Index_Node* persistent = new Index_Node(Index_Node::persistent_node_guid(),
-                                      Index_Node::persistent_node_id(),
-                                      Index_Node::kNode);
+  Index_Node* items =
+      new Index_Node(Index_Node::items_node_guid(), Index_Node::items_node_id(),
+                     Index_Node::kFolder);
+  Index_Node* backup =
+      new Index_Node(Index_Node::backup_node_guid(),
+                     Index_Node::backup_node_id(), Index_Node::kNode);
+  Index_Node* persistent =
+      new Index_Node(Index_Node::persistent_node_guid(),
+                     Index_Node::persistent_node_id(), Index_Node::kNode);
   return base::WrapUnique(new IndexLoadDetails(items, backup, persistent));
 }
 
@@ -94,14 +94,15 @@ void Index_Model::LoadFinished(std::unique_ptr<IndexLoadDetails> details) {
   }
 
   Profile* profile = Profile::FromBrowserContext(context_);
-  int save_version = profile->GetPrefs()->GetInteger(
-    vivaldiprefs::kSessionsSaveVersion);
+  int save_version =
+      profile->GetPrefs()->GetInteger(vivaldiprefs::kSessionsSaveVersion);
   if (save_version == 0) {
-    // Move all existing auto saved nodes to trash if auto save policy has changed.
+    // Move all existing auto saved nodes to trash if auto save policy has
+    // changed.
     int error_code = MoveAutoSaveNodesToTrash(context_);
     if (error_code) {
       LOG(ERROR) << "Session Model: Failed to move auto saved elements"
-                   << error_code;
+                 << error_code;
     }
     profile->GetPrefs()->SetInteger(vivaldiprefs::kSessionsSaveVersion, 1);
   }
@@ -110,7 +111,7 @@ void Index_Model::LoadFinished(std::unique_ptr<IndexLoadDetails> details) {
   loading_failed_ = details->get_loading_failed();
 
   // Uncomment if debugging of parsed data is needed.
-  //root_.DumpTree();
+  // root_.DumpTree();
 
   if (details->get_loaded_from_filescan()) {
     Save();
@@ -127,15 +128,18 @@ bool Index_Model::Save() {
   return false;
 }
 
-bool Index_Model::Move(const Index_Node* node, const Index_Node* parent,
+bool Index_Model::Move(const Index_Node* node,
+                       const Index_Node* parent,
                        size_t index) {
   if (!node->parent() || !IsValidIndex(parent, index)) {
-    LOG(ERROR) << "Session model. Can not move node. Parent missing or invalid index.";
+    LOG(ERROR)
+        << "Session model. Can not move node. Parent missing or invalid index.";
     return false;
   }
   DCHECK(!parent->HasAncestor(node));
   if (parent->HasAncestor(node)) {
-    LOG(ERROR) << "Session model. Can not move node. Will become a child of itself.";
+    LOG(ERROR)
+        << "Session model. Can not move node. Will become a child of itself.";
     return false;
   }
 
@@ -162,7 +166,8 @@ bool Index_Model::Move(const Index_Node* node, const Index_Node* parent,
     index--;
 
   Index_Node* mutable_old_parent = AsMutable(node->parent());
-  std::unique_ptr<Index_Node> owned_node = mutable_old_parent->Remove(old_index);
+  std::unique_ptr<Index_Node> owned_node =
+      mutable_old_parent->Remove(old_index);
   Index_Node* mutable_new_parent = AsMutable(parent);
   mutable_new_parent->Add(std::move(owned_node), index);
 
@@ -177,7 +182,8 @@ bool Index_Model::Move(const Index_Node* node, const Index_Node* parent,
 }
 
 Index_Node* Index_Model::Add(std::unique_ptr<Index_Node> node,
-                             Index_Node* parent, size_t index,
+                             Index_Node* parent,
+                             size_t index,
                              std::string owner) {
   Index_Node* node_ptr = node.get();
   parent->Add(std::move(node), index);
@@ -199,8 +205,7 @@ Index_Node* Index_Model::Add(std::unique_ptr<Index_Node> node,
   return node_ptr;
 }
 
-bool Index_Model::SetTitle(Index_Node* node,
-                           const std::u16string& title) {
+bool Index_Model::SetTitle(Index_Node* node, const std::u16string& title) {
   if (node->GetTitle() == title) {
     return true;
   }
@@ -281,8 +286,7 @@ bool Index_Model::Remove(Index_Node* node) {
 }
 
 bool Index_Model::IsValidIndex(const Index_Node* parent, size_t index) {
-  return (parent &&
-         (index >= 0 && (index <= parent->children().size())));
+  return (parent && (index >= 0 && (index <= parent->children().size())));
 }
 
 bool Index_Model::IsTrashed(Index_Node* node) {

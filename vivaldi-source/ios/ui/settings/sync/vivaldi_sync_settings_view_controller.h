@@ -12,12 +12,9 @@
 #import "ios/ui/settings/sync/vivaldi_sync_settings_view_controller_service_delegate.h"
 
 @class VivaldiSyncSettingsViewController;
-@protocol ApplicationCommands;
+@protocol SceneCommands;
 
-typedef NS_ENUM(NSInteger, SyncType) {
-  SyncAll = 0,
-  SyncSelected
-};
+typedef NS_ENUM(NSInteger, SyncType) { SyncAll = 0, SyncSelected };
 
 typedef NS_ENUM(NSInteger, SectionIdentifier) {
   SectionIdentifierSyncUserInfo = kSectionIdentifierEnumZero,
@@ -69,17 +66,17 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 @interface VivaldiSyncSettingsViewController
     : SettingsRootTableViewController <VivaldiSyncSettingsConsumer,
-                                      TableViewLinkHeaderFooterItemDelegate>
+                                       TableViewLinkHeaderFooterItemDelegate>
 
-// ApplicationCommands handler.
-@property(nonatomic, weak) id<ApplicationCommands> applicationCommandsHandler;
+// SceneCommands handler.
+@property(nonatomic, weak) id<SceneCommands> applicationCommandsHandler;
 
-@property(nonatomic, weak)
-    id<VivaldiSyncSettingsViewControllerDelegate> delegate;
-@property(nonatomic, weak)
-    id<VivaldiSyncSettingsViewControllerServiceDelegate> serviceDelegate;
-@property(nonatomic, weak)
-    id<VivaldiSyncSettingsViewControllerModelDelegate> modelDelegate;
+@property(nonatomic, weak) id<VivaldiSyncSettingsViewControllerDelegate>
+    delegate;
+@property(nonatomic, weak) id<VivaldiSyncSettingsViewControllerServiceDelegate>
+    serviceDelegate;
+@property(nonatomic, weak) id<VivaldiSyncSettingsViewControllerModelDelegate>
+    modelDelegate;
 
 @end
 

@@ -10,6 +10,6 @@
 
 namespace calendar {
 
-RecurrenceExceptionRow::RecurrenceExceptionRow() : updateFields(0){}
+RecurrenceExceptionRow::RecurrenceExceptionRow() : updateFields(0) {}
 
 }  // namespace calendar

@@ -691,11 +691,9 @@ TEST_F(ProcessRankPolicyAndroidTest, SubframeImportanceForImportant) {
   if (!content::IsPerceptibleImportanceSupported()) {
     GTEST_SKIP() << "Perceptible importance is not supported.";
   }
-  scoped_feature_list_
-      .InitWithFeatures(/*enabled_features=*/
-                        {::features::kSubframeImportance,
-                         ::features::kSubframePriorityContribution},
-                        /*disabled_features=*/{});
+  scoped_feature_list_.InitWithFeatures(
+      /*enabled_features=*/{::features::kSubframeImportance},
+      /*disabled_features=*/{});
   graph_->PassToGraph(std::make_unique<ProcessRankPolicyAndroid>(true));
   MockPageGraph page_graph = CreateDefaultPage();
   DefaultNavigation(page_graph.page.get());
@@ -712,12 +710,9 @@ TEST_F(ProcessRankPolicyAndroidTest,
   if (!content::IsPerceptibleImportanceSupported()) {
     GTEST_SKIP() << "Perceptible importance is not supported.";
   }
-  scoped_feature_list_
-      .InitWithFeatures(/*enabled_features=*/
-                        {::features::kSubframeImportance,
-                         ::features::kSubframePriorityContribution},
-                        /*disabled_features=*/{
-                            chrome::android::kProtectedTabsAndroid});
+  scoped_feature_list_.InitWithFeatures(
+      /*enabled_features=*/{::features::kSubframeImportance},
+      /*disabled_features=*/{chrome::android::kProtectedTabsAndroid});
   graph_->PassToGraph(std::make_unique<ProcessRankPolicyAndroid>(false));
   MockPageGraph page_graph = CreateDefaultPage();
   DefaultNavigation(page_graph.page.get());
@@ -738,8 +733,7 @@ TEST_F(ProcessRankPolicyAndroidTest,
       /*enabled_features=*/
       {{chrome::android::kProtectedTabsAndroid,
         {{"fallback_to_moderate", "true"}}},
-       {::features::kSubframeImportance, {}},
-       {::features::kSubframePriorityContribution, {}}},
+       {::features::kSubframeImportance, {}}},
       /*disabled_features=*/{});
   graph_->PassToGraph(std::make_unique<ProcessRankPolicyAndroid>(false));
   MockPageGraph page_graph = CreateDefaultPage();
@@ -756,12 +750,10 @@ TEST_F(ProcessRankPolicyAndroidTest, SubframeImportanceForProtectedTab) {
   if (!content::IsPerceptibleImportanceSupported()) {
     GTEST_SKIP() << "Perceptible importance is not supported.";
   }
-  scoped_feature_list_
-      .InitWithFeatures(/*enabled_features=*/
-                        {chrome::android::kProtectedTabsAndroid,
-                         ::features::kSubframeImportance,
-                         ::features::kSubframePriorityContribution},
-                        /*disabled_features=*/{});
+  scoped_feature_list_.InitWithFeatures(/*enabled_features=*/
+                                        {chrome::android::kProtectedTabsAndroid,
+                                         ::features::kSubframeImportance},
+                                        /*disabled_features=*/{});
   graph_->PassToGraph(std::make_unique<ProcessRankPolicyAndroid>(true));
   MockPageGraph page_graph = CreateDefaultPage();
   DefaultNavigation(page_graph.page.get());
@@ -783,8 +775,7 @@ TEST_F(ProcessRankPolicyAndroidTest,
       /*enabled_features=*/
       {{chrome::android::kProtectedTabsAndroid,
         {{"fallback_to_moderate", "false"}}},
-       {::features::kSubframeImportance, {}},
-       {::features::kSubframePriorityContribution, {}}},
+       {::features::kSubframeImportance, {}}},
       /*disabled_features=*/{});
   graph_->PassToGraph(std::make_unique<ProcessRankPolicyAndroid>(false));
   MockPageGraph page_graph = CreateDefaultPage();
@@ -807,8 +798,7 @@ TEST_F(ProcessRankPolicyAndroidTest,
       /*enabled_features=*/
       {{chrome::android::kProtectedTabsAndroid,
         {{"fallback_to_moderate", "true"}}},
-       {::features::kSubframeImportance, {}},
-       {::features::kSubframePriorityContribution, {}}},
+       {::features::kSubframeImportance, {}}},
       /*disabled_features=*/{});
   graph_->PassToGraph(std::make_unique<ProcessRankPolicyAndroid>(false));
   MockPageGraph page_graph = CreateDefaultPage();
@@ -820,6 +810,40 @@ TEST_F(ProcessRankPolicyAndroidTest,
 
   EXPECT_EQ(web_contents()->GetPrimaryPageSubframeImportanceForTesting(),
             content::ChildProcessImportance::MODERATE);
+}
+
+TEST_F(ProcessRankPolicyAndroidTest, ProtectRecentlyVisibleTab) {
+  if (!content::IsPerceptibleImportanceSupported()) {
+    GTEST_SKIP() << "Perceptible importance is not supported.";
+  }
+  const base::TimeDelta kDuration = base::Seconds(10);
+  scoped_feature_list_.InitWithFeaturesAndParameters(
+      /*enabled_features=*/
+      {{chrome::android::kProtectedTabsAndroid, {}},
+       {chrome::android::kProtectRecentlyVisibleTab,
+        {{"duration_in_seconds", base::ToString(kDuration.InSeconds())}}}},
+      /*disabled_features=*/{});
+  graph_->PassToGraph(std::make_unique<ProcessRankPolicyAndroid>(true));
+  MockPageGraph page_graph = CreateDefaultPage();
+  DefaultNavigation(page_graph.page.get());
+
+  page_graph.page.get()->SetIsFocused(false);
+
+  // Make the page visible then invisible.
+  page_graph.page.get()->SetIsVisible(true);
+  page_graph.page.get()->SetIsVisible(false);
+
+  // The page should be protected because it was recently visible.
+  EXPECT_EQ(web_contents()->GetPrimaryMainFrameImportanceForTesting(),
+            content::ChildProcessImportance::PERCEPTIBLE);
+
+  // Advance time by the protection duration.
+  task_environment()->FastForwardBy(kDuration);
+  base::RunLoop().QuitWhenIdle();
+
+  // The page should no longer be protected.
+  EXPECT_EQ(web_contents()->GetPrimaryMainFrameImportanceForTesting(),
+            content::ChildProcessImportance::NORMAL);
 }
 
 }  // namespace performance_manager::policies

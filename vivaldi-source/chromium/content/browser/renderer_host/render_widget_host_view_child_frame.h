@@ -43,10 +43,6 @@
 
 #include "content/browser/renderer_host/vivaldi_overscroll_controller.h"
 
-namespace viz {
-struct CopyOutputBitmapWithMetadata;
-}
-
 namespace content {
 class CrossProcessFrameConnector;
 class RenderWidgetHost;
@@ -96,8 +92,9 @@ class CONTENT_EXPORT RenderWidgetHostViewChildFrame
   void CopyFromSurface(
       const gfx::Rect& src_rect,
       const gfx::Size& output_size,
-      base::OnceCallback<void(const viz::CopyOutputBitmapWithMetadata&)>
-          callback) override;
+      base::TimeDelta timeout,
+      base::OnceCallback<void(const content::CopyFromSurfaceResult&)> callback)
+      override;
   void EnsureSurfaceSynchronizedForWebTest() override;
   void Hide() override;
   bool IsShowing() override;

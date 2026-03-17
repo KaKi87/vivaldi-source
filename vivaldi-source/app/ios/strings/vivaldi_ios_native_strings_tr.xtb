@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Reklam Engelleme Kaynaklarını Yönetin</translation>
 <translation id="1577761519530347814">Depolanan web sayfası parolalarını senkronize et</translation>
 <translation id="1620921465699122417">Çevrilecek metni girin</translation>
+<translation id="1624621765073396937">Sekmeyi Kaydırarak Kapat</translation>
 <translation id="1631998297781042533">Popüler Siteler</translation>
 <translation id="1644574205037202324">Geçmiş</translation>
 <translation id="1655816024544228768">Spor</translation>
@@ -106,6 +107,7 @@
 <translation id="2330644510603114741">Sekme Davranışı</translation>
 <translation id="233493642829799329">Bunu değiştirmek sekmelerinizden bazılarını yeniden yükleyebilir</translation>
 <translation id="2336309953058658733">Çöp kutusunu boşalt</translation>
+<translation id="2336679896177818431">Adres çubuğunda yukarı veya aşağı kaydırarak sekme değiştiriciyi açar</translation>
 <translation id="2359808026110333948">Devam et</translation>
 <translation id="2386793615875593361">1 seçildi</translation>
 <translation id="2387049655823108978">Diğer cihazlardan açık sekmeleri senkronize edin</translation>
@@ -127,6 +129,7 @@
 <translation id="261264557609353020">Başlangıç Sayfası</translation>
 <translation id="2619628557366098325">Portekizce (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">Sistem</translation>
+<translation id="2638305832232696831">Adres Çubuğu Kaydırma Hareketini Etkinleştir</translation>
 <translation id="2653659639078652383">Gönder</translation>
 <translation id="2666092431469916601">Üst</translation>
 <translation id="2677862276555105603">Reklam
@@ -153,6 +156,7 @@ engellendi</translation>
 <translation id="2862504765180635001">Bunu duyduğumuza üzüldük!</translation>
 <translation id="2878511608894704031">Tümünü Sil</translation>
 <translation id="2884735088411646852">Sırala</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (Çeşitli rahatsız edici unsurları engeller)</translation>
 <translation id="2898963176829412617">Yeni Klasör…</translation>
 <translation id="2918704853620385162">Son Sekmeyi Kapatırken Yeni Sekme Aç</translation>
 <translation id="2924890236896835588">Grup İsmi</translation>
@@ -172,6 +176,7 @@ engellendi</translation>
 <translation id="3142562627629111859">Yeni Grup</translation>
 <translation id="3157931365184549694">Geri yükle</translation>
 <translation id="3159285901314605198">Arka plan Görüntüsü</translation>
+<translation id="317084213044777332">Varsayılan arama motoru yap</translation>
 <translation id="3177673846235066154">Sunucu kimlik bilgilerinizi reddetti.</translation>
 <translation id="3180057018690062250">Akış</translation>
 <translation id="3180358318770512945">Ebeveynlik</translation>
@@ -226,6 +231,7 @@ other {{count} yer imi "{title}"a taşındı}}</translation>
 <translation id="383723620494271391">Eklemek istediğiniz başka bir şey var mı?</translation>
 <translation id="3842727926262967527">Sekme Çubuğunun ve Adres Alanının nerede olmasını tercih ettiğinizi seçin.</translation>
 <translation id="3845564230651302310">Yeni Engelleyici Ayarları Uygulanıyor...</translation>
+<translation id="385051799172605136">Geri</translation>
 <translation id="3858860766373142691">Ad</translation>
 <translation id="3861379244432690245">Doğrudan Eşleşmeyi Etkinleştir</translation>
 <translation id="3866249974567520381">Tanım</translation>
@@ -495,6 +501,7 @@ Düzeltmek için ayarları açın.</translation>
 <translation id="6946395294519639514">Paneller sayesinde, tarayıcının kenar çubuğunda kolayca erişebileceğiniz araçları tutabilirsiniz.</translation>
 <translation id="6951435330868954105">Varsayılan Ayarları Yönet</translation>
 <translation id="6951948201878750661">Bu rengi seçmek için dokunun</translation>
+<translation id="6954630860045222581">Paneli Göster</translation>
 <translation id="6967884871145366229">Gizlilik Ayarlarını Yönetin</translation>
 <translation id="6973630695168034713">Klasörler</translation>
 <translation id="7000227144065890583">URL öner</translation>
@@ -592,6 +599,7 @@ Düzeltmek için ayarları açın.</translation>
 <translation id="8066170816074394954">Sunucu hatası.</translation>
 <translation id="8076492880354921740">Sekmeler</translation>
 <translation id="8077675488769462025">Etkin Olmayan Sekmeler</translation>
+<translation id="8079925180539182073">Varsayılan arama motoru kaldırılamaz.</translation>
 <translation id="8112996065264879835">Bu kod size gönderdiğimiz kodla eşleşmiyor.
          Maksimum yanlış deneme sınırına ulaştınız. Lütfen aşağıdaki Yeniden Gönder seçeneğini kullanarak yeni bir kod isteyin.</translation>
 <translation id="8131740175452115882">Onayla</translation>
@@ -637,6 +645,7 @@ Düzeltmek için ayarları açın.</translation>
 <translation id="856439694359429369">Daha fazla seçenek için dokunun veya açmak için iki kez dokunun.</translation>
 <translation id="8591818185775466306"><ph name="ITEM_TYPE" /> sil</translation>
 <translation id="8605953154325672921">Kullanıcı adı gerekli</translation>
+<translation id="861259508026988871">Arama Motoru Olarak Ekle</translation>
 <translation id="8675578805254882416">Alınıyor</translation>
 <translation id="8677007239430848917">Aşağıdaki artı simgesine dokunarak ilk notunuzu ekleyin</translation>
 <translation id="8684294196284714094">Vivaldi'yi varsayılan tarayıcınız olarak ayarlamaya hazır mısınız?</translation>

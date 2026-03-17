@@ -20,11 +20,12 @@
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/tab_search_feature.h"
 #include "chrome/browser/ui/tabs/organization/tab_declutter_controller.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_action_container.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_nudge_button.h"
@@ -85,7 +86,8 @@ class FakeTabDeclutterObserver : public TabDeclutterObserver {
 class TabDeclutterControllerBrowserTest : public InProcessBrowserTest {
  public:
   TabDeclutterControllerBrowserTest() {
-    feature_list_.InitWithFeatures({features::kTabstripDeclutter}, {});
+    feature_list_.InitWithFeatures({features::kTabstripDeclutter},
+                                   {features::kGlic});
   }
 
   void SetUpOnMainThread() override {
@@ -123,11 +125,6 @@ class TabDeclutterControllerBrowserTest : public InProcessBrowserTest {
   }
 
   views::View* nudge_container() {
-    if (features::HasTabSearchToolbarButton()) {
-      return BrowserElementsViews::From(browser())->GetView(
-          kTabStripActionContainerElementId);
-    }
-
     return BrowserElementsViews::From(browser())->GetViewAs<TabSearchContainer>(
         kTabSearchContainerElementId);
   }
@@ -301,24 +298,12 @@ IN_PROC_BROWSER_TEST_F(TabDeclutterControllerBrowserTest,
   EXPECT_EQ(initial_nudge_interval,
             tab_declutter_controller()->nudge_timer_interval());
 
-  views::LabelButton* close_button;
-  if (features::HasTabSearchToolbarButton()) {
-    TabStripActionContainer* tab_strip_action_container =
-        BrowserElementsViews::From(browser())
-            ->GetViewAs<TabStripActionContainer>(
-                kTabStripActionContainerElementId);
-    EXPECT_TRUE(
-        tab_strip_action_container->tab_declutter_button()->GetVisible());
-    close_button = tab_strip_action_container->tab_declutter_button()
-                       ->close_button_for_testing();
-  } else {
-    TabSearchContainer* tab_search_container =
-        BrowserElementsViews::From(browser())->GetViewAs<TabSearchContainer>(
-            kTabSearchContainerElementId);
-    EXPECT_TRUE(tab_search_container->tab_declutter_button()->GetVisible());
-    close_button = tab_search_container->tab_declutter_button()
-                       ->close_button_for_testing();
-  }
+  TabSearchContainer* tab_search_container =
+      BrowserElementsViews::From(browser())->GetViewAs<TabSearchContainer>(
+          kTabSearchContainerElementId);
+  EXPECT_TRUE(tab_search_container->tab_declutter_button()->GetVisible());
+  views::LabelButton* close_button =
+      tab_search_container->tab_declutter_button()->close_button_for_testing();
 
   // Click the close button.
   close_button->OnMousePressed(
@@ -345,12 +330,12 @@ IN_PROC_BROWSER_TEST_F(TabDeclutterControllerBrowserTest, TestDeclutterTabs) {
   std::vector<tabs::TabInterface*> stale_tabs =
       tab_declutter_controller()->GetStaleTabs();
 
-  int initial_tab_count = browser()->tab_strip_model()->GetTabCount();
+  int initial_tab_count = browser()->tab_strip_model()->count();
   int stale_tab_count = stale_tabs.size();
   tab_declutter_controller()->DeclutterTabs(stale_tabs, {});
 
   // Verify that the number of tabs has decreased by the number of stale tabs.
-  int remaining_tab_count = browser()->tab_strip_model()->GetTabCount();
+  int remaining_tab_count = browser()->tab_strip_model()->count();
   EXPECT_EQ(remaining_tab_count, initial_tab_count - stale_tab_count);
 }
 IN_PROC_BROWSER_TEST_F(TabDeclutterControllerBrowserTest,
@@ -369,13 +354,13 @@ IN_PROC_BROWSER_TEST_F(TabDeclutterControllerBrowserTest,
   std::vector<tabs::TabInterface*> stale_tabs =
       tab_declutter_controller()->GetStaleTabs();
 
-  EXPECT_EQ(browser_two->tab_strip_model()->GetTabCount(), 1);
+  EXPECT_EQ(browser_two->tab_strip_model()->count(), 1);
   browser_two->browser_window_features()
       ->tab_declutter_controller()
       ->DeclutterTabs(stale_tabs, {});
 
   // Verify that the number of tabs has not decreased in second browser.
-  EXPECT_EQ(browser_two->tab_strip_model()->GetTabCount(), 1);
+  EXPECT_EQ(browser_two->tab_strip_model()->count(), 1);
 }
 
 IN_PROC_BROWSER_TEST_F(TabDeclutterControllerBrowserTest,
@@ -475,8 +460,7 @@ class TabDeclutterControllerDuplicateTabsTest
       content::WebContents* content =
           browser()
               ->tab_strip_model()
-              ->GetTabAtIndex(browser()->tab_strip_model()->GetTabCount() - 1 -
-                              i)
+              ->GetTabAtIndex(browser()->tab_strip_model()->count() - 1 - i)
               ->GetContents();
       content::TestNavigationObserver observer(content);
       content->GetController().LoadURLWithParams(
@@ -595,11 +579,11 @@ IN_PROC_BROWSER_TEST_F(TabDeclutterControllerDuplicateTabsTest,
   std::vector<tabs::TabInterface*> stale_tabs =
       tab_declutter_controller()->GetStaleTabs();
 
-  int initial_tab_count = browser()->tab_strip_model()->GetTabCount();
+  int initial_tab_count = browser()->tab_strip_model()->count();
   int stale_tab_count = stale_tabs.size();
   tab_declutter_controller()->DeclutterTabs(stale_tabs, {duplicate_url_1});
 
   // Verify that the number of tabs has decreased by the number of stale tabs.
-  int remaining_tab_count = browser()->tab_strip_model()->GetTabCount();
+  int remaining_tab_count = browser()->tab_strip_model()->count();
   EXPECT_EQ(remaining_tab_count, initial_tab_count - (stale_tab_count + 2));
 }

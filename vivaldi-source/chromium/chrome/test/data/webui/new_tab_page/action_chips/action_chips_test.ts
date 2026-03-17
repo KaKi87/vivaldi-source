@@ -4,7 +4,7 @@
 
 import 'chrome://new-tab-page/lazy_load.js';
 
-import {ActionChipsHandlerRemote, ChipType, PageCallbackRouter} from 'chrome://new-tab-page/action_chips.mojom-webui.js';
+import {ActionChipsHandlerRemote, IconType, PageCallbackRouter} from 'chrome://new-tab-page/action_chips.mojom-webui.js';
 import type {ActionChip, PageRemote, TabInfo} from 'chrome://new-tab-page/action_chips.mojom-webui.js';
 import {ActionChipsApiProxyImpl, ActionChipsRetrievalState} from 'chrome://new-tab-page/lazy_load.js';
 import type {ActionChipsElement} from 'chrome://new-tab-page/lazy_load.js';
@@ -25,6 +25,40 @@ suite('NewTabPageActionChipsTest', () => {
   let handler: TestMock<ActionChipsHandlerRemote>;
   let pageRemote: PageRemote;
   let windowProxy: TestMock<WindowProxy>;
+  const defaultActionChips = [
+    {
+      suggestTemplateInfo: {
+        typeIcon: IconType.kFavicon,
+        primaryText: {text: 'Example Tab', a11yText: null},
+        secondaryText: {text: 'Subtitle for recent tab', a11yText: null},
+      },
+      suggestion: 'Suggestion for recent tab',
+      tab: {
+        tabId: 1,
+        url: 'https://example.com/test',
+        title: 'Example Tab',
+        lastActiveTime: {internalValue: BigInt(12345)},
+      },
+    },
+    {
+      suggestTemplateInfo: {
+        typeIcon: IconType.kBanana,
+        primaryText: {text: 'Nano Banana', a11yText: null},
+        secondaryText: {text: 'Subtitle for image', a11yText: null},
+      },
+      suggestion: 'Suggestion for image',
+      tab: null,
+    },
+    {
+      suggestTemplateInfo: {
+        typeIcon: IconType.kGlobeWithSearchLoop,
+        primaryText: {text: 'Deep Search', a11yText: null},
+        secondaryText: {text: 'Subtitle for deep search', a11yText: null},
+      },
+      suggestion: 'Suggestion for deep search',
+      tab: null,
+    },
+  ];
 
   interface InitializeChipsOptions {
     actionChips: ActionChip[];
@@ -35,31 +69,7 @@ suite('NewTabPageActionChipsTest', () => {
   async function initializeChips(
       providedOptions: Partial<InitializeChipsOptions>): Promise<void> {
     const defaultOptions: InitializeChipsOptions = {
-      actionChips: [
-        {
-          type: ChipType.kRecentTab,
-          title: 'Example Tab',
-          suggestion: 'Ask about this tab',
-          tab: {
-            tabId: 1,
-            url: {url: 'https://example.com/test'},
-            title: 'Example Tab',
-            lastActiveTime: {internalValue: BigInt(12345)},
-          },
-        },
-        {
-          type: ChipType.kImage,
-          title: 'Nano Banana',
-          suggestion: 'Create an image of a nano banana',
-          tab: null,
-        },
-        {
-          type: ChipType.kDeepSearch,
-          title: 'Deep Search',
-          suggestion: 'Search for something deep',
-          tab: null,
-        },
-      ],
+      actionChips: defaultActionChips,
       windowTimestampStart: Date.now().valueOf(),
       windowTimestampEnd: Date.now().valueOf() + 1,
     };
@@ -110,15 +120,18 @@ suite('NewTabPageActionChipsTest', () => {
     const fakeTab: TabInfo = {
       tabId: 1,
       title: 'Test Title',
-      url: {url: 'https://example.com/test'},
+      url: 'https://example.com/test',
       lastActiveTime: {internalValue: BigInt(12345)},
     };
     await initializeChips({
       actionChips: [
         {
-          type: ChipType.kRecentTab,
-          title: 'Example Tab',
-          suggestion: 'Ask about this tab',
+          suggestTemplateInfo: {
+            typeIcon: IconType.kFavicon,
+            primaryText: {text: 'Example Tab', a11yText: null},
+            secondaryText: {text: 'Subtitle for recent tab', a11yText: null},
+          },
+          suggestion: 'Suggestion for recent tab',
           tab: fakeTab,
         },
       ],
@@ -139,6 +152,7 @@ suite('NewTabPageActionChipsTest', () => {
       origin: TabUploadOrigin.ACTION_CHIP,
     };
 
+    assertEquals('Suggestion for recent tab', event.detail.searchboxText);
     assertTrue(!!event.detail.contextFiles);
     assertEquals(1, event.detail.contextFiles.length);
     assertDeepEquals(expectedTab, event.detail.contextFiles[0]);
@@ -147,11 +161,14 @@ suite('NewTabPageActionChipsTest', () => {
   test('recent tab chip renders favicon', async () => {
     await initializeChips({
       actionChips: [{
-        type: ChipType.kRecentTab,
-        title: 'Example Tab',
-        suggestion: 'Ask about this tab',
+        suggestTemplateInfo: {
+          typeIcon: IconType.kFavicon,
+          primaryText: {text: 'Example Tab', a11yText: null},
+          secondaryText: {text: 'Subtitle for recent tab', a11yText: null},
+        },
+        suggestion: 'Suggestion for recent tab',
         tab: {
-          url: {url: 'https://example.com'},
+          url: 'https://example.com',
           tabId: 0,
           title: 'Example Tab',
           lastActiveTime: {internalValue: BigInt(0)},
@@ -166,11 +183,14 @@ suite('NewTabPageActionChipsTest', () => {
   test('deep dive chip renders correct format', async () => {
     await initializeChips({
       actionChips: [{
-        type: ChipType.kDeepDive,
-        title: 'Example Tab',
-        suggestion: 'Ask more about this site',
+        suggestTemplateInfo: {
+          typeIcon: IconType.kSubArrowRight,
+          primaryText: {text: 'Example Tab', a11yText: null},
+          secondaryText: {text: 'Subtitle for deep dive', a11yText: null},
+        },
+        suggestion: 'Suggestion for deep dive',
         tab: {
-          url: {url: 'https://example.com'},
+          url: 'https://example.com',
           tabId: 0,
           title: 'Example Tab',
           lastActiveTime: {internalValue: BigInt(0)},
@@ -180,7 +200,7 @@ suite('NewTabPageActionChipsTest', () => {
 
     // Check correct classes are rendered
     const deepDiveChipIcon = chips.shadowRoot.querySelector<HTMLElement>(
-        '.action-chip-icon-container.deep-dive');
+        '.action-chip-icon-container.icon-type-sub-arrow-right');
     assertTrue(!!deepDiveChipIcon);
 
     // Check chip title is not rendered
@@ -205,11 +225,12 @@ suite('NewTabPageActionChipsTest', () => {
       nanoBananaChip.click();
 
       // Assert.
-      await whenActionChipClicked;
+      const event = await whenActionChipClicked;
 
-      assertEquals(1, metrics.count('NewTabPage.ActionChips.Click'));
+      assertEquals('Suggestion for image', event.detail.searchboxText);
+      assertEquals(1, metrics.count('NewTabPage.ActionChips.Click2'));
       assertEquals(
-          1, metrics.count('NewTabPage.ActionChips.Click', ChipType.kImage));
+          1, metrics.count('NewTabPage.ActionChips.Click2', IconType.kBanana));
     });
 
     test('deep search chip triggers chip click event', async () => {
@@ -222,12 +243,14 @@ suite('NewTabPageActionChipsTest', () => {
       deepSearchChip.click();
 
       // Assert.
-      await whenActionChipClicked;
+      const event = await whenActionChipClicked;
 
-      assertEquals(1, metrics.count('NewTabPage.ActionChips.Click'));
+      assertEquals('Suggestion for deep search', event.detail.searchboxText);
+      assertEquals(1, metrics.count('NewTabPage.ActionChips.Click2'));
       assertEquals(
           1,
-          metrics.count('NewTabPage.ActionChips.Click', ChipType.kDeepSearch));
+          metrics.count(
+              'NewTabPage.ActionChips.Click2', IconType.kGlobeWithSearchLoop));
     });
 
     test('tab context chip triggers chip click event', async () => {
@@ -240,23 +263,26 @@ suite('NewTabPageActionChipsTest', () => {
       recentTabChip.click();
 
       // Assert.
-      await whenActionChipClicked;
+      const event = await whenActionChipClicked;
 
-      assertEquals(1, metrics.count('NewTabPage.ActionChips.Click'));
+      assertEquals('Suggestion for recent tab', event.detail.searchboxText);
+      assertEquals(1, metrics.count('NewTabPage.ActionChips.Click2'));
       assertEquals(
-          1,
-          metrics.count('NewTabPage.ActionChips.Click', ChipType.kRecentTab));
+          1, metrics.count('NewTabPage.ActionChips.Click2', IconType.kFavicon));
     });
 
     test('deep dive chip triggers chip click event', async () => {
       // Setup.
       await initializeChips({
         actionChips: [{
-          type: ChipType.kDeepDive,
-          title: 'Example Tab',
-          suggestion: 'Help me with this page',
+          suggestTemplateInfo: {
+            typeIcon: IconType.kSubArrowRight,
+            primaryText: {text: 'Example Tab', a11yText: null},
+            secondaryText: {text: 'Subtitle for deep dive', a11yText: null},
+          },
+          suggestion: 'Suggestion for deep dive',
           tab: {
-            url: {url: 'https://example.com'},
+            url: 'https://example.com',
             tabId: 0,
             title: 'Example Tab',
             lastActiveTime: {internalValue: BigInt(0)},
@@ -274,11 +300,14 @@ suite('NewTabPageActionChipsTest', () => {
       deepDiveChip.click();
 
       // Assert.
-      await whenActionChipClicked;
+      const event = await whenActionChipClicked;
 
-      assertEquals(1, metrics.count('NewTabPage.ActionChips.Click'));
+      assertEquals('Suggestion for deep dive', event.detail.searchboxText);
+      assertEquals(1, metrics.count('NewTabPage.ActionChips.Click2'));
       assertEquals(
-          1, metrics.count('NewTabPage.ActionChips.Click', ChipType.kDeepDive));
+          1,
+          metrics.count(
+              'NewTabPage.ActionChips.Click2', IconType.kSubArrowRight));
     });
   });
 
@@ -348,7 +377,13 @@ suite('NewTabPageActionChipsTest', () => {
     test(
         'The number of chips is equal to the number of items in the response',
         async () => {
-          await initializeChips({});
+          loadTimeData.overrideValues({
+            ntpNextShowSimplificationUIEnabled: true,
+          });
+          const actionChips = structuredClone(defaultActionChips);
+          // By default, the recent tab chip has an empty suggestion.
+          actionChips[0]!.suggestion = '';
+          await initializeChips({actionChips});
           assertTrue(!!chips);
           const allChips = Array.from<HTMLButtonElement>(
               chips.shadowRoot.querySelectorAll<HTMLButtonElement>('button'));
@@ -359,15 +394,15 @@ suite('NewTabPageActionChipsTest', () => {
               [
                 {
                   title: 'Example Tab',
-                  body: 'Ask about this tab',
+                  body: '- Subtitle for recent tab',
                 },
                 {
                   title: 'Nano Banana',
-                  body: 'Create an image of a nano banana',
+                  body: '- Suggestion for image',
                 },
                 {
                   title: 'Deep Search',
-                  body: 'Search for something deep',
+                  body: '- Suggestion for deep search',
                 },
               ],
               allChips.map((chip: HTMLButtonElement) => {
@@ -386,6 +421,99 @@ suite('NewTabPageActionChipsTest', () => {
                           ?.textContent.trim(),
                 };
               }));
+        });
+
+    test('Uses subtitle when simplification UI is disabled', async () => {
+      loadTimeData.overrideValues({
+        ntpNextShowSimplificationUIEnabled: false,
+      });
+      await initializeChips({});
+      assertTrue(!!chips);
+      const allChips = Array.from<HTMLButtonElement>(
+          chips.shadowRoot.querySelectorAll<HTMLButtonElement>('button'));
+      assertEquals(3, allChips.length);
+
+      assertDeepEquals(
+          [
+            {
+              title: 'Example Tab',
+              body: 'Subtitle for recent tab',
+            },
+            {
+              title: 'Nano Banana',
+              body: 'Subtitle for image',
+            },
+            {
+              title: 'Deep Search',
+              body: 'Subtitle for deep search',
+            },
+          ],
+          allChips.map((chip: HTMLButtonElement) => {
+            const spans =
+                Array.from<Element>(chip.querySelectorAll<Element>('span'));
+            return {
+              title:
+                  spans
+                      .find((e: Element) => e.classList.contains('chip-title'))
+                      ?.textContent.trim(),
+              body:
+                  spans.find((e: Element) => e.classList.contains('chip-body'))
+                      ?.textContent.trim(),
+            };
+          }));
+    });
+
+    test(
+        'Uses subtitle when row UI is enabled but suggestion is empty',
+        async () => {
+          loadTimeData.overrideValues({
+            ntpNextShowSimplificationUIEnabled: true,
+          });
+          await initializeChips({
+            actionChips: [{
+              suggestTemplateInfo: {
+                typeIcon: IconType.kGlobeWithSearchLoop,
+                primaryText: {text: 'Deep Search', a11yText: null},
+                secondaryText:
+                    {text: 'Subtitle for deep search', a11yText: null},
+              },
+              suggestion: '',
+              tab: null,
+            }],
+          });
+          const chip =
+              chips.shadowRoot.querySelector<HTMLButtonElement>('button');
+          assertTrue(!!chip);
+          const bodyElement = chip.querySelector('.chip-body');
+          assertTrue(!!bodyElement);
+          const body = bodyElement.textContent?.trim();
+          assertEquals('- Subtitle for deep search', body);
+        });
+
+    test(
+        'Returns empty string when both suggestion and subtitle are empty',
+        async () => {
+          loadTimeData.overrideValues({
+            ntpNextShowSimplificationUIEnabled: true,
+          });
+          await initializeChips({
+            actionChips: [{
+              suggestTemplateInfo: {
+                typeIcon: IconType.kGlobeWithSearchLoop,
+                primaryText: {text: 'Deep Search', a11yText: null},
+                secondaryText: {text: '', a11yText: null},
+              },
+              suggestion: '',
+              tab: null,
+            }],
+          });
+          const chip =
+              chips.shadowRoot.querySelector<HTMLButtonElement>('button');
+          assertTrue(!!chip);
+          const bodyElement = chip.querySelector('.chip-body');
+          assertTrue(!!bodyElement);
+          const body = bodyElement.textContent?.trim();
+          assertEquals('', body);
         });
 
     test('should dismiss a chip when remove button is clicked', async () => {
@@ -408,5 +536,41 @@ suite('NewTabPageActionChipsTest', () => {
           chips.shadowRoot.querySelectorAll<HTMLButtonElement>('.action-chip');
       assertEquals(2, allChips.length);
     });
+  });
+
+  suite('ReducedMotion', () => {
+    test(
+        'animations are disabled when reduced motion is preferred',
+        async () => {
+          await initializeChips({
+            actionChips: [
+              {
+                suggestTemplateInfo: {
+                  typeIcon: IconType.kBanana,
+                  primaryText: {text: 'Nano Banana', a11yText: null},
+                  secondaryText: {text: 'Subtitle for image', a11yText: null},
+                },
+                suggestion: 'Suggestion for image',
+                tab: null,
+              },
+            ],
+          });
+
+          // Act.
+          chips.reducedMotionPreferred = true;
+          await microtasksFinished();
+
+          // Assert.
+          const container =
+              chips.shadowRoot.querySelector('.action-chips-container')!;
+          const chip = chips.shadowRoot.querySelector('.action-chip')!;
+          assertEquals(
+              'none',
+              window.getComputedStyle(container).getPropertyValue(
+                  'animation-name'));
+          assertEquals(
+              'none',
+              window.getComputedStyle(chip).getPropertyValue('animation-name'));
+        });
   });
 });

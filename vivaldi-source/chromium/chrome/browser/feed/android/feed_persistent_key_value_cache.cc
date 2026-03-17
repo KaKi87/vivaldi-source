@@ -19,7 +19,7 @@
 
 namespace feed {
 namespace {
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 
 std::string JavaByteArrayToString(
     JNIEnv* env,
@@ -41,8 +41,9 @@ void OnLookupFinished(JNIEnv* env,
 
 void CallRunnable(base::android::ScopedJavaGlobalRef<jobject> runnable,
                   PersistentKeyValueStore::Result result) {
-  if (runnable)
-    base::android::RunRunnableAndroid(runnable);
+  if (runnable) {
+    jni_zero::RunRunnable(runnable);
+  }
 }
 
 PersistentKeyValueStore* GetStore() {
@@ -61,8 +62,8 @@ PersistentKeyValueStore* GetStore() {
 
 static void JNI_FeedPersistentKeyValueCache_Lookup(
     JNIEnv* env,
-    const JavaParamRef<jbyteArray>& j_key,
-    const JavaParamRef<jobject>& j_response_callback) {
+    const JavaRef<jbyteArray>& j_key,
+    const JavaRef<jobject>& j_response_callback) {
   base::android::ScopedJavaGlobalRef<jobject> callback(j_response_callback);
 
   PersistentKeyValueStore* store = GetStore();
@@ -77,14 +78,16 @@ static void JNI_FeedPersistentKeyValueCache_Lookup(
 
 static void JNI_FeedPersistentKeyValueCache_Put(
     JNIEnv* env,
-    const JavaParamRef<jbyteArray>& j_key,
-    const JavaParamRef<jbyteArray>& j_value,
-    const JavaParamRef<jobject>& j_runnable) {
+    const JavaRef<jbyteArray>& j_key,
+    const JavaRef<jbyteArray>& j_value,
+    const JavaRef<jobject>& j_runnable) {
   base::android::ScopedJavaGlobalRef<jobject> callback(j_runnable);
 
   PersistentKeyValueStore* store = GetStore();
   if (!store) {
-    base::android::RunRunnableAndroid(j_runnable);
+    if (j_runnable) {
+      jni_zero::RunRunnable(j_runnable);
+    }
     return;
   }
   return store->Put(
@@ -95,13 +98,15 @@ static void JNI_FeedPersistentKeyValueCache_Put(
 
 static void JNI_FeedPersistentKeyValueCache_Evict(
     JNIEnv* env,
-    const JavaParamRef<jbyteArray>& j_key,
-    const JavaParamRef<jobject>& j_runnable) {
+    const JavaRef<jbyteArray>& j_key,
+    const JavaRef<jobject>& j_runnable) {
   base::android::ScopedJavaGlobalRef<jobject> callback(j_runnable);
 
   PersistentKeyValueStore* store = GetStore();
   if (!store) {
-    base::android::RunRunnableAndroid(j_runnable);
+    if (j_runnable) {
+      jni_zero::RunRunnable(j_runnable);
+    }
     return;
   }
   return store->Delete(

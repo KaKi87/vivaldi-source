@@ -26,9 +26,7 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.chrome.browser.app.ChromeActivity;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.night_mode.ChromeNightModeTestUtils;
 import org.chromium.chrome.browser.tab.Tab;
@@ -59,7 +57,9 @@ import java.io.IOException;
     ChromeSwitches.DISABLE_STARTUP_PROMOS,
     ContentSwitches.HOST_RESOLVER_RULES + "=MAP * 127.0.0.1"
 })
-@DisableIf.Device(DeviceFormFactor.ONLY_TABLET) // crbug.com/338978357, crbug.com/384775466
+@DisableIf.Device(
+        DeviceFormFactor.TABLET_OR_DESKTOP) // https://crbug.com/338978357, crbug.com/384775466,
+// crbug.com/394675204
 public class PageInfoViewDarkModeTest {
     private static final String sSimpleHtml = "/chrome/test/data/android/simple.html";
 
@@ -72,7 +72,7 @@ public class PageInfoViewDarkModeTest {
     @Rule
     public RenderTestRule mRenderTestRule =
             RenderTestRule.Builder.withPublicCorpus()
-                    .setRevision(5)
+                    .setRevision(6)
                     .setBugComponent(RenderTestRule.Component.UI_BROWSER_BUBBLES_PAGE_INFO)
                     .build();
 
@@ -138,7 +138,6 @@ public class PageInfoViewDarkModeTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @DisableFeatures(ChromeFeatureList.TRACKING_PROTECTION_3PCD)
     public void testShowOnSecureWebsiteDark() throws IOException {
         loadUrlAndOpenPageInfo(mTestServerRule.getServer().getURL(sSimpleHtml));
         mRenderTestRule.render(getPageInfoView(), "PageInfo_SecureWebsiteDark");

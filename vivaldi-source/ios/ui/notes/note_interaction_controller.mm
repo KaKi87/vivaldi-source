@@ -15,10 +15,10 @@
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/browser_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_navigation_controller.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
@@ -34,8 +34,8 @@
 #import "ios/ui/notes/note_home_view_controller.h"
 #import "ios/ui/notes/note_interaction_controller_delegate.h"
 #import "ios/ui/notes/note_mediator.h"
-#import "ios/ui/notes/note_navigation_controller_delegate.h"
 #import "ios/ui/notes/note_navigation_controller.h"
+#import "ios/ui/notes/note_navigation_controller_delegate.h"
 #import "ios/ui/notes/note_path_cache.h"
 #import "ios/ui/notes/note_transitioning_delegate.h"
 #import "ios/ui/notes/note_utils_ios.h"
@@ -47,8 +47,8 @@
 #error "This file requires ARC support."
 #endif
 
-using vivaldi::NotesModel;
 using vivaldi::NoteNode;
+using vivaldi::NotesModel;
 
 namespace {
 
@@ -111,8 +111,7 @@ enum class PresentedState {
 
 @property(nonatomic, strong) NoteMediator* mediator;
 
-@property(nonatomic, readonly, weak) id<ApplicationCommands, BrowserCommands>
-    handler;
+@property(nonatomic, readonly, weak) id<SceneCommands, BrowserCommands> handler;
 
 // The transitioning delegate that is used when presenting
 // |self.noteBrowser|.
@@ -126,12 +125,18 @@ enum class PresentedState {
 // Dismisses the note browser.  If |urlsToOpen| is not empty, then the user
 // has selected to navigate to those URLs with specified tab mode.
 - (void)dismissNoteBrowserAnimated:(BOOL)animated
-                            urlsToOpen:(const std::vector<GURL>&)urlsToOpen
-                           inIncognito:(BOOL)inIncognito
-                                newTab:(BOOL)newTab;
+                        urlsToOpen:(const std::vector<GURL>&)urlsToOpen
+                       inIncognito:(BOOL)inIncognito
+                            newTab:(BOOL)newTab;
 
 // Dismisses the note editor.
 - (void)dismissNoteEditorAnimated:(BOOL)animated;
+
+// Returns the modal container currently used for the note editor, if any.
+- (UIViewController*)presentedNoteEditorController;
+
+// Resets stale state when the previously presented controller is already gone.
+- (void)recoverFromStalePresentedStateIfNeeded;
 
 @end
 
@@ -162,7 +167,7 @@ enum class PresentedState {
     _parentController = parentController;
     // TODO(crbug.com/1045047): Use HandlerForProtocol after commands protocol
     // clean up.
-    _handler = static_cast<id<ApplicationCommands, BrowserCommands>>(
+    _handler = static_cast<id<SceneCommands, BrowserCommands>>(
         browser->GetCommandDispatcher());
     _webStateList = browser->GetWebStateList();
     _noteModel = vivaldi::NotesModelFactory::GetForProfile(_profile);
@@ -202,9 +207,57 @@ enum class PresentedState {
   return _snackbarCommandsHandler;
 }
 
+- (UIViewController*)presentedNoteEditorController {
+  if (!self.noteEditor) {
+    return nil;
+  }
+
+  UIViewController* editorContainer =
+      self.noteEditor.navigationController ?: self.noteEditor;
+  if (editorContainer.presentingViewController ||
+      _parentController.presentedViewController == editorContainer) {
+    return editorContainer;
+  }
+
+  return nil;
+}
+
+- (void)recoverFromStalePresentedStateIfNeeded {
+  switch (self.currentPresentedState) {
+    case PresentedState::NONE:
+      return;
+    case PresentedState::NOTE_BROWSER:
+      if (!self.noteBrowser) {
+        self.currentPresentedState = PresentedState::NONE;
+      }
+      return;
+    case PresentedState::NOTE_EDITOR:
+      if (![self presentedNoteEditorController]) {
+        self.noteEditor.delegate = nil;
+        self.noteEditor = nil;
+        self.currentPresentedState = PresentedState::NONE;
+      }
+      return;
+    case PresentedState::NOTE_FOLDER_EDITOR:
+      if (!_parentController.presentedViewController) {
+        self.currentPresentedState = PresentedState::NONE;
+      }
+      return;
+    case PresentedState::NOTE_FOLDER_SELECTION:
+      if (!self.folderSelector || !self.folderSelector.navigationController ||
+          (!self.folderSelector.navigationController.presentingViewController &&
+           _parentController.presentedViewController !=
+               self.folderSelector.navigationController)) {
+        self.folderSelector.delegate = nil;
+        self.folderSelector = nil;
+        self.currentPresentedState = PresentedState::NONE;
+      }
+      return;
+  }
+}
+
 - (void)showNotes {
-  self.noteBrowser =
-      [[NoteHomeViewController alloc] initWithBrowser:_browser];
+  self.noteBrowser = [[NoteHomeViewController alloc] initWithBrowser:_browser];
   self.noteBrowser.homeDelegate = self;
   self.noteBrowser.snackbarCommandsHandler = self.snackbarCommandsHandler;
 
@@ -214,8 +267,7 @@ enum class PresentedState {
     // loaded yet, the root node will be set in NoteHomeViewController after
     // the model is finished loading.
     [self.noteBrowser setRootNode:self.noteModel->root_node()];
-    replacementViewControllers =
-       [self.noteBrowser cachedViewControllerStack];
+    replacementViewControllers = [self.noteBrowser cachedViewControllerStack];
   }
 
   self.currentPresentedState = PresentedState::NOTE_BROWSER;
@@ -224,38 +276,47 @@ enum class PresentedState {
 }
 
 - (void)presentEditorForNode:(const vivaldi::NoteNode*)node {
-  DCHECK_EQ(PresentedState::NONE, self.currentPresentedState);
+  [self recoverFromStalePresentedStateIfNeeded];
+  if (self.currentPresentedState != PresentedState::NONE) {
+    return;
+  }
   [self dismissSnackbar];
 
   if (!node) {
     return;
   }
 
-  if (!(node->type() == NoteNode::NOTE ||
-        node->type() == NoteNode::FOLDER)) {
+  if (!(node->type() == NoteNode::NOTE || node->type() == NoteNode::FOLDER)) {
     return;
   }
 
   if (node->type() == vivaldi::NoteNode::NOTE)
-      [self presentNoteEditorWithEditingNode:node
-                                  parentNode:nil isEditing:YES isFolder:NO];
+    [self presentNoteEditorWithEditingNode:node
+                                parentNode:nil
+                                 isEditing:YES
+                                  isFolder:NO];
   else {
-      [self presentNoteFolderEditor:node parent:nil isEditing:YES];
+    [self presentNoteFolderEditor:node parent:nil isEditing:YES];
   }
 }
 
 - (void)presentAddViewController:(const NoteNode*)parent {
-  DCHECK_EQ(PresentedState::NONE, self.currentPresentedState);
+  [self recoverFromStalePresentedStateIfNeeded];
+  if (self.currentPresentedState != PresentedState::NONE) {
+    return;
+  }
   [self dismissSnackbar];
-  [self presentNoteEditorWithEditingNode:nil parentNode:parent
-                               isEditing:NO isFolder:NO];
+  [self presentNoteEditorWithEditingNode:nil
+                              parentNode:parent
+                               isEditing:NO
+                                isFolder:NO];
   [self.baseViewController showViewController:_noteEditor sender:self];
 }
 
 - (void)dismissNoteBrowserAnimated:(BOOL)animated
-                            urlsToOpen:(const std::vector<GURL>&)urlsToOpen
-                           inIncognito:(BOOL)inIncognito
-                                newTab:(BOOL)newTab {
+                        urlsToOpen:(const std::vector<GURL>&)urlsToOpen
+                       inIncognito:(BOOL)inIncognito
+                            newTab:(BOOL)newTab {
   if (self.currentPresentedState != PresentedState::NOTE_BROWSER) {
     return;
   }
@@ -263,12 +324,12 @@ enum class PresentedState {
     [self noteBrowserDismissed];
     [self.panelDelegate panelDismissed];
   };
-  [self.noteBrowser dismissViewControllerAnimated:animated completion:completion];
+  [self.noteBrowser dismissViewControllerAnimated:animated
+                                       completion:completion];
 
   DCHECK(self.noteNavigationController);
   if (_parentController) {
-    [_parentController dismissViewControllerAnimated:animated
-                                          completion:nil];
+    [_parentController dismissViewControllerAnimated:animated completion:nil];
   }
   self.currentPresentedState = PresentedState::NONE;
 }
@@ -291,17 +352,14 @@ enum class PresentedState {
   if (self.currentPresentedState != PresentedState::NOTE_EDITOR) {
     return;
   }
-  DCHECK(self.noteNavigationController);
+  UIViewController* presentedEditorController =
+      [self presentedNoteEditorController];
 
   self.noteEditor.delegate = nil;
   self.noteEditor = nil;
-  [self.noteNavigationController
-      dismissViewControllerAnimated:animated
-                         completion:^{
-                           self.noteNavigationController = nil;
-                           self.noteTransitioningDelegate = nil;
-                         }];
   self.currentPresentedState = PresentedState::NONE;
+  [presentedEditorController dismissViewControllerAnimated:animated
+                                                completion:nil];
 }
 
 - (void)dismissFolderSelectionAnimated:(BOOL)animated {
@@ -323,14 +381,14 @@ enum class PresentedState {
 - (void)dismissNoteModalControllerAnimated:(BOOL)animated {
   // No urls to open.  So it does not care about inIncognito and newTab.
   [self dismissNoteBrowserAnimated:animated
-                            urlsToOpen:std::vector<GURL>()
-                           inIncognito:NO
-                                newTab:NO];
+                        urlsToOpen:std::vector<GURL>()
+                       inIncognito:NO
+                            newTab:NO];
   [self dismissNoteEditorAnimated:animated];
 }
 
 - (void)dismissSnackbar {
-   //Dismiss any note related snackbar this controller could have presented.
+  // Dismiss any note related snackbar this controller could have presented.
   [self.snackbarCommandsHandler dismissAllSnackbars];
 }
 
@@ -353,7 +411,7 @@ enum class PresentedState {
 #pragma mark - NoteFolderChooserViewControllerDelegate
 
 - (void)folderPicker:(NoteFolderChooserViewController*)folderPicker
-    didFinishWithFolder:(const  vivaldi::NoteNode*)folder {
+    didFinishWithFolder:(const vivaldi::NoteNode*)folder {
   [self dismissFolderSelectionAnimated:YES];
 
   if (self.folderSelectionCompletionBlock) {
@@ -371,25 +429,22 @@ enum class PresentedState {
 
 #pragma mark - NoteHomeViewControllerDelegate
 
-- (void)
-noteHomeViewControllerWantsDismissal:(NoteHomeViewController*)controller
-                        navigationToUrls:(const std::vector<GURL>&)urls {
+- (void)noteHomeViewControllerWantsDismissal:(NoteHomeViewController*)controller
+                            navigationToUrls:(const std::vector<GURL>&)urls {
   [self noteHomeViewControllerWantsDismissal:controller
-                                navigationToUrls:urls
-                                     inIncognito:_currentProfile
-                                                     ->IsOffTheRecord()
-                                          newTab:NO];
+                            navigationToUrls:urls
+                                 inIncognito:_currentProfile->IsOffTheRecord()
+                                      newTab:NO];
 }
 
-- (void)noteHomeViewControllerWantsDismissal:
-            (NoteHomeViewController*)controller
-                                navigationToUrls:(const std::vector<GURL>&)urls
-                                     inIncognito:(BOOL)inIncognito
-                                          newTab:(BOOL)newTab {
+- (void)noteHomeViewControllerWantsDismissal:(NoteHomeViewController*)controller
+                            navigationToUrls:(const std::vector<GURL>&)urls
+                                 inIncognito:(BOOL)inIncognito
+                                      newTab:(BOOL)newTab {
   [self dismissNoteBrowserAnimated:YES
-                            urlsToOpen:urls
-                           inIncognito:inIncognito
-                                newTab:newTab];
+                        urlsToOpen:urls
+                       inIncognito:inIncognito
+                            newTab:newTab];
 }
 
 #pragma mark - Private
@@ -429,8 +484,8 @@ noteHomeViewControllerWantsDismissal:(NoteHomeViewController*)controller
   navController.delegate = self.noteNavigationControllerDelegate;
   if (self.currentPresentedState != PresentedState::NOTE_BROWSER) {
     [_parentController presentViewController:navController
-                                  animated:YES
-                                completion:nil];
+                                    animated:YES
+                                  completion:nil];
   }
 }
 
@@ -460,17 +515,17 @@ noteHomeViewControllerWantsDismissal:(NoteHomeViewController*)controller
 }
 
 - (void)presentNoteEditorWithEditingNode:(const NoteNode*)editingNode
-                                  parentNode:(const NoteNode*)parentNode
-                                   isEditing:(BOOL)isEditing
-                                    isFolder:(BOOL)isFolder {
+                              parentNode:(const NoteNode*)parentNode
+                               isEditing:(BOOL)isEditing
+                                isFolder:(BOOL)isFolder {
   if (isFolder)
     [self presentNoteFolderEditor:editingNode
-                                  parent:parentNode
-                                   isEditing:isEditing];
+                           parent:parentNode
+                        isEditing:isEditing];
   else {
-      [self presentNoteEditor:editingNode
-                   parentNode:parentNode
-                    isEditing:isEditing];
+    [self presentNoteEditor:editingNode
+                 parentNode:parentNode
+                  isEditing:isEditing];
   }
 }
 
@@ -480,53 +535,46 @@ noteHomeViewControllerWantsDismissal:(NoteHomeViewController*)controller
                parentNode:(const NoteNode*)parentNode
                 isEditing:(BOOL)isEditing {
   NoteAddEditViewController* controller =
-    [NoteAddEditViewController
-     initWithBrowser:_browser
-                item:node
-              parent:parentNode
-           isEditing:isEditing
-        allowsCancel:YES];
+      [NoteAddEditViewController initWithBrowser:_browser
+                                            item:node
+                                          parent:parentNode
+                                       isEditing:isEditing
+                                    allowsCancel:YES];
   self.noteEditor = controller;
   self.noteEditor.delegate = self;
 
-  UINavigationController *newVC =
-      [[UINavigationController alloc]
-        initWithRootViewController:controller];
+  UINavigationController* newVC =
+      [[UINavigationController alloc] initWithRootViewController:controller];
 
   self.currentPresentedState = PresentedState::NOTE_EDITOR;
 
   // Present the nav bar controller on top of the parent
-  [_parentController presentViewController:newVC
-                                      animated:YES
-                                    completion:nil];
+  [_parentController presentViewController:newVC animated:YES completion:nil];
 }
 
 /// 'editingItem' can be nil as this editor will be presented for both adding
 /// and editing item
 - (void)presentNoteFolderEditor:(const NoteNode*)node
-                                parent:(const NoteNode*)parentNode
-                                 isEditing:(BOOL)isEditing {
-   NoteAddEditFolderViewController* controller =
-    [NoteAddEditFolderViewController
-       initWithBrowser:_browser
-                  item:node
-                parent:parentNode
-             isEditing:isEditing
-          allowsCancel:YES];
-  UINavigationController *newVC =
-      [[UINavigationController alloc]
-        initWithRootViewController:controller];
+                         parent:(const NoteNode*)parentNode
+                      isEditing:(BOOL)isEditing {
+  NoteAddEditFolderViewController* controller =
+      [NoteAddEditFolderViewController initWithBrowser:_browser
+                                                  item:node
+                                                parent:parentNode
+                                             isEditing:isEditing
+                                          allowsCancel:YES];
+  UINavigationController* newVC =
+      [[UINavigationController alloc] initWithRootViewController:controller];
 
   self.currentPresentedState = PresentedState::NOTE_FOLDER_EDITOR;
 
   // Present the nav bar controller on top of the parent
-  [_parentController presentViewController:newVC
-                                      animated:YES
-                                    completion:nil];
+  [_parentController presentViewController:newVC animated:YES completion:nil];
 }
 
 - (BOOL)isEditorPresented {
-  return _parentController.presentedViewController != nil;
+  return [self presentedNoteEditorController] != nil ||
+         _parentController.presentedViewController != nil;
 }
 
 @end

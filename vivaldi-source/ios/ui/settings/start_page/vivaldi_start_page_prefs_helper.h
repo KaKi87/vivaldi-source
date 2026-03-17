@@ -6,8 +6,8 @@
 #import <UIKit/UIKit.h>
 
 #import "ios/ui/ntp/vivaldi_speed_dial_sorting_mode.h"
-#import "ios/ui/settings/start_page/layout_settings/vivaldi_start_page_layout_style.h"
 #import "ios/ui/settings/start_page/layout_settings/vivaldi_start_page_layout_column.h"
+#import "ios/ui/settings/start_page/layout_settings/vivaldi_start_page_layout_style.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_start_item_type.h"
 
 @interface VivaldiStartPagePrefsHelper : NSObject
@@ -39,8 +39,14 @@
 /// Returns the startup wallpaper
 + (NSString*)getWallpaperName;
 /// Retrieves the UIImage from the stored Base64 encoded string
-+ (UIImage *)getPortraitWallpaper;
-+ (UIImage *)getLandscapeWallpaper;
++ (UIImage*)getPortraitWallpaper;
++ (UIImage*)getLandscapeWallpaper;
+
+/// Daily Mix wallpaper (downloaded once per day).
++ (NSString*)getDailyMixLastFetchDate;
++ (UIImage*)getDailyMixWallpaper;
+/// Returns the raw JSON metadata string for the current daily mix image.
++ (NSString*)getDailyMixMetadata;
 
 #pragma mark - Setters
 /// Sets the speed dial sorting mode to the prefs.
@@ -70,6 +76,16 @@
 /// Stores the UIImage as a Base64 encoded string
 + (void)setPortraitWallpaper:(UIImage*)image;
 + (void)setLandscapeWallpaper:(UIImage*)image;
+
+/// Daily Mix wallpaper (downloaded once per day).
++ (void)setDailyMixLastFetchDate:(NSString*)date;
++ (void)setDailyMixWallpaper:(UIImage*)image;
+/// Stores the raw JSON metadata string for the current daily mix image.
++ (void)setDailyMixMetadata:(NSString*)jsonString;
+
+#pragma mark - Other Methods
+/// Triggers a refresh if Daily Mix is selected and the cached image is stale.
++ (void)refreshDailyMixWallpaperIfNeeded;
 @end
 
 #endif  // IOS_UI_SETTINGS_START_PAGE_VIVALDI_START_PAGE_PREFS_HELPER_H_

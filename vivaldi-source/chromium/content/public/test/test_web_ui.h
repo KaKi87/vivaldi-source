@@ -18,6 +18,8 @@
 
 namespace content {
 
+class PerWebUIBrowserInterfaceBroker;
+
 // Test instance of WebUI that tracks the data passed to
 // CallJavascriptFunctionUnsafe().
 class TestWebUI : public WebUI {
@@ -31,7 +33,7 @@ class TestWebUI : public WebUI {
 
   void ClearTrackedCalls();
   void HandleReceivedMessage(const std::string& handler_name,
-                             const base::Value::List& args);
+                             const base::ListValue& args);
 
   void set_web_contents(WebContents* web_contents) {
     web_contents_ = web_contents;
@@ -58,7 +60,7 @@ class TestWebUI : public WebUI {
                                MessageCallback callback) override;
   void ProcessWebUIMessage(const GURL& source_url,
                            const std::string& message,
-                           base::Value::List args) override;
+                           base::ListValue args) override;
   bool CanCallJavascript() override;
   void CallJavascriptFunctionUnsafe(
       std::string_view function_name,
@@ -82,11 +84,11 @@ class TestWebUI : public WebUI {
     const base::Value* arg3() const { return arg_nth(2); }
     const base::Value* arg4() const { return arg_nth(3); }
 
-    const base::Value::List& args() const { return args_; }
+    const base::ListValue& args() const { return args_; }
 
    private:
     std::string function_name_;
-    base::Value::List args_;
+    base::ListValue args_;
   };
 
   const std::vector<std::unique_ptr<CallData>>& call_data() const {
@@ -119,6 +121,7 @@ class TestWebUI : public WebUI {
   raw_ptr<RenderFrameHost, AcrossTasksDanglingUntriaged> render_frame_host_ =
       nullptr;
   std::unique_ptr<WebUIController> controller_;
+  std::unique_ptr<PerWebUIBrowserInterfaceBroker> broker_;
 
   // Observers to be notified on all javascript calls.
   base::ObserverList<JavascriptCallObserver> javascript_call_observers_;

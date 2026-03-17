@@ -11,7 +11,6 @@
 #endif  // BUILDFLAG(IS_IOS_MACCATALYST)
 
 @implementation VivaldiLottieViewObjcWrapper {
-
 #if !BUILDFLAG(IS_IOS_MACCATALYST)
   CompatibleAnimationView* _lottieAnimation;
 #endif  // BUILDFLAG(IS_IOS_MACCATALYST)
@@ -24,15 +23,14 @@
   if (self) {
     _config = config;
 #if !BUILDFLAG(IS_IOS_MACCATALYST)
-    CompatibleAnimation* compatibleAnimation =
-        [[CompatibleAnimation alloc]
-            initWithName:config.animationName
-            subdirectory:nil
-                  bundle:config.bundle == nil ? base::apple::FrameworkBundle()
-                            : config.bundle];
+    CompatibleAnimation* compatibleAnimation = [[CompatibleAnimation alloc]
+        initWithName:config.animationName
+        subdirectory:nil
+              bundle:config.bundle == nil ? base::apple::FrameworkBundle()
+                                          : config.bundle];
 
     _lottieAnimation = [[CompatibleAnimationView alloc]
-                            initWithCompatibleAnimation:compatibleAnimation];
+        initWithCompatibleAnimation:compatibleAnimation];
     _lottieAnimation.contentMode = UIViewContentModeScaleAspectFit;
     _lottieAnimation.loopAnimationCount = config.shouldLoop ? -1 : 0;
 #endif  // BUILDFLAG(IS_IOS_MACCATALYST)
@@ -49,9 +47,9 @@
 - (void)playWithCompletion:(void (^)(BOOL finished))completion {
 #if !BUILDFLAG(IS_IOS_MACCATALYST)
   [_lottieAnimation playWithCompletion:^(BOOL animationFinished) {
-      if (completion) {
-          completion(animationFinished);
-      }
+    if (completion) {
+      completion(animationFinished);
+    }
   }];
 #endif  // BUILDFLAG(IS_IOS_MACCATALYST)
 }
@@ -70,16 +68,14 @@
   _config.animationName = animationName;
 
   // Create a new CompatibleAnimation with the new animation name
-  CompatibleAnimation* newCompatibleAnimation =
-      [[CompatibleAnimation alloc]
-          initWithName:animationName
-          subdirectory:nil
-                bundle:_config.bundle ?: base::apple::FrameworkBundle()];
+  CompatibleAnimation* newCompatibleAnimation = [[CompatibleAnimation alloc]
+      initWithName:animationName
+      subdirectory:nil
+            bundle:_config.bundle ?: base::apple::FrameworkBundle()];
 
   // Update the animation in _lottieAnimation
   _lottieAnimation.compatibleAnimation = newCompatibleAnimation;
 #endif  // BUILDFLAG(IS_IOS_MACCATALYST)
-
 }
 
 - (BOOL)isAnimationPlaying {

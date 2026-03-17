@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">Otwórz w nowej grupie kart</translation>
 <translation id="1925021887439448749">Wprowadź własny adres strony</translation>
 <translation id="2038563949887743358">Włącz opcję „Wersja na komputer”</translation>
+<translation id="2072027001582274150">Nieużywane lub zduplikowane karty</translation>
 <translation id="208033313373016095">Widok czytania dla stron internetowych</translation>
 <translation id="2149973817440762519">Edytuj zakładkę</translation>
 <translation id="2306442503286132111">Zakładka została zapisana w folderze <ph name="FOLDER_NAME" /></translation>
@@ -46,6 +47,10 @@
 <translation id="385051799172605136">Wstecz</translation>
 <translation id="3987993985790029246">Kopiuj link</translation>
 <translation id="399014816462153200">Przeczytane artykuły:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> karta}
+          other {liczba kart: <ph name="TAB_COUNT_MANY" />, liczba kart prywatnych: <ph name="TAB_COUNT_INCOGNITO" />}}</translation>
+<translation id="408336132633586393">Okno prywatne</translation>
 <translation id="4121750346708795461">Korzystając z tej aplikacji, akceptujesz <ph name="BEGIN_LINK1" />Warunki użytkowania z Vivaldi<ph name="END_LINK1" /> oraz <ph name="BEGIN_LINK2" />Politykę prywatności<ph name="END_LINK2" />.</translation>
 <translation id="4137746084635924146">Aktualny język urządzenia</translation>
 <translation id="4167670741834902166">Nowa prywatna karta</translation>
@@ -55,9 +60,7 @@
 <translation id="4269820728363426813">Kopiuj adres linku</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Włącz blokadę ekranu w ustawieniach Androida<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Menedżer haseł</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {Karty i grupy kart nieużywane przez 1 dzień lub więcej}
-          other {Karty i grupy kart nieużywane przez # dni lub więcej}}</translation>
+<translation id="441100617989818073">Nieużywane lub zduplikowane karty i grupy</translation>
 <translation id="451872707440238414">Szukaj w zakładkach</translation>
 <translation id="4526803704855831732">Karty prywatne</translation>
 <translation id="4532845899244822526">Wybierz folder</translation>
@@ -71,6 +74,11 @@ Dotknij, aby wyszukać to funkcja, która jest dostępna tylko wtedy, gdy jako d
 <translation id="4883379392681899581">Opuść tryb prywatny</translation>
 <translation id="4943872375798546930">Brak wyników</translation>
 <translation id="49576331685473090">Blokowanie zawartości</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> karta prywatna}
+          few {<ph name="TAB_COUNT_NORMAL" /> karty prywatne}
+          many {<ph name="TAB_COUNT_NORMAL" /> kart prywatnych}
+          other {<ph name="TAB_COUNT_NORMAL" /> kart prywatnych}}</translation>
 <translation id="5079259810715830221">Gdy strona Google prosi o prywatne, wstępne ładowanie linków na swojej stronie, Vivaldi szyfruje i ładuje strony przez serwery Google bez używania ciasteczek. To uniemożliwia załadowanej wstępnie witrynie poznanie Twojej tożsamości.</translation>
 <translation id="5118676864324397542">Dane aplikacji <ph name="APP_NAME" /></translation>
 <translation id="5144385790872094440">Niektóre z odwiedzanych przez Ciebie stron są wstępnie wczytywane. Serwery Google mogą wstępnie wczytywać strony, gdy prowadzą do nich linki ze strony lub aplikacji Google.</translation>
@@ -106,6 +114,7 @@ Aby dostosować wyszukiwane hasło, przyciśnij przez chwilę i zaznacz interesu
 <translation id="6909589135458168665">Wstępne wczytywanie stron</translation>
 <translation id="7029995644714925509">Gdy witryna prosi o prywatne, wstępne ładowanie linków na swojej stronie, Vivaldi szyfruje i ładuje strony przez serwery Google bez używania ciasteczek. To uniemożliwia załadowanej wstępnie witrynie poznanie Twojej tożsamości.</translation>
 <translation id="706339621163631076">Polityka prywatności przeglądarki</translation>
+<translation id="7100573672995171864">Dostosuj i kontroluj Vivaldi</translation>
 <translation id="732145680195464316">Zakładka została zapisana w <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Wysyłaj żądanie “nie śledź mnie”</translation>
 <translation id="7359002509206457351">Dostęp do form płatności</translation>
@@ -128,14 +137,11 @@ Aby dostosować wyszukiwane hasło, przyciśnij przez chwilę i zaznacz interesu
 <translation id="8348430946834215779">Używaj protokołu HTTPS, kiedy to możliwe, i wyświetlaj ostrzeżenia przed otwieraniem stron, które go nie obsługują</translation>
 <translation id="8560602726703398413">Znajdź swoją listę stron do przeczytania w zakładkach</translation>
 <translation id="85991616550051997">Przejdź do strony głównej</translation>
-<translation id="8693232767599693749">Włączyć widok czytania?</translation>
+<translation id="8738163682604285902">Wyświetlić widok czytania?</translation>
 <translation id="8820817407110198400">Zakładki</translation>
 <translation id="9042893549633094279">Prywatność i bezpieczeństwo</translation>
 <translation id="9063523880881406963">Wyłącz opcję „Wersja na komputer”</translation>
 <translation id="9080642952018487277">Przejdź do trybu prywatnego</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {Nieużywana przez 1 dzień lub dłużej}
-          other {Nieużywana przez # dni lub dłużej}}</translation>
 <translation id="930124987204876019">Usuń historię, ciasteczka, dane witryn, pamięć podręczną…</translation>
 <translation id="961856697154696964">Usuń dane przeglądania</translation>
 </translationbundle>

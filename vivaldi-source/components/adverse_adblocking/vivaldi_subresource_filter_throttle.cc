@@ -14,8 +14,8 @@
 #include "components/subresource_filter/content/browser/content_activation_list_utils.h"
 #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
 #include "components/subresource_filter/content/browser/navigation_console_logger.h"
+#include "components/subresource_filter/content/browser/ruleset_service.h"
 #include "components/subresource_filter/content/browser/subresource_filter_observer_manager.h"
-#include "components/subresource_filter/content/shared/browser/ruleset_service.h"
 #include "components/subresource_filter/core/browser/subresource_filter_constants.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/site_instance.h"
@@ -33,7 +33,8 @@ VivaldiSubresourceFilterAdblockingThrottle::
     VivaldiSubresourceFilterAdblockingThrottle(
         content::NavigationThrottleRegistry& registry)
     : NavigationThrottle(registry),
-      browser_context_(registry.GetNavigationHandle().GetStartingSiteInstance()
+      browser_context_(registry.GetNavigationHandle()
+                           .GetStartingSiteInstance()
                            ->GetBrowserContext()) {
   DCHECK(registry.GetNavigationHandle().IsInMainFrame());
   CheckCurrentUrl();
@@ -182,8 +183,9 @@ void VivaldiSubresourceFilterAdblockingThrottle::NotifyResult() {
       navigation_handle()->GetWebContents())
       ->NotifyPageActivationComputed(
           navigation_handle(),
-          selection.config.GetActivationState(activation_level,
-              subresource_filter::mojom::SubresourceFilterDisabledReason::kUnknown));
+          selection.config.GetActivationState(
+              activation_level, subresource_filter::mojom::
+                                    SubresourceFilterDisabledReason::kUnknown));
 }
 
 void VivaldiSubresourceFilterAdblockingThrottle::LogMetricsOnChecksComplete(
@@ -308,5 +310,5 @@ bool VivaldiSubresourceFilterAdblockingThrottle::
       return false;
   }
   NOTREACHED();
-  //return false;
+  // return false;
 }

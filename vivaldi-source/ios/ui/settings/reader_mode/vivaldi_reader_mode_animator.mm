@@ -7,12 +7,13 @@
 #import "ios/ui/settings/reader_mode/vivaldi_reader_mode_animation.h"
 
 namespace {
-  const char kReaderViewAnimationColor[] = "reader_view_animation";
+const char kReaderViewAnimationColor[] = "reader_view_animation";
 }
 
 @implementation VivaldiReaderModeAnimator
 
-// Captures a snapshot, toggles content, then wipes the snapshot away with color.
+// Captures a snapshot, toggles content, then wipes the snapshot away with
+// color.
 + (void)playTransitionOnContentContainerView:(UIView*)contentContainerView
                                  contentView:(UIView*)contentView
                                   startPoint:(CGPoint)startPoint
@@ -24,12 +25,12 @@ namespace {
   // 1) Snapshot current content.
   UIView* snapshot = nil;
   if ([contentContainerView
-        respondsToSelector:@selector(snapshotViewAfterScreenUpdates:)]) {
+          respondsToSelector:@selector(snapshotViewAfterScreenUpdates:)]) {
     snapshot = [contentContainerView snapshotViewAfterScreenUpdates:NO];
   }
   if (!snapshot) {
-    UIGraphicsBeginImageContextWithOptions(
-        contentContainerView.bounds.size, NO, UIScreen.mainScreen.scale);
+    UIGraphicsBeginImageContextWithOptions(contentContainerView.bounds.size, NO,
+                                           UIScreen.mainScreen.scale);
     [contentContainerView.layer renderInContext:UIGraphicsGetCurrentContext()];
     UIImage* img = UIGraphicsGetImageFromCurrentImageContext();
     UIGraphicsEndImageContext();
@@ -80,13 +81,13 @@ namespace {
 
   // Animation is a copy of tabs_closure_animation.h
   VivaldiReaderModeAnimation* anim =
-    [[VivaldiReaderModeAnimation alloc] initWithWindow:overlay
-                                              gridCells:@[ snapshot ]];
+      [[VivaldiReaderModeAnimation alloc] initWithWindow:overlay
+                                               gridCells:@[ snapshot ]];
   // Hide the snapshot with the wipe, revealing new content underneath.
   anim.type = VivaldiReaderModeAnimationType::kHideView;
   anim.startPoint = startPoint;
 
-   UIColor *fallbackColor = [UIColor colorNamed:@(kReaderViewAnimationColor)];
+  UIColor* fallbackColor = [UIColor colorNamed:@(kReaderViewAnimationColor)];
 
   if ([VivaldiAppearanceSettingsPrefsHelper dynamicAccentColorEnabled]) {
     // Use fallback color, if dynamic accent color enabled
@@ -97,7 +98,8 @@ namespace {
         [VivaldiAppearanceSettingsPrefsHelper getCustomAccentColor];
     UIColor* accent =
         [VivaldiGlobalHelpers colorWithHexString:accentHex ?: @""];
-    if (!accent) accent = fallbackColor;
+    if (!accent)
+      accent = fallbackColor;
     anim.wipeColor = accent;
   }
 
@@ -108,15 +110,16 @@ namespace {
     [weakSnapshot removeFromSuperview];
   }];
 
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.9 * NSEC_PER_SEC)),
-                 dispatch_get_main_queue(), ^{
-                   if (overlay.superview) {
-                     [overlay removeFromSuperview];
-                   }
-                   if (snapshot.superview) {
-                     [snapshot removeFromSuperview];
-                   }
-                 });
+  dispatch_after(
+      dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.9 * NSEC_PER_SEC)),
+      dispatch_get_main_queue(), ^{
+        if (overlay.superview) {
+          [overlay removeFromSuperview];
+        }
+        if (snapshot.superview) {
+          [snapshot removeFromSuperview];
+        }
+      });
 }
 
 @end

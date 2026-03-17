@@ -59,6 +59,15 @@ final class SigninPromoProperties {
     static final PropertyModel.WritableBooleanPropertyKey SHOULD_SHOW_HEADER_WITH_AVATAR =
             new PropertyModel.WritableBooleanPropertyKey("should_show_header_with_avatar");
 
+    static final PropertyModel.WritableBooleanPropertyKey SHOULD_SHOW_LOADING_STATE =
+            new PropertyModel.WritableBooleanPropertyKey("should_show_loading_state");
+
+    // TODO(crbug.com/448227402)
+    // This property is used only in the seamless sign-in layout `compact`. It should be removed
+    // after the end of experiment if the chosen layout is `twoButtons`.
+    static final PropertyModel.WritableIntPropertyKey SELECTED_ACCOUNT_VIEW_BACKGROUND =
+            new PropertyModel.WritableIntPropertyKey("selected_account_view_background");
+
     static final PropertyKey[] ALL_KEYS =
             new PropertyKey[] {
                 PROFILE_DATA,
@@ -72,7 +81,9 @@ final class SigninPromoProperties {
                 SHOULD_HIDE_SECONDARY_BUTTON,
                 SHOULD_HIDE_DISMISS_BUTTON,
                 SHOULD_SHOW_ACCOUNT_PICKER,
-                SHOULD_SHOW_HEADER_WITH_AVATAR
+                SHOULD_SHOW_HEADER_WITH_AVATAR,
+                SHOULD_SHOW_LOADING_STATE,
+                SELECTED_ACCOUNT_VIEW_BACKGROUND
             };
 
     private SigninPromoProperties() {}
@@ -89,7 +100,9 @@ final class SigninPromoProperties {
             boolean shouldSuppressSecondaryButton,
             boolean shouldHideDismissButton,
             boolean shouldShowAccountPicker,
-            boolean shouldShowHeaderWithAvatar) {
+            boolean shouldShowHeaderWithAvatar,
+            boolean shouldShowLoadingState,
+            int accountPickerBackground) {
         return new PropertyModel.Builder(ALL_KEYS)
                 .with(PROFILE_DATA, profileData)
                 .with(ON_PRIMARY_BUTTON_CLICKED, (unusedView) -> onPrimaryButtonClicked.run())
@@ -103,6 +116,8 @@ final class SigninPromoProperties {
                 .with(SHOULD_HIDE_DISMISS_BUTTON, shouldHideDismissButton)
                 .with(SHOULD_SHOW_ACCOUNT_PICKER, shouldShowAccountPicker)
                 .with(SHOULD_SHOW_HEADER_WITH_AVATAR, shouldShowHeaderWithAvatar)
+                .with(SHOULD_SHOW_LOADING_STATE, shouldShowLoadingState)
+                .with(SELECTED_ACCOUNT_VIEW_BACKGROUND, accountPickerBackground)
                 .build();
     }
 }

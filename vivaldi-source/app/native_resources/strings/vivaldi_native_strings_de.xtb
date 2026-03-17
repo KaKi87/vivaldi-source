@@ -192,7 +192,7 @@
 <translation id="6234173136417926046">Bild als Schnellwahl-Hintergrund verwenden</translation>
 <translation id="630690498669249215">Opera Lesezeichen-Datei</translation>
 <translation id="6339818817272922368">Lokales Konto</translation>
-<translation id="6376435169746695498">Das Laden dieser Seite wurde durch einen entsprechenden <ph name="BLOCKER_NAME" /> blockiert</translation>
+<translation id="6376435169746695498">Das Laden dieser Seite wurde blockiert durch eine Regel von <ph name="BLOCKER_NAME" /></translation>
 <translation id="6398710281890660037">Mein Profil sichern</translation>
 <translation id="6438786710866753178">Landschaft 4</translation>
 <translation id="6477028720702061455">Opera-Profilordner für den Import auswählen</translation>

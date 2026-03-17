@@ -48,12 +48,14 @@
 #include "ui/gfx/animation/animation.h"
 #include "ui/gfx/animation/animation_container.h"
 #include "ui/gfx/geometry/insets.h"
+#include "ui/gfx/text_constants.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/animation_builder.h"
 #include "ui/views/animation/compositor_animation_runner.h"
 #include "ui/views/event_monitor.h"
 #include "ui/views/layout/animating_layout_manager.h"
 #include "ui/views/layout/flex_layout_view.h"
+#include "ui/views/metadata/view_factory.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/style/typography_provider.h"
 #include "ui/views/widget/widget_delegate.h"
@@ -202,7 +204,7 @@ void DefinitelyExitPictureInPicture(
     // some reason, then just manually close the window to prevent
     // getting into a state where the back to tab button no longer
     // closes the window.
-    frame_view.browser_view()->Close();
+    frame_view.GetBrowserView()->Close();
   }
 }
 
@@ -266,7 +268,13 @@ void PictureInPictureBrowserFrameView::ChildDialogObserverHelper::
   }
 
   invisible_child_dialogs_.erase(widget);
-  child_dialog_observations_.RemoveObservation(widget);
+  // During widget destruction, it is possible for `OnWidgetDestroying` to be
+  // called multiple times (e.g., once by parent notification and once by
+  // self-notification). This check ensures RemoveObservation is only called
+  // once.
+  if (child_dialog_observations_.IsObservingSource(widget)) {
+    child_dialog_observations_.RemoveObservation(widget);
+  }
   child_dialogs_waiting_for_resize_.erase(widget);
   child_dialog_sizes_.erase(widget);
 
@@ -588,9 +596,12 @@ PictureInPictureBrowserFrameView::PictureInPictureBrowserFrameView(
 
   // Creates the window title.
   top_bar_container_view_->AddChildView(
-      views::Builder<views::Label>()
+      views::Builder<views::Label>(
+          std::make_unique<views::Label>(
+              location_bar_model_->GetURLForDisplay(),
+              views::style::CONTEXT_LABEL, views::style::STYLE_PRIMARY,
+              gfx::DirectionalityMode::DIRECTIONALITY_AS_URL))
           .CopyAddressTo(&window_title_)
-          .SetText(location_bar_model_->GetURLForDisplay())
           .SetHorizontalAlignment(gfx::ALIGN_LEFT)
           .SetElideBehavior(elide_behavior)
           .SetProperty(
@@ -723,16 +734,6 @@ PictureInPictureBrowserFrameView::~PictureInPictureBrowserFrameView() {
 ///////////////////////////////////////////////////////////////////////////////
 // BrowserFrameView implementations:
 
-gfx::Rect PictureInPictureBrowserFrameView::GetBoundsForTabStripRegion(
-    const gfx::Size& tabstrip_minimum_size) const {
-  return gfx::Rect();
-}
-
-gfx::Rect PictureInPictureBrowserFrameView::GetBoundsForWebAppFrameToolbar(
-    const gfx::Size& toolbar_preferred_size) const {
-  NOTREACHED() << "Web app toolbar should never be shown in PiP.";
-}
-
 bool PictureInPictureBrowserFrameView::ShouldShowWebAppFrameToolbar() const {
   return false;
 }
@@ -758,7 +759,7 @@ void PictureInPictureBrowserFrameView::OnBrowserViewInitViewsComplete() {
 #endif
 
   const std::optional<blink::mojom::PictureInPictureWindowOptions> pip_options =
-      browser_view()->GetDocumentPictureInPictureOptions();
+      GetBrowserView()->GetDocumentPictureInPictureOptions();
 
   // If the request includes pip options with an inner width and height, then we
   // need to recompute the outer size now that we can compute the correct
@@ -802,7 +803,7 @@ void PictureInPictureBrowserFrameView::OnBrowserViewInitViewsComplete() {
           GetMinimumSize() + gfx::Size(insets.width(), insets.height()),
           excluded_margin);
 
-  browser_view()->browser()->set_override_bounds(window_bounds);
+  GetBrowserView()->browser()->set_override_bounds(window_bounds);
 }
 
 gfx::Rect PictureInPictureBrowserFrameView::GetBoundsForClientView() const {
@@ -918,7 +919,7 @@ void PictureInPictureBrowserFrameView::AddedToWidget() {
   widget_observation_.Observe(GetWidget());
   window_event_observer_ = std::make_unique<WindowEventObserver>(this);
   child_dialog_observer_helper_ =
-      std::make_unique<ChildDialogObserverHelper>(this, browser_view());
+      std::make_unique<ChildDialogObserverHelper>(this, GetBrowserView());
 
   // Creates an animation container to ensure all the animations update at the
   // same time.
@@ -1391,10 +1392,10 @@ LocationIconView* PictureInPictureBrowserFrameView::GetLocationIconView() {
 }
 
 void PictureInPictureBrowserFrameView::UpdateContentSettingsIcons() {
-  const auto kButtonContainerViewWithCameraButtonInsets =
-      gfx::Insets::TLBR(0, 0, 0, GetLayoutConstant(TAB_AFTER_TITLE_PADDING));
-  const auto kButtonContainerViewInsets =
-      gfx::Insets::VH(0, GetLayoutConstant(TAB_AFTER_TITLE_PADDING));
+  const auto kButtonContainerViewWithCameraButtonInsets = gfx::Insets::TLBR(
+      0, 0, 0, GetLayoutConstant(LayoutConstant::kTabAfterTitlePadding));
+  const auto kButtonContainerViewInsets = gfx::Insets::VH(
+      0, GetLayoutConstant(LayoutConstant::kTabAfterTitlePadding));
 
   for (ContentSettingImageView* view : content_setting_views_) {
     view->Update();
@@ -1556,6 +1557,12 @@ views::Label* PictureInPictureBrowserFrameView::GetWindowTitleForTesting() {
   return window_title_;
 }
 
+void PictureInPictureBrowserFrameView::SetWindowTitleForTesting(  // IN-TEST
+    const std::u16string& title) {
+  CHECK(window_title_);
+  window_title_->SetText(title);
+}
+
 PictureInPictureWidgetFadeAnimator*
 PictureInPictureBrowserFrameView::GetFadeAnimatorForTesting() {
   return fade_animator_.get();
@@ -1578,7 +1585,7 @@ bool PictureInPictureBrowserFrameView::IsOverlayViewVisible() const {
 }
 
 gfx::Size PictureInPictureBrowserFrameView::ComputeDialogPadding() const {
-  auto* host = browser_view()->GetWebContentsModalDialogHost();
+  auto* host = GetBrowserView()->GetWebContentsModalDialogHost();
   if (!host) {
     return gfx::Size();
   }

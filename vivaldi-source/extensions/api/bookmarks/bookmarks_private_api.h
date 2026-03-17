@@ -31,19 +31,17 @@ class VivaldiBookmarksAPI : public bookmarks::BookmarkModelObserver,
 
  private:
   // bookmarks::BookmarkModelObserver
-  void BookmarkModelLoaded(bool ids_reassigned) override {
-  }
+  void BookmarkModelLoaded(bool ids_reassigned) override {}
 
   void BookmarkNodeMoved(const BookmarkNode* old_parent,
                          size_t old_index,
                          const BookmarkNode* new_parent,
                          size_t new_index) override {}
-  void BookmarkNodeRemoved(
-      const BookmarkNode* parent,
-      size_t old_index,
-      const BookmarkNode* node,
-      const std::set<GURL>& no_longer_bookmarked,
-      const base::Location& location) override {}
+  void BookmarkNodeRemoved(const BookmarkNode* parent,
+                           size_t old_index,
+                           const BookmarkNode* node,
+                           const std::set<GURL>& no_longer_bookmarked,
+                           const base::Location& location) override {}
 
   void BookmarkNodeAdded(const BookmarkNode* parent,
                          size_t index,
@@ -148,21 +146,20 @@ class BookmarksPrivateIsCustomThumbnailFunction : public BookmarksFunction {
 };
 
 class BookmarksPrivateIOFunction : public BookmarksFunction,
-                                         public ui::SelectFileDialog::Listener {
+                                   public ui::SelectFileDialog::Listener {
  public:
   BookmarksPrivateIOFunction();
 
-  void FileSelected(const ui::SelectedFileInfo& path,
-                    int index) override = 0;
+  void FileSelected(const ui::SelectedFileInfo& path, int index) override = 0;
 
   // ui::SelectFileDialog::Listener:
-  void MultiFilesSelected(const std::vector<ui::SelectedFileInfo>& files) override;
+  void MultiFilesSelected(
+      const std::vector<ui::SelectedFileInfo>& files) override;
   void FileSelectionCanceled() override;
 
-  void ShowSelectFileDialog(
-      ui::SelectFileDialog::Type type,
-      int window_id,
-      const base::FilePath& default_path);
+  void ShowSelectFileDialog(ui::SelectFileDialog::Type type,
+                            int window_id,
+                            const base::FilePath& default_path);
 
  protected:
   ~BookmarksPrivateIOFunction() override;
@@ -170,15 +167,13 @@ class BookmarksPrivateIOFunction : public BookmarksFunction,
   scoped_refptr<ui::SelectFileDialog> select_file_dialog_;
 };
 
-class BookmarksPrivateExportFunction
-    : public BookmarksPrivateIOFunction {
+class BookmarksPrivateExportFunction : public BookmarksPrivateIOFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("bookmarksPrivate.export",
-                             BOOKMARKSPRIVATE_EXPORT)
+  DECLARE_EXTENSION_FUNCTION("bookmarksPrivate.export", BOOKMARKSPRIVATE_EXPORT)
 
   // BookmarkManagerIOFunction:
-  void FileSelected(const ui::SelectedFileInfo& path,
-                    int index) override;
+  void FileSelected(const ui::SelectedFileInfo& path, int index) override;
+
  protected:
   ~BookmarksPrivateExportFunction() override = default;
 

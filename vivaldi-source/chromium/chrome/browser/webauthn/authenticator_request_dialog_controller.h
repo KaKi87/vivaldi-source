@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "base/functional/callback_forward.h"
+#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
@@ -26,6 +27,7 @@
 #include "components/webauthn/core/browser/passkey_model_change.h"
 #include "content/public/browser/authenticator_request_client_delegate.h"
 #include "content/public/browser/global_routing_id.h"
+#include "device/fido/cable/v2_constants.h"
 #include "third_party/blink/public/mojom/credentialmanagement/credential_type_flags.mojom.h"
 #include "url/gurl.h"
 
@@ -67,8 +69,8 @@ class AuthenticatorRequestDialogController
   // AuthenticatorRequestDialogModel::Observer:
   void OnModelDestroyed(AuthenticatorRequestDialogModel* model) override;
   void StartOver() override;
-  void OnCreatePasskeyAccepted() override;
-  void OnRecoverSecurityDomainClosed() override;
+  void OnChromeProfileCreatePasskeyAccepted() override;
+  void OnGPMRecoverSecurityDomainClosed() override;
   void ContinueWithFlowAfterBleAdapterPowered() override;
   void PowerOnBleAdapter() override;
   void OpenBlePreferences() override;
@@ -77,7 +79,7 @@ class AuthenticatorRequestDialogController
   void OnRequestComplete() override;
   void OnResidentCredentialConfirmed() override;
   void OnHavePIN(std::u16string pin) override;
-  void EnclaveEnabledStatusChanged(EnclaveEnabledStatus status) override;
+  void OnGPMEnclaveEnabledStatusChanged(EnclaveEnabledStatus status) override;
   void OnAccountSelected(size_t index) override;
   void OnAccountPreselectedIndex(size_t index) override;
   void OnBioEnrollmentDone() override;
@@ -219,10 +221,6 @@ class AuthenticatorRequestDialogController
   // To be called when a hybrid connection fails. Returns true if the event
   // was handled.
   bool OnHybridTransportError();
-
-  // To be called when an enclave transaction fails. Returns true if the event
-  // was handled.
-  bool OnEnclaveError();
 
   // To be called when there are no passkeys from an internal authenticator.
   // This is a rare case but can happen when the user grants passkeys permission
@@ -437,9 +435,6 @@ class AuthenticatorRequestDialogController
   std::optional<size_t> IndexOfGetAssertionPriorityMechanism();
   std::optional<size_t> IndexOfImmediateGetPriorityMechanism();
   std::optional<size_t> IndexOfMakeCredentialPriorityMechanism();
-
-  // Sets correct step for entering GPM pin based on `gpm_pin_is_arbitrary_`.
-  void PromptForGPMPin();
 
   // Returns true if this request could pick the enclave authenticator by
   // default. This only makes sense for a create() call.

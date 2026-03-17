@@ -110,3 +110,9 @@ update_target("//components/shared_highlighting/core/common:common") {
     "//components/search_engines:search_engine_utils"
   ]
 }
+
+update_target("//components/tabs:tabs") {
+  deps += [
+    "//vivaldi/components:tabs",
+  ]
+}

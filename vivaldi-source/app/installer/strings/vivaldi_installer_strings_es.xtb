@@ -1,21 +1,19 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="es">
-<translation id="1089894737218087497">Independiente</translation>
 <translation id="1682285232070778125">Establecer Vivaldi como navegador predeterminado</translation>
+<translation id="1775102330209840064">Compartir informes de erros para ayudarnos a mejorar la calidad del producto</translation>
 <translation id="1974060860693918893">Avanzado</translation>
 <translation id="2053560788696003312">Vivaldi requiere Windows 10 o superior.</translation>
 <translation id="2134216661302048561">El instalador de Vivaldi no ha terminado de instalar el navegador. ¿Estás seguro de que quieres salir ahora?</translation>
-<translation id="2286454467119466181">Simple</translation>
 <translation id="237789874664518125">© <ph name="YEAR" /> Vivaldi Technologies AS. Todos los derechos reservados. &lt;a&gt;Política de privacidad&lt;/a&gt;</translation>
-<translation id="3004507951429848293">Al hacer clic en el botón «Aceptar y actualizar» estás aceptando los &lt;a&gt;Términos del servicio&lt;/a&gt; de Vivaldi</translation>
+<translation id="3355081107855563356">Al hacer clic en el botón "Aceptar e instalar", aceptas los &lt;a&gt;Términos de uso&lt;/a&gt; de Vivaldi</translation>
 <translation id="335985608243443814">Examinar...</translation>
 <translation id="3485073444286678268">La carpeta de destino no es válida. Por favor, elige otra.</translation>
+<translation id="3601875200579023345">Por usuario</translation>
 <translation id="3784826321032465839">Instalador de Vivaldi</translation>
-<translation id="4079588913451946215">Para todos los usuarios</translation>
+<translation id="4066679519692422625">La instación ha fallado debido a un error no especificado. Por favor, descarga Vivaldi de nuevo.</translation>
 <translation id="421958613172216971">Selecciona una carpeta</translation>
-<translation id="4234678621326711327">Para un usuario</translation>
-<translation id="4322221081772213228">Al hacer clic en el botón «Aceptar e instalar» estás aceptando los &lt;a&gt;Términos del servicio&lt;/a&gt; de Vivaldi</translation>
 <translation id="4380252528729894811">Carpeta de destino</translation>
 <translation id="460304900852424163">Desactivar las actualizaciones automáticas (no recomendado)</translation>
 <translation id="4619978527973181021">Aceptar e instalar</translation>
@@ -23,11 +21,15 @@
 <translation id="5051728323101947360">Incluir esta instalación independiente de Vivaldi en las aplicaciones predeterminadas</translation>
 <translation id="5247376421371319618">Aceptar y actualizar</translation>
 <translation id="5302048478445481009">Idioma</translation>
+<translation id="6665592435383088482">Versión Standalone</translation>
 <translation id="694714344624446243">Instalador de Vivaldi</translation>
 <translation id="7467493612551448880">La versión que estás instalando no está optimizada para tu versión de Windows.
 
 Visita vivaldi.com/download para descargar la versión de Windows para Arm.</translation>
 <translation id="7658239707568436148">Cancelar</translation>
 <translation id="8773751185824654197">Nota: Si Vivaldi se actualiza mientras se ejecuta una instancia, esta se cerrará y al terminar se reabrirá</translation>
+<translation id="9163437061188815291">Al hacer clic en el botón "Aceptar y actualizar", aceptas los &lt;a&gt;Términos de uso&lt;/a&gt; de Vivaldi</translation>
+<translation id="9175596866737867642">Opciones de personalización inigualables y toda la funcionalidad integrada para un mejor rendimiento, productividad y privacidad 🎉</translation>
 <translation id="933060950687965486">Tipo de instalación</translation>
+<translation id="963837307749850257">Todos los usuarios</translation>
 </translationbundle>

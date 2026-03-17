@@ -17,6 +17,7 @@ constexpr char kValidKey[] = "valid";
 constexpr char kActionUrlKey[] = "actionUrl";
 constexpr char kQueryTemplateKey[] = "queryTemplate";
 constexpr char kInputNameKey[] = "inputName";
+constexpr char kRequestIdKey[] = "requestId";
 constexpr char kApiEntryPoint[] =
     "vivaldiSearchableForm.requestFocusedSearchableForm";
 }  // namespace
@@ -40,11 +41,10 @@ VivaldiAddSearchEngineJavaScriptFeature::
                                      kReinjectOnDocumentRecreation)},
                              {}) {}
 
-VivaldiAddSearchEngineJavaScriptFeature::~
-    VivaldiAddSearchEngineJavaScriptFeature() = default;
+VivaldiAddSearchEngineJavaScriptFeature::
+    ~VivaldiAddSearchEngineJavaScriptFeature() = default;
 
-void VivaldiAddSearchEngineJavaScriptFeature::AddObserver(
-    Observer* observer) {
+void VivaldiAddSearchEngineJavaScriptFeature::AddObserver(Observer* observer) {
   observers_.AddObserver(observer);
 }
 
@@ -54,7 +54,8 @@ void VivaldiAddSearchEngineJavaScriptFeature::RemoveObserver(
 }
 
 bool VivaldiAddSearchEngineJavaScriptFeature::RequestFocusedSearchFormData(
-    web::WebState* web_state) {
+    web::WebState* web_state,
+    int64_t request_id) {
   if (!web_state) {
     return false;
   }
@@ -63,7 +64,10 @@ bool VivaldiAddSearchEngineJavaScriptFeature::RequestFocusedSearchFormData(
   if (!frame) {
     return false;
   }
-  return CallJavaScriptFunction(frame, kApiEntryPoint, base::Value::List());
+
+  base::ListValue params;
+  params.Append(static_cast<double>(request_id));
+  return CallJavaScriptFunction(frame, kApiEntryPoint, params);
 }
 
 std::optional<std::string>
@@ -84,13 +88,19 @@ void VivaldiAddSearchEngineJavaScriptFeature::ScriptMessageReceived(
   if (!body) {
     return;
   }
-  const base::Value::Dict* dict = body->GetIfDict();
+  const base::DictValue* dict = body->GetIfDict();
   if (!dict) {
     return;
   }
   const std::string* command = dict->FindString(kCommandKey);
   if (!command || *command != kFocusedFormCommand) {
     return;
+  }
+
+  std::optional<int64_t> request_id;
+  std::optional<double> request_id_double = dict->FindDouble(kRequestIdKey);
+  if (request_id_double) {
+    request_id = static_cast<int64_t>(*request_id_double);
   }
 
   bool valid = dict->FindBool(kValidKey).value_or(true);
@@ -109,7 +119,7 @@ void VivaldiAddSearchEngineJavaScriptFeature::ScriptMessageReceived(
   }
 
   for (Observer& observer : observers_) {
-    observer.OnFocusedSearchableForm(web_state, payload);
+    observer.OnFocusedSearchableForm(web_state, payload, request_id);
   }
 }
 

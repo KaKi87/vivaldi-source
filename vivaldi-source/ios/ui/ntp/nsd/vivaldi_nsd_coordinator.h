@@ -16,20 +16,20 @@ class Browser;
 
 // Designated initializers.
 - (instancetype)initWithBaseNavigationController:
-        (UINavigationController*)navigationController
+                    (UINavigationController*)navigationController
                                          browser:(Browser*)browser
                                           parent:(VivaldiSpeedDialItem*)parent;
 
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                                    browser:(Browser*)browser
                                     parent:(VivaldiSpeedDialItem*)parent
-NS_DESIGNATED_INITIALIZER;
+    NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                                    browser:(Browser*)browser NS_UNAVAILABLE;
 
 // Coordinator delegate to observe coorinator dismiss event.
-@property (nonatomic, weak) id<VivaldiNSDCoordinatorDelegate> delegate;
+@property(nonatomic, weak) id<VivaldiNSDCoordinatorDelegate> delegate;
 
 // Will provide the necessary UI to create a folder. `YES` by default.
 // Should be set before calling `start`.

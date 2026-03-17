@@ -19,7 +19,7 @@ int panel_icon_size = 56;
 double panel_transition_duration = 0.3;
 double panel_transition_damping = 0.95;
 
-}
+}  // namespace
 
 extern NSString* vPanelBookmarks;
 extern NSString* vPanelBookmarksActive;
@@ -35,4 +35,4 @@ extern NSString* vPanelTranslateActive;
 extern NSString* vPanelMoreAction;
 extern NSString* vPanelSortOrderAction;
 
-#endif // IOS_PANEL_PANEL_CONSTANTS_H_
+#endif  // IOS_PANEL_PANEL_CONSTANTS_H_

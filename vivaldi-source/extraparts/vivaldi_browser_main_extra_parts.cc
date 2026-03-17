@@ -40,6 +40,7 @@
 #include "content/public/common/content_switches.h"
 #include "extensions/browser/api/content_settings/content_settings_helpers.h"
 #include "extensions/buildflags/buildflags.h"
+#include "installer/mini_installer/util/google_update_settings.h"
 #include "installer/util/vivaldi_install_constants.h"
 #include "media/base/media_switches.h"
 #include "menus/context_menu_service_factory.h"
@@ -118,6 +119,10 @@
 #include "components/crashreport/crashreport_observer.h"
 #include "components/theme/native_web_theme_observer.h"
 #include "permissions/vivaldi_permission_handler_impl.h"
+#endif
+
+#if BUILDFLAG(IS_WIN)
+#include "components/crash/core/app/crashpad.h"
 #endif
 
 namespace vivaldi {
@@ -245,6 +250,26 @@ void VivaldiBrowserMainExtraParts::PreProfileInit() {
 
 void VivaldiBrowserMainExtraParts::PostProfileInit(Profile* profile,
                                                    bool is_initial_profile) {
+#if BUILDFLAG(IS_WIN)
+  // If we have been launched by the installer and crashlogging was enabled
+  // there.
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          vivaldi::constants::kVivaldiEnableCrashlogUpload)) {
+    const auto switch_value =
+        base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+            vivaldi::constants::kVivaldiEnableCrashlogUpload);
+    bool crashlog_upload_allowed = switch_value == "1";
+    PrefService* pref_service = g_browser_process->local_state();
+    pref_service->SetBoolean(vivaldiprefs::kVivaldiCrashReportingConsentGranted,
+                             crashlog_upload_allowed);
+
+    // The crash-reporter is not guaranteed to be running, but try to update the
+    // internal setting. Note that this will also be updated through
+    // |MetricsServicesManager::UpdateRunningServices|. Was VB-124679.
+    crash_reporter::SetUploadConsent(crashlog_upload_allowed);
+  }
+#endif  // IS_WIN
+
   content::WebUIControllerFactory::RegisterFactory(
       vivaldi::VivaldiWebUIControllerFactory::GetInstance());
 
@@ -335,19 +360,6 @@ void VivaldiBrowserMainExtraParts::PreMainMessageLoopRun() {
       g_browser_process->shared_url_loader_factory());
   vivaldi::SearchEnginesUpdater::UpdateSearchEnginesPrompt(
       g_browser_process->shared_url_loader_factory());
-
-#if BUILDFLAG(IS_WIN)
-  // If we have been launched by the installer and crashlogging was enabled
-  // there.
-  if (cmd_line.HasSwitch(vivaldi::constants::kVivaldiEnableCrashlogUpload)) {
-    const auto switch_value = cmd_line.GetSwitchValueASCII(
-        vivaldi::constants::kVivaldiEnableCrashlogUpload);
-    bool crashlog_upload_allowed = switch_value == "1";
-    PrefService* pref_service = g_browser_process->local_state();
-    pref_service->SetBoolean(vivaldiprefs::kVivaldiCrashReportingConsentGranted,
-                             crashlog_upload_allowed);
-  }
-#endif // IS_WIN
 }
 
 void VivaldiBrowserMainExtraParts::PostMainMessageLoopRun() {

@@ -78,7 +78,7 @@ ChromeDeviceAuthenticatorFactory::GetForProfile(
 std::unique_ptr<device_reauth::DeviceAuthenticator>
 ChromeDeviceAuthenticatorFactory::GetForProfile(
     Profile* profile,
-    const base::android::JavaParamRef<jobject>& activity,
+    const base::android::JavaRef<jobject>& activity,
     const device_reauth::DeviceAuthParams& params) {
   DeviceAuthenticatorProxy* proxy = static_cast<DeviceAuthenticatorProxy*>(
       GetInstance()->GetServiceForBrowserContext(profile, true));
@@ -101,5 +101,11 @@ ChromeDeviceAuthenticatorFactory::BuildServiceInstanceForBrowserContext(
       std::make_unique<AuthenticatorWin>().get());
 #endif
 
+#if BUILDFLAG(IS_CHROMEOS)
+  // Asynchronously check for PIN availability and cache the result in a local
+  // state preference.
+  DeviceAuthenticatorChromeOS::CacheIfPinIsAvailable(
+      std::make_unique<AuthenticatorChromeOS>().get());
+#endif
   return std::make_unique<DeviceAuthenticatorProxy>();
 }

@@ -4,6 +4,7 @@
 
 #include "chrome/browser/android/tab_favicon.h"
 
+#include "chrome/browser/android/tab_android.h"
 #include "components/favicon/content/content_favicon_driver.h"
 #include "content/public/browser/back_forward_transition_animation_manager.h"
 #include "content/public/browser/web_contents.h"
@@ -22,7 +23,7 @@
 
 namespace {
 
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
 
 SkBitmap RescaleSkBitmap(const SkBitmap& original, int new_size_dip) {
@@ -38,18 +39,31 @@ SkBitmap RescaleSkBitmap(const SkBitmap& original, int new_size_dip) {
 
 }  // namespace
 
+// static
+SkBitmap TabFavicon::GetBitmapForTab(TabAndroid* tab_android) {
+  if (!tab_android) {
+    return SkBitmap();
+  }
+  JNIEnv* env = base::android::AttachCurrentThread();
+  ScopedJavaLocalRef<jobject> bitmap =
+      Java_TabFavicon_getBitmap(env, tab_android->GetJavaObject());
+  if (bitmap.is_null()) {
+    return SkBitmap();
+  }
+  return gfx::CreateSkBitmapFromJavaBitmap(gfx::JavaBitmap(bitmap));
+}
+
 TabFavicon::TabFavicon(JNIEnv* env,
-                       const JavaParamRef<jobject>& obj,
+                       TabAndroid* tab_android,
                        int navigation_transition_favicon_size)
     : navigation_transition_favicon_size_(navigation_transition_favicon_size),
-      jobj_(env, obj) {}
+      tab_android_(tab_android) {}
 
 TabFavicon::~TabFavicon() = default;
 
 void TabFavicon::SetWebContents(JNIEnv* env,
-                                const JavaParamRef<jobject>& jweb_contents) {
-  active_web_contents_ =
-      content::WebContents::FromJavaWebContents(jweb_contents);
+                                content::WebContents* web_contents) {
+  active_web_contents_ = web_contents;
   favicon_driver_ =
       favicon::ContentFaviconDriver::FromWebContents(active_web_contents_);
   if (favicon_driver_) {
@@ -109,23 +123,25 @@ void TabFavicon::OnFaviconUpdated(favicon::FaviconDriver* favicon_driver,
     return;
   }
 
+  CHECK(tab_android_);
+
   JNIEnv* env = base::android::AttachCurrentThread();
 
   auto new_width = image.Width();
   auto new_height = image.Height();
   if (static_cast<bool>(Java_TabFavicon_shouldUpdateFaviconForBrowserUi(
-          env, jobj_, new_width, new_height))) {
+          env, tab_android_, new_width, new_height))) {
     ScopedJavaLocalRef<jobject> j_icon_url =
         url::GURLAndroid::FromNativeGURL(env, icon_url);
     Java_TabFavicon_onFaviconAvailable(
-        env, jobj_, gfx::ConvertToJavaBitmap(favicon), j_icon_url);
+        env, tab_android_, gfx::ConvertToJavaBitmap(favicon), j_icon_url);
   }
   if (content::BackForwardTransitionAnimationManager::
           ShouldAnimateBackForwardTransitions()) {
     CHECK(active_web_contents_);
     if (static_cast<bool>(
             Java_TabFavicon_shouldUpdateFaviconForNavigationTransitions(
-                env, jobj_, new_width, new_height))) {
+                env, tab_android_, new_width, new_height))) {
       SkBitmap scaled =
           RescaleSkBitmap(favicon, navigation_transition_favicon_size_);
       auto* manager =
@@ -136,11 +152,12 @@ void TabFavicon::OnFaviconUpdated(favicon::FaviconDriver* favicon_driver,
   }
 }
 
-static jlong JNI_TabFavicon_Init(JNIEnv* env,
-                                 const JavaParamRef<jobject>& obj,
-                                 int navigation_transition_favicon_size) {
+static int64_t JNI_TabFavicon_Init(JNIEnv* env,
+                                   TabAndroid* tab_android,
+                                   int navigation_transition_favicon_size) {
+  CHECK(tab_android);
   return reinterpret_cast<intptr_t>(
-      new TabFavicon(env, obj, navigation_transition_favicon_size));
+      new TabFavicon(env, tab_android, navigation_transition_favicon_size));
 }
 
 DEFINE_JNI(TabFavicon)

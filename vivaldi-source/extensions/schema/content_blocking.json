@@ -58,7 +58,7 @@
           },
           {
             "name": "unknown",
-            "description": "No download has been attempted yet."
+            "description": "No download has been attempted yet, or the rule source uses a local file and doesn't need download."
           }
         ]
       },

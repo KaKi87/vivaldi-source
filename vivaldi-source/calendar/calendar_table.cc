@@ -259,7 +259,7 @@ bool CalendarTable::DoesAnyCalendarExist() {
 bool CalendarTable::MigrateCalendarToVersion3() {
   if (!GetDB().DoesTableExist("calendar")) {
     NOTREACHED() << "Calendar table should exist before migration";
-    //return false;
+    // return false;
   }
 
   if (!GetDB().DoesColumnExist("calendar", "last_checked")) {
@@ -276,7 +276,7 @@ bool CalendarTable::MigrateCalendarToVersion3() {
 bool CalendarTable::MigrateCalendarToVersion10() {
   if (!GetDB().DoesTableExist("calendar")) {
     NOTREACHED() << "Calendar table should exist before migration";
-    //return false;
+    // return false;
   }
 
   if (!GetDB().DoesColumnExist("calendar", "supported_component_set")) {

@@ -7,11 +7,14 @@
 #include "base/json/json_reader.h"
 #include "base/json/json_string_value_serializer.h"
 #include "base/json/json_writer.h"
+#include "base/uuid.h"
 #include "browser/sessions/vivaldi_session_service.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/panel/panel_id.h"
 #include "components/prefs/pref_service.h"
@@ -23,10 +26,9 @@
 #include "sessions/index_node.h"
 #include "sessions/index_service_factory.h"
 #include "sessions/index_storage.h"
-#include "base/uuid.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "vivaldi/app/grit/vivaldi_native_strings.h"
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
-#include "ui/base/l10n/l10n_util.h"
 
 #include "ui/vivaldi_browser_ui_data.h"
 
@@ -51,8 +53,7 @@ const char kVivaldiFixedGroupTitle[] = "fixedGroupTitle";
 bool SetTabFlag(sessions::SessionTab* tab, int key, bool flag) {
   std::string ext_data = tab->viv_ext_data;
   base::JSONParserOptions options = base::JSON_PARSE_RFC;
-  std::optional<base::Value> json =
-     base::JSONReader::Read(ext_data, options);
+  std::optional<base::Value> json = base::JSONReader::Read(ext_data, options);
   if (json && json->is_dict()) {
     std::optional<int> candidate = json->GetDict().FindDouble(kVivaldiTabFlag);
     int value = candidate.has_value() ? candidate.value() : 0;
@@ -73,7 +74,7 @@ bool SetTabFlag(sessions::SessionTab* tab, int key, bool flag) {
 std::optional<int> GetTabFlag(const sessions::SessionTab* tab) {
   base::JSONParserOptions options = base::JSON_PARSE_RFC;
   std::optional<base::Value> json =
-     base::JSONReader::Read(tab->viv_ext_data, options);
+      base::JSONReader::Read(tab->viv_ext_data, options);
   std::optional<int> value;
   if (json && json->is_dict()) {
     value = json->GetDict().FindInt(kVivaldiTabFlag);
@@ -84,8 +85,7 @@ std::optional<int> GetTabFlag(const sessions::SessionTab* tab) {
 bool SetTabStackId(sessions::SessionTab* tab, const std::string& id) {
   std::string ext_data = tab->viv_ext_data;
   base::JSONParserOptions options = base::JSON_PARSE_RFC;
-  std::optional<base::Value> json =
-    base::JSONReader::Read(ext_data, options);
+  std::optional<base::Value> json = base::JSONReader::Read(ext_data, options);
   std::string value;
   if (json && json->is_dict()) {
     json->GetDict().Set(kVivaldiTabStackId, id);
@@ -100,8 +100,7 @@ bool SetTabStackId(sessions::SessionTab* tab, const std::string& id) {
 bool RemoveTabStackId(sessions::SessionTab* tab) {
   std::string ext_data = tab->viv_ext_data;
   base::JSONParserOptions options = base::JSON_PARSE_RFC;
-  std::optional<base::Value> json =
-    base::JSONReader::Read(ext_data, options);
+  std::optional<base::Value> json = base::JSONReader::Read(ext_data, options);
   std::string value;
   if (json && json->is_dict()) {
     json->GetIfDict()->Remove(kVivaldiTabStackId);
@@ -116,11 +115,10 @@ bool RemoveTabStackId(sessions::SessionTab* tab) {
 bool RemoveTabStackTitle(sessions::SessionWindow* window, std::string group) {
   std::string ext_data = window->viv_ext_data;
   base::JSONParserOptions options = base::JSON_PARSE_RFC;
-  std::optional<base::Value> json =
-    base::JSONReader::Read(ext_data, options);
+  std::optional<base::Value> json = base::JSONReader::Read(ext_data, options);
   if (json && json->is_dict()) {
-    base::Value::Dict* titles = json->GetIfDict()->FindDict(
-        kVivaldiTabStackTitles);
+    base::DictValue* titles =
+        json->GetIfDict()->FindDict(kVivaldiTabStackTitles);
     if (titles) {
       titles->Remove(group);
       if (titles->empty()) {
@@ -140,8 +138,7 @@ bool RemoveTabStackTitle(sessions::SessionWindow* window, std::string group) {
 std::optional<double> GetWorkspaceId(sessions::SessionTab* tab) {
   std::string ext_data = tab->viv_ext_data;
   base::JSONParserOptions options = base::JSON_PARSE_RFC;
-  std::optional<base::Value> json =
-      base::JSONReader::Read(ext_data, options);
+  std::optional<base::Value> json = base::JSONReader::Read(ext_data, options);
   std::optional<double> value;
   if (json && json->is_dict()) {
     value = json->GetDict().FindDouble(kVivaldiWorkspace);
@@ -152,8 +149,7 @@ std::optional<double> GetWorkspaceId(sessions::SessionTab* tab) {
 bool SetWorkspaceId(sessions::SessionTab* tab, double id) {
   std::string ext_data = tab->viv_ext_data;
   base::JSONParserOptions options = base::JSON_PARSE_RFC;
-  std::optional<base::Value> json =
-    base::JSONReader::Read(ext_data, options);
+  std::optional<base::Value> json = base::JSONReader::Read(ext_data, options);
   std::string value;
   if (json && json->is_dict()) {
     json->GetDict().Set(kVivaldiWorkspace, id);
@@ -168,8 +164,7 @@ bool SetWorkspaceId(sessions::SessionTab* tab, double id) {
 bool RemoveWorkspaceId(sessions::SessionTab* tab) {
   std::string ext_data = tab->viv_ext_data;
   base::JSONParserOptions options = base::JSON_PARSE_RFC;
-  std::optional<base::Value> json =
-    base::JSONReader::Read(ext_data, options);
+  std::optional<base::Value> json = base::JSONReader::Read(ext_data, options);
   std::string value;
   if (json && json->is_dict()) {
     json->GetIfDict()->Remove(kVivaldiWorkspace);
@@ -182,9 +177,10 @@ bool RemoveWorkspaceId(sessions::SessionTab* tab) {
 }
 
 // Returns true when 'ids' refers to one or more tabs in the browser.
-bool ContainsTabs(Browser* browser, const std::vector<int>& ids) {
+bool ContainsTabs(BrowserWindowInterface* browser,
+                  const std::vector<int>& ids) {
   bool has_content = false;
-  TabStripModel* tab_strip = browser->tab_strip_model();
+  TabStripModel* tab_strip = browser->GetTabStripModel();
   for (int i = 0; i < tab_strip->count(); ++i) {
     content::WebContents* tab = tab_strip->GetWebContentsAt(i);
     DCHECK(tab);
@@ -236,13 +232,13 @@ class StackController {
       }
     }
   }
+
  private:
   std::map<std::string, std::vector<sessions::SessionTab*>> groups_;
 };
 
-
-
-base::FilePath MakePath(BrowserContext* browser_context, std::string seed,
+base::FilePath MakePath(BrowserContext* browser_context,
+                        std::string seed,
                         std::string* filename) {
   // PathExists() triggers IO restriction.
   base::VivaldiScopedAllowBlocking allow_blocking;
@@ -254,13 +250,13 @@ base::FilePath MakePath(BrowserContext* browser_context, std::string seed,
   // Avoid any endless loop, which is highly unlikely, but still.
   for (int i = 2; i < 1000; i++) {
     base::FilePath path = base::FilePath(profile->GetPath())
-      .Append(sessions::IndexStorage::GetFolderName())
+                              .Append(sessions::IndexStorage::GetFolderName())
 #if BUILDFLAG(IS_POSIX)
-      .Append(temp_seed)
+                              .Append(temp_seed)
 #elif BUILDFLAG(IS_WIN)
-      .Append(base::UTF8ToWide(temp_seed))
+                              .Append(base::UTF8ToWide(temp_seed))
 #endif
-      .AddExtension(FILE_PATH_LITERAL(".bin"));
+                              .AddExtension(FILE_PATH_LITERAL(".bin"));
     if (base::PathExists(path)) {
       base::snprintf(number_string, kNumberBufferSize, " (%d)", i);
       temp_seed = seed;
@@ -272,7 +268,7 @@ base::FilePath MakePath(BrowserContext* browser_context, std::string seed,
   }
 
   NOTREACHED();
-  //return base::FilePath();
+  // return base::FilePath();
 }
 
 int CopySessionFile(BrowserContext* browser_context,
@@ -280,16 +276,16 @@ int CopySessionFile(BrowserContext* browser_context,
   // PathExists() triggers IO restriction.
   base::VivaldiScopedAllowBlocking allow_blocking;
 
-  Index_Model* model = IndexServiceFactory::GetForBrowserContext(
-      browser_context);
+  Index_Model* model =
+      IndexServiceFactory::GetForBrowserContext(browser_context);
   Index_Node* node = model && model->items_node()
-    ? model->items_node()->GetById(opts.from_id)
-    : nullptr;
+                         ? model->items_node()->GetById(opts.from_id)
+                         : nullptr;
   if (!node && opts.from_id == Index_Node::backup_node_id()) {
     // Fallback for the case we deal with the internal kBackupNodeId.
     node = model && model->root_node()
-      ? model->root_node()->GetById(opts.from_id)
-      : nullptr;
+               ? model->root_node()->GetById(opts.from_id)
+               : nullptr;
   }
 
   if (!node) {
@@ -318,21 +314,21 @@ int CopySessionFile(BrowserContext* browser_context,
 }
 
 int PurgeAutosaves(BrowserContext* browser_context) {
-  Index_Model* model = IndexServiceFactory::GetForBrowserContext(
-      browser_context);
+  Index_Model* model =
+      IndexServiceFactory::GetForBrowserContext(browser_context);
   if (!model || !model->items_node()) {
     return sessions::kErrorNoModel;
   }
 
-  Index_Node* autosave_node = model->items_node()->GetById(
-      Index_Node::autosave_node_id());
+  Index_Node* autosave_node =
+      model->items_node()->GetById(Index_Node::autosave_node_id());
   if (!autosave_node) {
     return sessions::kNoError;
   }
 
   Profile* profile = Profile::FromBrowserContext(browser_context);
-  int save_days = profile->GetPrefs()->GetInteger(
-      vivaldiprefs::kSessionsSaveDays);
+  int save_days =
+      profile->GetPrefs()->GetInteger(vivaldiprefs::kSessionsSaveDays);
 
   std::vector<Index_Node*> nodes;
   sessions::GetExpiredAutoSaveNodes(browser_context, save_days, true, nodes);
@@ -349,12 +345,11 @@ int PurgeAutosaves(BrowserContext* browser_context) {
   return sessions::kNoError;
 }
 
-
 int HandleAutoSave(BrowserContext* browser_context,
                    sessions::WriteSessionOptions& ctl,
                    double* modify_time = nullptr) {
-  Index_Model* model = IndexServiceFactory::GetForBrowserContext(
-      browser_context);
+  Index_Model* model =
+      IndexServiceFactory::GetForBrowserContext(browser_context);
   if (!model || !model->items_node()) {
     return sessions::kErrorNoModel;
   }
@@ -364,13 +359,14 @@ int HandleAutoSave(BrowserContext* browser_context,
     return error_code;
   }
 
-  Index_Node* autosave_node = model->items_node()->GetById(
-      Index_Node::autosave_node_id());
+  Index_Node* autosave_node =
+      model->items_node()->GetById(Index_Node::autosave_node_id());
   if (!autosave_node) {
     std::unique_ptr<Index_Node> node = std::make_unique<Index_Node>(
         Index_Node::autosave_node_guid(), Index_Node::autosave_node_id());
     node->SetTitle(l10n_util::GetStringUTF16(IDS_VIV_SESSION_AUTOSAVE_FOLDER));
-    node->SetFilename(ctl.filename); // Must be set if calling DeleteSessionFile
+    node->SetFilename(
+        ctl.filename);  // Must be set if calling DeleteSessionFile
 
     error_code = SetNodeState(browser_context, ctl.path, true, node.get());
     if (error_code != sessions::kNoError) {
@@ -387,7 +383,7 @@ int HandleAutoSave(BrowserContext* browser_context,
     size_t index = model->items_node()->children().size();
     if (index > 0) {
       if (model->items_node()->children()[index - 1]->is_trash_folder()) {
-        index --;
+        index--;
       }
     }
     model->Add(std::move(node), model->items_node(), index, "");
@@ -407,7 +403,7 @@ int HandleAutoSave(BrowserContext* browser_context,
 
     // Placeholder for transferring new data to the auto_save node.
     std::unique_ptr<Index_Node> tmp = std::make_unique<Index_Node>("", -1);
-    tmp->SetFilename(ctl.filename); // Must be set if calling DeleteSessionFile
+    tmp->SetFilename(ctl.filename);  // Must be set if calling DeleteSessionFile
 
     error_code = SetNodeState(browser_context, ctl.path, true, tmp.get());
     if (error_code != sessions::kNoError) {
@@ -443,11 +439,10 @@ int HandleAutoSave(BrowserContext* browser_context,
   return error_code;
 }
 
-
 int HandlePersistentSave(BrowserContext* browser_context,
                          sessions::WriteSessionOptions& ctl) {
-  Index_Model* model = IndexServiceFactory::GetForBrowserContext(
-      browser_context);
+  Index_Model* model =
+      IndexServiceFactory::GetForBrowserContext(browser_context);
   if (!model) {
     return sessions::kErrorNoModel;
   }
@@ -462,8 +457,8 @@ int HandlePersistentSave(BrowserContext* browser_context,
 
   int error_code = sessions::WriteSessionFile(browser_context, ctl);
   if (error_code == sessions::kNoError) {
-    std::unique_ptr<Index_Node> node = std::make_unique<Index_Node>(
-        Index_Node::persistent_node_guid(), id);
+    std::unique_ptr<Index_Node> node =
+        std::make_unique<Index_Node>(Index_Node::persistent_node_guid(), id);
     SetNodeState(browser_context, ctl.path, true, node.get());
     node->SetFilename(ctl.filename);
     model->Add(std::move(node), model->root_node(), 0, "");
@@ -472,14 +467,12 @@ int HandlePersistentSave(BrowserContext* browser_context,
   return sessions::kNoError;
 }
 
-
 void SortTabs(std::vector<std::unique_ptr<sessions::SessionTab>>& tabs) {
   std::sort(tabs.begin(), tabs.end(),
             [](std::unique_ptr<sessions::SessionTab>& tab1,
                std::unique_ptr<sessions::SessionTab>& tab2) {
               return tab1->tab_visual_index < tab2->tab_visual_index;
             });
-
 }
 
 }  // namespace
@@ -492,50 +485,46 @@ WriteSessionOptions::~WriteSessionOptions() {}
 SessionContent::SessionContent() {}
 SessionContent::~SessionContent() {}
 
-
-int Open(Browser* browser, Index_Node* node,
+int Open(Browser* browser,
+         Index_Node* node,
          const ::vivaldi::SessionOptions& opts) {
   base::VivaldiScopedAllowBlocking allow_blocking;
 
   base::FilePath path = GetPathFromNode(browser->profile(), node);
   ::vivaldi::VivaldiSessionService service(browser->profile());
-  return base::PathExists(path)
-    ? service.Load(path, browser, opts)
-    : kErrorFileMissing;
+  return base::PathExists(path) ? service.Load(path, browser, opts)
+                                : kErrorFileMissing;
 }
 
-int OpenPersistentTabs(Browser* browser, bool discard) {
-  Index_Model* model = IndexServiceFactory::GetForBrowserContext(
-      browser->profile());
+int OpenPersistentTabs(BrowserWindowInterface* browser, bool discard) {
+  Profile* profile = browser->GetProfile();
+  Index_Model* model = IndexServiceFactory::GetForBrowserContext(profile);
   if (!model) {
     return kErrorNoModel;
   }
 
   // Only regular windows can save and open persistent tabs.
-  if (browser->profile()->IsGuestSession() ||
-      browser->profile()->IsOffTheRecord()) {
+  if (profile->IsGuestSession() || profile->IsOffTheRecord()) {
     return kErrorWrongProfile;
   }
 
-  Index_Node* node = model->root_node()->GetById(
-      Index_Node::persistent_node_id());
+  Index_Node* node =
+      model->root_node()->GetById(Index_Node::persistent_node_id());
   if (node) {
     if (discard) {
-      DeleteSessionFile(browser->profile(), node);
+      DeleteSessionFile(profile, node);
       model->Remove(node);
     } else {
-      extensions::SessionsPrivateAPI::SendOnPersistentLoad(browser->profile(),
-        true);
+      extensions::SessionsPrivateAPI::SendOnPersistentLoad(profile, true);
       vivaldi::SessionOptions opts;
       opts.newWindow_ = false;
       opts.oneWindow_ = true;
       opts.withWorkspace_ = true;
-      Open(browser, node, opts);
+      Open(browser->GetBrowserForMigrationOnly(), node, opts);
       // Can only be opened once after it has been saved so deleting now.
-      DeleteSessionFile(browser->profile(), node);
+      DeleteSessionFile(profile, node);
       model->Remove(node);
-      extensions::SessionsPrivateAPI::SendOnPersistentLoad(browser->profile(),
-        false);
+      extensions::SessionsPrivateAPI::SendOnPersistentLoad(profile, false);
     }
   }
   return kNoError;
@@ -545,16 +534,18 @@ base::FilePath GetPathFromNode(BrowserContext* browser_context,
                                Index_Node* node) {
   Profile* profile = Profile::FromBrowserContext(browser_context);
   return base::FilePath(profile->GetPath())
-    .Append(sessions::IndexStorage::GetFolderName())
+      .Append(sessions::IndexStorage::GetFolderName())
 #if BUILDFLAG(IS_POSIX)
-    .Append(node->filename());
+      .Append(node->filename());
 #elif BUILDFLAG(IS_WIN)
-    .Append(base::UTF8ToWide(node->filename()));
+      .Append(base::UTF8ToWide(node->filename()));
 #endif
 }
 
-int SetNodeState(BrowserContext* browser_context, const base::FilePath& file,
-                 bool is_new, Index_Node* node) {
+int SetNodeState(BrowserContext* browser_context,
+                 const base::FilePath& file,
+                 bool is_new,
+                 Index_Node* node) {
   base::VivaldiScopedAllowBlocking allow_blocking;
   // Get time from file. Same as when setting up the model on first run.
   base::File::Info info;
@@ -564,7 +555,8 @@ int SetNodeState(BrowserContext* browser_context, const base::FilePath& file,
 
   base::Time created = info.creation_time;
   node->SetCreateTime(created.InMillisecondsFSinceUnixEpoch());
-  node->SetModifyTime(is_new ? created.InMillisecondsFSinceUnixEpoch()
+  node->SetModifyTime(is_new
+                          ? created.InMillisecondsFSinceUnixEpoch()
                           : info.last_modified.InMillisecondsFSinceUnixEpoch());
 
   sessions::SessionContent content;
@@ -582,16 +574,16 @@ int SetNodeState(BrowserContext* browser_context, const base::FilePath& file,
 
   // Update quarantined and workspace state
 
-  base::Value::List workspaces;
+  base::ListValue workspaces;
   if (is_new) {
     // For a new node it is simple. There can be no quarantined nodes and all
     // workspaces can be tagged active (meaning UI code will show them, we make
     // a workspace inactive if all tabs inside are quarantined - that way we
     // we keep icons and name in case we remove quarantine state later on).
-    base::Value::List known_workspaces(
+    base::ListValue known_workspaces(
         profile->GetPrefs()->GetList(vivaldiprefs::kWorkspacesList).Clone());
     for (base::Value& elm : known_workspaces) {
-      base::Value::Dict* dict = elm.GetIfDict();
+      base::DictValue* dict = elm.GetIfDict();
       if (dict) {
         dict->Set("active", true);
         workspaces.Append(dict->Clone());
@@ -600,14 +592,15 @@ int SetNodeState(BrowserContext* browser_context, const base::FilePath& file,
     node->SetWorkspaces(workspaces.Clone());
   } else {
     // Ext-data in tabs may have updated.
-    std::vector<double> listed; // Workspaces that tabs refer to.
-    std::vector<double> active; // Workspaces that active (non-quarantined) tabs belong to.
+    std::vector<double> listed;  // Workspaces that tabs refer to.
+    std::vector<double>
+        active;  // Workspaces that active (non-quarantined) tabs belong to.
     std::vector<double>::iterator it;
     int num_quarantine = 0;
     for (auto tit = content.tabs.begin(); tit != content.tabs.end(); ++tit) {
       bool is_quarantine = sessions::IsTabQuarantined(tit->second.get());
       if (is_quarantine) {
-        num_quarantine ++;
+        num_quarantine++;
       }
       std::optional<double> id = GetWorkspaceId(tit->second.get());
       if (id.has_value()) {
@@ -626,16 +619,16 @@ int SetNodeState(BrowserContext* browser_context, const base::FilePath& file,
     node->SetQuarantineCount(num_quarantine);
 
     // Add all workspaces that are known to node if present in tabs.
-    base::Value::List known_workspaces(node->workspaces().Clone());
+    base::ListValue known_workspaces(node->workspaces().Clone());
     for (base::Value& elm : known_workspaces) {
-      base::Value::Dict* dict = elm.GetIfDict();
+      base::DictValue* dict = elm.GetIfDict();
       if (dict) {
         std::optional<double> id = dict->FindDouble("id");
         if (id.has_value()) {
           it = std::find(listed.begin(), listed.end(), id.value());
           if (it != listed.end()) {
             listed.erase(it);
-            base::Value::Dict entry(dict->Clone());
+            base::DictValue entry(dict->Clone());
             it = std::find(active.begin(), active.end(), id.value());
             entry.Set("active", it != active.end());
             workspaces.Append(entry.Clone());
@@ -646,7 +639,7 @@ int SetNodeState(BrowserContext* browser_context, const base::FilePath& file,
     // Add all workspaces (new workspaces) known in tabs, but not in node.
     if (listed.size() > 0) {
       for (auto& id : listed) {
-        base::Value::Dict entry;
+        base::DictValue entry;
         entry.Set("id", id);
         it = std::find(active.begin(), active.end(), id);
         entry.Set("active", it != active.end());
@@ -658,7 +651,7 @@ int SetNodeState(BrowserContext* browser_context, const base::FilePath& file,
 
   // With VB-23686 we save tab and tab stack titles to tab ext data in JS. So
   // we no longer save to the separate group member here.
-  base::Value::Dict all_groups_names;
+  base::DictValue all_groups_names;
   node->SetGroupNames(std::move(all_groups_names));
 
   return kNoError;
@@ -670,16 +663,21 @@ std::vector<std::string> CollectThumbnailUrls(
   std::vector<std::string> res;
   Profile* profile = Profile::FromBrowserContext(browser_context);
   ::vivaldi::VivaldiSessionService service(profile);
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (service.ShouldTrackWindow(browser) &&
-        browser->tab_strip_model()->count() && browser->window() &&
+  std::vector<BrowserWindowInterface*> all_browsers =
+      GetAllBrowserWindowInterfaces();
+  for (auto* browser_window_interface : all_browsers) {
+    if (service.ShouldTrackWindow(
+            browser_window_interface->GetBrowserForMigrationOnly()) &&
+        browser_window_interface->GetTabStripModel()->count() &&
+        browser_window_interface->GetWindow() &&
         // An empty list means all tabs.
-        (opts.ids.size() == 0 || ContainsTabs(browser, opts.ids)) &&
+        (opts.ids.size() == 0 ||
+         ContainsTabs(browser_window_interface, opts.ids)) &&
         // A window id of 0 means all windows.
         (opts.window_id == 0 ||
-         (browser->session_id().id() == opts.window_id))) {
-      std::vector<std::string> urls =
-          service.CollectThumbnailUrls(browser, opts.ids);
+         (browser_window_interface->GetSessionID().id() == opts.window_id))) {
+      std::vector<std::string> urls = service.CollectThumbnailUrls(
+          browser_window_interface->GetBrowserForMigrationOnly(), opts.ids);
       res.insert(res.end(), urls.begin(), urls.end());
     }
   }
@@ -692,14 +690,15 @@ std::vector<std::string> CollectAllThumbnailUrls(
   std::vector<std::string> res;
   Profile* profile = Profile::FromBrowserContext(browser_context);
   ::vivaldi::VivaldiSessionService service(profile);
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->window()) {
-      auto thumbnails =
-          service.CollectThumbnailUrls(browser, std::vector<int>());
-      res.insert(std::end(res), std::begin(thumbnails), std::end(thumbnails));
-    }
-  }
 
+  std::vector<BrowserWindowInterface*> all_browsers =
+      GetAllBrowserWindowInterfaces();
+  for (auto* browser_window_interface : all_browsers) {
+    auto thumbnails = service.CollectThumbnailUrls(
+        browser_window_interface->GetBrowserForMigrationOnly(),
+        std::vector<int>());
+    res.insert(std::end(res), std::begin(thumbnails), std::end(thumbnails));
+  }
   return res;
 }
 
@@ -720,7 +719,10 @@ int WriteSessionFile(content::BrowserContext* browser_context,
   }
 
   ::vivaldi::VivaldiSessionService service(profile);
-  for (Browser* browser : *BrowserList::GetInstance()) {
+
+  std::vector<BrowserWindowInterface*> all_browsers =
+      GetAllBrowserWindowInterfaces();
+  for (auto* browser_window_interface : all_browsers) {
     // 1 The tracking test will prevent saving content in private (or guest)
     //   windows from regular (but private can save regular).
     // 2 Make sure the browser has tabs and a window. Browser's destructor
@@ -729,16 +731,22 @@ int WriteSessionFile(content::BrowserContext* browser_context,
     //   possible for us to get a handle to a browser that is about to be
     //   removed. If the tab count is 0 or the window is NULL, the browser
     //   is about to be deleted, so we ignore it.
-    if (service.ShouldTrackWindow(browser) &&
-        browser->tab_strip_model()->count() && browser->window() &&
+    if (service.ShouldTrackWindow(
+            browser_window_interface->GetBrowserForMigrationOnly()) &&
+        browser_window_interface->GetTabStripModel()->count() &&
+        browser_window_interface->GetWindow() &&
         // An empty list means all tabs.
-        (opts.ids.size() == 0 || ContainsTabs(browser, opts.ids)) &&
+        (opts.ids.size() == 0 ||
+         ContainsTabs(browser_window_interface, opts.ids)) &&
         // A window id of 0 means all windows.
         (opts.window_id == 0 ||
-         (browser->session_id().id() == opts.window_id))) {
-      service.BuildCommandsForBrowser(browser, opts.ids, opts.thumbnails);
+         (browser_window_interface->GetSessionID().id() == opts.window_id))) {
+      service.BuildCommandsForBrowser(
+          browser_window_interface->GetBrowserForMigrationOnly(), opts.ids,
+          opts.thumbnails);
     }
   }
+
   if (!service.Save(opts.path)) {
     return kErrorWriting;
   }
@@ -761,14 +769,14 @@ int DeleteSessionFile(BrowserContext* browser_context, Index_Node* node) {
 }
 
 int MoveAutoSaveNodesToTrash(BrowserContext* browser_context) {
-  Index_Model* model = IndexServiceFactory::GetForBrowserContext(
-      browser_context);
+  Index_Model* model =
+      IndexServiceFactory::GetForBrowserContext(browser_context);
   if (!model || !model->items_node()) {
     return sessions::kErrorNoModel;
   }
 
-  Index_Node* autosave_node = model->items_node()->GetById(
-      Index_Node::autosave_node_id());
+  Index_Node* autosave_node =
+      model->items_node()->GetById(Index_Node::autosave_node_id());
   if (!autosave_node) {
     return sessions::kNoError;
   }
@@ -778,8 +786,8 @@ int MoveAutoSaveNodesToTrash(BrowserContext* browser_context) {
   for (const std::unique_ptr<Index_Node>& node : autosave_node->children()) {
     nodes.push_back(node.get());
   }
-  Index_Node* trash_folder = model->root_node()->GetById(
-      Index_Node::trash_node_id());
+  Index_Node* trash_folder =
+      model->root_node()->GetById(Index_Node::trash_node_id());
   if (!trash_folder) {
     return sessions::kErrorUnknownId;
   }
@@ -792,8 +800,8 @@ int MoveAutoSaveNodesToTrash(BrowserContext* browser_context) {
   // Move node itself to trash. We can not move as is since it holds a
   // special id. Duplicate content with new id.
   std::unique_ptr<Index_Node> node = std::make_unique<Index_Node>(
-    base::Uuid::GenerateRandomV4().AsLowercaseString(),
-    Index_Node::GetNewId());
+      base::Uuid::GenerateRandomV4().AsLowercaseString(),
+      Index_Node::GetNewId());
   node->Copy(autosave_node);
   model->Add(std::move(node), trash_folder, 0, "");
   model->Remove(autosave_node);
@@ -808,21 +816,21 @@ int GetExpiredAutoSaveNodes(BrowserContext* browser_context,
                             int days_before,
                             bool on_add,
                             std::vector<Index_Node*>& nodes) {
-  Index_Model* model = IndexServiceFactory::GetForBrowserContext(
-      browser_context);
+  Index_Model* model =
+      IndexServiceFactory::GetForBrowserContext(browser_context);
   if (!model || !model->items_node()) {
     return sessions::kErrorNoModel;
   }
 
-  Index_Node* autosave_node = model->items_node()->GetById(
-      Index_Node::autosave_node_id());
+  Index_Node* autosave_node =
+      model->items_node()->GetById(Index_Node::autosave_node_id());
   if (!autosave_node) {
     return sessions::kNoError;
   }
 
   base::Time time = on_add ? base::Time::FromMillisecondsSinceUnixEpoch(
                                  autosave_node->modify_time())
-    : base::Time::Now();
+                           : base::Time::Now();
   base::Time::Exploded time_exploded;
   time.LocalExplode(&time_exploded);
 
@@ -831,7 +839,7 @@ int GetExpiredAutoSaveNodes(BrowserContext* browser_context,
   if (on_add) {
     for (const std::unique_ptr<Index_Node>& node : autosave_node->children()) {
       base::Time node_time =
-        base::Time::FromMillisecondsSinceUnixEpoch(node->modify_time());
+          base::Time::FromMillisecondsSinceUnixEpoch(node->modify_time());
       base::Time::Exploded node_exploded;
       node_time.LocalExplode(&node_exploded);
       if (time_exploded.year == node_exploded.year &&
@@ -844,15 +852,15 @@ int GetExpiredAutoSaveNodes(BrowserContext* browser_context,
   // Next, add entries so that when we remove them the number of children of
   // the autosave node does not exceed the value of days_before.
   // This assumes the list is sorted by date (oldest last).
-  if (autosave_node->children().size() - nodes.size() > static_cast<size_t>(days_before)) {
-    int num_to_remove = autosave_node->children().size() -
-      nodes.size() - days_before;
+  if (autosave_node->children().size() - nodes.size() >
+      static_cast<size_t>(days_before)) {
+    int num_to_remove =
+        autosave_node->children().size() - nodes.size() - days_before;
     for (int i = autosave_node->children().size() - 1;
-         i >= 0 && num_to_remove > 0;
-         --i) {
+         i >= 0 && num_to_remove > 0; --i) {
       const std::unique_ptr<Index_Node>& node = autosave_node->children().at(i);
       bool can_add = true;
-      for (size_t j=0; j < nodes.size() && can_add; j++) {
+      for (size_t j = 0; j < nodes.size() && can_add; j++) {
         if (nodes.at(j) == node.get()) {
           can_add = false;
         }
@@ -871,8 +879,8 @@ int GetExpiredAutoSaveNodes(BrowserContext* browser_context,
 // Moves a backup session to the auto saved session list. Intended to be used
 // while loading the model.
 int AutoSaveFromBackup(BrowserContext* browser_context) {
-  Index_Model* model = IndexServiceFactory::GetForBrowserContext(
-      browser_context);
+  Index_Model* model =
+      IndexServiceFactory::GetForBrowserContext(browser_context);
   if (!model || !model->items_node() || !model->backup_node()) {
     return sessions::kErrorNoModel;
   }
@@ -906,7 +914,7 @@ void AutoSave(BrowserContext* browser_context, bool from_ui) {
 #if !BUILDFLAG(IS_MAC)
     Profile* profile = Profile::FromBrowserContext(browser_context);
     if (profile->GetPrefs()->GetBoolean(
-        vivaldiprefs::kSystemShowExitConfirmationDialog)) {
+            vivaldiprefs::kSystemShowExitConfirmationDialog)) {
       // Ignore: Not from UI and we will save when dialog is accecpted.
       return;
     }
@@ -921,8 +929,8 @@ void AutoSave(BrowserContext* browser_context, bool from_ui) {
   }
   has_been_called = true;
 
-  Index_Model* model = IndexServiceFactory::GetForBrowserContext(
-      browser_context);
+  Index_Model* model =
+      IndexServiceFactory::GetForBrowserContext(browser_context);
   if (!model || !model->items_node()) {
     return;
   }
@@ -938,8 +946,8 @@ void AutoSave(BrowserContext* browser_context, bool from_ui) {
 }
 
 int SavePersistentTabs(BrowserContext* browser_context, std::vector<int> ids) {
-  Index_Model* model = IndexServiceFactory::GetForBrowserContext(
-      browser_context);
+  Index_Model* model =
+      IndexServiceFactory::GetForBrowserContext(browser_context);
   if (!model || !model->items_node()) {
     return kErrorNoModel;
   }
@@ -953,7 +961,6 @@ int SavePersistentTabs(BrowserContext* browser_context, std::vector<int> ids) {
 int DeleteTabs(BrowserContext* browser_context,
                base::FilePath path,
                std::vector<int32_t> ids) {
-
   // Load content
   SessionContent content;
   GetContent(path, content);
@@ -963,7 +970,7 @@ int DeleteTabs(BrowserContext* browser_context,
   std::vector<std::unique_ptr<sessions::SessionTab>> tabs;
   // We may want to remove group state from remaining tabs.
   std::map<std::string, std::vector<sessions::SessionTab*>> groups;
-  for (auto it=content.windows.begin(); it!=content.windows.end(); ++it) {
+  for (auto it = content.windows.begin(); it != content.windows.end(); ++it) {
     windows.push_back(std::move(it->second));
   }
   for (auto it = content.tabs.begin(); it != content.tabs.end(); ++it) {
@@ -1044,7 +1051,7 @@ int PinTabs(BrowserContext* browser_context,
 
   std::vector<std::unique_ptr<sessions::SessionWindow>> windows;
   std::vector<std::unique_ptr<sessions::SessionTab>> tabs;
-  for (auto it=content.windows.begin(); it!=content.windows.end(); ++it) {
+  for (auto it = content.windows.begin(); it != content.windows.end(); ++it) {
     windows.push_back(std::move(it->second));
   }
   for (auto it = content.tabs.begin(); it != content.tabs.end(); ++it) {
@@ -1083,11 +1090,12 @@ int MoveTabs(BrowserContext* browser_context,
   std::vector<std::unique_ptr<sessions::SessionWindow>> windows;
   std::vector<std::unique_ptr<sessions::SessionTab>> tabs;
   std::vector<std::unique_ptr<sessions::SessionTab>> candidates;
-  for (auto it=content.windows.begin(); it!=content.windows.end(); ++it) {
+  for (auto it = content.windows.begin(); it != content.windows.end(); ++it) {
     windows.push_back(std::move(it->second));
   }
-  for (auto it=content.tabs.begin(); it!=content.tabs.end(); ++it) {
-    if (std::find(ids.begin(), ids.end(), it->second->tab_id.id()) != ids.end()) {
+  for (auto it = content.tabs.begin(); it != content.tabs.end(); ++it) {
+    if (std::find(ids.begin(), ids.end(), it->second->tab_id.id()) !=
+        ids.end()) {
       candidates.push_back(std::move(it->second));
     } else {
       tabs.push_back(std::move(it->second));
@@ -1161,7 +1169,8 @@ int MoveTabs(BrowserContext* browser_context,
 }
 
 int SetTabStack(content::BrowserContext* browser_context,
-                base::FilePath path, std::vector<int32_t> ids,
+                base::FilePath path,
+                std::vector<int32_t> ids,
                 std::string group) {
   SessionContent content;
   GetContent(path, content);
@@ -1169,11 +1178,12 @@ int SetTabStack(content::BrowserContext* browser_context,
   std::vector<std::unique_ptr<sessions::SessionWindow>> windows;
   std::vector<std::unique_ptr<sessions::SessionTab>> tabs;
   std::vector<std::unique_ptr<sessions::SessionTab>> candidates;
-  for (auto it=content.windows.begin(); it!=content.windows.end(); ++it) {
+  for (auto it = content.windows.begin(); it != content.windows.end(); ++it) {
     windows.push_back(std::move(it->second));
   }
-  for (auto it=content.tabs.begin(); it!=content.tabs.end(); ++it) {
-    if (std::find(ids.begin(), ids.end(), it->second->tab_id.id()) != ids.end()) {
+  for (auto it = content.tabs.begin(); it != content.tabs.end(); ++it) {
+    if (std::find(ids.begin(), ids.end(), it->second->tab_id.id()) !=
+        ids.end()) {
       candidates.push_back(std::move(it->second));
     } else {
       tabs.push_back(std::move(it->second));
@@ -1247,7 +1257,8 @@ void SetTabStackForImportedTab(const base::Uuid id, sessions::SessionTab* tab) {
   SetTabStackId(tab, id.AsLowercaseString());
 }
 
-int SetWindow(content::BrowserContext* browser_context, base::FilePath path,
+int SetWindow(content::BrowserContext* browser_context,
+              base::FilePath path,
               std::vector<int32_t> ids,
               const std::vector<GroupAlias>& group_aliases) {
   SessionContent content;
@@ -1257,11 +1268,12 @@ int SetWindow(content::BrowserContext* browser_context, base::FilePath path,
   std::vector<std::unique_ptr<sessions::SessionTab>> tabs;
   std::vector<std::unique_ptr<sessions::SessionTab>> candidates;
 
-  for (auto it=content.windows.begin(); it!=content.windows.end(); ++it) {
+  for (auto it = content.windows.begin(); it != content.windows.end(); ++it) {
     windows.push_back(std::move(it->second));
   }
-  for (auto it=content.tabs.begin(); it!=content.tabs.end(); ++it) {
-    if (std::find(ids.begin(), ids.end(), it->second->tab_id.id()) != ids.end()) {
+  for (auto it = content.tabs.begin(); it != content.tabs.end(); ++it) {
+    if (std::find(ids.begin(), ids.end(), it->second->tab_id.id()) !=
+        ids.end()) {
       candidates.push_back(std::move(it->second));
     } else {
       tabs.push_back(std::move(it->second));
@@ -1311,7 +1323,6 @@ int SetWindow(content::BrowserContext* browser_context, base::FilePath path,
       // information about the new group. So track and append.
       stack_controller.track(candidate.get());
       stack_controller.append(candidate.get());
-
     }
     // We are moving to a window so workspace information must be removed.
     RemoveWorkspaceId(candidate.get());
@@ -1341,7 +1352,8 @@ int SetWindow(content::BrowserContext* browser_context, base::FilePath path,
   return kNoError;
 }
 
-int SetWorkspace(content::BrowserContext* browser_context, base::FilePath path,
+int SetWorkspace(content::BrowserContext* browser_context,
+                 base::FilePath path,
                  std::vector<int32_t> ids,
                  double workspace_id,
                  const std::vector<GroupAlias>& group_aliases) {
@@ -1352,11 +1364,12 @@ int SetWorkspace(content::BrowserContext* browser_context, base::FilePath path,
   std::vector<std::unique_ptr<sessions::SessionTab>> tabs;
   std::vector<std::unique_ptr<sessions::SessionTab>> candidates;
 
-  for (auto it=content.windows.begin(); it!=content.windows.end(); ++it) {
+  for (auto it = content.windows.begin(); it != content.windows.end(); ++it) {
     windows.push_back(std::move(it->second));
   }
-  for (auto it=content.tabs.begin(); it!=content.tabs.end(); ++it) {
-    if (std::find(ids.begin(), ids.end(), it->second->tab_id.id()) != ids.end()) {
+  for (auto it = content.tabs.begin(); it != content.tabs.end(); ++it) {
+    if (std::find(ids.begin(), ids.end(), it->second->tab_id.id()) !=
+        ids.end()) {
       candidates.push_back(std::move(it->second));
     } else {
       tabs.push_back(std::move(it->second));
@@ -1389,7 +1402,6 @@ int SetWorkspace(content::BrowserContext* browser_context, base::FilePath path,
       // information about the new group. So track and append.
       stack_controller.track(candidate.get());
       stack_controller.append(candidate.get());
-
     }
     SetWorkspaceId(candidate.get(), workspace_id);
   }
@@ -1425,7 +1437,7 @@ int QuarantineTabs(BrowserContext* browser_context,
 
   std::vector<std::unique_ptr<sessions::SessionWindow>> windows;
   std::vector<std::unique_ptr<sessions::SessionTab>> tabs;
-  for (auto it=content.windows.begin(); it!=content.windows.end(); ++it) {
+  for (auto it = content.windows.begin(); it != content.windows.end(); ++it) {
     windows.push_back(std::move(it->second));
   }
   for (auto it = content.tabs.begin(); it != content.tabs.end(); ++it) {
@@ -1458,7 +1470,7 @@ bool IsTabQuarantined(const SessionTab* tab) {
 std::string GetTabStackId(const SessionTab* tab) {
   base::JSONParserOptions options = base::JSON_PARSE_RFC;
   std::optional<base::Value> json =
-     base::JSONReader::Read(tab->viv_ext_data, options);
+      base::JSONReader::Read(tab->viv_ext_data, options);
   std::string value;
   if (json && json->is_dict()) {
     std::string* s = json->GetDict().FindString(kVivaldiTabStackId);
@@ -1470,10 +1482,11 @@ std::string GetTabStackId(const SessionTab* tab) {
 }
 
 bool GetFixedTabTitles(const sessions::SessionTab* tab,
-                       std::string& title, std::string& groupTitle) {
+                       std::string& title,
+                       std::string& groupTitle) {
   base::JSONParserOptions options = base::JSON_PARSE_RFC;
   std::optional<base::Value> json =
-     base::JSONReader::Read(tab->viv_ext_data, options);
+      base::JSONReader::Read(tab->viv_ext_data, options);
   if (json && json->is_dict()) {
     std::string* s = json->GetDict().FindString(kVivaldiFixedTitle);
     if (s) {
@@ -1510,17 +1523,16 @@ int SetTabTitle(BrowserContext* browser_context,
   // Save data to tab ext data.
   base::JSONParserOptions options = base::JSON_PARSE_RFC;
   std::optional<base::Value> json =
-    base::JSONReader::Read(tab->viv_ext_data, options);
+      base::JSONReader::Read(tab->viv_ext_data, options);
   if (json && json->is_dict()) {
     json->GetDict().Set(kVivaldiFixedTitle, title);
-    base::JSONWriter::Write(base::ValueView(json.value()),
-      &tab->viv_ext_data);
+    base::JSONWriter::Write(base::ValueView(json.value()), &tab->viv_ext_data);
   }
 
   // Build a command set.
   std::vector<std::unique_ptr<sessions::SessionWindow>> windows;
   std::vector<std::unique_ptr<sessions::SessionTab>> tabs;
-  for (auto it=content.windows.begin(); it!=content.windows.end(); ++it) {
+  for (auto it = content.windows.begin(); it != content.windows.end(); ++it) {
     windows.push_back(std::move(it->second));
   }
   for (auto it = content.tabs.begin(); it != content.tabs.end(); ++it) {
@@ -1547,18 +1559,18 @@ int SetTabStackTitle(BrowserContext* browser_context,
   GetContent(path, content);
 
   bool has_match = false;
-  for (auto id: tab_ids) {
+  for (auto id : tab_ids) {
     for (auto tit = content.tabs.begin(); tit != content.tabs.end(); ++tit) {
       if (tit->second->tab_id.id() == id) {
         has_match = true;
         SessionTab* tab = tit->second.get();
         base::JSONParserOptions options = base::JSON_PARSE_RFC;
-          std::optional<base::Value> json =
-        base::JSONReader::Read(tab->viv_ext_data, options);
+        std::optional<base::Value> json =
+            base::JSONReader::Read(tab->viv_ext_data, options);
         if (json && json->is_dict()) {
           json->GetDict().Set(kVivaldiFixedGroupTitle, title);
           base::JSONWriter::Write(base::ValueView(json.value()),
-            &tab->viv_ext_data);
+                                  &tab->viv_ext_data);
         }
         break;
       }
@@ -1572,7 +1584,7 @@ int SetTabStackTitle(BrowserContext* browser_context,
   // Build a command set.
   std::vector<std::unique_ptr<sessions::SessionWindow>> windows;
   std::vector<std::unique_ptr<sessions::SessionTab>> tabs;
-  for (auto it=content.windows.begin(); it!=content.windows.end(); ++it) {
+  for (auto it = content.windows.begin(); it != content.windows.end(); ++it) {
     windows.push_back(std::move(it->second));
   }
   for (auto it = content.tabs.begin(); it != content.tabs.end(); ++it) {
@@ -1590,17 +1602,17 @@ int SetTabStackTitle(BrowserContext* browser_context,
   return kNoError;
 }
 
-std::unique_ptr<base::Value::Dict> GetTabStackTitles(
+std::unique_ptr<base::DictValue> GetTabStackTitles(
     const SessionWindow* window) {
   base::JSONParserOptions options = base::JSON_PARSE_RFC;
   std::optional<base::Value> json =
-     base::JSONReader::Read(window->viv_ext_data, options);
+      base::JSONReader::Read(window->viv_ext_data, options);
   if (json && json->is_dict()) {
-    base::Value::Dict* titles = json->GetIfDict()->FindDict(
-        kVivaldiTabStackTitles);
+    base::DictValue* titles =
+        json->GetIfDict()->FindDict(kVivaldiTabStackTitles);
     if (titles) {
-      std::unique_ptr<base::Value::Dict> copy =
-        std::make_unique<base::Value::Dict>(titles->Clone());
+      std::unique_ptr<base::DictValue> copy =
+          std::make_unique<base::DictValue>(titles->Clone());
       return copy;
     }
   }
@@ -1612,7 +1624,7 @@ void GetContent(base::FilePath name, SessionContent& content) {
   auto cmds = service.LoadSettingInfo(name);
 
   std::vector<std::unique_ptr<sessions::SessionCommand>> commands;
-  for (auto &item: cmds) {
+  for (auto& item : cmds) {
     // We don't build thumbnails here.
     if (item->id() == sessions::GetVivCreateThumbnailCommandId()) {
       continue;
@@ -1621,8 +1633,8 @@ void GetContent(base::FilePath name, SessionContent& content) {
   }
 
   sessions::GroupIdToSessionTabGroup tab_groups;
-  sessions::VivaldiCreateTabsAndWindows(commands, &content.tabs,
-                                        &tab_groups, &content.windows,
+  sessions::VivaldiCreateTabsAndWindows(commands, &content.tabs, &tab_groups,
+                                        &content.windows,
                                         &content.active_window_id);
 }
 
@@ -1655,7 +1667,7 @@ bool AddCommandLineTab(Browser* browser) {
     return false;
 
   vivaldi::VivaldiBrowserUiData* browser_ui_data =
-    vivaldi::VivaldiBrowserUiData::From(browser);
+      vivaldi::VivaldiBrowserUiData::From(browser);
   std::string v_e_d = browser_ui_data->viv_ext_data();
   std::optional<base::Value> json = std::nullopt;
   json = base::JSONReader::Read(v_e_d, base::JSON_PARSE_RFC);
@@ -1675,7 +1687,7 @@ bool AddCommandLineTab(Browser* browser) {
 bool IsVivaldiPanel(const sessions::tab_restore::Entry& entry) {
   if (entry.type != sessions::tab_restore::Type::TAB)
     return false;
-  auto &tab = static_cast<const sessions::tab_restore::Tab&>(entry);
+  auto& tab = static_cast<const sessions::tab_restore::Tab&>(entry);
   return vivaldi::ParseVivPanelId(tab.viv_ext_data).has_value();
 }
 
@@ -1695,7 +1707,7 @@ bool IsRestorableInVivaldi(const sessions::tab_restore::Entry& entry) {
 
   // Don't restore new-tab-url in the history only.
   if (base::StartsWith(tab.navigations[0].original_request_url().spec(),
-                 vivaldi::kVivaldiNewTabURL))
+                       vivaldi::kVivaldiNewTabURL))
     return false;
 
   // Don't restore session-recovery in the history only.

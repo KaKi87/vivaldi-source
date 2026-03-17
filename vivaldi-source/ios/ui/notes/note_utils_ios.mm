@@ -2,8 +2,8 @@
 
 #import "ios/ui/notes/note_utils_ios.h"
 
-#import <memory>
 #import <stdint.h>
+#import <memory>
 #import <vector>
 
 #import "base/check.h"
@@ -13,7 +13,6 @@
 #import "base/strings/utf_string_conversions.h"
 #import "components/notes/note_node.h"
 #import "components/notes/notes_model.h"
-#import "components/notes/notes_model.h"
 #import "components/query_parser/query_parser.h"
 #import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/shared/public/snackbar/snackbar_message.h"
@@ -21,22 +20,22 @@
 #import "ios/chrome/common/ui/util/ui_util.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "third_party/skia/include/core/SkColor.h"
-#import "ui/base/l10n/l10n_util_mac.h"
 #import "ui/base/l10n/l10n_util.h"
+#import "ui/base/l10n/l10n_util_mac.h"
 #import "ui/base/models/tree_node_iterator.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using vivaldi::NoteNode;
 using vivaldi::NotesModel;
 
-namespace  {
-  const int MAXIMUM_TITLE_LENGTH = 128;
+namespace {
+const int MAXIMUM_TITLE_LENGTH = 128;
 }
 
 namespace note_utils_ios {
 
 std::optional<NodeSet> FindNodesByIds(NotesModel* model,
-                                       const std::set<int64_t>& ids) {
+                                      const std::set<int64_t>& ids) {
   DCHECK(model);
   NodeSet nodes;
   ui::TreeNodeIterator<const NoteNode> iterator(model->root_node());
@@ -68,8 +67,7 @@ const NoteNode* FindNodeById(vivaldi::NotesModel* model, int64_t id) {
   return nullptr;
 }
 
-const NoteNode* FindFolderById(vivaldi::NotesModel* model,
-                                   int64_t id) {
+const NoteNode* FindFolderById(vivaldi::NotesModel* model, int64_t id) {
   const NoteNode* node = FindNodeById(model, id);
   return node && node->is_folder() ? node : nullptr;
 }
@@ -80,20 +78,21 @@ NSString* NormalizeTitle(const NSString* title) {
     return [title mutableCopy];
   }
   NSString* normalizeTitle = [[lines objectAtIndex:0]
-                              stringByTrimmingCharactersInSet:
-                                [NSCharacterSet whitespaceCharacterSet]];
+      stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
   // Convert all multiples spaces into singles
   normalizeTitle = [normalizeTitle
-                    stringByReplacingOccurrencesOfString:@" {2,}"
-                    withString:@""
-                    options:NSRegularExpressionSearch
-                    range:NSMakeRange(0, normalizeTitle.length)];
+      stringByReplacingOccurrencesOfString:@" {2,}"
+                                withString:@""
+                                   options:NSRegularExpressionSearch
+                                     range:NSMakeRange(0,
+                                                       normalizeTitle.length)];
   // Normalizes the header level for simpicity
   normalizeTitle = [normalizeTitle
-                    stringByReplacingOccurrencesOfString:@"#"
-                    withString:@""
-                    options:NSRegularExpressionSearch
-                    range:NSMakeRange(0, normalizeTitle.length)];
+      stringByReplacingOccurrencesOfString:@"#"
+                                withString:@""
+                                   options:NSRegularExpressionSearch
+                                     range:NSMakeRange(0,
+                                                       normalizeTitle.length)];
 
   if (normalizeTitle.length > MAXIMUM_TITLE_LENGTH) {
     normalizeTitle = [normalizeTitle substringToIndex:MAXIMUM_TITLE_LENGTH];
@@ -156,8 +155,8 @@ NSDate* lastModificationTimeForNoteNode(const vivaldi::NoteNode* node) {
 
 // Deletes all subnodes of |node|, including |node|, that are in |notes|.
 void DeleteNotes(const std::set<const NoteNode*>& notes,
-                     vivaldi::NotesModel* model,
-                     const NoteNode* node) {
+                 vivaldi::NotesModel* model,
+                 const NoteNode* node) {
   // Delete children in reverse order, so that the index remains valid.
   for (size_t i = node->children().size(); i > 0; --i) {
     DeleteNotes(notes, model, node->children()[i - 1].get());
@@ -175,13 +174,12 @@ SnackbarMessage* CreateToastWithWrapper(NSString* text) {
   return message;
 }
 
-SnackbarMessage* CreateOrUpdateNoteWithToast(
-    const NoteNode* node,
-    NSString* content,
-    const GURL& url,
-    const NoteNode* folder,
-    vivaldi::NotesModel* note_model,
-     ProfileIOS* profile) {
+SnackbarMessage* CreateOrUpdateNoteWithToast(const NoteNode* node,
+                                             NSString* content,
+                                             const GURL& url,
+                                             const NoteNode* folder,
+                                             vivaldi::NotesModel* note_model,
+                                             ProfileIOS* profile) {
   std::u16string contentString = base::SysNSStringToUTF16(content);
 
   // Save the note information.
@@ -212,30 +210,27 @@ SnackbarMessage* CreateOrUpdateNoteWithToast(
   return CreateToastWithWrapper(text);
 }
 
-SnackbarMessage* CreateNoteAtPositionWithToast(
-    NSString* title,
-    const GURL& url,
-    const vivaldi::NoteNode* folder,
-    int position,
-    vivaldi::NotesModel* note_model,
-    ProfileIOS* profile) {
+SnackbarMessage* CreateNoteAtPositionWithToast(NSString* title,
+                                               const GURL& url,
+                                               const vivaldi::NoteNode* folder,
+                                               int position,
+                                               vivaldi::NotesModel* note_model,
+                                               ProfileIOS* profile) {
   std::u16string titleString = base::SysNSStringToUTF16(title);
 
   const vivaldi::NoteNode* node = note_model->AddNote(
       folder, folder->children().size(), titleString, url, titleString);
   note_model->Move(node, folder, position);
 
-  NSString* text =
-      l10n_util::GetNSString(IDS_VIVALDI_NOTE_NEW_NOTE_CREATED);
+  NSString* text = l10n_util::GetNSString(IDS_VIVALDI_NOTE_NEW_NOTE_CREATED);
   return CreateToastWithWrapper(text);
 }
 
-SnackbarMessage* UpdateNotePositionWithToast(
-    const vivaldi::NoteNode* node,
-    const vivaldi::NoteNode* folder,
-    size_t position,
-    vivaldi::NotesModel* note_model,
-    ProfileIOS* profile) {
+SnackbarMessage* UpdateNotePositionWithToast(const vivaldi::NoteNode* node,
+                                             const vivaldi::NoteNode* folder,
+                                             size_t position,
+                                             vivaldi::NotesModel* note_model,
+                                             ProfileIOS* profile) {
   DCHECK(node);
   DCHECK(folder);
   DCHECK(!folder->HasAncestor(node));
@@ -250,21 +245,19 @@ SnackbarMessage* UpdateNotePositionWithToast(
     return nil;
   }
   note_model->Move(node, folder, position);
-  NSString* text =
-      l10n_util::GetNSString(IDS_VIVALDI_NOTE_NEW_NOTE_UPDATED);
+  NSString* text = l10n_util::GetNSString(IDS_VIVALDI_NOTE_NEW_NOTE_UPDATED);
   return CreateToastWithWrapper(text);
 }
 
 void DeleteNotes(const std::set<const NoteNode*>& notes,
-                     vivaldi::NotesModel* model) {
+                 vivaldi::NotesModel* model) {
   DCHECK(model->loaded());
   DeleteNotes(notes, model, model->root_node());
 }
 
-SnackbarMessage* DeleteNotesWithToast(
-    const std::set<const NoteNode*>& nodes,
-    vivaldi::NotesModel* model,
-    ProfileIOS* profile) {
+SnackbarMessage* DeleteNotesWithToast(const std::set<const NoteNode*>& nodes,
+                                      vivaldi::NotesModel* model,
+                                      ProfileIOS* profile) {
   size_t nodeCount = nodes.size();
   DCHECK_GT(nodeCount, 0u);
 
@@ -277,17 +270,16 @@ SnackbarMessage* DeleteNotesWithToast(
     text = l10n_util::GetNSString(IDS_VIVALDI_NOTE_NEW_SINGLE_NOTE_DELETE);
   } else {
     NSString* countString = [NSString stringWithFormat:@"%zu", nodeCount];
-    text =
-        l10n_util::GetNSStringF(IDS_VIVALDI_NOTE_NEW_MULTIPLE_NOTE_DELETE,
-                                base::SysNSStringToUTF16(countString));
+    text = l10n_util::GetNSStringF(IDS_VIVALDI_NOTE_NEW_MULTIPLE_NOTE_DELETE,
+                                   base::SysNSStringToUTF16(countString));
   }
 
   return CreateToastWithWrapper(text);
 }
 
 bool MoveNotes(const std::set<const NoteNode*>& notes,
-                   vivaldi::NotesModel* model,
-                   const NoteNode* folder) {
+               vivaldi::NotesModel* model,
+               const NoteNode* folder) {
   bool didPerformMove = false;
 
   // Calling Move() on the model will triger observer methods to fire, one of
@@ -307,11 +299,10 @@ bool MoveNotes(const std::set<const NoteNode*>& notes,
   return didPerformMove;
 }
 
-SnackbarMessage* MoveNotesWithToast(
-    const std::set<const NoteNode*>& nodes,
-    vivaldi::NotesModel* model,
-    const NoteNode* folder,
-    ProfileIOS* profile) {
+SnackbarMessage* MoveNotesWithToast(const std::set<const NoteNode*>& nodes,
+                                    vivaldi::NotesModel* model,
+                                    const NoteNode* folder,
+                                    ProfileIOS* profile) {
   size_t nodeCount = nodes.size();
   DCHECK_GT(nodeCount, 0u);
 
@@ -331,9 +322,8 @@ SnackbarMessage* MoveNotesWithToast(
   return CreateToastWithWrapper(text);
 }
 
-const NoteNode* defaultMoveFolder(
-    const std::set<const NoteNode*>& notes,
-    vivaldi::NotesModel* model) {
+const NoteNode* defaultMoveFolder(const std::set<const NoteNode*>& notes,
+                                  vivaldi::NotesModel* model) {
   if (notes.size() == 0)
     return model->main_node();
   const NoteNode* firstParent = (*(notes.begin()))->parent();
@@ -419,7 +409,7 @@ void UpdateFoldersFromNode(const NoteNode* folder,
 // Returns whether |folder| has an ancestor in any of the nodes in
 // |noteNodes|.
 bool FolderHasAncestorInNoteNodes(const NoteNode* folder,
-                                      const NodeSet& noteNodes);
+                                  const NodeSet& noteNodes);
 // Returns true if the node is not a folder, is not visible, or is an ancestor
 // of any of the nodes in |obstructions|.
 bool IsObstructed(const NoteNode* node, const NodeSet& obstructions);
@@ -445,7 +435,7 @@ class FolderNodeComparator {
 }  // namespace
 
 bool FolderHasAncestorInNoteNodes(const NoteNode* folder,
-                                      const NodeSet& noteNodes) {
+                                  const NodeSet& noteNodes) {
   DCHECK(folder->is_folder());
   for (const NoteNode* node : noteNodes) {
     if (folder->HasAncestor(node))

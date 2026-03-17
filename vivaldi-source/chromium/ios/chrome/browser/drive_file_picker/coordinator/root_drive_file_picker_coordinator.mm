@@ -31,9 +31,9 @@
 #import "ios/chrome/browser/shared/model/browser/browser_provider.h"
 #import "ios/chrome/browser/shared/model/browser/browser_provider_interface.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/drive_file_picker_commands.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/show_signin_command.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
@@ -60,7 +60,6 @@
   DriveFilePickerTableViewController* _viewController;
   // WebState for which the Drive file picker is presented.
   base::WeakPtr<web::WebState> _webState;
-  raw_ptr<AuthenticationService> _authenticationService;
   id<SystemIdentity> _currentIdentity;
   // A child `BrowseDriveFilePickerCoordinator` created and started to browse an
   // drive folder.
@@ -80,6 +79,10 @@
                                   webState:(web::WebState*)webState {
   self = [super initWithBaseViewController:viewController browser:browser];
   if (self) {
+    CHECK(browser);
+    // We need the regular browser in order to get the services related to the
+    // identities.s
+    CHECK_EQ(browser->type(), Browser::Type::kRegular);
     CHECK(webState);
     _webState = webState->GetWeakPtr();
     _presentationControllerShouldDismiss = YES;
@@ -87,11 +90,18 @@
   return self;
 }
 
+- (void)dealloc {
+  CHECK(!_mediator, base::NotFatalUntil::M155);
+}
+
+#pragma mark - ChromeCoordinator
+
 - (void)start {
   ProfileIOS* profile = self.profile->GetOriginalProfile();
-  _authenticationService = AuthenticationServiceFactory::GetForProfile(profile);
+  AuthenticationService* authenticationService =
+      AuthenticationServiceFactory::GetForProfile(profile);
   _currentIdentity =
-      _authenticationService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
+      authenticationService->GetPrimaryIdentity(signin::ConsentLevel::kSignin);
   _imageFetcher = std::make_unique<DriveFilePickerImageFetcher>(
       profile->GetSharedURLLoaderFactory());
   _metricsHelper = [[DriveFilePickerMetricsHelper alloc] init];
@@ -101,15 +111,17 @@
   _navigationController = [[DriveFilePickerNavigationController alloc]
       initWithRootViewController:_viewController];
 
+  CHECK(_currentIdentity);
   _mediator = [[DriveFilePickerMediator alloc]
-      initWithWebState:_webState.get()
-            collection:DriveFilePickerCollection::GetRoot(_currentIdentity)
-               options:DriveFilePickerOptions::Default()];
+           initWithWebState:_webState.get()
+                 collection:DriveFilePickerCollection::GetRoot(_currentIdentity)
+                    options:DriveFilePickerOptions::Default()
+            identityManager:IdentityManagerFactory::GetForProfile(profile)
+      authenticationService:authenticationService];
   _mediator.delegate = self;
   _mediator.driveFilePickerHandler = HandlerForProtocol(
       self.browser->GetCommandDispatcher(), DriveFilePickerCommands);
   _mediator.driveService = drive::DriveServiceFactory::GetForProfile(profile);
-  _mediator.identityManager = IdentityManagerFactory::GetForProfile(profile);
   _mediator.accountManagerService =
       ChromeAccountManagerServiceFactory::GetForProfile(profile);
   _mediator.imageFetcher = _imageFetcher.get();
@@ -164,11 +176,12 @@
   [_navigationController.presentingViewController
       dismissViewControllerAnimated:NO
                          completion:nil];
-  [_childBrowseCoordinator stop];
-  _childBrowseCoordinator = nil;
+  [self stopChildBrowseCoordinator];
+  _navigationController.presentationController.delegate = nil;
   _navigationController = nil;
+  _viewController.driveFilePickerHandler = nil;
+  _viewController.mutator = nil;
   _viewController = nil;
-  _authenticationService = nil;
 }
 
 - (void)setSelectedIdentity:(id<SystemIdentity>)selectedIdentity {
@@ -176,6 +189,7 @@
     return;
   }
   CHECK(_mediator);
+  CHECK(selectedIdentity);
   [_metricsHelper reportAccountChangeWithSuccess:YES isAccountNew:NO];
   [self updateCurrentIdentityWithIdentity:selectedIdentity];
 }
@@ -214,6 +228,11 @@
                                    (std::unique_ptr<DriveFilePickerCollection>)
                                        collection
                                   options:(DriveFilePickerOptions)options {
+  if (_childBrowseCoordinator) {
+    // This can occurs if the user tap on the button before the previous child
+    // is stoped.
+    return;
+  }
   [_mediator setActive:NO];
   _childBrowseCoordinator = [[BrowseDriveFilePickerCoordinator alloc]
       initWithBaseNavigationViewController:_navigationController
@@ -259,8 +278,7 @@
 
 - (void)coordinatorShouldStop:(ChromeCoordinator*)coordinator {
   CHECK(coordinator == _childBrowseCoordinator);
-  [_childBrowseCoordinator stop];
-  _childBrowseCoordinator = nil;
+  [self stopChildBrowseCoordinator];
   [_mediator setActive:YES];
 }
 
@@ -289,6 +307,12 @@
 
 #pragma mark - Private
 
+- (void)stopChildBrowseCoordinator {
+  [_childBrowseCoordinator stop];
+  _childBrowseCoordinator.delegate = nil;
+  _childBrowseCoordinator = nil;
+}
+
 - (void)stopSigninCoordinator {
   [_signinCoordinator stop];
   _signinCoordinator = nil;
@@ -300,6 +324,7 @@
                              (id<SystemIdentity>)completionIdentity {
   CHECK_EQ(_signinCoordinator, coordinator, base::NotFatalUntil::M151);
   if (result == SigninCoordinatorResultSuccess) {
+    CHECK(completionIdentity);
     [self addAndSelectNewIdentity:completionIdentity];
   } else {
     [self reportAddingIdentityFailure];
@@ -394,15 +419,16 @@
 // already registered or a newly added identity.
 - (void)updateCurrentIdentityWithIdentity:(id<SystemIdentity>)identity {
   _currentIdentity = identity;
+  CHECK(identity);
   [_navigationController popToRootViewControllerAnimated:YES];
-  [_childBrowseCoordinator stop];
-  _childBrowseCoordinator = nil;
+  [self stopChildBrowseCoordinator];
   [_mediator setCollection:DriveFilePickerCollection::GetRoot(identity)];
 }
 
 // Adds a new identity to be the current identity.
 - (void)addAndSelectNewIdentity:(id<SystemIdentity>)identity {
   CHECK(_mediator);
+  CHECK(identity);
   [_metricsHelper reportAccountChangeWithSuccess:YES isAccountNew:YES];
   [self updateCurrentIdentityWithIdentity:identity];
 }

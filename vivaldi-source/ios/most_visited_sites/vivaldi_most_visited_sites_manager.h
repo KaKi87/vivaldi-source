@@ -5,7 +5,7 @@
 
 #import <Foundation/Foundation.h>
 
-#import "ios/chrome/browser/content_suggestions/ui_bundled/cells/content_suggestions_most_visited_item.h"
+#import "ios/chrome/browser/content_suggestions/most_visited_tiles/ui/most_visited_item.h"
 #import "ios/most_visited_sites/vivaldi_most_visited_sites_consumer.h"
 
 class ProfileIOS;
@@ -20,7 +20,7 @@ class ProfileIOS;
 - (void)start;
 - (void)stop;
 - (void)refreshMostVisitedTiles;
-- (void)removeMostVisited:(ContentSuggestionsMostVisitedItem*)item;
+- (void)removeMostVisited:(MostVisitedItem*)item;
 
 @end
 

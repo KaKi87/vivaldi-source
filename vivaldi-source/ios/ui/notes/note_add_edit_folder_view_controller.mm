@@ -13,8 +13,8 @@
 #import "ios/ui/custom_views/vivaldi_text_field_view.h"
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
 #import "ios/ui/notes/note_parent_folder_view.h"
-#import "ios/ui/notes/note_utils_ios.h"
 #import "ios/ui/notes/note_ui_constants.h"
+#import "ios/ui/notes/note_utils_ios.h"
 #import "ui/base/l10n/l10n_util.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -32,18 +32,19 @@ UIEdgeInsets folderNameTextViewPadding = UIEdgeInsetsMake(12, 12, 0, 0);
 // Padding for the parent folder view
 UIEdgeInsets parentFolderViewPadding = UIEdgeInsetsMake(24, 24, 12, 18);
 
-} // namespace
+}  // namespace
 
-@interface NoteAddEditFolderViewController ()
-                        <NoteParentFolderViewDelegate,
-                        NoteFolderChooserViewControllerDelegate> {}
+@interface NoteAddEditFolderViewController () <
+    NoteParentFolderViewDelegate,
+    NoteFolderChooserViewControllerDelegate> {
+}
 // Textview for note folder name
-@property(nonatomic,weak) VivaldiTextFieldView* folderNameTextView;
+@property(nonatomic, weak) VivaldiTextFieldView* folderNameTextView;
 // A view for holding the parent folder components
-@property(nonatomic,weak) NoteParentFolderView* parentFolderView;
+@property(nonatomic, weak) NoteParentFolderView* parentFolderView;
 // View controller for folder selection.
-@property(nonatomic, strong) NoteFolderChooserViewController*
-    folderViewController;
+@property(nonatomic, strong)
+    NoteFolderChooserViewController* folderViewController;
 // The note model used.
 @property(nonatomic, assign) vivaldi::NotesModel* notes;
 // The Browser in which notes are presented
@@ -51,13 +52,13 @@ UIEdgeInsets parentFolderViewPadding = UIEdgeInsetsMake(24, 24, 12, 18);
 // The user's profile used.
 @property(nonatomic, assign) ProfileIOS* profile;
 // The parent item of the child about to create/or going to be edited.
-@property(nonatomic,assign) NoteNode* parentItem;
+@property(nonatomic, assign) NoteNode* parentItem;
 // The item that keeps track of the current parent selected. This only lives on
 // this view and doesn't affect the source parent in case user changes
 // the parent by folder selection option.
-@property(nonatomic,assign) NoteNode* folderItem;
+@property(nonatomic, assign) NoteNode* folderItem;
 // The item about to be edited. This can be nil if adding a new item.
-@property(nonatomic,assign) NoteNode* editingItem;
+@property(nonatomic, assign) NoteNode* editingItem;
 // A BOOL to keep track of whether an existing folder is being edited or a new
 // folder creation is taking place.
 @property(nonatomic, assign) BOOL editingExistingFolder;
@@ -88,7 +89,7 @@ UIEdgeInsets parentFolderViewPadding = UIEdgeInsetsMake(24, 24, 12, 18);
                    allowsCancel:(BOOL)allowsCancel {
   DCHECK(browser);
   NoteAddEditFolderViewController* controller =
-    [[NoteAddEditFolderViewController alloc] initWithBrowser:browser];
+      [[NoteAddEditFolderViewController alloc] initWithBrowser:browser];
   controller.editingItem = (NoteNode*)item;
   controller.parentItem = (NoteNode*)parent;
 
@@ -139,7 +140,7 @@ UIEdgeInsets parentFolderViewPadding = UIEdgeInsetsMake(24, 24, 12, 18);
 - (void)updateUIFromFolder {
   if (self.editingExistingFolder && self.editingItem) {
     self.folderNameTextView.text =
-      note_utils_ios::TitleForNoteNode(self.editingItem);
+        note_utils_ios::TitleForNoteNode(self.editingItem);
     return;
   }
   [self.folderNameTextView setFocus];
@@ -166,7 +167,7 @@ UIEdgeInsets parentFolderViewPadding = UIEdgeInsetsMake(24, 24, 12, 18);
 
 - (void)setUpUI {
   self.view.backgroundColor =
-    [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
+      [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
   [self setUpNavBarView];
   [self setupContentView];
   if (self.editingExistingFolder)
@@ -199,17 +200,17 @@ UIEdgeInsets parentFolderViewPadding = UIEdgeInsetsMake(24, 24, 12, 18);
 - (NSString*)titleForViewController {
   std::u16string title = base::SysNSStringToUTF16(
       l10n_util::GetNSString(IDS_IOS_ITEM_TYPE_FOLDER));
-  return self.editingExistingFolder ?
-      l10n_util::GetNSStringF(IDS_IOS_EDIT_ITEM_WITH_TYPE, title) :
-      l10n_util::GetNSStringF(IDS_IOS_ADD_ITEM_WITH_TYPE, title);
+  return self.editingExistingFolder
+             ? l10n_util::GetNSStringF(IDS_IOS_EDIT_ITEM_WITH_TYPE, title)
+             : l10n_util::GetNSStringF(IDS_IOS_ADD_ITEM_WITH_TYPE, title);
 }
 
 /// Set up the content view
--(void)setupContentView {
+- (void)setupContentView {
   // The container view to hold the title and folder views
   UIView* bodyContainerView = [UIView new];
   bodyContainerView.backgroundColor =
-    [UIColor colorNamed: kGroupedSecondaryBackgroundColor];
+      [UIColor colorNamed:kGroupedSecondaryBackgroundColor];
   bodyContainerView.layer.cornerRadius = vNoteBodyCornerRadius;
   bodyContainerView.clipsToBounds = YES;
   [self.view addSubview:bodyContainerView];
@@ -221,10 +222,9 @@ UIEdgeInsets parentFolderViewPadding = UIEdgeInsetsMake(24, 24, 12, 18);
                        padding:bodyContainerViewPadding];
 
   NSString* folderTitleString =
-    l10n_util::GetNSString(IDS_IOS_NOTE_FOLDER_TITLE);
+      l10n_util::GetNSString(IDS_IOS_NOTE_FOLDER_TITLE);
   VivaldiTextFieldView* folderNameTextView =
-    [[VivaldiTextFieldView alloc]
-      initWithPlaceholder:folderTitleString];
+      [[VivaldiTextFieldView alloc] initWithPlaceholder:folderTitleString];
   _folderNameTextView = folderNameTextView;
   [bodyContainerView addSubview:folderNameTextView];
   [folderNameTextView anchorTop:bodyContainerView.topAnchor
@@ -235,9 +235,8 @@ UIEdgeInsets parentFolderViewPadding = UIEdgeInsetsMake(24, 24, 12, 18);
                            size:CGSizeMake(0, vNoteTextViewHeight)];
 
   NSString* parentFolderString =
-    l10n_util::GetNSString(IDS_IOS_NOTE_PARENT_FOLDER);
-  NoteParentFolderView* parentFolderView =
-    [[NoteParentFolderView alloc]
+      l10n_util::GetNSString(IDS_IOS_NOTE_PARENT_FOLDER);
+  NoteParentFolderView* parentFolderView = [[NoteParentFolderView alloc]
       initWithTitle:[parentFolderString uppercaseString]];
   _parentFolderView = parentFolderView;
   parentFolderView.delegate = self;
@@ -275,7 +274,7 @@ UIEdgeInsets parentFolderViewPadding = UIEdgeInsetsMake(24, 24, 12, 18);
   if (!self.notes->loaded())
     return;
   DCHECK(self.folderItem);
-  NSString *folderString = self.folderNameTextView.getText;
+  NSString* folderString = self.folderNameTextView.getText;
   if (!self.folderNameTextView.hasText)
     return;
 
@@ -284,25 +283,20 @@ UIEdgeInsets parentFolderViewPadding = UIEdgeInsetsMake(24, 24, 12, 18);
     DCHECK(self.editingItem);
     // Update title if changed
     if (self.editingItem->GetTitle() != folderTitle) {
-      self.notes->SetTitle(self.editingItem,
-                               folderTitle);
+      self.notes->SetTitle(self.editingItem, folderTitle);
     }
     // Move folder if changed
     if (self.editingItem && self.editingItem->parent() && self.folderItem &&
         self.editingItem->parent()->id() != self.folderItem->id()) {
       std::set<const NoteNode*> editedNodes;
       editedNodes.insert(self.editingItem);
-      note_utils_ios::MoveNotes(editedNodes,
-                                          self.notes,
-                                          self.folderItem);
+      note_utils_ios::MoveNotes(editedNodes, self.notes, self.folderItem);
     }
     [self notifyDelegateWithFolder:self.folderItem];
   } else {
     // Store the folder
-    const NoteNode* folder =
-      self.notes->AddFolder(self.folderItem,
-                            self.folderItem->children().size(),
-                                folderTitle);
+    const NoteNode* folder = self.notes->AddFolder(
+        self.folderItem, self.folderItem->children().size(), folderTitle);
     [self notifyDelegateWithFolder:folder];
   }
 }
@@ -341,7 +335,7 @@ UIEdgeInsets parentFolderViewPadding = UIEdgeInsetsMake(24, 24, 12, 18);
 
 #pragma mark - NoteParentFolderViewDelegate
 
-- (void) didTapParentFolder {
+- (void)didTapParentFolder {
   if (!self.notes->loaded() || !self.parentItem)
     return;
   std::set<const NoteNode*> editedNodes;
@@ -352,11 +346,11 @@ UIEdgeInsets parentFolderViewPadding = UIEdgeInsetsMake(24, 24, 12, 18);
   NoteFolderChooserViewController* folderViewController =
       [[NoteFolderChooserViewController alloc]
           initWithNotesModel:self.notes
-               allowsNewFolders:YES
-                    editedNodes:editedNodes
-                   allowsCancel:NO
-                 selectedFolder:self.folderItem
-                        browser:self.browser];
+            allowsNewFolders:YES
+                 editedNodes:editedNodes
+                allowsCancel:NO
+              selectedFolder:self.folderItem
+                     browser:self.browser];
   folderViewController.delegate = self;
 
   self.folderViewController = folderViewController;

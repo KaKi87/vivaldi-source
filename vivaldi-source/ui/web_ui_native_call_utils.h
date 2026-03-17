@@ -4,11 +4,12 @@
 
 #include <string>
 
-#include "content/public/browser/web_contents.h" // Needed for JNI_zero
+#include "content/public/browser/web_contents.h"  // Needed for JNI_zero
 
 namespace webUINativeCalls {
 void openNewTab(std::string url);
 void closeActivity(content::WebContents* webContents);
-void createPrivacyReportNotification(int64_t adsBlocked, int64_t trackersBlocked);
+void createPrivacyReportNotification(int64_t adsBlocked,
+                                     int64_t trackersBlocked);
 }  // namespace webUINativeCalls
 #endif

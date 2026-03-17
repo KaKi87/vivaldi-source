@@ -11,6 +11,7 @@
 #include "base/functional/bind.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/notreached.h"
+#include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_avatar_icon_util.h"
@@ -162,8 +163,8 @@ std::u16string GetAccessibilityText(bool is_signin_promo,
       !account.IsEmpty()) {
     return l10n_util::GetStringFUTF16(
         IDS_SIGNIN_DICE_WEB_INTERCEPT_BUBBLE_CHROME_SIGNIN_ACCEPT_TEXT,
-        {base::UTF8ToUTF16(
-            base::StrCat({account.given_name, " ", account.email}))});
+        {base::UTF8ToUTF16(base::StrCat(
+            {account.GetGivenName().value_or(""), " ", account.GetEmail()}))});
   }
 
   return std::u16string();
@@ -314,7 +315,8 @@ BubbleSignInPromoView::BubbleSignInPromoView(
   int title_resource_id =
       GetSubtitleID(is_signin_promo, promo_type, signed_in_state);
   std::u16string button_text =
-      GetButtonText(is_signin_promo, signed_in_state, account.given_name);
+      GetButtonText(is_signin_promo, signed_in_state,
+                    std::string(account.GetGivenName().value_or("")));
   std::u16string accessibility_text =
       GetAccessibilityText(is_signin_promo, signed_in_state, account);
   signin_metrics::PromoAction promo_action =
@@ -374,7 +376,7 @@ BubbleSignInPromoView::BubbleSignInPromoView(
     signin_button_view_ =
         button_parent->AddChildView(std::move(signin_button_pointer));
   } else {
-    gfx::Image account_icon = account.account_image;
+    gfx::Image account_icon = account.GetAvatarImage().value_or(gfx::Image());
     if (account_icon.IsEmpty()) {
       account_icon = ui::ResourceBundle::GetSharedInstance().GetImageNamed(
           profiles::GetPlaceholderAvatarIconResourceID());
@@ -403,6 +405,16 @@ BubbleSignInPromoView::~BubbleSignInPromoView() = default;
 
 views::View* BubbleSignInPromoView::GetSignInButton() const {
   return signin_button_view_ ? signin_button_view_->GetSignInButton() : nullptr;
+}
+
+gfx::Insets BubbleSignInPromoView::GetBubbleSigninPromoMargins() {
+  views::LayoutProvider* layout_provider = views::LayoutProvider::Get();
+  gfx::Insets margin = layout_provider->GetInsetsMetric(views::INSETS_DIALOG);
+  // The top margin sets the distance to the title rather than the top of the
+  // dialog, so it needs to be smaller.
+  margin.set_top(layout_provider->GetDistanceMetric(
+      DISTANCE_RELATED_CONTROL_VERTICAL_SMALL));
+  return margin;
 }
 
 void BubbleSignInPromoView::SignIn() {
@@ -453,7 +465,7 @@ void BubbleSignInPromoView::OnWidgetDestroying(views::Widget* widget) {
 
   // Count the number of times the promo was dismissed in order to not show it
   // anymore after 2 dismissals.
-  if (account.gaia.empty()) {
+  if (account.GetGaiaId().empty()) {
     IncrementContextualPromoDismissCountPerSignedOutProfile(profile,
                                                             access_point_);
   } else {
@@ -462,7 +474,7 @@ void BubbleSignInPromoView::OnWidgetDestroying(views::Widget* widget) {
   }
 
   // Launch a HaTS survey if the user actively dismissed the promo.
-  signin::LaunchSigninHatsSurveyForProfile(
+  signin::LaunchHatsSurveyForProfile(
       kHatsSurveyTriggerIdentitySigninPromoBubbleDismissed, profile,
       /*defer_if_no_browser=*/false, access_point_);
 

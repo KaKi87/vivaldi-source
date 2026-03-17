@@ -538,6 +538,36 @@ class [[nodiscard]] ScopedOverrideYCbCrFilter final
     ImageHelper *mImage;
     VkFilter mOriginalFilter;
 };
+
+// image usage flags that allowed for VK_QCOM_tile_memory_heap
+constexpr VkImageUsageFlags kQCOMTileMemoryAllowedImageUsageBits =
+    VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+    VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+
+// Returns true if it is compatible with VK_QCOM_tile_memory_heap
+bool IsTileMemoryCompatible(const vk::Renderer *renderer, const VkImageCreateInfo &createInfo)
+{
+    // First check general conditions specified in
+    // https://github.com/KhronosGroup/Vulkan-Docs/blob/main/proposals/VK_QCOM_tile_memory_heap.adoc
+    bool compatible = createInfo.imageType == VK_IMAGE_TYPE_2D &&
+                      createInfo.tiling == VK_IMAGE_TILING_OPTIMAL && createInfo.flags == 0 &&
+                      createInfo.mipLevels == 1 && createInfo.arrayLayers == 1 &&
+                      createInfo.samples == VK_SAMPLE_COUNT_1_BIT &&
+                      (createInfo.usage & ~kQCOMTileMemoryAllowedImageUsageBits) == 0;
+
+    // If the driver actually supports VK_QCOM_tile_memory_heap, we must also check the format with
+    // vulkan driver. Otherwise we just skip format check for simulation.
+    if (renderer->getFeatures().supportsTileMemoryHeap.enabled && compatible)
+    {
+        VkImageUsageFlags usage = createInfo.usage | VK_IMAGE_USAGE_TILE_MEMORY_BIT_QCOM;
+        compatible              = vk::ImageHelper::FormatSupportsUsage(
+            renderer, createInfo.format, createInfo.imageType, createInfo.tiling, usage,
+            createInfo.flags, nullptr, nullptr,
+            vk::ImageHelper::FormatSupportCheck::OnlyQuerySuccess);
+    }
+
+    return compatible;
+}
 }  // anonymous namespace
 
 // This is an arbitrary max. We can change this later if necessary.
@@ -861,8 +891,8 @@ bool RenderPassAttachment::onAccessImpl(ResourceAccess access, uint32_t currentC
         // invalidated.
         mInvalidatedCmdCount = kInfiniteCmdCount;
         mDisabledCmdCount    = kInfiniteCmdCount;
-        // Return true to indicate that the store op should remain STORE and that mContentDefined
-        // should be set to true;
+        // Return true to indicate that the store op should remain STORE and that
+        // mVkImageContentDefined should be set to true;
         return true;
     }
     // Drawing to this attachment is being disabled.
@@ -871,8 +901,8 @@ bool RenderPassAttachment::onAccessImpl(ResourceAccess access, uint32_t currentC
         // The attachment was previously drawn while enabled, and so is no longer invalidated.
         mInvalidatedCmdCount = kInfiniteCmdCount;
         mDisabledCmdCount    = kInfiniteCmdCount;
-        // Return true to indicate that the store op should remain STORE and that mContentDefined
-        // should be set to true;
+        // Return true to indicate that the store op should remain STORE and that
+        // mVkImageContentDefined should be set to true;
         return true;
     }
 
@@ -3320,7 +3350,9 @@ void BufferPool::destroy(Renderer *renderer, bool orphanNonEmptyBufferBlock)
         else
         {
             // When orphan is not allowed, all BufferBlocks must be empty.
-            ASSERT(orphanNonEmptyBufferBlock);
+            // If Device is lost due to errors then add non-empty BufferBlocks
+            // to the orphan list to be freed towards end.
+            ASSERT(renderer->isDeviceLost() || orphanNonEmptyBufferBlock);
             renderer->addBufferBlockToOrphanList(block.release());
         }
     }
@@ -4557,7 +4589,12 @@ BufferHelper &BufferHelper::operator=(BufferHelper &&other)
     }
     mXFBOrComputeWriteHeuristicBits = std::move(other.mXFBOrComputeWriteHeuristicBits);
     mSerial                  = other.mSerial;
-    mClientBuffer            = std::move(other.mClientBuffer);
+
+    // BufferHelper is usually std::move()'ed when the GL buffer backing is internally recreated as
+    // an optimization, or for other internal buffer allocation reasons.  It should never happen for
+    // buffers that are backed by external memory.
+    ASSERT(other.mClientBuffer == nullptr);
+    mClientBuffer = nullptr;
 
     return *this;
 }
@@ -4818,6 +4855,8 @@ angle::Result BufferHelper::initializeNonZeroMemory(ErrorContext *context,
 
         commandBuffer.copyBuffer(stagingBuffer.getBuffer(), getBuffer(), 1, &copyRegion);
 
+        renderer->insertSubmitDebugMarkerInCommandBuffer(commandBuffer,
+                                                         QueueSubmitReason::InitNonZeroMemory);
         ANGLE_VK_TRY(context, commandBuffer.end());
 
         QueueSerial queueSerial;
@@ -4850,7 +4889,7 @@ const Buffer &BufferHelper::getBufferForVertexArray(ContextVk *contextVk,
                                                     VkDeviceSize actualDataSize,
                                                     VkDeviceSize *offsetOut)
 {
-    ASSERT(!contextVk->getFeatures().useVertexInputBindingStrideDynamicState.enabled);
+    ASSERT(!contextVk->getFeatures().supportsBindVertexBuffers2.enabled);
     return getBufferForVertexArrayImpl(contextVk, actualDataSize, offsetOut);
 }
 
@@ -5428,7 +5467,7 @@ void ImageHelper::resetCachedProperties()
     mImageType                   = VK_IMAGE_TYPE_2D;
     mTilingMode                  = VK_IMAGE_TILING_OPTIMAL;
     mCreateFlags                 = kVkImageCreateFlagsNone;
-    mUsage                       = 0;
+    mRequestedUsage              = 0;
     mExtents                     = {};
     mRotatedAspectRatio          = false;
     mIntendedFormatID            = angle::FormatID::NONE;
@@ -5448,34 +5487,37 @@ void ImageHelper::resetCachedProperties()
     mAllocationSize              = 0;
     mMemoryAllocationType        = MemoryAllocationType::InvalidEnum;
     mMemoryTypeIndex             = kInvalidMemoryTypeIndex;
+    mTileMemoryCompatible        = false;
+    mUseTileMemory               = false;
     std::fill(mViewFormats.begin(), mViewFormats.begin() + mViewFormats.max_size(),
               VK_FORMAT_UNDEFINED);
     mYcbcrConversionDesc.reset();
     mCurrentSingleClearValue.reset();
     mRenderPassUsageFlags.reset();
+    mVkImageCreateInfo = {};
 
     setEntireContentUndefined();
 }
 
-void ImageHelper::setEntireContentDefined()
+ANGLE_INLINE void ImageHelper::setEntireContentDefined()
 {
-    for (LevelContentDefinedMask &levelContentDefined : mContentDefined)
+    for (LevelContentDefinedMask &levelContentDefined : mVkImageContentDefined)
     {
         levelContentDefined.set();
     }
-    for (LevelContentDefinedMask &levelContentDefined : mStencilContentDefined)
+    for (LevelContentDefinedMask &levelContentDefined : mVkImageStencilContentDefined)
     {
         levelContentDefined.set();
     }
 }
 
-void ImageHelper::setEntireContentUndefined()
+ANGLE_INLINE void ImageHelper::setEntireContentUndefined()
 {
-    for (LevelContentDefinedMask &levelContentDefined : mContentDefined)
+    for (LevelContentDefinedMask &levelContentDefined : mVkImageContentDefined)
     {
         levelContentDefined.reset();
     }
-    for (LevelContentDefinedMask &levelContentDefined : mStencilContentDefined)
+    for (LevelContentDefinedMask &levelContentDefined : mVkImageStencilContentDefined)
     {
         levelContentDefined.reset();
     }
@@ -5485,11 +5527,11 @@ void ImageHelper::setEntireContentUndefined()
     // emulated formats have a clear staged.
 }
 
-void ImageHelper::setContentDefined(LevelIndex levelStart,
-                                    uint32_t levelCount,
-                                    uint32_t layerStart,
-                                    uint32_t layerCount,
-                                    VkImageAspectFlags aspectFlags)
+ANGLE_INLINE void ImageHelper::setContentDefined(LevelIndex levelStart,
+                                                 uint32_t levelCount,
+                                                 uint32_t layerStart,
+                                                 uint32_t layerCount,
+                                                 VkImageAspectFlags aspectFlags)
 {
     // Mark the range as defined.  Layers above 8 are discarded, and are always assumed to have
     // defined contents.
@@ -5507,35 +5549,49 @@ void ImageHelper::setContentDefined(LevelIndex levelStart,
 
         if ((aspectFlags & ~VK_IMAGE_ASPECT_STENCIL_BIT) != 0)
         {
-            getLevelContentDefined(level) |= layerRangeBits;
+            setLevelContentDefined(level, layerRangeBits);
         }
         if ((aspectFlags & VK_IMAGE_ASPECT_STENCIL_BIT) != 0)
         {
-            getLevelStencilContentDefined(level) |= layerRangeBits;
+            setLevelStencilContentDefined(level, layerRangeBits);
         }
     }
 }
 
-ImageHelper::LevelContentDefinedMask &ImageHelper::getLevelContentDefined(LevelIndex level)
+ANGLE_INLINE void ImageHelper::setLevelContentDefined(LevelIndex level,
+                                                      const uint8_t layerRangeBits)
 {
-    return mContentDefined[level.get()];
+    mVkImageContentDefined[level.get()] |= layerRangeBits;
 }
 
-ImageHelper::LevelContentDefinedMask &ImageHelper::getLevelStencilContentDefined(LevelIndex level)
+ANGLE_INLINE void ImageHelper::clearLevelContentDefined(LevelIndex level,
+                                                        const uint8_t layerRangeBits)
 {
-    return mStencilContentDefined[level.get()];
+    mVkImageContentDefined[level.get()] &= ~layerRangeBits;
 }
 
-const ImageHelper::LevelContentDefinedMask &ImageHelper::getLevelContentDefined(
+ANGLE_INLINE void ImageHelper::setLevelStencilContentDefined(LevelIndex level,
+                                                             const uint8_t layerRangeBits)
+{
+    mVkImageStencilContentDefined[level.get()] |= layerRangeBits;
+}
+
+ANGLE_INLINE void ImageHelper::clearLevelStencilContentDefined(LevelIndex level,
+                                                               const uint8_t layerRangeBits)
+{
+    mVkImageStencilContentDefined[level.get()] &= ~layerRangeBits;
+}
+
+ANGLE_INLINE const ImageHelper::LevelContentDefinedMask &ImageHelper::getLevelContentDefined(
     LevelIndex level) const
 {
-    return mContentDefined[level.get()];
+    return mVkImageContentDefined[level.get()];
 }
 
-const ImageHelper::LevelContentDefinedMask &ImageHelper::getLevelStencilContentDefined(
+ANGLE_INLINE const ImageHelper::LevelContentDefinedMask &ImageHelper::getLevelStencilContentDefined(
     LevelIndex level) const
 {
-    return mStencilContentDefined[level.get()];
+    return mVkImageStencilContentDefined[level.get()];
 }
 
 YcbcrConversionDesc ImageHelper::deriveConversionDesc(ErrorContext *context,
@@ -5600,15 +5656,17 @@ angle::Result ImageHelper::init(ErrorContext *context,
                                 uint32_t mipLevels,
                                 uint32_t layerCount,
                                 bool isRobustResourceInitEnabled,
-                                bool hasProtectedContent)
+                                bool hasProtectedContent,
+                                TileMemory tileMemoryPreference)
 {
     return initExternal(context, textureType, extents, format.getIntendedFormatID(),
                         format.getActualRenderableImageFormatID(), samples, usage,
                         kVkImageCreateFlagsNone, ImageAccess::Undefined, nullptr, firstLevel,
                         mipLevels, layerCount, isRobustResourceInitEnabled, hasProtectedContent,
+                        tileMemoryPreference,
                         deriveConversionDesc(context, format.getActualRenderableImageFormatID(),
                                              format.getIntendedFormatID()),
-                        nullptr);
+                        nullptr, ImageFormatReinterpretability::ColorspaceOverrides);
 }
 
 angle::Result ImageHelper::copyToBufferOneOff(ErrorContext *context,
@@ -5627,6 +5685,9 @@ angle::Result ImageHelper::copyToBufferOneOff(ErrorContext *context,
                             &acquireNextImageSemaphore);
     commandBuffer.copyBufferToImage(stagingBuffer->getBuffer().getHandle(), getImage(),
                                     getCurrentLayout(renderer), 1, &copyRegion);
+
+    renderer->insertSubmitDebugMarkerInCommandBuffer(commandBuffer,
+                                                     QueueSubmitReason::CopyBufferToImageOneOff);
     ANGLE_VK_TRY(context, commandBuffer.end());
 
     QueueSerial submitQueueSerial;
@@ -5655,7 +5716,8 @@ angle::Result ImageHelper::initMSAASwapchain(ErrorContext *context,
     ANGLE_TRY(initExternal(context, textureType, extents, intendedFormatID, actualFormatID, samples,
                            usage, kVkImageCreateFlagsNone, ImageAccess::Undefined, nullptr,
                            firstLevel, mipLevels, layerCount, isRobustResourceInitEnabled,
-                           hasProtectedContent, YcbcrConversionDesc{}, nullptr));
+                           hasProtectedContent, TileMemory::Prohibited, YcbcrConversionDesc{},
+                           nullptr, ImageFormatReinterpretability::ColorspaceOverrides));
     if (rotatedAspectRatio)
     {
         std::swap(mExtents.width, mExtents.height);
@@ -5679,12 +5741,14 @@ angle::Result ImageHelper::initExternal(ErrorContext *context,
                                         uint32_t layerCount,
                                         bool isRobustResourceInitEnabled,
                                         bool hasProtectedContent,
+                                        TileMemory tileMemoryPreference,
                                         YcbcrConversionDesc conversionDesc,
-                                        const void *compressionControl)
+                                        const void *compressionControl,
+                                        ImageFormatReinterpretability formatReinterpretability)
 {
     ASSERT(!valid());
-    ASSERT(!IsAnySubresourceContentDefined(mContentDefined));
-    ASSERT(!IsAnySubresourceContentDefined(mStencilContentDefined));
+    ASSERT(!IsAnySubresourceContentDefined(mVkImageContentDefined));
+    ASSERT(!IsAnySubresourceContentDefined(mVkImageStencilContentDefined));
 
     Renderer *renderer = context->getRenderer();
 
@@ -5700,7 +5764,7 @@ angle::Result ImageHelper::initExternal(ErrorContext *context,
     mLayerCount          = layerCount;
     mCreateFlags =
         vk::GetMinimalImageCreateFlags(renderer, textureType, usage) | additionalCreateFlags;
-    mUsage = usage;
+    mRequestedUsage = usage;
 
     // Validate that mLayerCount is compatible with the texture type
     ASSERT(textureType != gl::TextureType::_3D || mLayerCount == 1);
@@ -5719,8 +5783,8 @@ angle::Result ImageHelper::initExternal(ErrorContext *context,
     if (externalImageCreateInfo == nullptr)
     {
         imageCreateInfoPNext = DeriveCreateInfoPNext(
-            context, mUsage, actualFormatID, compressionControl, &imageFormatListInfoStorage,
-            &imageListFormatsStorage, &mCreateFlags);
+            context, actualFormatID, compressionControl, &imageFormatListInfoStorage,
+            &imageListFormatsStorage, formatReinterpretability, &mCreateFlags);
     }
     else
     {
@@ -5730,8 +5794,8 @@ angle::Result ImageHelper::initExternal(ErrorContext *context,
 
     mYcbcrConversionDesc = conversionDesc;
 
-    const angle::Format &actualFormat   = angle::Format::Get(actualFormatID);
-    VkFormat actualVkFormat             = GetVkFormatFromFormatID(renderer, actualFormatID);
+    const angle::Format &actualFormat = angle::Format::Get(actualFormatID);
+    VkFormat actualVkFormat           = GetVkFormatFromFormatID(renderer, actualFormatID);
 
     ANGLE_TRACE_EVENT_INSTANT(
         "gpu.angle.texture_metrics", "ImageHelper::initExternal", "intended_format",
@@ -5759,23 +5823,56 @@ angle::Result ImageHelper::initExternal(ErrorContext *context,
         mCreateFlags |= VK_IMAGE_CREATE_PROTECTED_BIT;
     }
 
-    VkImageCreateInfo imageInfo = {};
-    imageInfo.sType             = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageInfo.pNext             = imageCreateInfoPNext;
-    imageInfo.flags             = mCreateFlags;
-    imageInfo.imageType         = mImageType;
-    imageInfo.format            = actualVkFormat;
-    imageInfo.extent            = mExtents;
-    imageInfo.mipLevels         = mLevelCount;
-    imageInfo.arrayLayers       = mLayerCount;
-    imageInfo.samples =
+    VkSampleCountFlagBits sampleCountFlagBits =
         gl_vk::GetSamples(mSamples, context->getFeatures().limitSampleCountTo2.enabled);
+
+    VkImageCreateInfo imageInfo     = {};
+    imageInfo.sType                 = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.pNext                 = imageCreateInfoPNext;
+    imageInfo.flags                 = mCreateFlags;
+    imageInfo.imageType             = mImageType;
+    imageInfo.format                = actualVkFormat;
+    imageInfo.extent                = mExtents;
+    imageInfo.mipLevels             = mLevelCount;
+    imageInfo.arrayLayers           = mLayerCount;
+    imageInfo.samples               = sampleCountFlagBits;
     imageInfo.tiling                = mTilingMode;
-    imageInfo.usage                 = mUsage;
+    imageInfo.usage                 = mRequestedUsage;
     imageInfo.sharingMode           = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.queueFamilyIndexCount = 0;
     imageInfo.pQueueFamilyIndices   = nullptr;
     imageInfo.initialLayout         = renderer->getVkImageLayout(initialAccess);
+
+    // DepthStencil format that has emulated channels needs re-stage emulated channel clear after
+    // reallocate, for now just disable the tile memory for that.
+    if (tileMemoryPreference == TileMemory::Preferred &&
+        (renderer->getFeatures().simulateTileMemoryForTesting.enabled ||
+         renderer->getFeatures().supportsTileMemoryHeap.enabled) &&
+        !HasEmulatedImageChannels(angle::Format::Get(mIntendedFormatID),
+                                  angle::Format::Get(mActualFormatID)))
+    {
+        ASSERT(initialAccess == ImageAccess::Undefined);
+        ASSERT(angle::Format::Get(actualFormatID).hasDepthOrStencilBits());
+        ASSERT(imageCreateInfoPNext == nullptr);
+
+        // Remove transfer bits when determining tile memory compatible or not, since tile memory
+        // does not support transfers.
+        imageInfo.usage &= ~kImageUsageTransferBits;
+        mTileMemoryCompatible = IsTileMemoryCompatible(renderer, imageInfo);
+        if (mTileMemoryCompatible)
+        {
+            if (renderer->getFeatures().supportsTileMemoryHeap.enabled)
+            {
+                imageInfo.usage |= VK_IMAGE_USAGE_TILE_MEMORY_BIT_QCOM;
+            }
+            mUseTileMemory = true;
+        }
+        else
+        {
+            // Restore usage bits
+            imageInfo.usage = mRequestedUsage;
+        }
+    }
 
     mCurrentAccess               = initialAccess;
     mCurrentDeviceQueueIndex     = kInvalidDeviceQueueIndex;
@@ -5808,35 +5905,46 @@ angle::Result ImageHelper::initExternal(ErrorContext *context,
 // static
 const void *ImageHelper::DeriveCreateInfoPNext(
     ErrorContext *context,
-    VkImageUsageFlags usage,
     angle::FormatID actualFormatID,
     const void *pNext,
     VkImageFormatListCreateInfoKHR *imageFormatListInfoStorage,
     std::array<VkFormat, kImageListFormatCount> *imageListFormatsStorage,
+    ImageFormatReinterpretability formatReinterpretability,
     VkImageCreateFlags *createFlagsOut)
 {
+    // Early-return if format reinterpretability was "None"
+    if (formatReinterpretability == ImageFormatReinterpretability::None)
+    {
+        return pNext;
+    }
+
+    // For full format reinterpretability just update the VkImage create flags and return
+    if (formatReinterpretability == ImageFormatReinterpretability::Full)
+    {
+        *createFlagsOut |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+        return pNext;
+    }
+
+    ASSERT(formatReinterpretability == ImageFormatReinterpretability::ColorspaceOverrides);
+
     // With the introduction of sRGB related GLES extensions any sample/render target could be
-    // respecified causing it to be interpreted in a different colorspace.  Create the VkImage
-    // accordingly.
+    // respecified causing it to be interpreted in a different colorspace.
     Renderer *renderer                = context->getRenderer();
     const angle::Format &actualFormat = angle::Format::Get(actualFormatID);
-    angle::FormatID additionalFormat =
+    angle::FormatID additionalFormatID =
         actualFormat.isSRGB ? ConvertToLinear(actualFormatID) : ConvertToSRGB(actualFormatID);
-    (*imageListFormatsStorage)[0] = vk::GetVkFormatFromFormatID(renderer, actualFormatID);
-    (*imageListFormatsStorage)[1] = vk::GetVkFormatFromFormatID(renderer, additionalFormat);
 
-    // Don't add the format list if the storage bit is enabled for the image; framebuffer
-    // compression is already disabled in that case, and GL allows many formats to alias
-    // the original format for storage images (more than ANGLE provides in the format list).
+    // Allow linear and sRGB variants if image format list is supported and format features match
     if (renderer->getFeatures().supportsImageFormatList.enabled &&
-        renderer->haveSameFormatFeatureBits(actualFormatID, additionalFormat) &&
-        (usage & VK_IMAGE_USAGE_STORAGE_BIT) == 0)
+        renderer->haveSameFormatFeatureBits(actualFormatID, additionalFormatID))
     {
-        // Add VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT to VkImage create flag
+        // Add the VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT to VkImage create flag
         *createFlagsOut |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
 
-        // There is just 1 additional format we might use to create a VkImageView for this
-        // VkImage
+        // VkImageView can be created with either the linear or sRGB variant of the format
+        (*imageListFormatsStorage)[0] = vk::GetVkFormatFromFormatID(renderer, actualFormatID);
+        (*imageListFormatsStorage)[1] = vk::GetVkFormatFromFormatID(renderer, additionalFormatID);
+
         imageFormatListInfoStorage->sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO_KHR;
         imageFormatListInfoStorage->pNext = pNext;
         imageFormatListInfoStorage->viewFormatCount = kImageListFormatCount;
@@ -5890,7 +5998,7 @@ void ImageHelper::setImageFormatsFromActualFormat(VkFormat actualFormat,
     imageFormatsOut.push_back(actualFormat);
 }
 
-void ImageHelper::deriveImageViewFormatFromCreateInfoPNext(VkImageCreateInfo &imageInfo,
+void ImageHelper::deriveImageViewFormatFromCreateInfoPNext(const VkImageCreateInfo &imageInfo,
                                                            ImageFormats &formatOut)
 {
     const VkBaseInStructure *pNextChain =
@@ -5944,7 +6052,7 @@ void ImageHelper::releaseImage(Renderer *renderer)
         garbageObjects.reserve(2);
         garbageObjects.emplace_back(GarbageObject::Get(&mImage));
 
-        // mDeviceMemory and mVmaAllocation should not be valid at the same time.
+        //  mDeviceMemory and mVmaAllocation should not be valid at the same time.
         ASSERT(!mDeviceMemory.valid() || !mVmaAllocation.valid());
         if (mDeviceMemory.valid())
         {
@@ -5993,6 +6101,13 @@ void ImageHelper::finalizeImageLayoutInShareContexts(Renderer *renderer,
         for (auto context : contextVk->getShareGroup()->getContexts())
         {
             vk::GetImpl(context.second)->finalizeImageLayout(this, imageSiblingSerial);
+        }
+        if (mUseTileMemory)
+        {
+            for (auto context : contextVk->getShareGroup()->getContexts())
+            {
+                vk::GetImpl(context.second)->removeImageWithTileMemory(this);
+            }
         }
     }
 }
@@ -6157,6 +6272,8 @@ angle::Result ImageHelper::initializeNonZeroMemory(ErrorContext *context,
         }
     }
 
+    renderer->insertSubmitDebugMarkerInCommandBuffer(commandBuffer,
+                                                     QueueSubmitReason::InitNonZeroMemory);
     ANGLE_VK_TRY(context, commandBuffer.end());
 
     QueueSerial queueSerial;
@@ -6175,7 +6292,6 @@ angle::Result ImageHelper::initializeNonZeroMemory(ErrorContext *context,
 }
 
 VkResult ImageHelper::initMemory(ErrorContext *context,
-                                 const MemoryProperties &memoryProperties,
                                  VkMemoryPropertyFlags flags,
                                  VkMemoryPropertyFlags excludedFlags,
                                  const VkMemoryRequirements *memoryRequirements,
@@ -6189,7 +6305,35 @@ VkResult ImageHelper::initMemory(ErrorContext *context,
     // To allocate memory here, if possible, we use the image memory suballocator which uses VMA.
     ASSERT(excludedFlags < VK_MEMORY_PROPERTY_FLAG_BITS_MAX_ENUM);
     Renderer *renderer = context->getRenderer();
-    if (renderer->getFeatures().useVmaForImageSuballocation.enabled)
+
+    // First try allocate tile memory if requested
+    ASSERT(!mDeviceMemory.valid());
+    if (mUseTileMemory)
+    {
+        if (renderer->getFeatures().supportsTileMemoryHeap.enabled)
+        {
+            AllocateImageMemoryFromTileHeap(context, mMemoryAllocationType, flags, flagsOut,
+                                            &mImage, &mMemoryTypeIndex, &mDeviceMemory,
+                                            &mAllocationSize);
+        }
+        else
+        {
+            ASSERT(renderer->getFeatures().simulateTileMemoryForTesting.enabled);
+            AllocateImageMemory(context, mMemoryAllocationType, flags, flagsOut, nullptr, &mImage,
+                                &mMemoryTypeIndex, &mDeviceMemory, &mAllocationSize);
+        }
+
+        if (mDeviceMemory.valid())
+        {
+            context->getPerfCounters().tileMemoryImages++;
+        }
+        else
+        {
+            mUseTileMemory = false;
+        }
+    }
+
+    if (!mDeviceMemory.valid() && renderer->getFeatures().useVmaForImageSuballocation.enabled)
     {
         // While it may be preferable to allocate the image on the device, it should also be
         // possible to allocate on other memory types if the device is out of memory.
@@ -6200,7 +6344,7 @@ VkResult ImageHelper::initMemory(ErrorContext *context,
             memoryRequirements, allocateDedicatedMemory, mMemoryAllocationType, &mVmaAllocation,
             flagsOut, &mMemoryTypeIndex, &mAllocationSize));
     }
-    else
+    else if (!mDeviceMemory.valid())
     {
         const void *extraAllocationInfoPtr =
             context->getFeatures().supportsBufferDeviceAddress.enabled
@@ -6223,7 +6367,6 @@ VkResult ImageHelper::initMemory(ErrorContext *context,
 angle::Result ImageHelper::initMemoryAndNonZeroFillIfNeeded(
     ErrorContext *context,
     bool hasProtectedContent,
-    const MemoryProperties &memoryProperties,
     VkMemoryPropertyFlags flags,
     MemoryAllocationType allocationType)
 {
@@ -6243,14 +6386,14 @@ angle::Result ImageHelper::initMemoryAndNonZeroFillIfNeeded(
         renderer->getImageMemorySuballocator().needsDedicatedMemory(memoryRequirements.size);
 
     ANGLE_VK_TRY(context,
-                 initMemory(context, memoryProperties, flags, 0, &memoryRequirements,
-                            allocateDedicatedMemory, allocationType, &outputFlags, &outputSize));
+                 initMemory(context, flags, 0, &memoryRequirements, allocateDedicatedMemory,
+                            allocationType, &outputFlags, &outputSize));
 
     // Memory can only be non-zero initialized if the TRANSFER_DST usage is set.  This is normally
     // the case, but not with |initImplicitMultisampledRenderToTexture| which creates a
     // lazy-allocated transient image.
     if (renderer->getFeatures().allocateNonZeroMemory.enabled &&
-        (mUsage & VK_IMAGE_USAGE_TRANSFER_DST_BIT) != 0)
+        (mVkImageCreateInfo.usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT) != 0)
     {
         ANGLE_TRY(initializeNonZeroMemory(context, hasProtectedContent, outputFlags, outputSize));
     }
@@ -6296,6 +6439,59 @@ angle::Result ImageHelper::initExternalMemory(ErrorContext *context,
     mCurrentDeviceQueueIndex = currentDeviceQueueIndex;
     mIsReleasedToExternal    = false;
     mIsForeignImage          = currentDeviceQueueIndex == kForeignDeviceQueueIndex;
+
+    return angle::Result::Continue;
+}
+
+angle::Result ImageHelper::fallbackFromTileMemory(ContextVk *contextVk)
+{
+    ASSERT(mUseTileMemory);
+    ANGLE_TRACE_EVENT0("gpu.angle", "ImageHelper::fallbackFromTileMemory");
+    Renderer *renderer                  = contextVk->getRenderer();
+    UtilsVk &utilsVk                    = contextVk->getUtils();
+    MemoryAllocationType allocationType = mMemoryAllocationType;
+
+    ANGLE_VK_PERF_WARNING(contextVk, GL_DEBUG_SEVERITY_LOW,
+                          "The Vulkan driver has to copy from tile memory to regular memory. "
+                          "Consider calling glInvalidateFramebuffer");
+
+    // Move the necessary information from this ImageHelper to prevImage
+    std::unique_ptr<ImageHelper> prevImage = std::make_unique<ImageHelper>();
+    // Move storage from this object to prevImage
+    prevImage->copyStateAndMoveStorageFrom(this);
+
+    // Recreate VkImage with original usage bits
+    mImageSerial             = renderer->getResourceSerialFactory().generateImageSerial();
+    mVkImageCreateInfo.usage = mRequestedUsage;
+    ANGLE_VK_TRY(contextVk, mImage.init(contextVk->getDevice(), mVkImageCreateInfo));
+    contextVk->getPerfCounters().tileMemoryImages--;
+    contextVk->getPerfCounters().fallbackFromTileMemory++;
+
+    // reallocate device memory.
+    VkMemoryRequirements memoryRequirements;
+    mImage.getMemoryRequirements(renderer->getDevice(), &memoryRequirements);
+    bool allocateDedicatedMemory =
+        renderer->getImageMemorySuballocator().needsDedicatedMemory(memoryRequirements.size);
+    VkMemoryPropertyFlags memoryPropertyFlagsOut;
+    VkDeviceSize deviceMemorySizeOut;
+    ANGLE_VK_TRY(contextVk, initMemory(contextVk, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0x0,
+                                       &memoryRequirements, allocateDedicatedMemory, allocationType,
+                                       &memoryPropertyFlagsOut, &deviceMemorySizeOut));
+
+    // Copy data from the previous image.
+    if (prevImage->isVkImageContentDefined())
+    {
+        ANGLE_TRY(
+            utilsVk.copyImageFromTileMemory(contextVk, getAspectFlags(), this, prevImage.get()));
+        ASSERT(isVkImageContentDefined());
+    }
+
+    prevImage->releaseImage(renderer);
+    prevImage.release();
+
+    // Notify RenderBufferVk/SurfaceVk so that they can free all cached objects like ImageViews and
+    // VkFramebuffers.
+    onStateChange(angle::SubjectMessage::VkImageChanged);
 
     return angle::Result::Continue;
 }
@@ -6510,8 +6706,8 @@ void ImageHelper::init2DWeakReference(ErrorContext *context,
                                       bool isRobustResourceInitEnabled)
 {
     ASSERT(!valid());
-    ASSERT(!IsAnySubresourceContentDefined(mContentDefined));
-    ASSERT(!IsAnySubresourceContentDefined(mStencilContentDefined));
+    ASSERT(!IsAnySubresourceContentDefined(mVkImageContentDefined));
+    ASSERT(!IsAnySubresourceContentDefined(mVkImageStencilContentDefined));
     vk::Renderer *renderer = context->getRenderer();
 
     gl_vk::GetExtent(glExtents, &mExtents);
@@ -6519,7 +6715,7 @@ void ImageHelper::init2DWeakReference(ErrorContext *context,
     mIntendedFormatID        = intendedFormatID;
     mActualFormatID          = actualFormatID;
     mCreateFlags             = createFlags;
-    mUsage                   = usage;
+    mRequestedUsage          = usage;
     mSamples                 = std::max(samples, 1);
     mImageSerial             = renderer->getResourceSerialFactory().generateImageSerial();
     mCurrentDeviceQueueIndex = context->getDeviceQueueIndex();
@@ -6536,13 +6732,15 @@ void ImageHelper::init2DWeakReference(ErrorContext *context,
                                     mViewFormats);
 
     mImage.setHandle(handle);
+    // Even though we did not use mVkImageCreateInfo to create mImage, mVkImageCreateInfo.usage  is
+    // being used for actual usage of mImage, so we always keep it updated.
+    mVkImageCreateInfo.usage = mRequestedUsage;
 
     stageClearIfEmulatedFormat(isRobustResourceInitEnabled, false);
 }
 
 angle::Result ImageHelper::init2DStaging(ErrorContext *context,
                                          bool hasProtectedContent,
-                                         const MemoryProperties &memoryProperties,
                                          const gl::Extents &glExtents,
                                          angle::FormatID intendedFormatID,
                                          angle::FormatID actualFormatID,
@@ -6551,13 +6749,12 @@ angle::Result ImageHelper::init2DStaging(ErrorContext *context,
 {
     gl_vk::GetExtent(glExtents, &mExtents);
 
-    return initStaging(context, hasProtectedContent, memoryProperties, VK_IMAGE_TYPE_2D, mExtents,
-                       intendedFormatID, actualFormatID, 1, usage, 1, layerCount);
+    return initStaging(context, hasProtectedContent, VK_IMAGE_TYPE_2D, mExtents, intendedFormatID,
+                       actualFormatID, 1, usage, 1, layerCount);
 }
 
 angle::Result ImageHelper::initStaging(ErrorContext *context,
                                        bool hasProtectedContent,
-                                       const MemoryProperties &memoryProperties,
                                        VkImageType imageType,
                                        const VkExtent3D &extents,
                                        angle::FormatID intendedFormatID,
@@ -6568,8 +6765,8 @@ angle::Result ImageHelper::initStaging(ErrorContext *context,
                                        uint32_t layerCount)
 {
     ASSERT(!valid());
-    ASSERT(!IsAnySubresourceContentDefined(mContentDefined));
-    ASSERT(!IsAnySubresourceContentDefined(mStencilContentDefined));
+    ASSERT(!IsAnySubresourceContentDefined(mVkImageContentDefined));
+    ASSERT(!IsAnySubresourceContentDefined(mVkImageStencilContentDefined));
     vk::Renderer *renderer = context->getRenderer();
 
     mImageType          = imageType;
@@ -6581,7 +6778,7 @@ angle::Result ImageHelper::initStaging(ErrorContext *context,
     mImageSerial        = renderer->getResourceSerialFactory().generateImageSerial();
     mLayerCount         = layerCount;
     mLevelCount         = mipLevels;
-    mUsage              = usage;
+    mRequestedUsage     = usage;
 
     // Validate that mLayerCount is compatible with the image type
     ASSERT(imageType != VK_IMAGE_TYPE_3D || mLayerCount == 1);
@@ -6619,8 +6816,7 @@ angle::Result ImageHelper::initStaging(ErrorContext *context,
         memoryPropertyFlags |= VK_MEMORY_PROPERTY_PROTECTED_BIT;
     }
 
-    ANGLE_TRY(initMemoryAndNonZeroFillIfNeeded(context, hasProtectedContent, memoryProperties,
-                                               memoryPropertyFlags,
+    ANGLE_TRY(initMemoryAndNonZeroFillIfNeeded(context, hasProtectedContent, memoryPropertyFlags,
                                                vk::MemoryAllocationType::StagingImage));
     return angle::Result::Continue;
 }
@@ -6628,7 +6824,6 @@ angle::Result ImageHelper::initStaging(ErrorContext *context,
 angle::Result ImageHelper::initImplicitMultisampledRenderToTexture(
     ErrorContext *context,
     bool hasProtectedContent,
-    const MemoryProperties &memoryProperties,
     gl::TextureType textureType,
     GLint samples,
     const ImageHelper &resolveImage,
@@ -6637,8 +6832,8 @@ angle::Result ImageHelper::initImplicitMultisampledRenderToTexture(
 {
     ASSERT(!valid());
     ASSERT(samples > 1);
-    ASSERT(!IsAnySubresourceContentDefined(mContentDefined));
-    ASSERT(!IsAnySubresourceContentDefined(mStencilContentDefined));
+    ASSERT(!IsAnySubresourceContentDefined(mVkImageContentDefined));
+    ASSERT(!IsAnySubresourceContentDefined(mVkImageStencilContentDefined));
 
     // The image is used as either color or depth/stencil attachment.  Additionally, its memory is
     // lazily allocated as the contents are discarded at the end of the renderpass and with tiling
@@ -6650,7 +6845,8 @@ angle::Result ImageHelper::initImplicitMultisampledRenderToTexture(
     // supports LAZILY_ALLOCATED.  However, based on actual image requirements, such a memory may
     // not be suitable for the image.  We don't support such a case, which will result in the
     // |initMemory| call below failing.
-    const bool hasLazilyAllocatedMemory = memoryProperties.hasLazilyAllocatedMemory();
+    const bool hasLazilyAllocatedMemory =
+        context->getRenderer()->getMemoryProperties().hasLazilyAllocatedMemory();
 
     const VkImageUsageFlags kLazyFlags =
         hasLazilyAllocatedMemory ? VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT : 0;
@@ -6679,7 +6875,8 @@ angle::Result ImageHelper::initImplicitMultisampledRenderToTexture(
                            samples, kMultisampledUsageFlags, kMultisampledCreateFlags,
                            ImageAccess::Undefined, nullptr, resolveImage.getFirstAllocatedLevel(),
                            kLevelCount, resolveImage.getLayerCount(), isRobustResourceInitEnabled,
-                           hasProtectedContent, YcbcrConversionDesc{}, nullptr));
+                           hasProtectedContent, TileMemory::Prohibited, YcbcrConversionDesc{},
+                           nullptr, ImageFormatReinterpretability::ColorspaceOverrides));
 
     // Remove the emulated format clear from the multisampled image if any.  There is one already
     // staged on the resolve image if needed.
@@ -6694,13 +6891,12 @@ angle::Result ImageHelper::initImplicitMultisampledRenderToTexture(
     // still fail), but ideally that means GL_EXT_multisampled_render_to_texture should not be
     // advertised on this platform in the first place.
     ANGLE_TRY(initMemoryAndNonZeroFillIfNeeded(
-        context, hasProtectedContent, memoryProperties, kMultisampledMemoryFlags,
+        context, hasProtectedContent, kMultisampledMemoryFlags,
         vk::MemoryAllocationType::ImplicitMultisampledRenderToTextureImage));
     return angle::Result::Continue;
 }
 
 angle::Result ImageHelper::initRgbDrawImageForYuvResolve(ErrorContext *context,
-                                                         const MemoryProperties &memoryProperties,
                                                          const ImageHelper &resolveImage,
                                                          bool isRobustResourceInitEnabled)
 {
@@ -6723,7 +6919,8 @@ angle::Result ImageHelper::initRgbDrawImageForYuvResolve(ErrorContext *context,
                            formatID, 1, usageFlags, createFlags, ImageAccess::Undefined, nullptr,
                            resolveImage.getFirstAllocatedLevel(), resolveImage.getLevelCount(),
                            resolveImage.getLayerCount(), isRobustResourceInitEnabled,
-                           hasProtectedContent, YcbcrConversionDesc{}, nullptr));
+                           hasProtectedContent, TileMemory::Prohibited, YcbcrConversionDesc{},
+                           nullptr, ImageFormatReinterpretability::None));
 
     ASSERT(!hasEmulatedImageChannels());
 
@@ -6731,11 +6928,15 @@ angle::Result ImageHelper::initRgbDrawImageForYuvResolve(ErrorContext *context,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
         (hasProtectedContent ? VK_MEMORY_PROPERTY_PROTECTED_BIT : 0);
 
-    ANGLE_TRY(initMemoryAndNonZeroFillIfNeeded(context, hasProtectedContent, memoryProperties,
-                                               yuvMemoryFlags,
+    ANGLE_TRY(initMemoryAndNonZeroFillIfNeeded(context, hasProtectedContent, yuvMemoryFlags,
                                                vk::MemoryAllocationType::ImplicitYuvTargetImage));
 
     return angle::Result::Continue;
+}
+
+VkImageAspectFlags ImageHelper::getIntendedAspectFlags() const
+{
+    return GetFormatAspectFlags(angle::Format::Get(mIntendedFormatID));
 }
 
 VkImageAspectFlags ImageHelper::getAspectFlags() const
@@ -8416,7 +8617,7 @@ angle::Result ImageHelper::updateSubresourceOnHost(ContextVk *contextVk,
                                                    bool *copiedOut)
 {
     // If the image is not set up for host copy, it can't be done.
-    if (!valid() || (mUsage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) == 0)
+    if (!valid() || (mVkImageCreateInfo.usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) == 0)
     {
         return angle::Result::Continue;
     }
@@ -8748,8 +8949,8 @@ void ImageHelper::invalidateEntireLevelContent(vk::ErrorContext *context, gl::Le
 {
     invalidateSubresourceContentImpl(
         context, level, 0, mLayerCount,
-        static_cast<VkImageAspectFlagBits>(getAspectFlags() & ~VK_IMAGE_ASPECT_STENCIL_BIT),
-        &getLevelContentDefined(toVkLevel(level)), nullptr, nullptr);
+        static_cast<VkImageAspectFlagBits>(getIntendedAspectFlags() & ~VK_IMAGE_ASPECT_STENCIL_BIT),
+        nullptr, nullptr);
 }
 
 void ImageHelper::invalidateSubresourceContent(ContextVk *contextVk,
@@ -8762,7 +8963,6 @@ void ImageHelper::invalidateSubresourceContent(ContextVk *contextVk,
         static_cast<VkImageAspectFlagBits>(getAspectFlags() & ~VK_IMAGE_ASPECT_STENCIL_BIT);
     bool layerLimitReached = false;
     invalidateSubresourceContentImpl(contextVk, level, layerIndex, layerCount, aspect,
-                                     &getLevelContentDefined(toVkLevel(level)),
                                      preferToKeepContentsDefinedOut, &layerLimitReached);
     if (layerLimitReached)
     {
@@ -8776,9 +8976,11 @@ void ImageHelper::invalidateSubresourceContent(ContextVk *contextVk,
 void ImageHelper::invalidateEntireLevelStencilContent(vk::ErrorContext *context,
                                                       gl::LevelIndex level)
 {
-    invalidateSubresourceContentImpl(context, level, 0, mLayerCount, VK_IMAGE_ASPECT_STENCIL_BIT,
-                                     &getLevelStencilContentDefined(toVkLevel(level)), nullptr,
-                                     nullptr);
+    if (getIntendedFormat().stencilBits > 0)
+    {
+        invalidateSubresourceContentImpl(context, level, 0, mLayerCount,
+                                         VK_IMAGE_ASPECT_STENCIL_BIT, nullptr, nullptr);
+    }
 }
 
 void ImageHelper::invalidateSubresourceStencilContent(ContextVk *contextVk,
@@ -8790,7 +8992,6 @@ void ImageHelper::invalidateSubresourceStencilContent(ContextVk *contextVk,
     bool layerLimitReached = false;
     invalidateSubresourceContentImpl(contextVk, level, layerIndex, layerCount,
                                      VK_IMAGE_ASPECT_STENCIL_BIT,
-                                     &getLevelStencilContentDefined(toVkLevel(level)),
                                      preferToKeepContentsDefinedOut, &layerLimitReached);
     if (layerLimitReached)
     {
@@ -8805,7 +9006,6 @@ void ImageHelper::invalidateSubresourceContentImpl(vk::ErrorContext *context,
                                                    uint32_t layerIndex,
                                                    uint32_t layerCount,
                                                    VkImageAspectFlagBits aspect,
-                                                   LevelContentDefinedMask *contentDefinedMask,
                                                    bool *preferToKeepContentsDefinedOut,
                                                    bool *layerLimitReachedOut)
 {
@@ -8863,7 +9063,20 @@ void ImageHelper::invalidateSubresourceContentImpl(vk::ErrorContext *context,
 
     uint8_t layerRangeBits =
         GetContentDefinedLayerRangeBits(layerIndex, layerCount, kMaxContentDefinedLayerCount);
-    *contentDefinedMask &= static_cast<uint8_t>(~layerRangeBits);
+    LevelIndex levelVk = toVkLevel(level);
+    if (aspect == VK_IMAGE_ASPECT_STENCIL_BIT)
+    {
+        clearLevelStencilContentDefined(levelVk, layerRangeBits);
+    }
+    else
+    {
+        clearLevelContentDefined(levelVk, layerRangeBits);
+    }
+
+    // The VkImage data has been invalidated, the previous storeOp maybe turned into DontCare, which
+    // means there is no grantee that it still contains mCurrentSingleClearValue data. THis is also
+    // consistent with mVkImageContentDefined since we have just cleared the bits.
+    mCurrentSingleClearValue.reset();
 
     // If there are emulated channels, stage a clear to make sure those channels continue to contain
     // valid values.
@@ -8884,72 +9097,73 @@ void ImageHelper::restoreSubresourceContent(gl::LevelIndex level,
 {
     restoreSubresourceContentImpl(
         level, layerIndex, layerCount,
-        static_cast<VkImageAspectFlagBits>(getAspectFlags() & ~VK_IMAGE_ASPECT_STENCIL_BIT),
-        &getLevelContentDefined(toVkLevel(level)));
+        static_cast<VkImageAspectFlagBits>(getAspectFlags() & ~VK_IMAGE_ASPECT_STENCIL_BIT));
 }
 
 void ImageHelper::restoreSubresourceStencilContent(gl::LevelIndex level,
                                                    uint32_t layerIndex,
                                                    uint32_t layerCount)
 {
-    restoreSubresourceContentImpl(level, layerIndex, layerCount, VK_IMAGE_ASPECT_STENCIL_BIT,
-                                  &getLevelStencilContentDefined(toVkLevel(level)));
+    restoreSubresourceContentImpl(level, layerIndex, layerCount, VK_IMAGE_ASPECT_STENCIL_BIT);
 }
 
 void ImageHelper::restoreSubresourceContentImpl(gl::LevelIndex level,
                                                 uint32_t layerIndex,
                                                 uint32_t layerCount,
-                                                VkImageAspectFlagBits aspect,
-                                                LevelContentDefinedMask *contentDefinedMask)
+                                                VkImageAspectFlagBits aspect)
 {
     if (layerIndex >= kMaxContentDefinedLayerCount)
     {
         return;
     }
 
-    uint8_t layerRangeBits =
-        GetContentDefinedLayerRangeBits(layerIndex, layerCount, kMaxContentDefinedLayerCount);
-
-    switch (aspect)
-    {
-        case VK_IMAGE_ASPECT_DEPTH_BIT:
-            // Emulated depth channel should never have been marked invalid, so it can retain its
-            // cleared value.
-            ASSERT(!hasEmulatedDepthChannel() ||
-                   (contentDefinedMask->bits() & layerRangeBits) == layerRangeBits);
-            break;
-        case VK_IMAGE_ASPECT_STENCIL_BIT:
-            // Emulated stencil channel should never have been marked invalid, so it can retain its
-            // cleared value.
-            ASSERT(!hasEmulatedStencilChannel() ||
-                   (contentDefinedMask->bits() & layerRangeBits) == layerRangeBits);
-            break;
-        case VK_IMAGE_ASPECT_COLOR_BIT:
-        {
-            // This function is called on attachments during a render pass when it's determined that
-            // they should no longer be considered invalidated.  For an attachment with emulated
-            // format that has extra channels, invalidateSubresourceContentImpl may have proactively
-            // inserted a clear so that the extra channels continue to have defined values.
-            // |FramebufferVk::invalidateImpl| closes the render pass right away however in that
-            // case, so it should be impossible for the contents of such formats to need to be
-            // restored.
-            const bool hasClearAfterInvalidateUpdate =
-                getLevelUpdates(level) != nullptr && getLevelUpdates(level)->size() != 0 &&
-                getLevelUpdates(level)->at(0).updateSource == UpdateSource::ClearAfterInvalidate;
-            ASSERT(!hasEmulatedImageChannels() || !hasClearAfterInvalidateUpdate);
-
-            break;
-        }
-        default:
-            UNREACHABLE();
-            break;
-    }
+    // This function is called on attachments during a render pass when it's determined that
+    // they should no longer be considered invalidated.  For an attachment with emulated
+    // format that has extra channels, invalidateSubresourceContentImpl may have proactively
+    // inserted a clear so that the extra channels continue to have defined values.
+    // |FramebufferVk::invalidateImpl| closes the render pass right away however in that
+    // case, so it should be impossible for the contents of such formats to need to be
+    // restored.
+    const bool hasClearAfterInvalidateUpdate =
+        getLevelUpdates(level) != nullptr && getLevelUpdates(level)->size() != 0 &&
+        getLevelUpdates(level)->at(0).updateSource == UpdateSource::ClearAfterInvalidate;
+    ASSERT(!hasEmulatedImageChannels() || !hasClearAfterInvalidateUpdate);
 
     // Additionally, as the resource has been rewritten to in the render pass, its no longer cleared
     // to the cached value.
     mCurrentSingleClearValue.reset();
 
-    *contentDefinedMask |= layerRangeBits;
+    uint8_t layerRangeBits =
+        GetContentDefinedLayerRangeBits(layerIndex, layerCount, kMaxContentDefinedLayerCount);
+    LevelIndex levelVk = toVkLevel(level);
+
+    if (aspect == VK_IMAGE_ASPECT_STENCIL_BIT)
+    {
+        setLevelStencilContentDefined(levelVk, layerRangeBits);
+    }
+    else
+    {
+        setLevelContentDefined(levelVk, layerRangeBits);
+    }
+}
+
+// Returns true if we have valid data in any non-emulated channel.
+bool ImageHelper::isVkImageContentDefined() const
+{
+    if (isDepthOrStencil())
+    {
+        // The emulated channel will always have valid content since we stage clear for emulated
+        // channel. When we query if VkImage has defined content or not, we only care about user
+        // content. So ignore the emulated channel when checking content defined.
+        return (getIntendedFormat().depthBits > 0 &&
+                IsAnySubresourceContentDefined(mVkImageContentDefined)) ||
+               (getIntendedFormat().stencilBits > 0 &&
+                IsAnySubresourceContentDefined(mVkImageStencilContentDefined));
+    }
+    else
+    {
+        return IsAnySubresourceContentDefined(mVkImageContentDefined);
+    }
 }
 
 angle::Result ImageHelper::stagePartialClear(ContextVk *contextVk,
@@ -9461,12 +9675,81 @@ bool ImageHelper::verifyEmulatedClearsAreBeforeOtherUpdates(const SubresourceUpd
     return true;
 }
 
+void ImageHelper::copyStateAndMoveStorageFrom(ImageHelper *other)
+{
+    // move these vulkan objects
+    mImage         = std::move(other->mImage);
+    mDeviceMemory  = std::move(other->mDeviceMemory);
+    mVmaAllocation = std::move(other->mVmaAllocation);
+    if (other->mCurrentEvent.valid())
+    {
+        mCurrentEvent = std::move(other->mCurrentEvent);
+    }
+    if (other->mLastNonShaderReadOnlyEvent.valid())
+    {
+        mLastNonShaderReadOnlyEvent = std::move(other->mLastNonShaderReadOnlyEvent);
+    }
+
+    // Copy over state
+    mUse = other->mUse;
+
+    mVkImageCreateInfo  = other->mVkImageCreateInfo;
+    mImageType          = other->mImageType;
+    mTilingMode         = other->mTilingMode;
+    mCreateFlags        = other->mCreateFlags;
+    mRequestedUsage     = other->mRequestedUsage;
+    mExtents            = other->mExtents;
+    mRotatedAspectRatio = other->mRotatedAspectRatio;
+    mIntendedFormatID   = other->mIntendedFormatID;
+    mActualFormatID     = other->mActualFormatID;
+    mSamples            = other->mSamples;
+    mImageSerial        = other->mImageSerial;
+
+    mCurrentAccess                = other->mCurrentAccess;
+    mCurrentDeviceQueueIndex      = other->mCurrentDeviceQueueIndex;
+    mLastNonShaderReadOnlyAccess  = other->mLastNonShaderReadOnlyAccess;
+    mCurrentShaderReadStageMask   = other->mCurrentShaderReadStageMask;
+    mRenderPassUsageFlags         = other->mRenderPassUsageFlags;
+    mBarrierQueueSerial           = other->mBarrierQueueSerial;
+    mPipelineStageAccessHeuristic = other->mPipelineStageAccessHeuristic;
+
+    mIsReleasedToExternal = other->mIsReleasedToExternal;
+    mIsForeignImage       = other->mIsForeignImage;
+    mYcbcrConversionDesc  = other->mYcbcrConversionDesc;
+
+    mFirstAllocatedLevel          = other->mFirstAllocatedLevel;
+    mLayerCount                   = other->mLayerCount;
+    mLevelCount                   = other->mLevelCount;
+    mVkImageContentDefined        = other->mVkImageContentDefined;
+    mVkImageStencilContentDefined = other->mVkImageStencilContentDefined;
+
+    mAllocationSize       = other->mAllocationSize;
+    mMemoryAllocationType = other->mMemoryAllocationType;
+    mMemoryTypeIndex      = other->mMemoryTypeIndex;
+    mTileMemoryCompatible = other->mTileMemoryCompatible;
+    mUseTileMemory        = other->mUseTileMemory;
+
+    mSubresourcesWrittenSinceBarrier = other->mSubresourcesWrittenSinceBarrier;
+
+    // Reset information for other (invalid) image.
+    other->mCurrentAccess               = ImageAccess::Undefined;
+    other->mCurrentDeviceQueueIndex     = kInvalidDeviceQueueIndex;
+    other->mIsReleasedToExternal        = false;
+    other->mIsForeignImage              = false;
+    other->mLastNonShaderReadOnlyAccess = ImageAccess::Undefined;
+    other->mCurrentShaderReadStageMask  = 0;
+    other->mImageSerial                 = kInvalidImageSerial;
+    other->mMemoryAllocationType        = MemoryAllocationType::InvalidEnum;
+    other->setEntireContentUndefined();
+    other->mTileMemoryCompatible = false;
+    other->mUseTileMemory        = false;
+}
+
 void ImageHelper::stageSelfAsSubresourceUpdates(
     ContextVk *contextVk,
     uint32_t levelCount,
     gl::TextureType textureType,
     const gl::CubeFaceArray<gl::TexLevelMask> &skipLevels)
-
 {
     // Nothing to do if every level must be skipped
     const gl::TexLevelMask levelsMask(angle::BitMask<uint32_t>(levelCount)
@@ -9486,43 +9769,8 @@ void ImageHelper::stageSelfAsSubresourceUpdates(
     std::unique_ptr<RefCounted<ImageHelper>> prevImage =
         std::make_unique<RefCounted<ImageHelper>>();
 
-    // Move the necessary information for staged update to work, and keep the rest as part of this
-    // object.
-
-    // Usage info
-    prevImage->get().Resource::operator=(std::move(*this));
-
-    // Vulkan objects
-    prevImage->get().mImage         = std::move(mImage);
-    prevImage->get().mDeviceMemory  = std::move(mDeviceMemory);
-    prevImage->get().mVmaAllocation = std::move(mVmaAllocation);
-
-    // Barrier information.  Note: mLevelCount is set to levelCount so that only the necessary
-    // levels are transitioned when flushing the update.
-    prevImage->get().mIntendedFormatID            = mIntendedFormatID;
-    prevImage->get().mActualFormatID              = mActualFormatID;
-    prevImage->get().mCurrentAccess               = mCurrentAccess;
-    prevImage->get().mCurrentDeviceQueueIndex     = mCurrentDeviceQueueIndex;
-    prevImage->get().mLastNonShaderReadOnlyAccess = mLastNonShaderReadOnlyAccess;
-    prevImage->get().mCurrentShaderReadStageMask  = mCurrentShaderReadStageMask;
-    prevImage->get().mLevelCount                  = levelCount;
-    prevImage->get().mLayerCount                  = mLayerCount;
-    prevImage->get().mImageSerial                 = mImageSerial;
-    prevImage->get().mAllocationSize              = mAllocationSize;
-    prevImage->get().mMemoryAllocationType        = mMemoryAllocationType;
-    prevImage->get().mMemoryTypeIndex             = mMemoryTypeIndex;
-
-    // Reset information for current (invalid) image.
-    mCurrentAccess               = ImageAccess::Undefined;
-    mCurrentDeviceQueueIndex     = kInvalidDeviceQueueIndex;
-    mIsReleasedToExternal        = false;
-    mIsForeignImage              = false;
-    mLastNonShaderReadOnlyAccess = ImageAccess::Undefined;
-    mCurrentShaderReadStageMask  = 0;
-    mImageSerial                 = kInvalidImageSerial;
-    mMemoryAllocationType        = MemoryAllocationType::InvalidEnum;
-
-    setEntireContentUndefined();
+    // Move storage from this object to prevImage
+    prevImage->get().copyStateAndMoveStorageFrom(this);
 
     // Stage updates from the previous image.
     for (LevelIndex levelVk(0); levelVk < LevelIndex(levelCount); ++levelVk)
@@ -9604,10 +9852,6 @@ angle::Result ImageHelper::flushSingleSubresourceStagedUpdates(ContextVk *contex
 
             // Note that this set command handles combined or separate depth/stencil clears.
             deferredClears->store(deferredClearIndex, update.aspectFlags, update.value);
-
-            // Do not call onWrite as it removes mCurrentSingleClearValue, but instead call
-            // setContentDefined directly.
-            setContentDefined(toVkLevel(levelGL), 1, layer, layerCount, update.aspectFlags);
 
             // We process the updates again to erase any clears for this level.
             removeSingleSubresourceStagedUpdates(contextVk, levelGL, layer, layerCount);
@@ -9706,6 +9950,10 @@ angle::Result ImageHelper::flushStagedUpdatesImpl(ContextVk *contextVk,
     {
         transferAccess.onImageTransferDstAndComputeWrite(
             levelGLStart, 1, kMaxContentDefinedLayerCount, 0, aspectFlags, this);
+    }
+    else if (mUseTileMemory)
+    {
+        ASSERT(areStagedUpdatesClearOnly());
     }
     else
     {
@@ -9856,9 +10104,23 @@ angle::Result ImageHelper::flushStagedUpdatesImpl(ContextVk *contextVk,
                 case UpdateSource::Clear:
                 case UpdateSource::ClearAfterInvalidate:
                 {
-                    clear(renderer, update.data.clear.aspectFlags, update.data.clear.value,
-                          updateMipLevelVk, updateBaseLayer, updateLayerCount,
-                          &commandBuffer->getCommandBuffer());
+                    if (canTransferTo())
+                    {
+                        clear(renderer, update.data.clear.aspectFlags, update.data.clear.value,
+                              updateMipLevelVk, updateBaseLayer, updateLayerCount,
+                              &commandBuffer->getCommandBuffer());
+                    }
+                    else
+                    {
+                        ASSERT(mUseTileMemory);
+                        UtilsVk::ClearTextureParameters params = {};
+                        params.aspectFlags                     = getAspectFlags();
+                        params.level                           = updateMipLevelVk;
+                        params.clearArea  = gl::Box(0, 0, 0, mExtents.width, mExtents.height, 1);
+                        params.clearValue = update.data.clear.value;
+                        params.layer      = updateBaseLayer;
+                        ANGLE_TRY(contextVk->getUtils().clearTexture(contextVk, this, params));
+                    }
                     contextVk->getPerfCounters().fullImageClears++;
                     // Remember the latest operation is a clear call.
                     mCurrentSingleClearValue = update.data.clear;
@@ -10023,8 +10285,6 @@ angle::Result ImageHelper::flushStagedUpdates(ContextVk *contextVk,
                 mCurrentSingleClearValue.value() == update.data.clear)
             {
                 ASSERT(levelGLStart + 1 == levelGLEnd);
-                setContentDefined(toVkLevel(levelGLStart), 1, layerStart, layerEnd - layerStart,
-                                  update.data.clear.aspectFlags);
                 ANGLE_VK_PERF_WARNING(contextVk, GL_DEBUG_SEVERITY_LOW,
                                       "Repeated Clear on framebuffer attachment dropped");
                 update.release(renderer);
@@ -10488,9 +10748,10 @@ angle::Result ImageHelper::copyImageDataToBuffer(ContextVk *contextVk,
     // used in this function to be of some combined depth and stencil format.
     ASSERT(getAspectFlags() == VK_IMAGE_ASPECT_COLOR_BIT);
 
-    uint32_t pixelBytes = imageFormat.pixelBytes;
-    size_t bufferSize =
-        sourceArea.width * sourceArea.height * sourceArea.depth * pixelBytes * layerCount;
+    size_t pixelBytes = imageFormat.pixelBytes;
+    size_t bufferSize = static_cast<size_t>(sourceArea.width) *
+                        static_cast<size_t>(sourceArea.height) *
+                        static_cast<size_t>(sourceArea.depth) * pixelBytes * layerCount;
 
     const VkImageAspectFlags aspectFlags = getAspectFlags();
 
@@ -10574,6 +10835,8 @@ angle::Result ImageHelper::copySurfaceImageToBuffer(DisplayVk *displayVk,
     primaryCommandBuffer.copyImageToBuffer(mImage, getCurrentLayout(renderer),
                                            bufferHelper->getBuffer().getHandle(), 1, &region);
 
+    renderer->insertSubmitDebugMarkerInCommandBuffer(primaryCommandBuffer,
+                                                     QueueSubmitReason::CopySurfaceImageToBuffer);
     ANGLE_VK_TRY(displayVk, primaryCommandBuffer.end());
 
     QueueSerial submitQueueSerial;
@@ -10623,6 +10886,8 @@ angle::Result ImageHelper::copyBufferToSurfaceImage(DisplayVk *displayVk,
     commandBuffer.copyBufferToImage(bufferHelper->getBuffer().getHandle(), mImage,
                                     getCurrentLayout(renderer), 1, &region);
 
+    renderer->insertSubmitDebugMarkerInCommandBuffer(commandBuffer,
+                                                     QueueSubmitReason::CopyBufferToSurfaceImage);
     ANGLE_VK_TRY(displayVk, commandBuffer.end());
 
     QueueSerial submitQueueSerial;
@@ -10841,7 +11106,8 @@ bool ImageHelper::canCopyWithTransformForReadPixels(const PackPixelsParams &pack
 
     // Don't allow copies from emulated formats for simplicity.
     return !hasEmulatedImageFormat() && isSameFormatCopy && !needsTransformation &&
-           isPitchMultipleOfTexelSize && isOffsetMultipleOfTexelSize && isRowLengthEnough;
+           isPitchMultipleOfTexelSize && isOffsetMultipleOfTexelSize && isRowLengthEnough &&
+           canTransferFrom();
 }
 
 bool ImageHelper::canCopyWithComputeForReadPixels(const PackPixelsParams &packPixelsParams,
@@ -11005,20 +11271,18 @@ angle::Result ImageHelper::readPixelsImpl(ContextVk *contextVk,
     if (isMultisampled)
     {
         ANGLE_TRY(resolvedImage.get().init2DStaging(
-            contextVk, contextVk->getState().hasProtectedContent(), renderer->getMemoryProperties(),
+            contextVk, contextVk->getState().hasProtectedContent(),
             gl::Extents(area.width, area.height, 1), mIntendedFormatID, mActualFormatID,
-            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                VK_IMAGE_USAGE_SAMPLED_BIT,
-            1));
+            vk::kImageUsageTransferBits | VK_IMAGE_USAGE_SAMPLED_BIT, 1));
     }
     else if (isExternalFormat)
     {
         ANGLE_TRY(resolvedImage.get().init2DStaging(
-            contextVk, contextVk->getState().hasProtectedContent(), renderer->getMemoryProperties(),
+            contextVk, contextVk->getState().hasProtectedContent(),
             gl::Extents(area.width, area.height, 1), angle::FormatID::R8G8B8A8_UNORM,
             angle::FormatID::R8G8B8A8_UNORM,
-            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            vk::kImageUsageTransferBits | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                VK_IMAGE_USAGE_SAMPLED_BIT,
             1));
     }
 
@@ -11136,6 +11400,16 @@ angle::Result ImageHelper::readPixelsImpl(ContextVk *contextVk,
         srcSubresource.mipLevel       = 0;
     }
 
+    if (!src->canTransferFrom())
+    {
+        ASSERT(src->useTileMemory());
+        if (src->useTileMemory())
+        {
+            ANGLE_TRY(src->fallbackFromTileMemory(contextVk));
+            ASSERT(src->canTransferFrom());
+        }
+    }
+
     // If PBO and if possible, copy directly on the GPU.
     if (packPixelsParams.packBuffer)
     {
@@ -11223,7 +11497,7 @@ angle::Result ImageHelper::readPixelsImpl(ContextVk *contextVk,
     ANGLE_VK_PERF_WARNING(contextVk, GL_DEBUG_SEVERITY_HIGH, "GPU stall due to ReadPixels");
 
     // Triggers a full finish.
-    ANGLE_TRY(contextVk->finishImpl(RenderPassClosureReason::GLReadPixels));
+    ANGLE_TRY(contextVk->finishImpl(QueueSubmitReason::GLReadPixels));
     // invalidate must be called after wait for finish.
     ANGLE_TRY(stagingBuffer->invalidate(renderer));
 

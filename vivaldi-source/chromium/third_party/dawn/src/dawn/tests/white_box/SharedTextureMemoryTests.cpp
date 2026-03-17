@@ -1770,8 +1770,14 @@ TEST_P(SharedTextureMemoryTests, UninitializedOnEndAccess) {
 
 // Test copying to texture memory on one device, then sampling it using another device.
 TEST_P(SharedTextureMemoryTests, CopyToTextureThenSample) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
+
     // crbug.com/358166479
     DAWN_SUPPRESS_TEST_IF(IsLinux() && IsNvidia() && IsVulkan());
+
+    // TODO(crbug.com/468228359): Flaky on Snapdragon X Elite w/ D3D11.
+    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm() && IsD3D11());
 
     std::vector<wgpu::Device> devices = {device, CreateDevice()};
 
@@ -1871,6 +1877,9 @@ TEST_P(SharedTextureMemoryTests, EndWithoutUse) {
 // If concurrent read is supported, use two read textures. The first EndAccess should
 // see no fences. The second should then export all the unacquired fences.
 TEST_P(SharedTextureMemoryTests, BeginEndWithoutUse) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 gles.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
+
     // crbug.com/358166479
     DAWN_SUPPRESS_TEST_IF(IsLinux() && IsNvidia() && IsVulkan());
 
@@ -2269,10 +2278,6 @@ TEST_P(SharedTextureMemoryTests, RenderThenLoseOrDestroyDeviceBeforeEndAccessThe
     // crbug.com/358166479
     DAWN_SUPPRESS_TEST_IF(IsLinux() && IsNvidia() && IsVulkan());
 
-    // TODO(crbug.com/462477486): Catches a mutex issue when run with
-    // TSAN/Vulkan/SwiftShader.
-    DAWN_SUPPRESS_TEST_IF(IsLinux() && IsTsan() && IsVulkan() && IsSwiftshader());
-
     auto DoTest = [&](auto DestroyOrLoseDevice) {
         std::vector<wgpu::Device> devices = {CreateDevice(), CreateDevice()};
         auto perDeviceMemories =
@@ -2485,6 +2490,9 @@ TEST_P(SharedTextureMemoryTests, SameDeviceWriteThenConcurrentReadThenWrite) {
     DAWN_TEST_UNSUPPORTED_IF(IsVulkan());
 
     DAWN_TEST_UNSUPPORTED_IF(!GetParam().mBackend->SupportsConcurrentRead());
+
+    // TODO(crbug.com/468228359): Flaky on Snapdragon X Elite w/ D3D11.
+    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm() && IsD3D11());
 
     for (const auto& memories :
          GetParam().mBackend->CreatePerDeviceSharedTextureMemoriesFilterByUsage(

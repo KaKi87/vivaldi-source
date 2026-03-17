@@ -4,20 +4,26 @@
 
 package org.chromium.chrome.browser.read_later;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.app.Activity;
 
 import androidx.annotation.Nullable;
 
 import org.chromium.base.lifetime.Destroyable;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneShotCallback;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.ActivityTabProvider.ActivityTabTabObserver;
 import org.chromium.chrome.browser.bookmarks.BookmarkManagerOpener;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
 import org.chromium.chrome.browser.bookmarks.BookmarkUiState;
+import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.components.bookmarks.BookmarkId;
@@ -31,12 +37,13 @@ import org.chromium.content_public.browser.WebContents;
  */
 @NullMarked
 public class ReadingListBackPressHandler implements BackPressHandler, Destroyable {
-    private final ObservableSupplierImpl<Boolean> mBackPressChangedSupplier =
-            new ObservableSupplierImpl<>();
+    private final SettableNonNullObservableSupplier<Boolean> mBackPressChangedSupplier =
+            ObservableSuppliers.createNonNull(false);
+
     private final Activity mActivity;
     private final ActivityTabProvider mActivityTabProvider;
     private final ActivityTabTabObserver mActivityTabTabObserver;
-    private final ObservableSupplier<BookmarkManagerOpener> mBookmarkManagerOpenerSupplier;
+    private final MonotonicObservableSupplier<BookmarkManagerOpener> mBookmarkManagerOpenerSupplier;
 
     private @Nullable BookmarkId mLastUsedParent;
 
@@ -51,14 +58,14 @@ public class ReadingListBackPressHandler implements BackPressHandler, Destroyabl
     public ReadingListBackPressHandler(
             Activity activity,
             ActivityTabProvider activityTabProvider,
-            ObservableSupplier<BookmarkModel> bookmarkModelSupplier,
-            ObservableSupplier<BookmarkManagerOpener> bookmarkManagerOpenerSupplier) {
+            NullableObservableSupplier<BookmarkModel> bookmarkModelSupplier,
+            MonotonicObservableSupplier<BookmarkManagerOpener> bookmarkManagerOpenerSupplier) {
         mActivity = activity;
         mActivityTabProvider = activityTabProvider;
         mActivityTabTabObserver =
                 new ActivityTabTabObserver(mActivityTabProvider, true) {
                     @Override
-                    protected void onObservingDifferentTab(@Nullable Tab tab, boolean hint) {
+                    protected void onObservingDifferentTab(@Nullable Tab tab) {
                         onBackPressStateChanged();
 
                         // If this tab should intercept back press, start the process of tracking
@@ -78,12 +85,14 @@ public class ReadingListBackPressHandler implements BackPressHandler, Destroyabl
     private void setupLastUsedState(BookmarkModel bookmarkModel) {
         bookmarkModel.finishLoadingBookmarkModel(
                 () -> {
+                    Profile profile = assumeNonNull(mActivityTabProvider.get()).getProfile();
                     // Note: there's a slight (but unlikely) chance the the user changed the last
                     // used url prior
                     // to tracking it here.
                     BookmarkUiState lastUsedState =
                             BookmarkUiState.createStateFromUrl(
-                                    mBookmarkManagerOpenerSupplier.get().getLastUsedUrl(),
+                                    assumeNonNull(mBookmarkManagerOpenerSupplier.get())
+                                            .getLastUsedUrl(profile),
                                     bookmarkModel);
                     mLastUsedParent = lastUsedState.getFolder();
                 });
@@ -100,8 +109,7 @@ public class ReadingListBackPressHandler implements BackPressHandler, Destroyabl
         if (mLastUsedParent == null) {
             mLastUsedParent = new BookmarkId(/* id= */ 0, BookmarkType.READING_LIST);
         }
-        mBookmarkManagerOpenerSupplier
-                .get()
+        assumeNonNull(mBookmarkManagerOpenerSupplier.get())
                 .showBookmarkManager(mActivity, tab, tab.getProfile(), mLastUsedParent);
 
         WebContents webContents = tab.getWebContents();
@@ -118,7 +126,7 @@ public class ReadingListBackPressHandler implements BackPressHandler, Destroyabl
     }
 
     @Override
-    public ObservableSupplier<Boolean> getHandleBackPressChangedSupplier() {
+    public NonNullObservableSupplier<Boolean> getHandleBackPressChangedSupplier() {
         return mBackPressChangedSupplier;
     }
 

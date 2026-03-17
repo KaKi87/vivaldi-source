@@ -87,6 +87,12 @@ class VivaldiNativeWidgetMac : public views::NativeWidgetMac {
   void RedrawTrafficLight();
 
  private:
+  static OSStatus MenuBarChangedHandler(EventHandlerCallRef handler,
+                                        EventRef event,
+                                        void* context);
+  void FinishMenubarTracker();
+  void DispatchFullscreenMenubarChangedEvent(bool shown);
+
   // NativeWidgetMac overrdies
 
   void PopulateCreateWindowParams(
@@ -111,6 +117,8 @@ class VivaldiNativeWidgetMac : public views::NativeWidgetMac {
   // Set true during an exit fullscreen transition, so that the live resize
   // event AppKit sends can be distinguished from a zoom-triggered live resize.
   bool in_fullscreen_transition_ = false;
+
+  EventHandlerRef menubar_tracking_handler_ = nullptr;
 
   std::unique_ptr<VivaldiNativeWidgetObserver> native_widget_observer_;
   bool titlebar_appears_transparent_ = false;
@@ -252,12 +260,50 @@ bool ScreenHasNotch(NSScreen* screen) {
   } else if ([position_str isEqual:@"heavyPadding"]) {
     position = VivaldiNativeWidgetMac::TrafficLightPosition::HeavyPadding;
   } else if ([position_str isEqual:@"autohideHeavyPadding"]) {
-    position = VivaldiNativeWidgetMac::TrafficLightPosition::AutohideHeavyPadding;
+    position =
+        VivaldiNativeWidgetMac::TrafficLightPosition::AutohideHeavyPadding;
   }
   native_widget_->SetTrafficLightPosition(position);
 }
 
 @end
+
+// static
+OSStatus VivaldiNativeWidgetMac::MenuBarChangedHandler(
+    EventHandlerCallRef handler,
+    EventRef event,
+    void* context) {
+  bool shown;
+  if (GetEventKind(event) == kEventMenuBarShown) {
+    shown = true;
+  } else {
+    shown = false;
+  }
+
+  auto* native_widget = static_cast<VivaldiNativeWidgetMac*>(context);
+
+  NSWindow* ns_window = native_widget->GetNativeWindow().GetNativeNSWindow();
+  if (ns_window && [ns_window isOnActiveSpace]) {
+    native_widget->DispatchFullscreenMenubarChangedEvent(shown);
+  }
+  return CallNextEventHandler(handler, event);
+}
+
+void VivaldiNativeWidgetMac::DispatchFullscreenMenubarChangedEvent(bool shown) {
+  if (!browser_window_)
+    return;
+  Browser* browser = browser_window_->browser();
+  if (!browser)
+    return;
+
+  ::vivaldi::BroadcastEvent(
+      extensions::vivaldi::window_private::
+          OnFullscreenMenubarVisibilityChanged::kEventName,
+      extensions::vivaldi::window_private::
+          OnFullscreenMenubarVisibilityChanged::Create(
+              browser->session_id().id(), shown),
+      browser->profile());
+}
 
 void VivaldiNativeWidgetMac::PopulateCreateWindowParams(
     const views::Widget::InitParams& widget_params,
@@ -283,12 +329,21 @@ void VivaldiNativeWidgetMac::OnWindowInitialized() {
 
 void VivaldiNativeWidgetMac::OnWindowDestroying(gfx::NativeWindow window) {
   browser_window_ = nullptr;
+  FinishMenubarTracker();
+
   if (nswindow_observer_) {
     [nswindow_observer_ stopObserving];
     // TODO: Test properly for problems wrt ARC transition
     nswindow_observer_ = nullptr;
   }
   views::NativeWidgetMac::OnWindowDestroying(window);
+}
+
+void VivaldiNativeWidgetMac::FinishMenubarTracker() {
+  if (!menubar_tracking_handler_)
+    return;
+  RemoveEventHandler(menubar_tracking_handler_);
+  menubar_tracking_handler_ = nullptr;
 }
 
 void VivaldiNativeWidgetMac::OnWindowWillStartLiveResize() {
@@ -298,6 +353,22 @@ void VivaldiNativeWidgetMac::OnWindowWillStartLiveResize() {
 }
 
 void VivaldiNativeWidgetMac::OnWindowWillEnterFullScreen() {
+  // Install the Carbon event handler for the menubar show, hide and
+  // undocumented reveal event.
+  FinishMenubarTracker();
+
+  EventTypeSpec eventSpecs[2];
+
+  eventSpecs[0].eventClass = kEventClassMenu;
+  eventSpecs[0].eventKind = kEventMenuBarShown;
+
+  eventSpecs[1].eventClass = kEventClassMenu;
+  eventSpecs[1].eventKind = kEventMenuBarHidden;
+
+  InstallApplicationEventHandler(NewEventHandlerUPP(&MenuBarChangedHandler),
+                                 std::size(eventSpecs), eventSpecs, this,
+                                 &menubar_tracking_handler_);
+
   in_fullscreen_transition_ = true;
   RedrawTrafficLight();
 }
@@ -308,6 +379,11 @@ void VivaldiNativeWidgetMac::OnWindowDidEnterFullScreen() {
 }
 
 void VivaldiNativeWidgetMac::OnWindowWillExitFullScreen() {
+  FinishMenubarTracker();
+  // Make sure it ends up in hidden state even though we exit fullscreen with
+  // the menubar shown.
+  DispatchFullscreenMenubarChangedEvent(false);
+
   in_fullscreen_transition_ = true;
   RedrawTrafficLight();
 }
@@ -374,8 +450,8 @@ void VivaldiNativeWidgetMac::SetTrafficLightPosition(
   // Those are some arbitrary values based on testing.
   switch (position) {
     case TrafficLightPosition::Hidden:
-    traffic_light_position_ = std::nullopt;
-    break;
+      traffic_light_position_ = std::nullopt;
+      break;
     // Default (native) should be the same as light padding.
     case TrafficLightPosition::Native:
     case TrafficLightPosition::LightPadding:
@@ -403,7 +479,7 @@ void VivaldiNativeWidgetMac::SetTrafficLightPosition(
       }
       break;
     case TrafficLightPosition::AutohideHeavyPadding:
-    // The border of autohide tabs is 6px, this is HeavyPadding + 6px.
+      // The border of autohide tabs is 6px, this is HeavyPadding + 6px.
       if (@available(macos 26, *)) {
         // Adjust padding slightly for macOS 26 (Tahoe).
         traffic_light_position_ = {25, 25};

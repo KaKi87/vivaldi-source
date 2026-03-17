@@ -8,7 +8,7 @@ class TabStripModel;
 class TabStripModelChange;
 
 namespace content {
-  class WebContents;
+class WebContents;
 }
 
 namespace vivaldi {
@@ -18,7 +18,7 @@ void HandleAssociatedTabs(TabStripModel* tab_strip_model,
                           const TabStripModelChange& change);
 
 void AddVivaldiTabItemsToEvent(content::WebContents* contents,
-                               base::Value::Dict& object_args);
-}
+                               base::DictValue& object_args);
+}  // namespace vivaldi
 
 #endif

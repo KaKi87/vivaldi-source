@@ -27,8 +27,7 @@ BookmarkThumbnailThemeTabHelper::~BookmarkThumbnailThemeTabHelper() {
   bookmark_model_ = nullptr;
 }
 
-void BookmarkThumbnailThemeTabHelper::BookmarkModelLoaded(
-    bool ids_reassigned) {
+void BookmarkThumbnailThemeTabHelper::BookmarkModelLoaded(bool ids_reassigned) {
   UpdateBookmarkThemeColor();
 }
 

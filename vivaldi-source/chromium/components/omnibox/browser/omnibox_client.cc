@@ -9,6 +9,7 @@
 #include "base/strings/string_util.h"
 #include "third_party/metrics_proto/omnibox_event.pb.h"
 #include "ui/gfx/image/image.h"
+#include "url/gurl.h"
 
 bool OmniboxClient::CurrentPageExists() const {
   return true;
@@ -64,6 +65,14 @@ bool OmniboxClient::ShouldDefaultTypedNavigationsToHttps() const {
 
 int OmniboxClient::GetHttpsPortForTesting() const {
   return 0;
+}
+
+bool OmniboxClient::IsContextualTasksPage() const {
+  return false;
+}
+
+GURL OmniboxClient::GetContextualTasksInnerFrameURL() const {
+  return GURL();
 }
 
 metrics::OmniboxEventProto::PageClassification
@@ -135,6 +144,6 @@ bool OmniboxClient::IsAimPopupEnabled() const {
   return false;
 }
 
-omnibox::ChromeAimToolsAndModels OmniboxClient::AimToolMode() const {
-  return omnibox::ChromeAimToolsAndModels::TOOL_MODE_UNSPECIFIED;
+omnibox::InputState OmniboxClient::GetInputState() const {
+  return omnibox::InputState();
 }

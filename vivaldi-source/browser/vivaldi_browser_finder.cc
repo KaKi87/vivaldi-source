@@ -4,6 +4,8 @@
 
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "components/guest_view/browser/guest_view_base.h"
 #include "extensions/buildflags/buildflags.h"
 #include "ui/content/vivaldi_tab_check.h"
@@ -22,13 +24,18 @@ Browser* FindBrowserForEmbedderWebContents(const WebContents* web_contents) {
 
 VivaldiBrowserWindow* FindWindowForEmbedderWebContents(
     const content::WebContents* web_contents) {
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    VivaldiBrowserWindow* window = VivaldiBrowserWindow::FromBrowser(browser);
-    if (window && window->web_contents() == web_contents) {
-      return window;
-    }
-  }
-  return nullptr;
+  VivaldiBrowserWindow* vivaldi_window = nullptr;
+  ForEachCurrentAndNewBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        VivaldiBrowserWindow* window =
+            static_cast<VivaldiBrowserWindow*>(browser->GetWindow());
+        if (window->web_contents() == web_contents) {
+          vivaldi_window = window;
+          return false;  // stop iterating
+        }
+        return true;  // continue iterating
+      });
+  return vivaldi_window;
 }
 
 Browser* FindBrowserWithTab(const content::WebContents* web_contents) {
@@ -71,22 +78,19 @@ Browser* FindBrowserWithNonTabContent(
   return browser;
 }
 
-Browser* FindBrowserByWindowId(SessionID::id_type window_id) {
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->session_id().id() == window_id) {
-      return browser->window() ? browser : nullptr;
-    }
-  }
-  return nullptr;
+Browser* FindBrowserByWindowId(int32_t window_id) {
+  return chrome::FindBrowserWithID(SessionID::FromSerializedValue(window_id));
 }
 
 int GetBrowserCountOfType(Browser::Type type) {
   int count = 0;
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->type() == type) {
-      count++;
-    }
-  }
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->GetType() == type) {
+          count++;
+        }
+        return true;
+      });
   return count;
 }
 

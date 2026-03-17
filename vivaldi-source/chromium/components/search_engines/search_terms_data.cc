@@ -165,3 +165,7 @@ std::string SearchTermsData::GetMailRUReferralID() const {
 size_t SearchTermsData::EstimateMemoryUsage() const {
   return 0;
 }
+
+std::string_view SearchTermsData::VivaldiGetKagiToken() const {
+  return "";
+}

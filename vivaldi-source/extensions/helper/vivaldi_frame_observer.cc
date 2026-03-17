@@ -44,8 +44,8 @@ void VivaldiFrameObserver::RenderFrameCreated(
     return;
   }
 
-  auto *panel_helper =
-    extensions::VivaldiPanelHelper::FromWebContents(web_contents());
+  auto* panel_helper =
+      extensions::VivaldiPanelHelper::FromWebContents(web_contents());
 
   if (!panel_helper) {
     return;

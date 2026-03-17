@@ -10,22 +10,28 @@
 #include "chrome/common/importer/importer_bridge.h"
 #include "ui/base/l10n/l10n_util.h"
 
-// Passed by value any result from a call inside import or errorcode if unsuccessful
-template<typename T> using ImportValue = base::expected<T, int>;
+// Passed by value any result from a call inside import or errorcode if
+// unsuccessful
+template <typename T>
+using ImportValue = base::expected<T, int>;
 
 // Opaque result with no carried value.
 using ImportResult = ImportValue<void>;
 
 namespace import_result {
 
-inline ImportResult Success() { return base::ok(); }
+inline ImportResult Success() {
+  return base::ok();
+}
 inline ImportResult Error(int message_id) {
   return base::unexpected{message_id};
 }
 
-template<typename T>
-inline ImportValue<T> Success(const T&& v) { return base::ok(v); }
-template<typename T>
+template <typename T>
+inline ImportValue<T> Success(const T&& v) {
+  return base::ok(v);
+}
+template <typename T>
 inline ImportValue<T> Error(int message_id) {
   return base::unexpected{message_id};
 }
@@ -41,6 +47,6 @@ inline void NotifyBridge(const ImportResult& r,
   }
 }
 
-} // namespace import_result
+}  // namespace import_result
 
 #endif  // CHROME_UTILITY_IMPORTER_IMPORT_RESULT_H_

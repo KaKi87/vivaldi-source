@@ -6,70 +6,73 @@
 #define SERVICES_NETWORK_PUBLIC_CPP_LOCAL_NETWORK_ACCESS_CHECK_RESULT_H_
 
 #include <iosfwd>
+#include <optional>
+#include <string_view>
 
 #include "base/component_export.h"
-#include "base/strings/string_piece_forward.h"
 #include "services/network/public/mojom/cors.mojom-forward.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace network {
 
 // These values are persisted to logs. Entries should not be renumbered and
 // numeric values should never be reused.
+//
+// Please keep in sync with "LocalNetworkAccessCheckResult" in
+// src/tools/metrics/histograms/metadata/security/enums.xml.
+//
+// LINT.IfChange(LocalNetworkAccessCheckResult)
 enum class LocalNetworkAccessCheckResult {
   // Request is allowed because it is missing a client security state.
   kAllowedMissingClientSecurityState = 0,
 
-  // Not a local network request: the resource address space is no less
+  // Not a private network request: the resource address space is no less
   // public than the client's.
   kAllowedNoLessPublic = 1,
 
-  // Local network request: allowed because policy is `kAllow`.
+  // Private network request: allowed because policy is `kAllow`.
   kAllowedByPolicyAllow = 2,
 
-  // Local network request: allowed because policy is `kWarn`.
+  // Private network request: allowed because policy is `kWarn`.
   kAllowedByPolicyWarn = 3,
 
   // URL loader options include `kURLLoadOptionBlockLocalRequest` and the
   // resource address space is not `kPublic`.
   kBlockedByLoadOption = 4,
 
-  // Local network request: blocked because policy is `kBlock`.
+  // Private network request: blocked because policy is `kBlock`.
   kBlockedByPolicyBlock = 5,
 
-  // Request carries a `target_ip_address_space` that matches the resource
-  // address space.
-  kAllowedByTargetIpAddressSpace = 6,
-
-  // Request carries a `target_ip_address_space` that differs from the actual
-  // resource address space. This may be indicative of a DNS rebinding attack.
-  kBlockedByTargetIpAddressSpace = 7,
-
-  // Local network request: blocked because `target_ip_address_space` is
-  // `kUnknown` and policy is `kPreflightWarn`.
-  kBlockedByPolicyPreflightWarn = 8,
-
-  // Local network request: blocked because `target_ip_address_space` is
-  // `kUnknown` and policy is `kPreflightBlock`.
-  kBlockedByPolicyPreflightBlock = 9,
-
-  // The result should have instead been `kBlockedByTargetIpAddressSpace` or
-  // `kBlockedByInconsistentIpAddressSpace`, but the policy is `kPreflightWarn`
-  // so the request was allowed.
-  kAllowedByPolicyPreflightWarn = 10,
+  // Deleted
+  //
+  // kAllowedByTargetIpAddressSpace = 6,
+  // kBlockedByTargetIpAddressSpace = 7,
+  // kBlockedByPolicyPreflightWarn = 8,
+  // kBlockedByPolicyPreflightBlock = 9,
+  // kAllowedByPolicyPreflightWarn = 10,
 
   // Request connected to two different IP address spaces for the same response.
   kBlockedByInconsistentIpAddressSpace = 11,
 
-  // Local network request: allowed because same origin.
+  // Private network request: allowed because same origin.
   kAllowedPotentiallyTrustworthySameOrigin = 12,
 
+  // Local network access request: blocked unless user grants permission.
+  kLNAPermissionRequired = 13,
+
+  // Local network access request: allowed with warning in devtools.
+  kLNAAllowedByPolicyWarn = 14,
+
+  // Request carries a `target_ip_address_space` that did not match the ip
+  // address that served the request.
+  kBlockedByRequiredIpAddressSpaceMismatch = 15,
+
   // Required for UMA histogram logging.
-  kMaxValue = kAllowedPotentiallyTrustworthySameOrigin,
+  kMaxValue = kBlockedByRequiredIpAddressSpaceMismatch,
 };
+// LINT.ThenChange(//tools/metrics/histograms/metadata/security/enums.xml:LocalNetworkAccessCheckResult)
 
 // Returns a human-readable string representing `result`, suitable for logging.
-base::StringPiece COMPONENT_EXPORT(NETWORK_CPP)
+std::string_view COMPONENT_EXPORT(NETWORK_CPP)
     LocalNetworkAccessCheckResultToStringPiece(
         LocalNetworkAccessCheckResult result);
 
@@ -82,7 +85,7 @@ std::ostream& operator<<(std::ostream& out,
 
 // If `result` indicates that the request should be blocked, returns the
 // corresponding `CorsError` enum value. Otherwise returns `nullopt`.
-absl::optional<mojom::CorsError> COMPONENT_EXPORT(NETWORK_CPP)
+std::optional<mojom::CorsError> COMPONENT_EXPORT(NETWORK_CPP)
     LocalNetworkAccessCheckResultToCorsError(
         LocalNetworkAccessCheckResult result);
 

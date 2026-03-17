@@ -127,7 +127,7 @@ struct ActivationResults {
 
   bool IsDocumentDecision(RuleDecision decision) const;
 };
-inline constexpr ActivationResults kEmptyActivationResults;
+inline constexpr ActivationResults kEmptyActivationResults{};
 
 }  // namespace adblock_filter
 

@@ -16,11 +16,10 @@
 #import "ios/chrome/browser/default_browser/model/features.h"
 #import "ios/chrome/browser/default_browser/model/utils.h"
 #import "ios/chrome/browser/default_browser/model/utils_test_support.h"
-#import "ios/chrome/browser/default_promo/ui_bundled/post_default_abandonment/features.h"
+#import "ios/chrome/browser/default_browser/promo/post_default_abandonment/public/features.h"
 #import "ios/chrome/browser/dom_distiller/model/distiller_service_factory.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
 #import "ios/chrome/browser/promos_manager/model/constants.h"
-#import "ios/chrome/browser/promos_manager/model/features.h"
 #import "ios/chrome/browser/promos_manager/model/mock_promos_manager.h"
 #import "ios/chrome/browser/promos_manager/model/promos_manager_factory.h"
 #import "ios/chrome/browser/reader_mode/model/features.h"
@@ -146,7 +145,7 @@ class DefaultBrowserPromoSceneAgentTest : public PlatformTest {
             GetApplicationContext()->GetSystemIdentityManager());
     system_identity_manager->AddIdentity(identity);
     AuthenticationServiceFactory::GetForProfile(profile_.get())
-        ->SignIn(identity, signin_metrics::AccessPoint::kUnknown);
+        ->SignIn(identity, signin_metrics::AccessPoint::kStartPage);
   }
 
   void SimulatePostDeviceRestore() {

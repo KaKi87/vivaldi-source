@@ -170,8 +170,8 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
         mWcax = getWebContentsAccessibility();
 
         // Empty map to imply no throttle delay for events.
-        Map<Integer, Integer> TestingThrottleDelays = new HashMap<>();
-        mWcax.setThrottleDelayForTesting(TestingThrottleDelays);
+        Map<Integer, Integer> testingThrottleDelays = new HashMap<>();
+        mWcax.setThrottleDelayForTesting(testingThrottleDelays);
 
         mNodeProvider = getAccessibilityNodeProvider();
 
@@ -305,18 +305,36 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
     }
 
     /**
-     * Helper method to block until findNodeMatching() returns a valid node matching
-     * the given criteria. Returns the virtual view ID of the matching node, if found, and
-     * asserts if not.
+     * Helper method to block until findNodeMatching() returns a valid node matching the given
+     * criteria. Returns the virtual view ID of the matching node, if found, and asserts if not.
      */
     public <T> int waitForNodeMatching(
             AccessibilityContentShellTestUtils.AccessibilityNodeInfoMatcher<T> matcher, T element) {
+        return waitForNodeMatching(
+                matcher,
+                element,
+                CriteriaHelper.DEFAULT_MAX_TIME_TO_POLL,
+                CriteriaHelper.DEFAULT_POLLING_INTERVAL);
+    }
+
+    /**
+     * Helper method to block until findNodeMatching() returns a valid node matching the given
+     * criteria. Additionally allows specifying timeout and check interval. Returns the virtual view
+     * ID of the matching node, if found, and asserts if not.
+     */
+    public <T> int waitForNodeMatching(
+            AccessibilityContentShellTestUtils.AccessibilityNodeInfoMatcher<T> matcher,
+            T element,
+            long maxTimeoutMs,
+            long checkIntervalMs) {
         CriteriaHelper.pollUiThread(
                 () -> {
                     Criteria.checkThat(
                             findNodeMatching(mWcax.getRootIdForTesting(), matcher, element),
                             Matchers.not(View.NO_ID));
-                });
+                },
+                maxTimeoutMs,
+                checkIntervalMs);
 
         int virtualViewId =
                 ThreadUtils.runOnUiThreadBlocking(
@@ -466,7 +484,7 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
         AccessibilityNodeInfoCompat nodeInfo = createAccessibilityNodeInfoBlocking(rootNodevvId);
         builder.append(
                 AccessibilityNodeInfoUtils.toString(
-                        nodeInfo, includeScreenSizeDependentAttributes));
+                        mWcax, nodeInfo, includeScreenSizeDependentAttributes));
 
         builder.append(getLabeledByString(rootNodevvId));
 
@@ -502,7 +520,7 @@ public class AccessibilityContentShellActivityTestRule extends ContentShellActiv
                 .append(indent)
                 .append(
                         AccessibilityNodeInfoUtils.toString(
-                                node, includeScreenSizeDependentAttributes));
+                                mWcax, node, includeScreenSizeDependentAttributes));
         builder.append(getLabeledByString(nodeId));
 
         for (int j = 0; j < node.getChildCount(); ++j) {

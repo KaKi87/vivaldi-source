@@ -48,7 +48,7 @@ const char kVivaldiUpdateURL[] = "vuu";
 
 #if BUILDFLAG(IS_WIN)
 const char kCleanShutdown[] = "do-clean-shutdown";
-#endif //IS_WIN
+#endif  // IS_WIN
 
 // Identifies which process to inject a custom V8 snapshot into. This is the
 // main renderer on Windows and Mac and when --no-zygote is used on Linux.

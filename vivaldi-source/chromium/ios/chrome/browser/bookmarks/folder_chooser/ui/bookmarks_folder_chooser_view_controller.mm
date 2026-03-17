@@ -8,7 +8,6 @@
 #import <vector>
 
 #import "base/check.h"
-#import "base/containers/contains.h"
 #import "base/metrics/user_metrics.h"
 #import "base/metrics/user_metrics_action.h"
 #import "base/notreached.h"
@@ -227,6 +226,9 @@ using bookmarks::BookmarkNode;
 
 - (BOOL)tableView:(UITableView*)tableView
     shouldHighlightRowAtIndexPath:(NSIndexPath*)indexPath {
+  if (self.mutator.UIDisabled) {
+    return NO;
+  }
   NSInteger sectionID =
       [self.tableViewModel sectionIdentifierForSectionIndex:indexPath.section];
   if (sectionID == SectionIdentifierAccountBookmarks) {
@@ -238,6 +240,9 @@ using bookmarks::BookmarkNode;
 
 - (BOOL)tableView:(UITableView*)tableView
     canPerformPrimaryActionForRowAtIndexPath:(NSIndexPath*)indexPath {
+  if (self.mutator.UIDisabled) {
+    return NO;
+  }
   NSInteger sectionID =
       [self.tableViewModel sectionIdentifierForSectionIndex:indexPath.section];
   if (sectionID == SectionIdentifierAccountBookmarks) {
@@ -250,6 +255,9 @@ using bookmarks::BookmarkNode;
 - (void)tableView:(UITableView*)tableView
     performPrimaryActionForRowAtIndexPath:(NSIndexPath*)indexPath {
   [tableView deselectRowAtIndexPath:indexPath animated:YES];
+  if (self.mutator.UIDisabled) {
+    return;
+  }
 
   size_t folderIndex = indexPath.row;
   NSInteger sectionID =
@@ -318,6 +326,10 @@ using bookmarks::BookmarkNode;
 #pragma mark - Actions
 
 - (void)done:(id)sender {
+  if (self.mutator.UIDisabled) {
+    return;
+  }
+  self.mutator.UIDisabled = YES;
   if (_currentlyShowingSearchResults) {
     base::RecordAction(
         base::UserMetricsAction("MobileBookmarksFolderChooserDoneSearch"));
@@ -332,6 +344,10 @@ using bookmarks::BookmarkNode;
 }
 
 - (void)cancel:(id)sender {
+  if (self.mutator.UIDisabled) {
+    return;
+  }
+  self.mutator.UIDisabled = YES;
   base::RecordAction(
       base::UserMetricsAction("MobileBookmarksFolderChooserCanceled"));
   [self.delegate bookmarksFolderChooserViewControllerDidCancel:self];
@@ -566,13 +582,22 @@ using bookmarks::BookmarkNode;
   // Add constraints with the superview as adding it to the table view adds it
   // to a scroll view.
   UIView* superview = self.tableView.superview;
-  [NSLayoutConstraint activateConstraints:@[
-    [_scrim.leadingAnchor constraintEqualToAnchor:superview.leadingAnchor],
-    [_scrim.trailingAnchor constraintEqualToAnchor:superview.trailingAnchor],
-    [_scrim.topAnchor constraintEqualToAnchor:self.navigationController
-                                                  .navigationBar.bottomAnchor],
-    [_scrim.bottomAnchor constraintEqualToAnchor:superview.bottomAnchor],
-  ]];
+  if (@available(iOS 26, *)) {
+    // On iOS 26+, the search bar won't be obscured by the scrim view even when
+    // the scrim view's top constraint is aligned with the superview's top,
+    // likely due to changes in UIKit's layout system or view hierarchy
+    // handling.
+    AddSameConstraints(_scrim, superview);
+  } else {
+    [NSLayoutConstraint activateConstraints:@[
+      [_scrim.leadingAnchor constraintEqualToAnchor:superview.leadingAnchor],
+      [_scrim.trailingAnchor constraintEqualToAnchor:superview.trailingAnchor],
+      [_scrim.topAnchor
+          constraintEqualToAnchor:self.navigationController.navigationBar
+                                      .bottomAnchor],
+      [_scrim.bottomAnchor constraintEqualToAnchor:superview.bottomAnchor],
+    ]];
+  }
   [self.tableView layoutIfNeeded];
   self.tableView.accessibilityElementsHidden = YES;
   self.tableView.scrollEnabled = NO;

@@ -127,6 +127,45 @@ if (!is_ios) {
       ]
     }
 
+    update_template_instance("//chrome/test:browser_tests") {
+      deps -= [
+        "//chrome/browser/default_browser:browser_tests",
+        "//chrome/browser/ui/startup/default_browser_prompt",
+      ]
+    }
+
+    update_template_instance("//chrome/test:interactive_ui_tests") {
+      deps -= [
+        "//chrome/browser/ui/startup/default_browser_prompt:interactive_ui_tests",
+        "//chrome/browser/ui/webui/default_browser:pixel_tests"
+      ]
+    }
+
+    update_template_instance("//chrome/test:unit_tests") {
+      deps -= [
+        "../browser/default_browser",
+        "../browser/default_browser:test_support",
+        "//chrome/browser/default_browser:unit_tests",
+        "//chrome/browser/ui/startup/default_browser_prompt:unit_tests",
+      ]
+      if (is_win || is_mac) {
+        deps -= [
+          "//chrome/browser/ui/startup/default_browser_prompt/pin_infobar:unit_tests",
+        ]
+      }
+    }
+
+    update_target("//chrome/browser/ui/toolbar:unit_tests") {
+      deps -= [
+        "//chrome/browser/ui/startup/default_browser_prompt",
+      ]
+    }
+
+    update_template_instance("//chrome/test/data/webui:build_grd") {
+      deps -= [ "default_browser:build_grdp" ]
+      grdp_files -= [ "$target_gen_dir/default_browser/resources.grdp" ]
+    }
+
     if(is_linux) {
       update_template_instance("//chrome/test:browser_tests") {
         data_deps -= [ "//third_party/screen-ai:screen_ai" ]

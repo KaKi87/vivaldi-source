@@ -5,11 +5,13 @@
 package org.chromium.chrome.browser.tasks;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.incognito.reauth.IncognitoReauthControllerImpl.isFromUpdate;
 
 import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Point;
 import android.os.Bundle;
+import android.os.PersistableBundle;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
 
@@ -39,7 +41,6 @@ import org.chromium.chrome.browser.url_constants.UrlConstantResolverFactory;
 import org.chromium.chrome.browser.util.BrowserUiUtils;
 import org.chromium.chrome.browser.util.BrowserUiUtils.ModuleTypeOnStartAndNtp;
 import org.chromium.components.cached_flags.IntCachedFeatureParam;
-import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.content_public.browser.LoadUrlParams;
 
@@ -132,9 +133,12 @@ public final class ReturnToChromeUtil {
 
     /** Returns whether should show a NTP as the home surface at startup. */
     public static boolean shouldShowNtpAsHomeSurfaceAtStartup(
-            Intent intent, Bundle bundle, ChromeInactivityTracker inactivityTracker) {
+            Intent intent,
+            Bundle bundle,
+            PersistableBundle persistableBundle,
+            ChromeInactivityTracker inactivityTracker) {
         // If the current session is due to recreated, don't show a NTP homepage.
-        if (isFromRecreate(bundle)) {
+        if (isFromRecreate(bundle) || isFromUpdate(persistableBundle)) {
             return false;
         }
 
@@ -271,8 +275,10 @@ public final class ReturnToChromeUtil {
                 homeSurfaceTracker.updateHomeSurfaceAndTrackingTabs(lastActiveTab, null);
             }
         } else {
+            UrlConstantResolver resolver =
+                    UrlConstantResolverFactory.getForProfile(currentTabModel.getProfile());
             int indexOfFirstNtp =
-                    TabModelUtils.getTabIndexByUrl(currentTabModel, UrlConstants.NTP_URL);
+                    TabModelUtils.getTabIndexByUrl(currentTabModel, resolver.getNtpUrl());
             if (indexOfFirstNtp != TabModel.INVALID_TAB_INDEX) {
                 Tab ntpTab = currentTabModel.getTabAt(indexOfFirstNtp);
                 assert indexOfFirstNtp != index;

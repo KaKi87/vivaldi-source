@@ -23,4 +23,4 @@ bool CanTouchTheTab(const extensions::Extension* extension,
 
 extensions::Event::VivFilter SuggestFiltering(content::WebContents* contents);
 }  // namespace vivaldi
-#endif // COMPONENTS_EXTENSIONS_VIVALDI_PANEL_UTILS_H_
+#endif  // COMPONENTS_EXTENSIONS_VIVALDI_PANEL_UTILS_H_

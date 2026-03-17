@@ -502,6 +502,22 @@ bool UserActionIsRequiredToHaveTabSyncWork(syncer::SyncService* sync_service) {
   NOTREACHED() << "Should not be called in remote tabs.";
 }
 
+- (void)closeOtherTabsButtonTapped:(id)sender {
+  NOTREACHED() << "Should not be called in remote tabs.";
+}
+
+- (void)createNewTabGroupButtonTapped:(id)sender {
+  NOTREACHED() << "Should not be called in remote tabs.";
+}
+
+- (void)deleteBrowsingDataButtonTapped:(id)sender {
+  NOTREACHED() << "Should not be called in remote tabs.";
+}
+
+- (void)pageActionMenuEntrypointTapped:(id)sender {
+  NOTREACHED() << "Should not be called in remote tabs.";
+}
+
 #pragma mark - TabGridActivityObserver
 
 - (void)updateLastActiveTabPage:(TabGridPage)page {

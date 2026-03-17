@@ -58,8 +58,8 @@
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/settings_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_navigation_controller.h"
@@ -131,7 +131,7 @@ using vivaldi::IsVivaldiRunning;
   // The mediator that updates the sign-in promo view.
   SigninPromoViewMediator* _signinPromoViewMediator;
   // Handler for sign-in commands.
-  id<ApplicationCommands> _applicationCommandsHandler;
+  id<SceneCommands> _sceneHandler;
   // Authentication Service to retrieve the user's signed-in state.
   raw_ptr<AuthenticationService> _authService;
   // Observer for auth service status changes.
@@ -172,8 +172,8 @@ using vivaldi::IsVivaldiRunning;
                                                faviconLoader:faviconLoader
                                              listItemFactory:itemFactory];
   // Initialize services.
-  _applicationCommandsHandler = HandlerForProtocol(
-      self.browser->GetCommandDispatcher(), ApplicationCommands);
+  _sceneHandler =
+      HandlerForProtocol(self.browser->GetCommandDispatcher(), SceneCommands);
   _authService = AuthenticationServiceFactory::GetForProfile(profile);
   _authServiceObserverBridge =
       std::make_unique<AuthenticationServiceObserverBridge>(_authService, self);
@@ -192,15 +192,6 @@ using vivaldi::IsVivaldiRunning;
   self.tableViewController.menuProvider = self;
 
   itemFactory.accessibilityDelegate = self.tableViewController;
-
-  // Add the "Done" button and hook it up to `stop`.
-  UIBarButtonItem* dismissButton = [[UIBarButtonItem alloc]
-      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                           target:self
-                           action:@selector(dismissButtonTapped)];
-  [dismissButton
-      setAccessibilityIdentifier:kTableViewNavigationDismissButtonId];
-  self.tableViewController.navigationItem.rightBarButtonItem = dismissButton;
 
   // Present RecentTabsNavigationController.
   self.navigationController = [[TableViewNavigationController alloc]
@@ -267,11 +258,6 @@ using vivaldi::IsVivaldiRunning;
 
   [super start];
   self.started = YES;
-}
-
-- (void)dismissButtonTapped {
-  base::RecordAction(base::UserMetricsAction("MobileReadingListClose"));
-  [_delegate closeReadingList];
 }
 
 - (void)stop {
@@ -821,7 +807,7 @@ using vivaldi::IsVivaldiRunning;
       initWithBaseViewController:self.tableViewController
                          browser:self.browser
                           params:params
-                      originView:view];
+                      sourceItem:view];
   [self.sharingCoordinator start];
 }
 

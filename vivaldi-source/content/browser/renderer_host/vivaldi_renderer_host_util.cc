@@ -12,10 +12,9 @@ using content::FrameTreeNode;
 
 namespace vivaldi {
 
-gfx::Point GetVivaldiUIOffset(
-    content::RenderWidgetHostImpl* parent_host,
-    content::RenderWidgetHostImpl* child_host,
-    float device_scale_factor) {
+gfx::Point GetVivaldiUIOffset(content::RenderWidgetHostImpl* parent_host,
+                              content::RenderWidgetHostImpl* child_host,
+                              float device_scale_factor) {
   FrameTree* tree = child_host->frame_tree();
   FrameTreeNode* focused_node = tree->GetFocusedFrame();
   content::RenderFrameHostImpl* child =
@@ -32,11 +31,10 @@ gfx::Point GetVivaldiUIOffset(
                   parent->AccessibilityGetViewBounds().origin().y();
 
     gfx::Point vivaldi_offset = gfx::ScaleToRoundedPoint(
-        gfx::Point(xOffset, yOffset), 1.f-device_scale_factor);
+        gfx::Point(xOffset, yOffset), 1.f - device_scale_factor);
     return vivaldi_offset;
   }
   return gfx::Point(0, 0);
 }
-
 
 }  // namespace vivaldi

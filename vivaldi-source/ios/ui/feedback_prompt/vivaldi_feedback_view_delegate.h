@@ -5,7 +5,7 @@
 
 #import <Foundation/Foundation.h>
 
-@protocol VivaldiFeedbackViewDelegate<NSObject>
+@protocol VivaldiFeedbackViewDelegate <NSObject>
 
 @optional
 - (void)feedbackViewWillDismiss;

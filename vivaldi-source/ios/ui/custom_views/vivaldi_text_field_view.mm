@@ -21,7 +21,8 @@ namespace {
 const UIEdgeInsets textFieldPadding = UIEdgeInsetsMake(0.0, 12.0, 0.0, 0.0);
 // Padding for the delete button
 // In order - Top, Leading, Bottom, Trailing
-const UIEdgeInsets deleteTextButtonPadding = UIEdgeInsetsMake(0.0, 8.0, 0.0, 12.0);
+const UIEdgeInsets deleteTextButtonPadding =
+    UIEdgeInsetsMake(0.0, 8.0, 0.0, 12.0);
 // Padding for the underline view on the textfield
 // In order - Top, Leading, Bottom, Trailing
 const UIEdgeInsets underlinePadding = UIEdgeInsetsMake(2.0, 12.0, 0.0, 0.0);
@@ -32,19 +33,19 @@ const UIEdgeInsets underlinePaddingiOS26 =
 const CGSize underlineSize = CGSizeMake(0.0, 1.0);
 // Delete button size
 const CGSize deleteButtonSize = CGSizeMake(20, 20);
-}
+}  // namespace
 
-@interface VivaldiTextFieldView()<UITextFieldDelegate>
+@interface VivaldiTextFieldView () <UITextFieldDelegate>
 // The textfield that backs the view
-@property(nonatomic,weak) UITextField* textField;
+@property(nonatomic, weak) UITextField* textField;
 // Textfield text clear button
-@property(nonatomic,weak) UIButton* deleteTextButton;
+@property(nonatomic, weak) UIButton* deleteTextButton;
 // The underline view.
-@property(nonatomic,weak) UIView* underlineView;
+@property(nonatomic, weak) UIView* underlineView;
 // Boolean to keep track whether current instance corresponding URL.
-@property(nonatomic,assign) BOOL isURLMode;
+@property(nonatomic, assign) BOOL isURLMode;
 // Validation type for current instance of text field.
-@property(nonatomic,assign) URLValidationType validationType;
+@property(nonatomic, assign) URLValidationType validationType;
 @end
 
 @implementation VivaldiTextFieldView
@@ -74,7 +75,7 @@ const CGSize deleteButtonSize = CGSizeMake(20, 20);
   // Textfield
   UITextField* textField = [UITextField new];
   _textField = textField;
-  [textField setDelegate: self];
+  [textField setDelegate:self];
   textField.adjustsFontForContentSizeCategory = YES;
   textField.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   textField.backgroundColor = UIColor.clearColor;
@@ -92,8 +93,7 @@ const CGSize deleteButtonSize = CGSizeMake(20, 20);
   // Delete Text Button
   UIButton* deleteTextButton = [UIButton new];
   _deleteTextButton = deleteTextButton;
-  [deleteTextButton setImage:[UIImage
-                              systemImageNamed:vTextfieldDeleteIcon]
+  [deleteTextButton setImage:[UIImage systemImageNamed:vTextfieldDeleteIcon]
                     forState:UIControlStateNormal];
   [deleteTextButton setTintColor:UIColor.vSystemGray];
   [deleteTextButton addTarget:self
@@ -132,7 +132,8 @@ const CGSize deleteButtonSize = CGSizeMake(20, 20);
 }
 
 #pragma mark - ACTIONS
-/// Remove the text from the textfield and hide the delete button when delete button is tapped.
+/// Remove the text from the textfield and hide the delete button when delete
+/// button is tapped.
 - (void)handleDeleteTextButtonTap {
   self.textField.text = nil;
   [self hideDeleteTextButton];
@@ -141,10 +142,10 @@ const CGSize deleteButtonSize = CGSizeMake(20, 20);
 #pragma mark - UITextFieldDelegate
 - (BOOL)textField:(UITextField*)textField
     shouldChangeCharactersInRange:(NSRange)range
-    replacementString:(NSString*)string {
-    NSString *updatedText = [textField.text
-                             stringByReplacingCharactersInRange:range
-                             withString:string];
+                replacementString:(NSString*)string {
+  NSString* updatedText =
+      [textField.text stringByReplacingCharactersInRange:range
+                                              withString:string];
   if (self.isURLMode) {
     [self validateInput:updatedText];
   }
@@ -152,13 +153,13 @@ const CGSize deleteButtonSize = CGSizeMake(20, 20);
   return YES;
 }
 
--(void)textFieldDidBeginEditing:(UITextField *)textField {
+- (void)textFieldDidBeginEditing:(UITextField*)textField {
   if ([self.textField hasText] && self.deleteTextButton.alpha == 0) {
     [self showDeleteTextButton];
   }
 }
 
--(void)textFieldDidEndEditing:(UITextField *)textField {
+- (void)textFieldDidEndEditing:(UITextField*)textField {
   [self hideDeleteTextButton];
 }
 
@@ -175,16 +176,18 @@ const CGSize deleteButtonSize = CGSizeMake(20, 20);
 
 /// Make delete button visible.
 - (void)showDeleteTextButton {
-  [UIView animateWithDuration:0.3 animations:^{
-    [self.deleteTextButton setAlpha:1.0];
-  }];
+  [UIView animateWithDuration:0.3
+                   animations:^{
+                     [self.deleteTextButton setAlpha:1.0];
+                   }];
 }
 
 /// Make delete button hidden.
 - (void)hideDeleteTextButton {
-  [UIView animateWithDuration:0.3 animations:^{
-    [self.deleteTextButton setAlpha:0];
-  }];
+  [UIView animateWithDuration:0.3
+                   animations:^{
+                     [self.deleteTextButton setAlpha:0];
+                   }];
 
   // If 'URL' mode, reset the underline when there's no text on the textfield.
   [self highlightUnderlineWithValidInput:YES];
@@ -212,8 +215,8 @@ const CGSize deleteButtonSize = CGSizeMake(20, 20);
   // If scheme is enforced to have with the URL, go through additional step.
   // At this moment only adding ad and tracker blocker sources enforce it.
   if (_validateScheme)
-    isValidInput = isValidInput &&
-        [VivaldiGlobalHelpers urlStringHasHTTPorHTTPS:input];
+    isValidInput =
+        isValidInput && [VivaldiGlobalHelpers urlStringHasHTTPorHTTPS:input];
 
   [self highlightUnderlineWithValidInput:isValidInput];
 }
@@ -224,9 +227,10 @@ const CGSize deleteButtonSize = CGSizeMake(20, 20);
                     duration:0.3
                      options:UIViewAnimationOptionTransitionCrossDissolve
                   animations:^{
-    weakSelf.underlineView.backgroundColor =
-          isValidInput ? UIColor.quaternaryLabelColor : UIColor.vSystemRed;
-  }
+                    weakSelf.underlineView.backgroundColor =
+                        isValidInput ? UIColor.quaternaryLabelColor
+                                     : UIColor.vSystemRed;
+                  }
                   completion:nil];
 }
 
@@ -243,8 +247,7 @@ const CGSize deleteButtonSize = CGSizeMake(20, 20);
 
 - (void)setURLMode {
   self.isURLMode = YES;
-  self.textField.autocapitalizationType =
-    UITextAutocapitalizationTypeNone;
+  self.textField.autocapitalizationType = UITextAutocapitalizationTypeNone;
   self.textField.keyboardType = UIKeyboardTypeURL;
 }
 

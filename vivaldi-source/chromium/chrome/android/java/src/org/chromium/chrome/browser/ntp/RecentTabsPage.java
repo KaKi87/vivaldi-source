@@ -15,7 +15,8 @@ import android.view.ViewGroup;
 import android.widget.ExpandableListView;
 
 import org.chromium.base.Callback;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
@@ -81,8 +82,8 @@ public class RecentTabsPage
     /** Whether {@link #mView} is attached to the application window. */
     private boolean mIsAttachedToWindow;
 
-    private final ObservableSupplier<Integer> mTabStripHeightSupplier;
-    private final ObservableSupplier<EdgeToEdgeController> mEdgeToEdgeSupplier;
+    private final NonNullObservableSupplier<Integer> mTabStripHeightSupplier;
+    private final MonotonicObservableSupplier<EdgeToEdgeController> mEdgeToEdgeSupplier;
     private final Callback<Integer> mTabStripHeightChangeCallback;
     private @Nullable SmoothTransitionDelegate mSmoothTransitionDelegate;
     private EdgeToEdgePadAdjuster mPadAdjuster;
@@ -107,8 +108,8 @@ public class RecentTabsPage
             RecentTabsManager recentTabsManager,
             NativePageNavigationDelegate navigationDelegate,
             BrowserControlsStateProvider browserControlsStateProvider,
-            ObservableSupplier<Integer> tabStripHeightSupplier,
-            ObservableSupplier<EdgeToEdgeController> edgeToEdgeSupplier) {
+            NonNullObservableSupplier<Integer> tabStripHeightSupplier,
+            MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeSupplier) {
         mActivity = activity;
         mRecentTabsManager = recentTabsManager;
         Resources resources = activity.getResources();
@@ -153,7 +154,7 @@ public class RecentTabsPage
                                 !ChromeApplicationImpl.isVivaldi() ? newHeight : 0, // Vivaldi VAB-9753
                                 mView.getPaddingRight(),
                                 mView.getPaddingBottom());
-        mTabStripHeightSupplier.addObserver(mTabStripHeightChangeCallback);
+        mTabStripHeightSupplier.addSyncObserverAndPostIfNonNull(mTabStripHeightChangeCallback);
         mEdgeToEdgeSupplier = edgeToEdgeSupplier;
         mPadAdjuster =
                 EdgeToEdgeControllerFactory.createForViewAndObserveSupplier(

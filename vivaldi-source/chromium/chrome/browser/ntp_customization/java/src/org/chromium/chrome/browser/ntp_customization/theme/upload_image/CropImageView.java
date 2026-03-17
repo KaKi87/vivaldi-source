@@ -11,16 +11,17 @@ import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Matrix;
+import android.graphics.Point;
 import android.util.AttributeSet;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 
-import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.widget.AppCompatImageView;
 
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.ui.base.ViewUtils;
 
 /**
@@ -51,35 +52,24 @@ import org.chromium.ui.base.ViewUtils;
  */
 @NullMarked
 public class CropImageView extends AppCompatImageView {
-    private final Matrix mPortraitMatrix;
-    private final Matrix mLandscapeMatrix;
     private final Matrix mCurrentMatrix;
-    private final ScaleGestureDetector mScaleDetector;
-    private final GestureDetector mGestureDetector;
+    // A reusable float array to prevent array allocation during hot loops (onScroll/onScale).
     private final float[] mMatrixValues;
     private final int mInitialOrientation;
+    private final BackgroundImageInfo mImageInfo;
     private boolean mIsPortraitInitialized;
     private boolean mIsLandscapeInitialized;
     private boolean mIsScaled;
     private boolean mIsScrolled;
     private boolean mIsScreenRotated;
     private @Nullable Bitmap mBitmap;
-
-    private static class Dimensions {
-        final int mWidth;
-        final int mHeight;
-
-        Dimensions(int w, int h) {
-            this.mWidth = w;
-            this.mHeight = h;
-        }
-    }
+    private @Nullable ScaleGestureDetector mScaleDetector;
+    private @Nullable GestureDetector mGestureDetector;
 
     public CropImageView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
 
-        mPortraitMatrix = new Matrix();
-        mLandscapeMatrix = new Matrix();
+        mImageInfo = new BackgroundImageInfo(new Matrix(), new Matrix(), null, null);
         mCurrentMatrix = new Matrix();
         // A matrix object contains 9 values.
         mMatrixValues = new float[9];
@@ -90,7 +80,7 @@ public class CropImageView extends AppCompatImageView {
         mIsScreenRotated = false;
         mScaleDetector = new ScaleGestureDetector(context, new ScaleListener());
         mGestureDetector = new GestureDetector(context, new GestureListener());
-        mInitialOrientation = getResources().getConfiguration().orientation;
+        mInitialOrientation = getCurrentOrientation();
 
         setScaleType(ScaleType.MATRIX);
     }
@@ -117,14 +107,29 @@ public class CropImageView extends AppCompatImageView {
 
     /**
      * This is called when the view's size changes, which reliably happens on the first layout and
-     * after every orientation change.
+     * after every orientation change. onSizeChanged is the "source of truth" where the window size
+     * is updated.
      */
     @Override
     protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
         super.onSizeChanged(width, height, oldWidth, oldHeight);
-        if (width > 0 && height > 0) {
-            configureMatrixForCurrentOrientation(oldWidth, oldHeight);
+        if (width <= 0 || height <= 0) {
+            return;
         }
+
+        // By using the full window dimensions, we solve two issues:
+        //
+        // 1. Alignment with NTP Validation: The New Tab Page validates the matrix against the
+        //    full window size. If we calculated it using different values (ie: width and height
+        //    of onSizeChanged), the NTP's validator would "correct" it, causing the user's crop
+        //    to visibly "drift".
+        //
+        // 2. Full Background Coverage: The NTP background is drawn across the entire window,
+        //    and system UI (status bar, etc.) is rendered on top of it. This method guarantees
+        //    the background is always complete, so no gaps can be revealed as insets change.
+        Point windowSize = getCurrentWindowDimension();
+        mImageInfo.setWindowSize(getCurrentOrientation(), windowSize);
+        configureMatrixForCurrentOrientation(windowSize);
     }
 
     /**
@@ -138,7 +143,11 @@ public class CropImageView extends AppCompatImageView {
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        assertNonNull(mBitmap);
+        // This view will not handle touch events if the image is missing or the view is currently
+        // being destroyed.
+        if (mBitmap == null || mScaleDetector == null || mGestureDetector == null) {
+            return false;
+        }
 
         mScaleDetector.onTouchEvent(event);
         mGestureDetector.onTouchEvent(event);
@@ -150,51 +159,34 @@ public class CropImageView extends AppCompatImageView {
      * Ensures the matrix for the current orientation is initialized and then applies it to the
      * view.
      *
-     * @param oldViewWidth The width of the view before the size change.
-     * @param oldViewHeight The height of the view before the size change.
+     * @param windowSize The actual window dimensions for the current orientation.
      */
     @VisibleForTesting
-    void configureMatrixForCurrentOrientation(int oldViewWidth, int oldViewHeight) {
+    void configureMatrixForCurrentOrientation(Point windowSize) {
         assertNonNull(mBitmap);
 
         if (getWidth() == 0 || getHeight() == 0) {
             return;
         }
 
-        int orientation = getResources().getConfiguration().orientation;
+        int orientation = getCurrentOrientation();
         if (!mIsScreenRotated && orientation != mInitialOrientation) {
             mIsScreenRotated = true;
         }
 
-        // Ensure the correct matrix is initialized
-        if (orientation == Configuration.ORIENTATION_PORTRAIT) {
-            if (!mIsPortraitInitialized) {
-                calculateMatrixForUninitializedOrientation(
-                        mPortraitMatrix,
-                        Configuration.ORIENTATION_PORTRAIT,
-                        getWidth(),
-                        getHeight(),
-                        oldViewWidth,
-                        oldViewHeight);
-                mIsPortraitInitialized = true;
-            }
-            mCurrentMatrix.set(mPortraitMatrix);
-        } else {
-            if (!mIsLandscapeInitialized) {
-                calculateMatrixForUninitializedOrientation(
-                        mLandscapeMatrix,
-                        Configuration.ORIENTATION_LANDSCAPE,
-                        getWidth(),
-                        getHeight(),
-                        oldViewWidth,
-                        oldViewHeight);
-                mIsLandscapeInitialized = true;
-            }
-            mCurrentMatrix.set(mLandscapeMatrix);
+        // Lazy Initialization: Only calculates the matrix if the user hasn't visited this
+        // orientation for the current bitmap yet
+        if (!isOrientationInitialized(orientation)) {
+            calculateMatrixForUninitializedOrientation(
+                    mImageInfo.getMatrix(orientation), orientation, windowSize);
+            setOrientationInitialized(orientation);
         }
 
+        // Loads the saved state (Source of Truth) into the Workspace (Live Matrix)
+        mCurrentMatrix.set(mImageInfo.getMatrix(orientation));
+
         // Apply the matrix to this view and avoid blank space created by floating point issue.
-        checkBoundsAndApply();
+        checkBoundsAndApply(windowSize);
     }
 
     /**
@@ -202,41 +194,34 @@ public class CropImageView extends AppCompatImageView {
      *
      * @param resultMatrix The matrix to populate with the result.
      * @param targetOrientation The orientation for which to calculate a matrix.
-     * @param targetWidth The desired width for the new matrix's view.
-     * @param targetHeight The desired height for the new matrix's view.
-     * @param sourceWidth The width of the view in the "other" orientation.
-     * @param sourceHeight The height of the view in the "other" orientation.
+     * @param targetSize The known dimensions for the target orientation.
      */
     private void calculateMatrixForUninitializedOrientation(
-            Matrix resultMatrix,
-            int targetOrientation,
-            int targetWidth,
-            int targetHeight,
-            int sourceWidth,
-            int sourceHeight) {
+            Matrix resultMatrix, int targetOrientation, Point targetSize) {
         assertNonNull(mBitmap);
 
-        // Determine the state of the other orientation.
-        final boolean isPortraitMode = (targetOrientation == Configuration.ORIENTATION_PORTRAIT);
-        final boolean isOtherOrientationInitialized =
-                isPortraitMode ? mIsLandscapeInitialized : mIsPortraitInitialized;
-        final Matrix otherMatrix = isPortraitMode ? mLandscapeMatrix : mPortraitMatrix;
+        int sourceOrientation = getInverseOrientation(targetOrientation);
+        boolean isSourceInitialized = isOrientationInitialized(sourceOrientation);
 
-        // If the other orientation is initialized, use it to preserve the visual center point.
-        if (isOtherOrientationInitialized && sourceWidth > 0 && sourceHeight > 0) {
+        // If the user has already adjusted the image in the other orientation, use it to preserve
+        // the visual center point.
+        if (isSourceInitialized) {
+            Matrix sourceMatrix = mImageInfo.getMatrix(sourceOrientation);
+            Point sourceSize = getWindowSize(sourceOrientation);
+
             Matrix calculatedMatrix =
                     CropImageUtils.calculateMatrixFromSharedCenter(
-                            otherMatrix,
-                            targetWidth,
-                            targetHeight,
-                            sourceWidth,
-                            sourceHeight,
+                            sourceMatrix,
+                            targetSize.x,
+                            targetSize.y,
+                            sourceSize.x,
+                            sourceSize.y,
                             mBitmap);
             resultMatrix.set(calculatedMatrix);
         } else {
             // Otherwise, perform a standard center-crop.
             CropImageUtils.calculateInitialCenterCropMatrix(
-                    resultMatrix, targetWidth, targetHeight, mBitmap);
+                    resultMatrix, targetSize.x, targetSize.y, mBitmap);
         }
     }
 
@@ -252,32 +237,20 @@ public class CropImageView extends AppCompatImageView {
     private Matrix getMatrixForOrientation(int targetOrientation) {
         assertNonNull(mBitmap);
 
-        final boolean isTargetPortrait = (targetOrientation == Configuration.ORIENTATION_PORTRAIT);
-        final boolean isTargetInitialized =
-                isTargetPortrait ? mIsPortraitInitialized : mIsLandscapeInitialized;
-        final Matrix targetMatrix = isTargetPortrait ? mPortraitMatrix : mLandscapeMatrix;
-
         // Case 1: if the target matrix is already initialized.
-        if (isTargetInitialized) {
-            return new Matrix(targetMatrix);
+        if (isOrientationInitialized(targetOrientation)) {
+            return new Matrix(mImageInfo.getMatrix(targetOrientation));
         }
 
         // Case 2: if the target matrix is never initialized.
         Matrix resultMatrix = new Matrix();
-        Dimensions dimens = getDimensions(targetOrientation);
-
-        calculateMatrixForUninitializedOrientation(
-                resultMatrix,
-                targetOrientation,
-                dimens.mWidth,
-                dimens.mHeight,
-                getWidth(),
-                getHeight());
+        Point targetSize = getWindowSize(targetOrientation);
+        calculateMatrixForUninitializedOrientation(resultMatrix, targetOrientation, targetSize);
 
         // Before returning the newly calculated matrix, run it through the validator.
         // This cleans up any floating-point errors and guarantees the matrix is correct.
         CropImageUtils.validateMatrix(
-                resultMatrix, dimens.mWidth, dimens.mHeight, mBitmap, mMatrixValues);
+                resultMatrix, targetSize.x, targetSize.y, mBitmap, mMatrixValues);
 
         return resultMatrix;
     }
@@ -288,24 +261,22 @@ public class CropImageView extends AppCompatImageView {
      * This method is called after every user gesture.
      */
     private void saveCurrentMatrixToState() {
-        int orientation = getResources().getConfiguration().orientation;
-        if (orientation == Configuration.ORIENTATION_PORTRAIT) {
-            mPortraitMatrix.set(mCurrentMatrix);
-        } else {
-            mLandscapeMatrix.set(mCurrentMatrix);
-        }
+        int orientation = getCurrentOrientation();
+        mImageInfo.getMatrix(orientation).set(mCurrentMatrix);
     }
 
     /**
      * This method is called after every transformation to correct the scale and translation,
      * preventing any empty space from appearing around the image. It also prevents the user from
      * zooming out too far.
+     *
+     * @param windowSize The actual window dimensions for the current orientation.
      */
-    private void checkBoundsAndApply() {
+    private void checkBoundsAndApply(Point windowSize) {
         assertNonNull(mBitmap);
 
         CropImageUtils.validateMatrix(
-                mCurrentMatrix, getWidth(), getHeight(), mBitmap, mMatrixValues);
+                mCurrentMatrix, windowSize.x, windowSize.y, mBitmap, mMatrixValues);
         setImageMatrix(mCurrentMatrix);
     }
 
@@ -316,7 +287,7 @@ public class CropImageView extends AppCompatImageView {
             float scaleFactor = detector.getScaleFactor();
             mCurrentMatrix.postScale(
                     scaleFactor, scaleFactor, detector.getFocusX(), detector.getFocusY());
-            checkBoundsAndApply();
+            checkBoundsAndApply(getWindowSize(getCurrentOrientation()));
             mIsScaled = true;
             return true;
         }
@@ -342,10 +313,17 @@ public class CropImageView extends AppCompatImageView {
         public boolean onScroll(
                 @Nullable MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
             mCurrentMatrix.postTranslate(-distanceX, -distanceY);
-            checkBoundsAndApply();
+            checkBoundsAndApply(getWindowSize(getCurrentOrientation()));
             mIsScrolled = true;
             return true;
         }
+    }
+
+    public void destroy() {
+        mBitmap = null;
+        setImageDrawable(null);
+        mScaleDetector = null;
+        mGestureDetector = null;
     }
 
     /**
@@ -357,7 +335,7 @@ public class CropImageView extends AppCompatImageView {
      *
      * @return A new {@link Matrix} instance containing the transformation for portrait mode.
      */
-    public Matrix getPortraitMatrix() {
+    Matrix getPortraitMatrix() {
         return getMatrixForOrientation(Configuration.ORIENTATION_PORTRAIT);
     }
 
@@ -370,32 +348,84 @@ public class CropImageView extends AppCompatImageView {
      *
      * @return A new {@link Matrix} instance containing the transformation for landscape mode.
      */
-    public Matrix getLandscapeMatrix() {
+    Matrix getLandscapeMatrix() {
         return getMatrixForOrientation(Configuration.ORIENTATION_LANDSCAPE);
     }
 
     /**
-     * Returns the dimensions for a target orientation. If the target is the current orientation, it
-     * returns current dimensions. Otherwise, it returns swapped dimensions.
+     * Returns the window dimensions for the specified orientation.
+     *
+     * <p>If the user has actively viewed the screen in the requested {@code orientation}, the exact
+     * dimensions will have been captured. If not, it estimates the screen size by swapping the
+     * width and height of the current window size.
+     *
+     * @param orientation The orientation to retrieve dimensions for.
+     * @return A {@link Point} representing the width and height of the window.
      */
-    private Dimensions getDimensions(int targetOrientation) {
-        int currentOrientation = getResources().getConfiguration().orientation;
-        int currentWidth = getWidth();
-        int currentHeight = getHeight();
+    Point getWindowSize(int orientation) {
+        Point windowSize = mImageInfo.getWindowSize(orientation);
+        if (windowSize != null) {
+            return windowSize;
+        }
 
-        if (targetOrientation == currentOrientation) {
-            return new Dimensions(currentWidth, currentHeight);
+        // If the size isn't stored, it must be the other, unvisited orientation. Therefore, we
+        // estimate by swapping the current dimensions. The redundant check for the current
+        // orientation has been removed.
+        Point currentWindowSize = getCurrentWindowDimension();
+        return new Point(currentWindowSize.y, currentWindowSize.x);
+    }
+
+    @VisibleForTesting
+    Point getCurrentWindowDimension() {
+        return CropImageUtils.getCurrentWindowDimensions(getContext());
+    }
+
+    private int getCurrentOrientation() {
+        return getResources().getConfiguration().orientation;
+    }
+
+    private boolean isOrientationInitialized(int orientation) {
+        return (orientation == Configuration.ORIENTATION_PORTRAIT)
+                ? mIsPortraitInitialized
+                : mIsLandscapeInitialized;
+    }
+
+    private void setOrientationInitialized(int orientation) {
+        if (orientation == Configuration.ORIENTATION_PORTRAIT) {
+            mIsPortraitInitialized = true;
         } else {
-            return new Dimensions(currentHeight, currentWidth);
+            mIsLandscapeInitialized = true;
         }
     }
 
+    private int getInverseOrientation(int orientation) {
+        return (orientation == Configuration.ORIENTATION_PORTRAIT)
+                ? Configuration.ORIENTATION_LANDSCAPE
+                : Configuration.ORIENTATION_PORTRAIT;
+    }
+
+    /**
+     * Returns the window dimensions associated with the Portrait Matrix. Uses real dimensions if
+     * observed, otherwise falls back to estimation.
+     */
+    Point getPortraitWindowSize() {
+        return getWindowSize(Configuration.ORIENTATION_PORTRAIT);
+    }
+
+    /**
+     * Returns the window dimensions associated with the Landscape Matrix. Uses real dimensions if
+     * observed, otherwise falls back to estimation.
+     */
+    Point getLandscapeWindowSize() {
+        return getWindowSize(Configuration.ORIENTATION_LANDSCAPE);
+    }
+
     void setPortraitMatrixForTesting(Matrix matrix) {
-        mPortraitMatrix.set(matrix);
+        mImageInfo.getPortraitMatrix().set(matrix);
     }
 
     void setLandscapeMatrixForTesting(Matrix matrix) {
-        mLandscapeMatrix.set(matrix);
+        mImageInfo.getLandscapeMatrix().set(matrix);
     }
 
     void setIsInitializedPortraitForTesting(boolean isInitialized) {

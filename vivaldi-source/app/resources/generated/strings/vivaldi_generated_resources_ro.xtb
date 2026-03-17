@@ -163,7 +163,6 @@
 <translation id="5623842676595125836">Jurnal</translation>
 <translation id="5624959475330585145">Întreabă înainte de a folosi conexiuni nesecurizate</translation>
 <translation id="5677928146339483299">Blocat</translation>
-<translation id="5707185214361380026">Extensia nu a putut fi încărcată de la:</translation>
 <translation id="5713171467967533494">Deschide în browserul Vivaldi</translation>
 <translation id="5746169159649715125">Salvează ca PDF</translation>
 <translation id="5759728514498647443">Documentele pe care le trimiteți prin <ph name="APP_NAME" /> pentru a fi tipărite pot fi citite de <ph name="APP_NAME" />.</translation>
@@ -223,6 +222,7 @@
 <translation id="7427348830195639090">Pagină de fundal: <ph name="BACKGROUND_PAGE_URL" /></translation>
 <translation id="7453008956351770337">Selectând această imprimantă, acordați următoarei extensii permisiunea de a accesa imprimanta:</translation>
 <translation id="7576690715254076113">Colaționează</translation>
+<translation id="7612050744024016345">Toate extensiile</translation>
 <translation id="7629827748548208700">Filă: <ph name="TAB_NAME" /></translation>
 <translation id="7663719505383602579">Receptor: <ph name="ARC_PROCESS_NAME" /></translation>
 <translation id="7684212569183643648">Instalată de administrator</translation>

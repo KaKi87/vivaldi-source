@@ -18,10 +18,11 @@ bool PermissionRequestManager::VivaldiHandlePermissionRequest() {
     if (isource != request_sources_map_.end() &&
         vivaldi::permissions::HandlePermissionRequest(
             isource->second.requesting_frame_id, request.get())) {
-      // Stops RestorePrompt from reaching our HandlePermissionRequest call (would lead to crash).
+      // Stops RestorePrompt from reaching our HandlePermissionRequest call
+      // (would lead to crash).
       current_request_prompt_disposition_.reset();
-      // We set this to stop the logic in OnVisibilityChanged to try recreate the
-      // view (would lead to crash).
+      // We set this to stop the logic in OnVisibilityChanged to try recreate
+      // the view (would lead to crash).
       current_request_ui_to_use_.reset();
       handled_request = true;
     }

@@ -11,7 +11,7 @@
 #import "components/lens/lens_url_utils.h"
 #import "components/omnibox/common/omnibox_features.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
-#import "ios/chrome/browser/intelligence/bwg/metrics/bwg_metrics.h"
+#import "ios/chrome/browser/intelligence/bwg/metrics/gemini_metrics.h"
 #import "ios/chrome/browser/intelligence/bwg/model/bwg_service.h"
 #import "ios/chrome/browser/intelligence/bwg/model/bwg_service_factory.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
@@ -29,6 +29,8 @@
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list_observer_bridge.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
+#import "ios/chrome/browser/url_loading/model/url_loading_browser_agent.h"
+#import "ios/chrome/browser/url_loading/model/url_loading_params.h"
 #import "ios/chrome/common/NSString+Chromium.h"
 #import "ios/chrome/grit/ios_theme_resources.h"
 #import "ios/web/public/navigation/navigation_item.h"
@@ -39,7 +41,7 @@
 // Vivaldi
 #import "app/vivaldi_apptools.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 // End Vivaldi
 
 namespace {
@@ -66,6 +68,7 @@ const CGFloat kIconPointSize = 16.0;
   std::unique_ptr<WebStateListObserverBridge> _webStateListObserver;
   std::unique_ptr<PlaceholderServiceObserverBridge> _placeholderServiceObserver;
   BOOL _isIncognito;
+  raw_ptr<UrlLoadingBrowserAgent> _URLLoadingBrowserAgent;
 
   // Vivaldi
   PrefBackedBoolean* _vivaldiSwipeGestureEnabled;
@@ -74,11 +77,14 @@ const CGFloat kIconPointSize = 16.0;
 
 }
 
-- (instancetype)initWithIsIncognito:(BOOL)isIncognito {
+- (instancetype)initWithURLLoadingBrowsingAgent:
+                    (UrlLoadingBrowserAgent*)URLLoadingBrowserAgent
+                                    isIncognito:(BOOL)isIncognito {
   self = [super init];
   if (self) {
     _searchEngineSupportsSearchByImage = NO;
     _searchEngineSupportsLens = NO;
+    _URLLoadingBrowserAgent = URLLoadingBrowserAgent;
     _isIncognito = isIncognito;
     _webStateListObserver = std::make_unique<WebStateListObserverBridge>(self);
   }
@@ -124,9 +130,16 @@ const CGFloat kIconPointSize = 16.0;
 
 - (void)setConsumer:(id<LocationBarConsumer>)consumer {
   _consumer = consumer;
+
+  if (!_consumer) {
+    return;
+  }
+
   [consumer setSearchByImageEnabled:self.searchEngineSupportsSearchByImage];
   [consumer setLensImageEnabled:self.searchEngineSupportsLens];
   [self updatePlaceholderType];
+  [self searchEngineChanged];
+  [self placeholderImageUpdated];
 
   if (vivaldi::IsVivaldiRunning()) {
     [self setUpVivaldiSwipeGesturePrefObserver];
@@ -207,6 +220,12 @@ const CGFloat kIconPointSize = 16.0;
   }
 }
 
+#pragma mark - LocationBarMutator
+
+- (void)loadQuery:(NSString*)query {
+  _URLLoadingBrowserAgent->LoadURLForQuery(query);
+}
+
 #pragma mark - PlaceholderServiceObserving
 
 - (void)placeholderImageUpdated {
@@ -236,7 +255,7 @@ const CGFloat kIconPointSize = 16.0;
     if (webState) {
       ProfileIOS* profile =
           ProfileIOS::FromBrowserState(webState->GetBrowserState());
-      return IsLensOverlayAvailable(profile->GetPrefs());
+      return IsLensOverlayAllowedByPolicy(profile->GetPrefs());
     }
   }
   return NO;
@@ -258,7 +277,7 @@ const CGFloat kIconPointSize = 16.0;
           return BWGService->IsBwgAvailableForWebState(webState);
         }
 
-        return BWGService->IsProfileEligibleForBwg();
+        return BWGService->IsProfileEligibleForGemini();
       }
     }
   }

@@ -69,7 +69,9 @@ GlicWindowResizeAnimation::~GlicWindowResizeAnimation() {
 }
 
 void GlicWindowResizeAnimation::AnimateToState(double state) {
-  if (!widget_) {
+  if (!widget_ || widget_->IsDragging()) {
+    // Cancel the animation if the widget is being dragged.
+    End();
     return;
   }
   gfx::Rect bounds_to_animate = gfx::Tween::RectValueBetween(
@@ -79,7 +81,7 @@ void GlicWindowResizeAnimation::AnimateToState(double state) {
   // The widget is detached, so make sure the bounds don't go out-of-screen.
   widget_->SetBoundsConstrained(bounds_to_animate);
 
-  duration_left_ = (1 - GetCurrentValue()) * duration();
+  duration_left_ = (1 - GetCurrentValue()) * GetDuration();
 }
 
 void GlicWindowResizeAnimation::AnimationEnded(const Animation* animation) {

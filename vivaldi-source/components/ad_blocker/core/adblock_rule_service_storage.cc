@@ -10,6 +10,7 @@
 #include "base/json/json_file_value_serializer.h"
 #include "base/json/json_string_value_serializer.h"
 #include "base/json/values_util.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "components/ad_blocker/core/adblock_rule_service_storage_delegate.h"
@@ -90,8 +91,7 @@ std::map<std::string, int> LoadCounters(const base::Value& counters_value) {
   return counters;
 }
 
-std::optional<RuleSourceCore> LoadRuleSourceCore(
-    base::Value::Dict& source_dict) {
+std::optional<RuleSourceCore> LoadRuleSourceCore(base::DictValue& source_dict) {
   const std::string* source_url_string = source_dict.FindString(kSourceUrlKey);
   const std::string* source_file = source_dict.FindString(kSourceFileKey);
 
@@ -125,7 +125,7 @@ std::optional<RuleSourceCore> LoadRuleSourceCore(
   return core;
 }
 
-ActiveRuleSources LoadSourcesList(base::Value::List& sources_list) {
+ActiveRuleSources LoadSourcesList(base::ListValue& sources_list) {
   ActiveRuleSources rule_sources;
 
   for (auto& source_value : sources_list) {
@@ -280,7 +280,7 @@ ActiveRuleSources LoadSourcesList(base::Value::List& sources_list) {
   return rule_sources;
 }
 
-std::set<std::string> LoadStringSetFromList(base::Value::List& list) {
+std::set<std::string> LoadStringSetFromList(base::ListValue& list) {
   std::set<std::string> string_set;
   for (auto& item : list) {
     if (!item.is_string())
@@ -291,7 +291,7 @@ std::set<std::string> LoadStringSetFromList(base::Value::List& list) {
   return string_set;
 }
 
-std::set<base::Uuid> LoadUuidSetFromList(base::Value::List& list) {
+std::set<base::Uuid> LoadUuidSetFromList(base::ListValue& list) {
   std::set<base::Uuid> uuid_set;
   for (auto& item : list) {
     if (!item.is_string())
@@ -302,7 +302,7 @@ std::set<base::Uuid> LoadUuidSetFromList(base::Value::List& list) {
   return uuid_set;
 }
 
-std::vector<KnownRuleSource> LoadKnownSources(base::Value::List& sources_list) {
+std::vector<KnownRuleSource> LoadKnownSources(base::ListValue& sources_list) {
   std::vector<KnownRuleSource> known_sources;
 
   for (auto& source_value : sources_list) {
@@ -328,7 +328,7 @@ std::vector<KnownRuleSource> LoadKnownSources(base::Value::List& sources_list) {
 }
 
 void LoadRulesGroup(RuleGroup group,
-                    base::Value::Dict& rule_group_dict,
+                    base::DictValue& rule_group_dict,
                     RuleServiceStorageDelegate::LoadResult& load_result) {
   std::optional<int> active_exception_list =
       rule_group_dict.FindInt(kExceptionsTypeKey);
@@ -339,12 +339,12 @@ void LoadRulesGroup(RuleGroup group,
         RuleManager::ExceptionsList(active_exception_list.value());
   }
 
-  base::Value::List* process_list = rule_group_dict.FindList(kProcessListKey);
+  base::ListValue* process_list = rule_group_dict.FindList(kProcessListKey);
   if (process_list)
     load_result.exceptions[group][RuleManager::kProcessList] =
         LoadStringSetFromList(*process_list);
 
-  base::Value::List* exempt_list = rule_group_dict.FindList(kExemptListKey);
+  base::ListValue* exempt_list = rule_group_dict.FindList(kExemptListKey);
   if (exempt_list)
     load_result.exceptions[group][RuleManager::kExemptList] =
         LoadStringSetFromList(*exempt_list);
@@ -353,16 +353,16 @@ void LoadRulesGroup(RuleGroup group,
   if (index_checksum)
     load_result.index_checksums[group] = std::move(*index_checksum);
 
-  base::Value::List* sources_list = rule_group_dict.FindList(kRuleSourcesKey);
+  base::ListValue* sources_list = rule_group_dict.FindList(kRuleSourcesKey);
   if (sources_list)
     load_result.rule_sources[group] = LoadSourcesList(*sources_list);
 
-  base::Value::List* known_sources_list =
+  base::ListValue* known_sources_list =
       rule_group_dict.FindList(kKnownSourcesKey);
   if (known_sources_list)
     load_result.known_sources[group] = LoadKnownSources(*known_sources_list);
 
-  base::Value::List* deleted_presets_list =
+  base::ListValue* deleted_presets_list =
       rule_group_dict.FindList(kDeletedPresetsKey);
   if (deleted_presets_list)
     load_result.deleted_presets[group] =
@@ -388,12 +388,12 @@ RuleServiceStorageDelegate::LoadResult DoLoad(const base::FilePath& path) {
   std::unique_ptr<base::Value> root(serializer.Deserialize(nullptr, nullptr));
 
   if (root.get() && root->is_dict()) {
-    base::Value::Dict* tracking_rules =
+    base::DictValue* tracking_rules =
         root->GetDict().FindDict(kTrackingRulesKey);
     if (tracking_rules) {
       LoadRulesGroup(RuleGroup::kTrackingRules, *tracking_rules, load_result);
     }
-    base::Value::Dict* ad_blocking_rules =
+    base::DictValue* ad_blocking_rules =
         root->GetDict().FindDict(kAdBlockingRulesKey);
     if (ad_blocking_rules) {
       LoadRulesGroup(RuleGroup::kAdBlockingRules, *ad_blocking_rules,
@@ -414,8 +414,8 @@ RuleServiceStorageDelegate::LoadResult DoLoad(const base::FilePath& path) {
   return load_result;
 }
 
-base::Value::Dict SerializeRuleCore(const RuleSourceCore& core) {
-  base::Value::Dict core_dict;
+base::DictValue SerializeRuleCore(const RuleSourceCore& core) {
+  base::DictValue core_dict;
 
   if (core.is_from_url())
     core_dict.Set(kSourceUrlKey, core.source_url().spec());
@@ -435,11 +435,11 @@ base::Value::Dict SerializeRuleCore(const RuleSourceCore& core) {
   return core_dict;
 }
 
-base::Value::List SerializeSourcesList(
+base::ListValue SerializeSourcesList(
     const std::map<uint32_t, ActiveRuleSource>& rule_sources) {
-  base::Value::List sources_list;
+  base::ListValue sources_list;
   for (const auto& [id, rule_source] : rule_sources) {
-    base::Value::Dict source_dict = SerializeRuleCore(rule_source.core);
+    base::DictValue source_dict = SerializeRuleCore(rule_source.core);
     source_dict.Set(kRulesListChecksumKey, rule_source.rules_list_checksum);
     source_dict.Set(kLastUpdateKey, base::TimeToValue(rule_source.last_update));
     source_dict.Set(kNextFetchKey, base::TimeToValue(rule_source.next_fetch));
@@ -497,14 +497,14 @@ base::Value SerializeUuidSetToList(const std::set<base::Uuid>& uuid_set) {
   return list;
 }
 
-base::Value::List SerializeKnownSourcesList(
+base::ListValue SerializeKnownSourcesList(
     const KnownRuleSources& rule_sources) {
-  base::Value::List sources_list;
+  base::ListValue sources_list;
   for (const auto& [id, rule_source] : rule_sources) {
     if (!rule_source.removable)
       continue;
 
-    base::Value::Dict source = SerializeRuleCore(rule_source.core);
+    base::DictValue source = SerializeRuleCore(rule_source.core);
     if (rule_source.preset_id.is_valid())
       source.Set(kPresetIdKey, rule_source.preset_id.AsLowercaseString());
     sources_list.Append(std::move(source));
@@ -513,9 +513,9 @@ base::Value::List SerializeKnownSourcesList(
   return sources_list;
 }
 
-base::Value::Dict SerializeRuleGroup(RuleServiceStorageDelegate* delegate,
-                                     RuleGroup group) {
-  base::Value::Dict rule_group;
+base::DictValue SerializeRuleGroup(RuleServiceStorageDelegate* delegate,
+                                   RuleGroup group) {
+  base::DictValue rule_group;
   rule_group.Set(kExceptionsTypeKey,
                  delegate->GetRuleManager()->GetActiveExceptionList(group));
   rule_group.Set(kProcessListKey, SerializeStringSetToList(
@@ -582,7 +582,7 @@ void RuleServiceStorage::OnRuleServiceShutdown() {
 }
 
 std::optional<std::string> RuleServiceStorage::SerializeData() {
-  base::Value::Dict root;
+  base::DictValue root;
 
   root.Set(kTrackingRulesKey,
            SerializeRuleGroup(delegate_, RuleGroup::kTrackingRules));

@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">La teva connexió amb aquest lloc no és del tot segura</translation>
 <translation id="4265872034478892965">Permès per l'administrador</translation>
 <translation id="4305666528087210886">No s'ha pogut accedir al fitxer</translation>
-<translation id="4408413947728134509">Galetes <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> no ha acceptat el certificat d'inici de sessió o pot ser que no se n'hagi proporcionat cap.</translation>
 <translation id="4506599922270137252">Contacta l'administrador del sistema</translation>
 <translation id="4522570452068850558">Detalls</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Sense resultats</translation>
 <translation id="5017554619425969104">Text que has copiat</translation>
 <translation id="5023310440958281426">Consulta les polítiques de l'administrador</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1 {(1 en ús)} other {(# en ús)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Comprova l'adreça del servidor intermediari<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 bits)</translation>
 <translation id="5216942107514965959">Última visita avui</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">No introdueixis informació confidencial en aquest lloc (com ara contrasenyes o targetes de crèdit), ja que alguns atacants podrien robar-la.</translation>
 <translation id="5863515189965725638">Edita l'IBAN</translation>
 <translation id="5869405914158311789">No es pot accedir a aquest lloc</translation>
-<translation id="5920262536204764679">{NUM_COOKIES, plural, =1 {1 en ús} other {# en ús}}</translation>
 <translation id="5932224571077948991">El lloc web mostra anuncis intrusius o enganyosos</translation>
 <translation id="6051221802930200923">En aquest moment no pots visitar <ph name="SITE" /> perquè el lloc web fa servir fixació de certificat. Els atacs i els errors de xarxa acostumen a ser temporals, o sigui que probablement la pàgina funcionarà més endavant.</translation>
 <translation id="6146055958333702838">Revisa els cables i reinicieu l'encaminador, el mòdem o altres

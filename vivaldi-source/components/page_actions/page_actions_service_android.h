@@ -11,7 +11,8 @@ class Profile;
 
 class PageActionsServiceAndroid : public page_actions::Service::Observer {
  public:
-  PageActionsServiceAndroid(JNIEnv* env, const base::android::JavaRef<jobject>& obj);
+  PageActionsServiceAndroid(JNIEnv* env,
+                            const base::android::JavaRef<jobject>& obj);
   PageActionsServiceAndroid(const PageActionsServiceAndroid& other) = delete;
   PageActionsServiceAndroid& operator=(const PageActionsServiceAndroid& other) =
       delete;
@@ -19,17 +20,17 @@ class PageActionsServiceAndroid : public page_actions::Service::Observer {
 
   base::android::ScopedJavaLocalRef<jobjectArray> GetScripts(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj);
+      const base::android::JavaRef<jobject>& obj);
   jboolean SetScriptOverrideForTab(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
-      const base::android::JavaParamRef<jobject>& tab_contents,
-      const base::android::JavaParamRef<jstring>& script,
+      const base::android::JavaRef<jobject>& obj,
+      const base::android::JavaRef<jobject>& tab_contents,
+      const base::android::JavaRef<jstring>& script,
       jint script_override);
   base::android::ScopedJavaLocalRef<jobjectArray> GetScriptOverridesForTab(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
-      const base::android::JavaParamRef<jobject>& tab_contents,
+      const base::android::JavaRef<jobject>& obj,
+      const base::android::JavaRef<jobject>& tab_contents,
       jint script_override);
 
   // page_actions::Service::Observer implementation

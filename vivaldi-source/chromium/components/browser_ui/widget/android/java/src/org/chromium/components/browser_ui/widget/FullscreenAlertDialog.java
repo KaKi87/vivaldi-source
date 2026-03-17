@@ -121,6 +121,9 @@ public class FullscreenAlertDialog extends AlertDialog {
         private final @Nullable EdgeToEdgeLayoutCoordinator mEdgeToEdgeLayout;
         private @Nullable Toolbar mAutomotiveToolbar;
 
+        // Vivaldi
+        private boolean mShouldShowAutomotiveToolbar = true;
+
         /**
          * Create a builder for FullscreenAlertDialog.
          *
@@ -141,7 +144,7 @@ public class FullscreenAlertDialog extends AlertDialog {
 
         @Override
         public Builder setView(int layoutResId) {
-            if (DeviceInfo.isAutomotive()) {
+            if (DeviceInfo.isAutomotive() && mShouldShowAutomotiveToolbar) {
                 View automotiveLayout =
                         LayoutInflater.from(mContext)
                                 .inflate(
@@ -166,7 +169,7 @@ public class FullscreenAlertDialog extends AlertDialog {
 
         @Override
         public Builder setView(View view) {
-            if (DeviceInfo.isAutomotive()) {
+            if (DeviceInfo.isAutomotive() && mShouldShowAutomotiveToolbar) {
                 ViewGroup automotiveLayout =
                         (ViewGroup)
                                 LayoutInflater.from(mContext)
@@ -197,6 +200,16 @@ public class FullscreenAlertDialog extends AlertDialog {
                         });
             }
             return dialog;
+        }
+
+        /**
+         * Vivaldi
+         * Sets whether the automotive-specific toolbar with a back button should be shown.
+         * @param shouldShow true to show the toolbar on automotive devices, false otherwise.
+         */
+        public Builder setShouldShowAutomotiveToolbar(boolean shouldShow) {
+            mShouldShowAutomotiveToolbar = shouldShow;
+            return this;
         }
     }
 

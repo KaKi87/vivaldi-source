@@ -25,6 +25,7 @@ namespace http://www.w3.org/1999/xhtml
     property TEXT_NODE
     property accessKey
     property accessKeyLabel
+    property activeViewTransition
     property addEventListener
     property after
     property anchorElement
@@ -116,7 +117,7 @@ namespace http://www.w3.org/1999/xhtml
     property contains
     property contentEditable
     property currentCSSZoom
-    property currentPatch
+    property customElementRegistry
     property dataset
     property dir
     property dispatchEvent
@@ -186,6 +187,7 @@ namespace http://www.w3.org/1999/xhtml
     property offsetTop
     property offsetWidth
     property onabort
+    property onanimationcancel
     property onanimationend
     property onanimationiteration
     property onanimationstart
@@ -305,11 +307,6 @@ namespace http://www.w3.org/1999/xhtml
     property parentElement
     property parentNode
     property part
-    property patchAfter
-    property patchAll
-    property patchBefore
-    property patchBetween
-    property patchSelf
     property popover
     property prefix
     property prepend
@@ -354,6 +351,7 @@ namespace http://www.w3.org/1999/xhtml
     property spellcheck
     property startViewTransition
     property streamAppendHTMLUnsafe
+    property streamHTMLUnsafe
     property style
     property tabIndex
     property tagName
@@ -612,6 +610,7 @@ html element embed
     property src
     property type
     property width
+html element federation
 html element fencedframe
     property allow
     property config
@@ -854,9 +853,10 @@ html element ins
     property dateTime
 html element install
     property initialPermissionStatus
+    property installURL
     property invalidReason
     property isValid
-    property manifest
+    property manifestId
     property onpromptaction
     property onpromptdismiss
     property onvalidationstatuschange
@@ -897,6 +897,7 @@ html element link
     property type
 html element listing
     property width
+html element login
 html element main
 html element map
     property areas
@@ -923,7 +924,9 @@ html element menuitem
     property checked
     property command
     property commandForElement
+    property defaultChecked
     property disabled
+    property interestForElement
 html element menulist
 html element meta
     property content
@@ -1161,6 +1164,7 @@ html element template
     property content
     property parseparts
     property shadowRootClonable
+    property shadowRootCustomElementRegistry
     property shadowRootDelegatesFocus
     property shadowRootMode
     property shadowRootSerializable
@@ -1364,6 +1368,7 @@ namespace http://www.w3.org/2000/svg
     property NOTATION_NODE
     property PROCESSING_INSTRUCTION_NODE
     property TEXT_NODE
+    property activeViewTransition
     property addEventListener
     property after
     property anchorElement
@@ -1451,7 +1456,7 @@ namespace http://www.w3.org/2000/svg
     property containerTimingIgnore
     property contains
     property currentCSSZoom
-    property currentPatch
+    property customElementRegistry
     property dataset
     property dispatchEvent
     property elementTiming
@@ -1505,6 +1510,7 @@ namespace http://www.w3.org/2000/svg
     property nonce
     property normalize
     property onabort
+    property onanimationcancel
     property onanimationend
     property onanimationiteration
     property onanimationstart
@@ -1624,11 +1630,6 @@ namespace http://www.w3.org/2000/svg
     property parentElement
     property parentNode
     property part
-    property patchAfter
-    property patchAll
-    property patchBefore
-    property patchBetween
-    property patchSelf
     property prefix
     property prepend
     property previousElementSibling
@@ -1669,6 +1670,7 @@ namespace http://www.w3.org/2000/svg
     property slot
     property startViewTransition
     property streamAppendHTMLUnsafe
+    property streamHTMLUnsafe
     property style
     property tabIndex
     property tagName

@@ -34,7 +34,7 @@ class SidePanelCoordinator : public SidePanelUI,
   void Toggle(SidePanelEntryKey key,
               SidePanelOpenTrigger open_trigger) override;
 
-  //void UpdatePinState() override;
+  // void UpdatePinState() override;
 
   std::optional<SidePanelEntryId> GetCurrentEntryId(
       SidePanelEntry::PanelType panel_type) const override;
@@ -65,8 +65,12 @@ class SidePanelCoordinator : public SidePanelUI,
 
   void SetNoDelaysForTesting(bool no_delays_for_testing) override {}
 
+  void OnActiveTabChanged(content::WebContents* old_contents,
+                          content::WebContents* new_contents,
+                          bool tab_removed_for_deletion) override {}
+
  private:
-  Profile * GetProfile();
+  Profile* GetProfile();
 
   BrowserWindowInterface* browser_;
 };

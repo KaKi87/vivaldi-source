@@ -13,7 +13,6 @@
 #include "components/ad_blocker/core/adblock_resources.h"
 #include "components/ad_blocker/core/adblock_rule_manager_impl.h"
 #include "components/ad_blocker/core/adblock_rule_service_storage.h"
-#include "components/ad_blocker/core/adblock_rule_source_handler.h"
 #include "components/ad_blocker/ios/adblock_organized_rules_manager.h"
 #include "components/ad_blocker/public/core/adblock_types.h"
 #include "components/ad_blocker/public/ios/adblock_rule_service.h"
@@ -37,7 +36,6 @@ class RuleServiceImpl : public RuleService,
  public:
   RuleServiceImpl(web::BrowserState* browser_state,
                   PrefService* prefs,
-                  RuleSourceHandler::RulesCompiler rules_compiler,
                   std::string locale);
   ~RuleServiceImpl() override;
   RuleServiceImpl(const RuleServiceImpl&) = delete;
@@ -86,7 +84,6 @@ class RuleServiceImpl : public RuleService,
   const raw_ptr<PrefService> prefs_;
   PrefChangeRegistrar pref_change_registrar_;
 
-  RuleSourceHandler::RulesCompiler rules_compiler_;
   std::string locale_;
 
   std::optional<RuleServiceStorage> state_store_;

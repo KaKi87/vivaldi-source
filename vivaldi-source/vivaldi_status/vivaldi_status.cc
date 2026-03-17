@@ -140,9 +140,10 @@ void VivaldiStatus::Download() {
 
   std::string parameter;
   for (IdToBoolMap::iterator it = request_map_.begin();
-      it != request_map_.end(); ++it) {
-    std::string entry =(parameter.empty()
-        ? std::string("?s=") : std::string("&s=")) + it->first;
+       it != request_map_.end(); ++it) {
+    std::string entry =
+        (parameter.empty() ? std::string("?s=") : std::string("&s=")) +
+        it->first;
     parameter += entry;
   }
   request_map_.clear();
@@ -157,15 +158,14 @@ void VivaldiStatus::Download() {
   simple_url_loader_.push_back(network::SimpleURLLoader::Create(
       std::move(resource_request), traffic_annotation));
   simple_url_loader_.at(loader_idx)
-      ->DownloadToString(
-          url_loader_factory_.get(),
-          base::BindOnce(&VivaldiStatus::OnDownloadDone,
-                         weak_factory_.GetWeakPtr(), loader_idx),
-          kMaxRequestSize);
+      ->DownloadToString(url_loader_factory_.get(),
+                         base::BindOnce(&VivaldiStatus::OnDownloadDone,
+                                        weak_factory_.GetWeakPtr(), loader_idx),
+                         kMaxRequestSize);
 }
 
 void VivaldiStatus::OnDownloadDone(const size_t loader_idx,
-    std::unique_ptr<std::string> response_body) {
+                                   std::optional<std::string> response_body) {
   is_updating_ = false;
   IdToHealthMap old_map(id_to_health_map_);
   if (Parse(std::move(response_body))) {
@@ -184,7 +184,7 @@ void VivaldiStatus::OnDownloadDone(const size_t loader_idx,
         observer.OnVivaldiStatusUpdated(this, changes);
       }
       // Special handling for sync
-      for (size_t i=0; i < changes.size(); i++) {
+      for (size_t i = 0; i < changes.size(); i++) {
         if (changes[i].id == kSync) {
           for (Observer& observer : observers_) {
             observer.OnVivaldiSyncStatusUpdated(changes[i].mode);
@@ -199,7 +199,7 @@ void VivaldiStatus::OnDownloadDone(const size_t loader_idx,
   }
 }
 
-bool VivaldiStatus::Parse(std::unique_ptr<std::string> response_body) {
+bool VivaldiStatus::Parse(std::optional<std::string> response_body) {
   if (!response_body || response_body->empty()) {
     LOG(ERROR) << "Vivaldi status: No data";
     return false;
@@ -210,13 +210,13 @@ bool VivaldiStatus::Parse(std::unique_ptr<std::string> response_body) {
 
   std::optional<base::Value> json =
       base::JSONReader::Read(*response_body, base::JSON_ALLOW_TRAILING_COMMAS |
-                                             base::JSON_ALLOW_COMMENTS);
+                                                 base::JSON_ALLOW_COMMENTS);
   if (!json) {
     LOG(ERROR) << "Vivaldi status: Invalid JSON";
     return false;
   }
 
-  base::Value::Dict* dict = json->GetIfDict();
+  base::DictValue* dict = json->GetIfDict();
   if (!dict || dict->empty()) {
     LOG(ERROR) << "Vivaldi status: Invalid JSON. Empty dict";
     return false;
@@ -248,8 +248,8 @@ bool VivaldiStatus::Parse(std::unique_ptr<std::string> response_body) {
           health.mode = kMajorOutage;
           break;
         default:
-           LOG(WARNING) << "Vivaldi status: Invalid JSON. Unknown Status mode";
-           break;
+          LOG(WARNING) << "Vivaldi status: Invalid JSON. Unknown Status mode";
+          break;
       }
       id_to_health_map_[id] = health;
     } else {
@@ -265,7 +265,7 @@ std::string VivaldiStatus::ServiceToId(Services service) {
 }
 
 bool VivaldiStatus::IdToService(std::string id, Services* service) {
-  for (auto ch: id) {
+  for (auto ch : id) {
     if (!std::isdigit(ch)) {
       return false;
     }
@@ -286,4 +286,4 @@ void VivaldiStatus::RemoveObserver(Observer* observer) {
   observers_.RemoveObserver(observer);
 }
 
-}  // vivaldi_status
+}  // namespace vivaldi_status

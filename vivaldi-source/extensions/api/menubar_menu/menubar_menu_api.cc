@@ -186,10 +186,10 @@ void MenubarMenuAPI::SendHover(content::BrowserContext* browser_context,
     return;
   if (api->hover_url_ != url) {
     api->hover_url_ = url;
-    ::vivaldi::BroadcastEvent(vivaldi::menubar_menu::OnHover::kEventName,
-                              vivaldi::menubar_menu::OnHover::Create(window_id,
-                                                                     url),
-                              browser_context);
+    ::vivaldi::BroadcastEvent(
+        vivaldi::menubar_menu::OnHover::kEventName,
+        vivaldi::menubar_menu::OnHover::Create(window_id, url),
+        browser_context);
   }
 }
 
@@ -215,9 +215,8 @@ ExtensionFunction::ResponseAction MenubarMenuShowFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   VivaldiBrowserWindow* window =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          VivaldiBrowserWindowFromId(
-            params->properties.window_id);
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->properties.window_id);
   if (!window) {
     return RespondNow(Error("No such window"));
   }
@@ -236,19 +235,19 @@ ExtensionFunction::ResponseAction MenubarMenuShowFunction::Run() {
 
   // Controller owns itself.
   ::vivaldi::MenubarController* controller =
-    ::vivaldi::MenubarController::Create(window, std::move(params));
+      ::vivaldi::MenubarController::Create(window, std::move(params));
   if (!controller->browser()) {
     return RespondNow(Error("Can not show menu"));
   }
   controller->Show();
-  return RespondNow(ArgumentList(
-      vivaldi::menubar_menu::Show::Results::Create()));
+  return RespondNow(
+      ArgumentList(vivaldi::menubar_menu::Show::Results::Create()));
 #endif  // IS_MAC
 }
 
 ExtensionFunction::ResponseAction MenubarMenuGetMaxIdFunction::Run() {
-  return RespondNow(ArgumentList(
-      vivaldi::menubar_menu::GetMaxId::Results::Create(
+  return RespondNow(
+      ArgumentList(vivaldi::menubar_menu::GetMaxId::Results::Create(
           ::vivaldi::MenubarController::GetMaximumId())));
 }
 

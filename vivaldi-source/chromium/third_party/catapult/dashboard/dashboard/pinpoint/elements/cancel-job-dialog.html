@@ -74,6 +74,7 @@ found in the LICENSE file.
   </template>
   <script>
     'use strict';
+
     Polymer({
       is: 'cancel-job-dialog',
 
@@ -100,8 +101,17 @@ found in the LICENSE file.
       openDialog() {
         this.client.open_dialog = () => {
           this.$.cancel_dialog.open();
+        };
+
+        const headers = this.client.authHeaders;
+        const expiryTime = this.client.expiryTime;
+        // Check if a valid token exists and has at least 10 minutes left.
+        if (headers && headers.Authorization &&
+            expiryTime && (Date.now() + 10 * 60 * 1000 < expiryTime)) {
+          this.$.cancel_dialog.open();
+        } else {
+          this.client.requestAccessToken({hint: this.user});
         }
-        this.client.requestAccessToken({hint: this.user});
       },
 
       close() {

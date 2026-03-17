@@ -13,7 +13,7 @@ namespace {
 const CGFloat kStackViewSpacing = 13.0;
 // Height of the image.
 const CGFloat kImageViewHeight = 80.0;
-}
+}  // namespace
 
 #pragma mark - VivaldiTableViewIllustratedItem
 

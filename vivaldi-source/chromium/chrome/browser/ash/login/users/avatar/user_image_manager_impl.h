@@ -174,7 +174,7 @@ class UserImageManagerImpl : public ProfileDownloaderDelegate {
   int GetDesiredImageSideLength() const override;
   signin::IdentityManager* GetIdentityManager() override;
   network::mojom::URLLoaderFactory* GetURLLoaderFactory() override;
-  std::string GetCachedPictureURL() const override;
+  const GURL& GetCachedPictureURL() const override;
   void OnProfileDownloadSuccess(ProfileDownloader* downloader) override;
   void OnProfileDownloadFailure(
       ProfileDownloader* downloader,
@@ -219,7 +219,7 @@ class UserImageManagerImpl : public ProfileDownloaderDelegate {
   void TryToCreateImageSyncObserver();
 
   // Returns the image properties for the user's user image.
-  const base::Value::Dict* GetImageProperties();
+  const base::DictValue* GetImageProperties();
 
   // Returns immutable version of user with `user_id_`.
   const user_manager::User* GetUser() const;

@@ -14,7 +14,6 @@
 #include "base/containers/span.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "build/build_config.h"
@@ -44,6 +43,7 @@
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/cascading_property.h"
 #include "ui/views/layout/box_layout.h"
+#include "ui/views/property_effects.h"
 #include "ui/views/widget/widget.h"
 
 namespace {
@@ -517,9 +517,8 @@ std::u16string_view OmniboxPopupViewViews::GetAccessibleButtonTextForResult(
   return static_cast<const views::LabelButton*>(button)->GetText();
 }
 
-raw_ptr<OmniboxPopupViewWebUI>
-OmniboxPopupViewViews::GetOmniboxPopupViewWebUI() {
-  return nullptr;
+bool OmniboxPopupViewViews::IsSelectionPopupControlled() const {
+  return false;
 }
 
 bool OmniboxPopupViewViews::OnMouseDragged(const ui::MouseEvent& event) {

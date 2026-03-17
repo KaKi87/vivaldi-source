@@ -17,7 +17,7 @@ namespace {
 const CGFloat thumbnailMaxResolution = 1440.f;
 
 NSString* thumbnailDirectory = @"Vivaldi/sd-thumbnails";
-}
+}  // namespace
 
 @implementation VivaldiThumbnailService
 
@@ -36,11 +36,9 @@ NSString* thumbnailDirectory = @"Vivaldi/sd-thumbnails";
       [self removeLegacyThumbnailForSDItem:sdItem];
     }
 
-    const std::string imagePathU16 =
-        base::SysNSStringToUTF8(snapshotPath);
+    const std::string imagePathU16 = base::SysNSStringToUTF8(snapshotPath);
     [[NSOperationQueue mainQueue] addOperationWithBlock:^{
-      SetNodeThumbnail(bookmarks,
-                       sdItem.bookmarkNode, imagePathU16);
+      SetNodeThumbnail(bookmarks, sdItem.bookmarkNode, imagePathU16);
     }];
   }
 }
@@ -49,7 +47,7 @@ NSString* thumbnailDirectory = @"Vivaldi/sd-thumbnails";
   if (!item || !item.bookmarkNode) {
     return;
   }
-  NSString *imagePathWithName = [self thumbnailPathForItem:item];
+  NSString* imagePathWithName = [self thumbnailPathForItem:item];
   [self removeFileFromPath:imagePathWithName];
 }
 
@@ -57,7 +55,7 @@ NSString* thumbnailDirectory = @"Vivaldi/sd-thumbnails";
   if (!item || !item.bookmarkNode) {
     return;
   }
-  NSString *imagePathWithName = [self legacyFilePathFromItem:item];
+  NSString* imagePathWithName = [self legacyFilePathFromItem:item];
   [self removeFileFromPath:imagePathWithName];
 }
 
@@ -67,20 +65,31 @@ NSString* thumbnailDirectory = @"Vivaldi/sd-thumbnails";
     return nil;
   }
 
-  NSString *imagePathWithName = [self thumbnailPathForItem:item];
-  NSFileManager *fileManager = [NSFileManager defaultManager];
-  BOOL isFileExist = [fileManager fileExistsAtPath: imagePathWithName];
+  NSString* imagePathWithName = [self thumbnailPathForItem:item];
+  NSFileManager* fileManager = [NSFileManager defaultManager];
+  BOOL isFileExist = [fileManager fileExistsAtPath:imagePathWithName];
 
   if (isFileExist) {
-    return [[UIImage alloc] initWithContentsOfFile: imagePathWithName];
+    return [[UIImage alloc] initWithContentsOfFile:imagePathWithName];
   } else {
     return nil;
   }
 }
 
+- (BOOL)hasLocalThumbnailForSDItem:(VivaldiSpeedDialItem*)item {
+  if (!item || !item.bookmarkNode) {
+    return NO;
+  }
+  NSString* imagePathWithName = [self thumbnailPathForItem:item];
+  if (!imagePathWithName) {
+    return NO;
+  }
+  NSFileManager* fileManager = [NSFileManager defaultManager];
+  return [fileManager fileExistsAtPath:imagePathWithName];
+}
+
 - (BOOL)shouldMigrateForSDItem:(VivaldiSpeedDialItem*)item {
-  return ([self legacyFilePathFromItem:item] &&
-          ![self filePathFromItem:item]);
+  return ([self legacyFilePathFromItem:item] && ![self filePathFromItem:item]);
 }
 
 #pragma mark - Private
@@ -91,18 +100,18 @@ NSString* thumbnailDirectory = @"Vivaldi/sd-thumbnails";
   if (!capturedSnapshot || !item || !item.bookmarkNode)
     return nil;
 
-  NSError *error;
+  NSError* error;
 
   // Get the Application Support directory.
-  NSFileManager *fileManager = [NSFileManager defaultManager];
-  NSURL *applicationSupportDir =
+  NSFileManager* fileManager = [NSFileManager defaultManager];
+  NSURL* applicationSupportDir =
       [[fileManager URLsForDirectory:NSApplicationSupportDirectory
                            inDomains:NSUserDomainMask] firstObject];
 
   // Append thumbnails folder to Application Support
-  NSURL *dataPathURL =
+  NSURL* dataPathURL =
       [applicationSupportDir URLByAppendingPathComponent:thumbnailDirectory];
-  NSString *dataPath = [dataPathURL path];
+  NSString* dataPath = [dataPathURL path];
 
   // Create a folder inside Application Support Directory if it does not exist.
   if (![fileManager fileExistsAtPath:dataPath])
@@ -127,11 +136,12 @@ NSString* thumbnailDirectory = @"Vivaldi/sd-thumbnails";
   }
 
   // Use a unique name for the file.
-  NSUUID *newUniqueId = [NSUUID UUID];
-  NSString *newUniqueIdString = [newUniqueId UUIDString];
-  NSString *imagePathWithName =
-      [dataPath stringByAppendingPathComponent:
-          [NSString stringWithFormat:@"sd_%@.png", newUniqueIdString]];
+  NSUUID* newUniqueId = [NSUUID UUID];
+  NSString* newUniqueIdString = [newUniqueId UUIDString];
+  NSString* imagePathWithName = [dataPath
+      stringByAppendingPathComponent:[NSString
+                                         stringWithFormat:@"sd_%@.png",
+                                                          newUniqueIdString]];
 
   // Delete the file with the same name if it exists.
   if ([fileManager fileExistsAtPath:imagePathWithName]) {
@@ -139,24 +149,22 @@ NSString* thumbnailDirectory = @"Vivaldi/sd-thumbnails";
   }
 
   UIImage* thumbnail = [self generateThumbnailFromSnapshot:capturedSnapshot];
-  NSData *thumbnailData = UIImagePNGRepresentation(thumbnail);
+  NSData* thumbnailData = UIImagePNGRepresentation(thumbnail);
 
   // Store the file
   [thumbnailData writeToFile:imagePathWithName atomically:YES];
 
   // Exclude the thumbnail from iCloud backup
-  NSURL *fileURL = [NSURL fileURLWithPath:imagePathWithName];
+  NSURL* fileURL = [NSURL fileURLWithPath:imagePathWithName];
   [fileURL setResourceValue:@YES
                      forKey:NSURLIsExcludedFromBackupKey
                       error:&error];
 
   // Return the relative path of the saved file
-  NSString *relativePath =
-      [NSString stringWithFormat:@"%@/sd_%@.png",
-          thumbnailDirectory, newUniqueIdString];
+  NSString* relativePath = [NSString
+      stringWithFormat:@"%@/sd_%@.png", thumbnailDirectory, newUniqueIdString];
   return relativePath;
 }
-
 
 #pragma mark - Private
 
@@ -176,20 +184,21 @@ NSString* thumbnailDirectory = @"Vivaldi/sd-thumbnails";
 /// support directory and not exposed to user otherwise.
 - (NSString*)filePathFromItem:(VivaldiSpeedDialItem*)item {
   // Get the Application Support directory
-  NSFileManager *fileManager = [NSFileManager defaultManager];
-  NSURL *applicationSupportDir =
+  NSFileManager* fileManager = [NSFileManager defaultManager];
+  NSURL* applicationSupportDir =
       [[fileManager URLsForDirectory:NSApplicationSupportDirectory
                            inDomains:NSUserDomainMask] firstObject];
 
-  NSString *dataPath = [applicationSupportDir path];
+  NSString* dataPath = [applicationSupportDir path];
 
-  if (!dataPath) return nil;
+  if (!dataPath)
+    return nil;
 
-  NSString *thumbnailPathString = item.thumbnail;
+  NSString* thumbnailPathString = item.thumbnail;
   if (!thumbnailPathString || thumbnailPathString.length == 0)
     return nil;
 
-  NSString *finalPath =
+  NSString* finalPath =
       [dataPath stringByAppendingPathComponent:thumbnailPathString];
   return finalPath;
 }
@@ -197,58 +206,52 @@ NSString* thumbnailDirectory = @"Vivaldi/sd-thumbnails";
 /// Returns the path for legacy items that were unexpectedly
 /// exposed on user documents directory.
 - (NSString*)legacyFilePathFromItem:(VivaldiSpeedDialItem*)item {
-  NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
-                                                       NSUserDomainMask,
-                                                       YES);
-  NSString *documentsDirectory = [paths firstObject];
+  NSArray* paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
+                                                       NSUserDomainMask, YES);
+  NSString* documentsDirectory = [paths firstObject];
   if (!documentsDirectory)
     return nil;
 
-  NSString *thumbnailPathString = item.thumbnail;
+  NSString* thumbnailPathString = item.thumbnail;
   if (!thumbnailPathString || thumbnailPathString.length == 0)
     return nil;
 
-  NSString *finalPath =
-    [documentsDirectory
-        stringByAppendingPathComponent: thumbnailPathString];
+  NSString* finalPath =
+      [documentsDirectory stringByAppendingPathComponent:thumbnailPathString];
   return finalPath;
 }
 
 /// Removes the file from path if exists.
 - (void)removeFileFromPath:(NSString*)path {
-  NSFileManager *fileManager = [NSFileManager defaultManager];
+  NSFileManager* fileManager = [NSFileManager defaultManager];
   BOOL isFileExist = [fileManager fileExistsAtPath:path];
 
   if (isFileExist) {
-    [[NSFileManager defaultManager] removeItemAtPath:path
-                                               error:nil];
+    [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
   }
 }
 
 /// Crop the snapshot to provided size and returns.
 /// Original snapshot size could be unnecessarily higher res than required.
 - (UIImage*)generateThumbnailFromSnapshot:(UIImage*)snapshot {
-
-  NSData *imageData =
-    [NSData dataWithData:UIImagePNGRepresentation(snapshot)];
+  NSData* imageData = [NSData dataWithData:UIImagePNGRepresentation(snapshot)];
   CGImageSourceRef imageSource =
-    CGImageSourceCreateWithData((CFDataRef)imageData, NULL);
+      CGImageSourceCreateWithData((CFDataRef)imageData, NULL);
 
-  NSDictionary *imageOptions = @{
-    (NSString const *)kCGImageSourceCreateThumbnailFromImageIfAbsent:
-        (NSNumber const *)kCFBooleanTrue,
-    (NSString const *)kCGImageSourceThumbnailMaxPixelSize:
-        @(thumbnailMaxResolution),
-    (NSString const *)kCGImageSourceCreateThumbnailWithTransform:
-        (NSNumber const *)kCFBooleanTrue
+  NSDictionary* imageOptions = @{
+    (NSString const*)kCGImageSourceCreateThumbnailFromImageIfAbsent :
+        (NSNumber const*)kCFBooleanTrue,
+    (NSString const*)
+    kCGImageSourceThumbnailMaxPixelSize : @(thumbnailMaxResolution),
+    (NSString const*)
+    kCGImageSourceCreateThumbnailWithTransform : (NSNumber const*)kCFBooleanTrue
   };
 
-  CGImageRef thumbnail =
-    CGImageSourceCreateThumbnailAtIndex(imageSource, 0,
-                                        (__bridge CFDictionaryRef)imageOptions);
+  CGImageRef thumbnail = CGImageSourceCreateThumbnailAtIndex(
+      imageSource, 0, (__bridge CFDictionaryRef)imageOptions);
   CFRelease(imageSource);
 
-  UIImage *thumbnailImage = [[UIImage alloc] initWithCGImage:thumbnail];
+  UIImage* thumbnailImage = [[UIImage alloc] initWithCGImage:thumbnail];
   CGImageRelease(thumbnail);
 
   return thumbnailImage;

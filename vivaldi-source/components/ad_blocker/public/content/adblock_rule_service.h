@@ -13,16 +13,10 @@
 #include "components/ad_blocker/public/core/adblock_rule_service_core.h"
 #include "components/ad_blocker/public/core/adblock_types.h"
 
-#if BUILDFLAG(IS_IOS)
-namespace web {
-class BrowserState;
-}
-#else
 namespace content {
 class RenderFrameHost;
 class WebContents;
 }  // namespace content
-#endif
 
 namespace adblock_filter {
 class RuleManager;

@@ -34,5 +34,10 @@ bundle_data_xcassets("assets") {
     "Assets.xcassets/vivaldi_trash_folder.imageset/Contents.json",
     "Assets.xcassets/vivaldi_trash_folder.imageset/vivaldi_trash_folder.pdf",
     "Assets.xcassets/vivaldi_trash_folder.imageset/vivaldi_trash_folder_dark.pdf",
+
+    # vivaldi_safari_data_import
+    "Assets.xcassets/vivaldi_safari_data_import.imageset/Contents.json",
+    "Assets.xcassets/vivaldi_safari_data_import.imageset/vivaldi_safari_data_import.pdf",
+    "Assets.xcassets/vivaldi_safari_data_import.imageset/vivaldi_safari_data_import_dark.pdf",
   ]
 }

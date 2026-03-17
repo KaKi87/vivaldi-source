@@ -536,7 +536,7 @@ std::wstring InstallUtil::GetCloudManagementEnrollmentToken() {
   // way for administrators to enroll chrome throughout their fleet by pushing
   // this token via SCCM.
   // TODO(rogerta): This may not be the best place for the helpers dealing with
-  // the enrollment and/or DM tokens.  See crbug.com/823852 for details.
+  // the enrollment and/or DM tokens.  See crbug.com/41377717 for details.
   RegKey key;
   std::wstring value;
   for (const auto& key_and_value :
@@ -584,11 +584,6 @@ std::wstring InstallUtil::GetShortcutName() {
   // IDS_PRODUCT_NAME is automatically mapped to the mode-specific shortcut
   // name; see MODE_SPECIFIC_STRINGS in prebuild/create_string_rc.py.
   return installer::GetLocalizedString(IDS_PRODUCT_NAME_BASE);
-}
-
-// static
-std::wstring InstallUtil::GetChromeShortcutDirNameDeprecated() {
-  return GetShortcutName();
 }
 
 // static

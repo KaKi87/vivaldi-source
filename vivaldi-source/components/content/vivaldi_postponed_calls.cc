@@ -22,4 +22,4 @@ void VivaldiPostponedCalls::Add(CallFunction callback) {
   callbacks_.AddUnsafe(std::move(callback));
 }
 
-} // namespace vivaldi
+}  // namespace vivaldi

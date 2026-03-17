@@ -27,7 +27,6 @@ class SharedURLLoaderFactory;
 class SimpleURLLoader;
 }  // namespace network
 
-
 namespace direct_match {
 
 constexpr float kNeighborWeight = 0.7;
@@ -42,7 +41,7 @@ class DirectMatchService : public KeyedService {
  public:
   class DirectMatchUnit {
    public:
-    DirectMatchUnit(base::Value::Dict* unit);
+    DirectMatchUnit(base::DictValue* unit);
     DirectMatchUnit(DirectMatchUnit&& unit);
     ~DirectMatchUnit();
     DirectMatchUnit& operator=(DirectMatchUnit&& unit);
@@ -58,8 +57,8 @@ class DirectMatchService : public KeyedService {
     std::string redirect_url;
     std::string image_url;
     size_t match_offset;
-    base::Value::List alternative_names;
-    base::Value::List blocked_names;
+    base::ListValue alternative_names;
+    base::ListValue blocked_names;
     std::string image_path;
     size_t category = kInvalidCategory;
     size_t position;
@@ -114,7 +113,7 @@ class DirectMatchService : public KeyedService {
 
  private:
   void OnDirectMatchDownloadDone(const size_t loader_idx,
-                                 std::unique_ptr<std::string> response_body);
+                                 std::optional<std::string> response_body);
   void RunDirectMatchDownload();
   void LoadHiddenProviders();
   float QwertyWeightedDamerauLevenshtein(std::string name,
@@ -137,7 +136,7 @@ class DirectMatchService : public KeyedService {
   void OnIconDownloadDone(base::FilePath image_path,
                           size_t loader_idx,
                           base::OnceCallback<void(base::FilePath)> callback,
-                          std::unique_ptr<std::string> response_body);
+                          std::optional<std::string> response_body);
   void RemoveUnusedIcons(const std::vector<base::FilePath>& icons);
 
   static std::string GetIconPath(std::string image_url);

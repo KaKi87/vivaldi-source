@@ -35,4 +35,4 @@ class ParentTabUserData
 
 }  // namespace vivaldi
 
-#endif // EXTENSIONS_API_GUEST_VIEW_PARENT_TAB_USER_DATA_H_
+#endif  // EXTENSIONS_API_GUEST_VIEW_PARENT_TAB_USER_DATA_H_

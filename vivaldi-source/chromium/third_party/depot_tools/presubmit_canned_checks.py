@@ -8,6 +8,7 @@ import functools
 import io as _io
 import os as _os
 import time
+import re
 
 import metadata.discover
 import metadata.validate
@@ -69,6 +70,15 @@ OFF_UNLESS_MANUALLY_ENABLED_LINT_FILTERS = [
 ]
 
 _CORP_LINK_KEYWORD = '.corp.google'
+
+# Git Tree Mode for a "gitlink" (submodule).
+# See https://git-scm.com/docs/git-ls-tree#_output_format
+_GIT_MODE_SUBMODULE = b'160000'
+
+# Windows command line character limit. See
+# https://learn.microsoft.com/en-us/troubleshoot/windows-client/shell-experience/command-line-string-limitation
+_WIN_COMMAND_LINE_CHAR_LIMIT = 8191
+
 
 ### Description checks
 
@@ -310,7 +320,7 @@ def CheckChangeLintsClean(input_api,
 
     # Use VS error format on Windows to make it easier to step through the
     # results.
-    if input_api.platform == 'win32':
+    if input_api.is_windows:
         cpplint._SetOutputFormat('vs7')
 
     if source_file_filter == None:
@@ -615,7 +625,8 @@ def CheckLongLines(input_api, output_api, maxlen, source_file_filter=None):
     JS_EXCEPTIONS = ("GEN('#include", 'import ',
                      '// ' + LINT_THEN_CHANGE_EXCEPTION)
     TS_FILE_EXTS = ('ts', )
-    TS_EXCEPTIONS = ('import ', '// ' + LINT_THEN_CHANGE_EXCEPTION)
+    TS_EXCEPTIONS = ('import ', 'export {', 'export type {'
+                     '// ' + LINT_THEN_CHANGE_EXCEPTION)
     OBJC_FILE_EXTS = ('h', 'm', 'mm')
     OBJC_EXCEPTIONS = ('#define', '#endif', '#if', '#import', '#include',
                        '#pragma', '// ' + LINT_THEN_CHANGE_EXCEPTION)
@@ -842,6 +853,19 @@ def CheckLicense(input_api,
                     current_year):
                 # If we're using the built-in license_re on a new file then make
                 # sure the year is correct.
+                # skip the new year check in January to give some slag
+                # where submitting year N-1 is allowed.
+                if issue := input_api.change.issue:
+                    info = input_api.gerrit.GetChangeInfo(issue)
+                    created_time = datetime.datetime.fromisoformat(info["created"] + 'Z')
+                    cl_creation_year = int(created_time.strftime('%Y'))
+                    last_year = int(input_api.time.strftime('%Y')) - 1
+                    current_month = int(input_api.time.strftime('%m'))
+                    if (current_month == 1
+                        and match.groups()[0] == str(last_year)
+                        and cl_creation_year == last_year):
+                        continue
+
                 wrong_year_new_files.append(f.LocalPath())
         elif not license_re.search(contents):
             bad_files.append(f.LocalPath())
@@ -1323,7 +1347,7 @@ def _FetchAllFiles(input_api, files_to_check, files_to_skip):
     # can break another unmodified file.
     # Use code similar to InputApi.FilterSourceFile()
     def Find(filepath, filters):
-        if input_api.platform == 'win32':
+        if input_api.is_windows:
             filepath = filepath.replace('\\', '/')
 
         for item in filters:
@@ -1429,7 +1453,7 @@ def GetPylint(input_api,
         # the command-line, so we pass arguments via a pipe.
         tool = input_api.os_path.join(_HERE, 'pylint-' + version)
         kwargs = {'env': env}
-        if input_api.platform == 'win32':
+        if input_api.is_windows:
             # On Windows, scripts on the current directory take precedence over
             # PATH. When `pylint.bat` calls `vpython3`, it will execute the
             # `vpython3` of the depot_tools under test instead of the one in the
@@ -1890,7 +1914,7 @@ def CheckPatchFormatted(input_api,
         input_api.PresubmitLocalPath(), input_api.change.RepositoryRoot())
     if presubmit_subdir.startswith('..') or presubmit_subdir == '.':
         presubmit_subdir = ''
-    code, _ = git_cl.RunGitWithCode(cmd, suppress_stderr=bypass_warnings)
+    code, output = git_cl.RunGitWithCode(cmd, suppress_stderr=bypass_warnings)
     # bypass_warnings? Only fail with code 2.
     # As this is just a warning, ignore all other errors if the user
     # happens to have a broken clang-format, doesn't use git, etc etc.
@@ -1900,12 +1924,16 @@ def CheckPatchFormatted(input_api,
         else:
             short_path = input_api.basename(input_api.change.RepositoryRoot())
         display_args.append(presubmit_subdir)
-        msg = (
-            'The %s directory requires source formatting. '
-            'Please run: git cl format %s. Or, if you are in CiderG, '
-            'please use the "Format Modified Lines in All Files '
-            '(git cl format)" functionality in the command palette.' % (
-                short_path, ' '.join(display_args)))
+        msg = f'The {short_path} directory requires source formatting.\n'
+        if output:
+            msg += output + '\n'
+        msg += (
+            'The following command may be able to fix some errors, while '
+            'others may need to be fixed manually:\n'
+            f'  git cl format {" ".join(display_args)}\n'
+            'Alternatively, if you are in Cider G, please use the "Format '
+            'Modified Lines in All Files (git cl format)" functionality in the '
+            'command palette.')
         return [result_factory(msg)]
     return []
 
@@ -2068,21 +2096,61 @@ def CheckForCommitObjects(input_api, output_api):
         spaceparts = tabparts[0].split(' ', 2)
         return (spaceparts[0], spaceparts[1], spaceparts[2], tabparts[1])
 
-    full_tree = input_api.subprocess.check_output(
-        ['git', 'ls-tree', '-r', '--full-tree', '-z', 'HEAD'],
-        cwd=input_api.PresubmitLocalPath())
+    # If the number of affected files is small, we can avoid scanning the entire
+    # tree.
+    affected_files = list(input_api.AffectedFiles())
+
+    # We must scan the full tree if DEPS is modified to ensure that any change
+    # in DEPS is reflected in the gitlinks.
+    deps_modified = any(f.LocalPath() == 'DEPS' for f in affected_files)
+
+    cmd = ['git', 'ls-tree', '-z', '--full-tree', 'HEAD']
+    if len(affected_files) < 1000 and not deps_modified:
+        # We need to pass the paths relative to the repository root.
+        repo_root = input_api.change.RepositoryRoot()
+        files_to_check = [
+            input_api.os_path.relpath(f.AbsoluteLocalPath(), repo_root)
+            for f in affected_files
+        ]
+        # On Windows, the command line is limited to 8191 characters.
+        cmd_len = len(' '.join(cmd + ['--'] + files_to_check))
+        if (input_api.is_windows and cmd_len > _WIN_COMMAND_LINE_CHAR_LIMIT):
+            cmd.extend(['-r'])
+        else:
+            cmd.extend(['--'] + files_to_check)
+    else:
+        cmd.extend(['-r'])
+
+    tree_data = input_api.subprocess.check_output(
+        cmd, cwd=input_api.PresubmitLocalPath())
+
+    if _GIT_MODE_SUBMODULE not in tree_data:
+        return []
 
     # commit_tree_entries holds all commit entries (ie gitlink, submodule
     # record).
     commit_tree_entries = []
-    for entry in full_tree.strip().split(b'\00'):
-        if not entry.startswith(b'160000'):
-            # Remove entries that we don't care about. 160000 indicates a
-            # gitlink.
-            continue
-        tree_entry = parse_tree_entry(entry.decode('utf-8'))
-        if tree_entry[1] == 'commit':
-            commit_tree_entries.append(tree_entry)
+    pos = 0
+    while True:
+        pos = tree_data.find(_GIT_MODE_SUBMODULE, pos)
+        if pos == -1:
+            break
+
+        # Check if this occurrence is at the start of an entry.
+        # It must be at the start of the string or preceded by a null terminator.
+        if pos == 0 or tree_data[pos - 1] == 0:
+            # Find the end of this entry.
+            end = tree_data.find(b'\0', pos)
+            entry = tree_data[pos:end]
+
+            tree_entry = parse_tree_entry(entry.decode('utf-8'))
+            if tree_entry[1] == 'commit':
+                commit_tree_entries.append(tree_entry)
+
+            pos = end + 1
+        else:
+            # If not at start of entry, advance to look for next occurrence.
+            pos += 1
 
     # No gitlinks found, return early.
     if len(commit_tree_entries) == 0:
@@ -2808,7 +2876,7 @@ def CheckInclusiveLanguage(input_api,
         local_dir = input_api.os_path.dirname(affected_file.LocalPath())
 
         # Excluded paths use forward slashes.
-        if input_api.platform == 'win32':
+        if input_api.is_windows:
             local_dir = local_dir.replace('\\', '/')
 
         return local_dir in excluded_paths
@@ -2906,4 +2974,63 @@ def CheckValidHostsInDEPSOnUpload(input_api, output_api):
             output_api.PresubmitError(
                 'DEPS file must have only git dependencies.',
                 long_text=error.output)
+        ]
+
+
+def CheckAyeAye(input_api, output_api):
+    """
+    Runs AyeAye analyzers.
+    """
+
+    def strip_ansi_codes(text):
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        return ansi_escape.sub('', text)
+
+    def strip_severity_prefix(text):
+        for prefix in ["ERROR:", "WARNING:", "INFO:"]:
+            if text.startswith(prefix):
+                return text[len(prefix):].strip()
+        return text
+
+    alint_path = '/google/bin/releases/alint/alint'
+    command = [alint_path, '--', '-t=9s']
+    if not _os.path.exists(alint_path):
+        return []
+
+    # Determine the git repository root
+    repo_root = input_api.change.RepositoryRoot()
+    if not repo_root:
+        return [
+            output_api.PresubmitError("Could not determine repository root.")
+        ]
+
+    try:
+        process = input_api.subprocess.Popen(command,
+                                             stdout=input_api.subprocess.PIPE,
+                                             stderr=input_api.subprocess.STDOUT,
+                                             cwd=repo_root)
+        stdout, _ = process.communicate()
+        output_str = stdout.decode('utf-8', 'ignore')
+
+        if not output_str.strip():
+            return []
+
+        results = []
+        for line in output_str.splitlines():
+            clean_line = strip_ansi_codes(line).strip()
+            if not clean_line:
+                continue
+            if clean_line.startswith("ERROR:"):
+                results.append(
+                    output_api.PresubmitError(
+                        strip_severity_prefix(clean_line)))
+            elif clean_line.startswith("WARNING:"):
+                results.append(
+                    output_api.PresubmitPromptWarning(
+                        strip_severity_prefix(clean_line)))
+        return results
+    except Exception as e:
+        return [
+            output_api.PresubmitError(
+                f"Unexpected error in CheckAyeAye: {type(e).__name__} - {e}")
         ]

@@ -14,6 +14,7 @@
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
 #import "ios/ui/onboarding/vivaldi_onboarding_agreement_view.h"
 #import "ios/ui/onboarding/vivaldi_onboarding_background_view.h"
+#import "ios/ui/onboarding/vivaldi_onboarding_notification_constants.h"
 #import "ios/ui/onboarding/vivaldi_onboarding_promo_view.h"
 #import "ios/ui/settings/sync/vivaldi_sync_settings_constants.h"
 #import "ios/ui/site_tracker_prefs/site_tracker_prefs_view_swift.h"

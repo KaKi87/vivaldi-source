@@ -40,13 +40,41 @@ class VivaldiLocationBar : public LocationBar {
 
   LocationBarModel* GetLocationBarModel() override;
 
-  std::optional<bubble_anchor_util::AnchorConfiguration> GetChipAnchor() override;
+  std::optional<bubble_anchor_util::AnchorConfiguration> GetChipAnchor()
+      override;
 
   void OnChanged() override {}
 
   void UpdateWithoutTabRestore() override {}
 
-  // Returns a pointer to the testing interface.
+  ChipController* GetChipController() override;
+
+  ui::TrackedElement* GetAnchorOrNull() override;
+
+  Browser* GetBrowser() override;
+
+  bool IsVisible() const override;
+
+  bool IsDrawn() const override;
+
+  bool IsTopLevelFullscreen() const override;
+
+  bool IsEditingOrEmpty() const override;
+
+  void InvalidateLayout() override {}
+
+  gfx::Rect Bounds() const override;
+
+  gfx::Size MinimumSize() const override;
+
+  gfx::Size PreferredSize() const override;
+
+  void Update(content::WebContents* contents) override {}
+
+  void ResetTabState(content::WebContents* contents) override {}
+
+  bool HasSecurityStateChanged() override;
+
   LocationBarTesting* GetLocationBarForTesting() override;
 
  private:

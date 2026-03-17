@@ -55,8 +55,6 @@ const char kActiveProfileName2[] = "active_profile2";
 
 }  // namespace
 
-// TODO(crbug.com/40704763): Get rid of chrome/browser dependencies and then
-// move this file to components/enterprise/browser.
 class ReportRequestQueueGeneratorTest : public ::testing::Test {
  public:
   ReportRequestQueueGeneratorTest()
@@ -290,7 +288,7 @@ TEST_F(ReportRequestQueueGeneratorTest, ChromePoliciesCollection) {
 
   policy_map.Set("kPolicyName1", policy::POLICY_LEVEL_MANDATORY,
                  policy::POLICY_SCOPE_USER, policy::POLICY_SOURCE_CLOUD,
-                 base::Value(base::Value::List()), nullptr);
+                 base::Value(base::ListValue()), nullptr);
   policy_map.Set("kPolicyName2", policy::POLICY_LEVEL_RECOMMENDED,
                  policy::POLICY_SCOPE_MACHINE, policy::POLICY_SOURCE_MERGED,
                  base::Value(true), nullptr);

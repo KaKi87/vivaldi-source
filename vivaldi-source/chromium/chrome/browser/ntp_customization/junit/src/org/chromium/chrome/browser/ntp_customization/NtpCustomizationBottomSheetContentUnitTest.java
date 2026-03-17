@@ -10,7 +10,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -45,7 +44,6 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowLooper;
 
-import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 
@@ -63,7 +61,6 @@ public final class NtpCustomizationBottomSheetContentUnitTest {
 
     @Mock private Runnable mBackPressRunnable;
     @Mock private Runnable mOnDestroyRunnable;
-    @Mock private ObservableSupplierImpl<Boolean> mObservableSupplier;
     @Mock private Supplier<Integer> mContainerHeightSupplier;
     @Mock private Supplier<Integer> mMaxSheetWidthSupplier;
     @Mock private RecyclerView mThemeCollectionsRecyclerView;
@@ -182,7 +179,7 @@ public final class NtpCustomizationBottomSheetContentUnitTest {
 
         // Case 3: Content height is medium (> 0.5, <= MAX_HEIGHT_RATIO), no overflow.
         when(mView.getMeasuredHeight()).thenReturn((int) (0.6 * CONTAINER_HEIGHT));
-        assertEquals(0.5f, mBottomSheetContent.getHalfHeightRatio(), FLOATING_POINT_DELTA);
+        assertEquals(0.6f, mBottomSheetContent.getHalfHeightRatio(), FLOATING_POINT_DELTA);
         assertEquals(0.6f, mBottomSheetContent.getFullHeightRatio(), FLOATING_POINT_DELTA);
         verify(mThemeCollectionsRecyclerView, times(4)).setPaddingRelative(0, 0, 0, 0);
 
@@ -190,7 +187,10 @@ public final class NtpCustomizationBottomSheetContentUnitTest {
         float overflow = 100f;
         float maxHeight = NtpCustomizationBottomSheetContent.MAX_HEIGHT_RATIO * CONTAINER_HEIGHT;
         when(mThemeCollectionsRecyclerView.getBottom()).thenReturn((int) (maxHeight + overflow));
-        assertEquals(0.5f, mBottomSheetContent.getHalfHeightRatio(), FLOATING_POINT_DELTA);
+        assertEquals(
+                (float) NtpCustomizationBottomSheetContent.MAX_HEIGHT_RATIO,
+                mBottomSheetContent.getHalfHeightRatio(),
+                FLOATING_POINT_DELTA);
         assertEquals(
                 (float) NtpCustomizationBottomSheetContent.MAX_HEIGHT_RATIO,
                 mBottomSheetContent.getFullHeightRatio(),
@@ -209,10 +209,6 @@ public final class NtpCustomizationBottomSheetContentUnitTest {
         mBottomSheetTypeSupplier = () -> SINGLE_THEME_COLLECTION;
         assertEquals(
                 mSingleThemeCollectionRecyclerView, mBottomSheetContent.getActiveRecyclerView());
-
-        // Returns the chrome colors recycler view for CHROME_COLORS type.
-        mBottomSheetTypeSupplier = () -> CHROME_COLORS;
-        assertEquals(mChromeColorsRecyclerView, mBottomSheetContent.getActiveRecyclerView());
 
         // Returns null for other types like MAIN.
         mBottomSheetTypeSupplier = () -> MAIN;
@@ -331,12 +327,11 @@ public final class NtpCustomizationBottomSheetContentUnitTest {
 
     @Test
     public void testSheetClosedAndOpened() {
-        mBottomSheetContent.setBackPressStateChangedSupplierForTesting(mObservableSupplier);
         mBottomSheetContent.onSheetOpened();
-        verify(mObservableSupplier).set(eq(true));
+        assertTrue(mBottomSheetContent.getBackPressStateChangedSupplier().get());
 
         mBottomSheetContent.onSheetClosed();
-        verify(mObservableSupplier).set(eq(false));
+        assertFalse(mBottomSheetContent.getBackPressStateChangedSupplier().get());
     }
 
     @Test

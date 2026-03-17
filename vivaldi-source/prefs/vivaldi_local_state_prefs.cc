@@ -53,7 +53,7 @@ void RegisterLocalStatePrefs(PrefRegistrySimple* registry) {
   registry->RegisterStringPref(vivaldiprefs::kVivaldiSyncNotificationsServerUrl,
                                "stomps://stream.vivaldi.com:61613/");
 
-  base::Value::List args;
+  base::ListValue args;
   for (int i = 0; i < kDefaultLanguageListSize; i++) {
     args.Append(base::Value(kDefaultLanguageList[i]));
   }

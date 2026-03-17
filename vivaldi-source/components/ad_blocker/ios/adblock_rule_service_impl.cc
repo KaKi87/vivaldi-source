@@ -10,14 +10,16 @@
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/callback_helpers.h"
 #include "base/path_service.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "components/ad_blocker/core/adblock_rule_manager_impl.h"
-#include "components/ad_blocker/core/adblock_rule_source_handler.h"
 #include "components/ad_blocker/ios/adblock_content_injection_handler.h"
 #include "components/ad_blocker/ios/adblock_content_rule_list_provider.h"
+#include "components/ad_blocker/ios/ios_rules_compiler.h"
 #include "components/ad_blocker/public/core/adblock_known_sources_handler.h"
+#include "components/prefs/pref_service.h"
 #include "ios/web/public/browser_state.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 
@@ -121,15 +123,10 @@ class Loader {
 
 }  // namespace
 
-RuleServiceImpl::RuleServiceImpl(
-    web::BrowserState* browser_state,
-    PrefService* prefs,
-    RuleSourceHandler::RulesCompiler rules_compiler,
-    std::string locale)
-    : browser_state_(browser_state),
-      prefs_(prefs),
-      rules_compiler_(std::move(rules_compiler)),
-      locale_(std::move(locale)) {
+RuleServiceImpl::RuleServiceImpl(web::BrowserState* browser_state,
+                                 PrefService* prefs,
+                                 std::string locale)
+    : browser_state_(browser_state), prefs_(prefs), locale_(std::move(locale)) {
   pref_change_registrar_.Init(prefs_);
 }
 
@@ -195,7 +192,7 @@ void RuleServiceImpl::SetIncognitoBrowserState(
 }
 
 bool RuleServiceImpl::IsPartnerListAllowedDocument(RuleGroup group, GURL url) {
-  const base::Value::List& partner_list_allowed_documents =
+  const base::ListValue& partner_list_allowed_documents =
       organized_rules_manager_[group]->partner_list_allowed_documents();
 
   for (const auto& partner_list_allowed_document :
@@ -236,7 +233,11 @@ void RuleServiceImpl::OnFullyLoaded(
       std::move(load_result.exceptions),
       base::BindRepeating(&RuleServiceStorage::ScheduleSave,
                           base::Unretained(&state_store_.value())),
-      rules_compiler_, base::DoNothing());
+      base::BindRepeating(
+          &CompileIosRules,
+          prefs_->GetBoolean(
+              vivaldiprefs::kPrivacyAdBlockerEnableDocumentBlocking)),
+      base::DoNothing());
   rule_manager_->AddObserver(this);
 
   // Unretained is ok, since we own the registrar and it owns the callback.
@@ -319,9 +320,11 @@ void RuleServiceImpl::OnRulesIndexChanged(
 void RuleServiceImpl::OnEnableDocumentBlockingChanged() {
   // Force a recompilation of all sources
   for (auto group : {RuleGroup::kTrackingRules, RuleGroup::kAdBlockingRules}) {
-    for (const auto& [source_id, _] : rule_manager_->GetRuleSources(group)) {
-      rule_manager_->FetchRuleSourceNow(group, source_id);
-    }
+    rule_manager_->ResetCompiler(
+        group, base::BindRepeating(
+                   &CompileIosRules,
+                   prefs_->GetBoolean(
+                       vivaldiprefs::kPrivacyAdBlockerEnableDocumentBlocking)));
   }
 }
 

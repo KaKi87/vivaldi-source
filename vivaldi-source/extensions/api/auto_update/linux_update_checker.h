@@ -46,7 +46,7 @@ class LinuxUpdateChecker {
   std::string GetUpdateURL();
 
   // Callback for when URL loading completes
-  void OnURLLoadComplete(std::unique_ptr<std::string> response_body);
+  void OnURLLoadComplete(std::optional<std::string> response_body);
 
   // Parses the Sparkle XML format and extracts version information
   void ParseUpdateXML(const std::string& xml_content);

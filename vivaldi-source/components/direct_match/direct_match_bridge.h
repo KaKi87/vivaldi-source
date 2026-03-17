@@ -4,8 +4,8 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_weak_ref.h"
 #include "base/compiler_specific.h"
-#include "components/prefs/pref_change_registrar.h"
 #include "components/direct_match/direct_match_service.h"
+#include "components/prefs/pref_change_registrar.h"
 
 #include "base/android/jni_android.h"
 #include "base/android/jni_weak_ref.h"
@@ -17,26 +17,29 @@ class Profile;
 class DirectMatchBridge : public direct_match::DirectMatchService::Observer {
  public:
   DirectMatchBridge(JNIEnv* env,
-              const base::android::JavaRef<jobject>& obj,
-              const base::android::JavaRef<jobject>& j_profile);
-  void Destroy(JNIEnv*, const base::android::JavaParamRef<jobject>&);
+                    const base::android::JavaRef<jobject>& obj,
+                    const base::android::JavaRef<jobject>& j_profile);
+  void Destroy(JNIEnv*, const base::android::JavaRef<jobject>&);
   void GetPopularSites(JNIEnv* env,
-     const base::android::JavaParamRef<jobject>& j_result_obj);
+                       const base::android::JavaRef<jobject>& j_result_obj);
   jni_zero::ScopedJavaLocalRef<jobject> CreateJavaDirectMatchItem(
-  const direct_match::DirectMatchService::DirectMatchUnit* unit);
-  const std::vector<const direct_match::DirectMatchService::DirectMatchUnit *>
-            GetDirectMatchItemList(int category);
+      const direct_match::DirectMatchService::DirectMatchUnit* unit);
+  const std::vector<const direct_match::DirectMatchService::DirectMatchUnit*>
+  GetDirectMatchItemList(int category);
   void AddItemsToDirectMatchItemList(
-    JNIEnv* env,
-    const jni_zero::JavaParamRef<jobject>& j_result_obj,
-    const std::vector<const direct_match::DirectMatchService::DirectMatchUnit*>& nodes);
-  void GetDirectMatchesForCategory(JNIEnv* env, int category_id,
-    const base::android::JavaParamRef<jobject>& j_result_obj);
+      JNIEnv* env,
+      const jni_zero::JavaRef<jobject>& j_result_obj,
+      const std::vector<
+          const direct_match::DirectMatchService::DirectMatchUnit*>& nodes);
+  void GetDirectMatchesForCategory(
+      JNIEnv* env,
+      int category_id,
+      const base::android::JavaRef<jobject>& j_result_obj);
   void DirectMatchUnitsDownloaded();
   void DirectMatchIconsDownloaded();
 
-void OnFinishedDownloadingDirectMatchUnits();
-void OnFinishedDownloadingDirectMatchUnitsIcon();
+  void OnFinishedDownloadingDirectMatchUnits();
+  void OnFinishedDownloadingDirectMatchUnitsIcon();
 
  private:
   ~DirectMatchBridge();

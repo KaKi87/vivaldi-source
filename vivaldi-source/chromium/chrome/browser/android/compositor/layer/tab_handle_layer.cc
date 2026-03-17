@@ -42,6 +42,10 @@ void TabHandleLayer::SetProperties(
     bool should_show_media_indicator,
     ui::Resource* media_indicator_resource,
     float media_indicator_width,
+    float media_indicator_spacing,
+    float media_indicator_internal_padding,
+    float title_to_media_indicator_spacing,
+    float media_indicator_opacity,
     float toolbar_width,
     float x,
     float y,
@@ -171,6 +175,13 @@ void TabHandleLayer::SetProperties(
   }
   }
 
+  // Spacing between the media indicator and the close button.
+  float media_close_spacing =
+      (close_button_alpha > 0.f)
+          ? (media_indicator_spacing - close_button_padding -
+             media_indicator_internal_padding)
+          : 0.f;
+
   int divider_y = content_offset_y;
   int divider_width = divider_resource->size().width();
 
@@ -204,7 +215,7 @@ void TabHandleLayer::SetProperties(
         media_indicator_resource->ui_resource()->id());
     media_indicator_layer_->SetBounds(
         gfx::Size(media_indicator_size, media_indicator_size));
-    media_indicator_layer_->SetOpacity(1.0f);
+    media_indicator_layer_->SetOpacity(media_indicator_opacity);
   } else {
     media_indicator_layer_->SetIsDrawable(false);
   }
@@ -218,7 +229,13 @@ void TabHandleLayer::SetProperties(
     title_y = std::min(content_offset_y, title_y_offset_mid);
 
     // Hide tab title text when it reached threshold.
-    title_layer->SetShouldHideTitleText(width <= width_to_hide_tab_title);
+    float hide_title_threshold = width_to_hide_tab_title;
+    if (media_indicator_size > 0) {
+      hide_title_threshold += media_indicator_size +
+                              title_to_media_indicator_spacing +
+                              media_close_spacing;
+    }
+    title_layer->SetShouldHideTitleText(width <= hide_title_threshold);
 
     // Hide tab favicon if necessary.
     title_layer->SetShouldHideIcon(should_hide_favicon);
@@ -231,6 +248,19 @@ void TabHandleLayer::SetProperties(
                          : padding_left;
     int title_width = width - padding_left - padding_right - close_width -
                       media_indicator_size;
+
+    if (media_indicator_size > 0) {
+      // Account for the spacing between the title and the media indicator.
+      title_width -= title_to_media_indicator_spacing;
+
+      // Account for the spacing between the media indicator and the close
+      // button.
+      title_width -= media_close_spacing;
+
+      if (is_rtl) {
+        title_x += title_to_media_indicator_spacing + media_close_spacing;
+      }
+    }
 
     // Note(david@vivaldi.com): When close button is not visible we can increase
     // the title space in order to see more of the title. Also pass the show
@@ -326,8 +356,14 @@ void TabHandleLayer::SetProperties(
       right_aligned_icon_x = is_rtl ? padding_left : width - padding_right;
     }
 
-    float media_x = is_rtl ? right_aligned_icon_x + close_width
-                           : right_aligned_icon_x - media_indicator_size;
+    float media_x_spacing = media_close_spacing;
+    if (is_rtl && close_button_alpha > 0.f) {
+      media_x_spacing += close_button_padding;
+    }
+
+    float media_x =
+        is_rtl ? right_aligned_icon_x + close_width + media_x_spacing
+               : right_aligned_icon_x - media_indicator_size - media_x_spacing;
     float media_y =
         close_y + std::round((close_button_resource->size().height() -
                               media_indicator_size) /

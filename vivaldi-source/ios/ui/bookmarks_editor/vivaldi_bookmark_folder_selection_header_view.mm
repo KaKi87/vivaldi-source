@@ -12,7 +12,6 @@
 #import "ui/base/l10n/l10n_util.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-
 using l10n_util::GetNSString;
 
 namespace {
@@ -26,14 +25,14 @@ UIEdgeInsets speedDialSelectionLabelPadding = UIEdgeInsetsMake(0, 4, 0, 8);
 
 }  // namespace
 
-@interface VivaldiBookmarkFolderSelectionHeaderView()
-                                                  <VivaldiSearchBarViewDelegate>
+@interface VivaldiBookmarkFolderSelectionHeaderView () <
+    VivaldiSearchBarViewDelegate>
 // Label for the folder name.
-@property (nonatomic,weak) VivaldiSearchBarView* searchBar;
+@property(nonatomic, weak) VivaldiSearchBarView* searchBar;
 // The label that describes the text for speed dial selection.
-@property (nonatomic,weak) UILabel* speedDialSelectionLabel;
+@property(nonatomic, weak) UILabel* speedDialSelectionLabel;
 // Speed dial toggle.
-@property (nonatomic,weak) UISwitch* setSpeedDialToggle;
+@property(nonatomic, weak) UISwitch* setSpeedDialToggle;
 
 @end
 
@@ -54,12 +53,11 @@ UIEdgeInsets speedDialSelectionLabelPadding = UIEdgeInsetsMake(0, 4, 0, 8);
 
 #pragma mark - SET UP UI COMPONENTS
 - (void)setUpUI {
-
   // Search bar
   VivaldiSearchBarView* searchBar = [VivaldiSearchBarView new];
   _searchBar = searchBar;
   NSString* placeholderString =
-    GetNSString(IDS_IOS_BOOKMARK_FOLDER_SELECTION_SEARCHBAR_PLACEHOLDER);
+      GetNSString(IDS_IOS_BOOKMARK_FOLDER_SELECTION_SEARCHBAR_PLACEHOLDER);
   [searchBar setPlaceholder:placeholderString];
   searchBar.delegate = self;
 
@@ -68,7 +66,6 @@ UIEdgeInsets speedDialSelectionLabelPadding = UIEdgeInsetsMake(0, 4, 0, 8);
                leading:self.leadingAnchor
                 bottom:nil
               trailing:self.trailingAnchor];
-
 
   // Speed dial selection view that holds the description label and the toggle.
   UIView* speedDialSelectionView = [UIView new];
@@ -86,8 +83,8 @@ UIEdgeInsets speedDialSelectionLabelPadding = UIEdgeInsetsMake(0, 4, 0, 8);
   _setSpeedDialToggle = toggle;
   [speedDialSelectionView addSubview:toggle];
   [toggle addTarget:self
-             action:@selector(showSpeedDialFoldersToggleDidChange:)
-   forControlEvents:UIControlEventValueChanged];
+                action:@selector(showSpeedDialFoldersToggleDidChange:)
+      forControlEvents:UIControlEventValueChanged];
 
   [toggle anchorTop:speedDialSelectionView.topAnchor
             leading:nil
@@ -104,7 +101,7 @@ UIEdgeInsets speedDialSelectionLabelPadding = UIEdgeInsetsMake(0, 4, 0, 8);
   speedDialSelectionLabel.accessibilityLabel = titleString;
   speedDialSelectionLabel.textColor = UIColor.labelColor;
   speedDialSelectionLabel.font =
-    [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+      [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   speedDialSelectionLabel.numberOfLines = 1;
   speedDialSelectionLabel.textAlignment = NSTextAlignmentLeft;
 

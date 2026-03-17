@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_MEDIA_ROUTER_DISCOVERY_ACCESS_CODE_ACCESS_CODE_CAST_SINK_SERVICE_H_
 #define CHROME_BROWSER_MEDIA_ROUTER_DISCOVERY_ACCESS_CODE_ACCESS_CODE_CAST_SINK_SERVICE_H_
 
-#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
@@ -268,7 +267,7 @@ class AccessCodeCastSinkService : public KeyedService,
   void ValidateStoredDevices(
       base::OnceCallback<void(const std::vector<MediaSinkInternal>&)>
           on_device_validated_callback,
-      base::Value::Dict stored_sinks);
+      base::DictValue stored_sinks);
 
   // Makes a new timer entry into the expiration map. Resets the current timer
   // if it already exists.

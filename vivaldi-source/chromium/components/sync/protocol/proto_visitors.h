@@ -58,6 +58,7 @@
 #include "components/sync/protocol/shared_comment_specifics.pb.h"
 #include "components/sync/protocol/shared_tab_group_data_specifics.pb.h"
 #include "components/sync/protocol/sharing_message_specifics.pb.h"
+#include "components/sync/protocol/skill_specifics.pb.h"
 #include "components/sync/protocol/sync.pb.h"
 #include "components/sync/protocol/sync_entity.pb.h"
 #include "components/sync/protocol/sync_invalidations_payload.pb.h"
@@ -84,7 +85,7 @@
 // field value.
 //
 // VisitProtoFields() used to implement two distinctive features:
-// 1. Serialization into base::Value::Dict
+// 1. Serialization into base::DictValue
 // 2. Proto memory usage estimation
 //
 // To achieve that it's very important for VisitProtoFields() to be free
@@ -641,11 +642,12 @@ VISIT_PROTO_FIELDS(const sync_pb::DeviceInfoSpecifics& proto) {
   VISIT(sync_user_agent);
   VISIT(chrome_version);
   VISIT(signin_scoped_device_id);
-  VISIT(model);
-  VISIT(manufacturer);
   VISIT(last_updated_timestamp);
   VISIT(feature_fields);
   VISIT(sharing_fields);
+  VISIT(model);
+  VISIT(manufacturer);
+  VISIT(pulse_interval_in_minutes);
   VISIT(invalidation_fields);
   VISIT(paask_fields);
   VISIT(full_hardware_class);
@@ -653,6 +655,11 @@ VISIT_PROTO_FIELDS(const sync_pb::DeviceInfoSpecifics& proto) {
   VISIT(google_play_services_version_info);
   VISIT_ENUM(os_type);
   VISIT_ENUM(device_form_factor);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::DesktopToMobilePromoMessage& proto) {
+  VISIT(push_notification);
+  VISIT(promo_type);
 }
 
 VISIT_PROTO_FIELDS(const sync_pb::EligiblePriceRange& proto) {
@@ -665,6 +672,7 @@ VISIT_PROTO_FIELDS(const sync_pb::FeatureSpecificFields& proto) {
   VISIT(send_tab_to_self_receiving_enabled);
   VISIT_ENUM(send_tab_to_self_receiving_type);
   VISIT(auto_sign_out_last_signin_timestamp_windows_epoch_micros);
+  VISIT(desktop_to_ios_promo_receiving_enabled);
 }
 
 VISIT_PROTO_FIELDS(const sync_pb::SharingSpecificFields& proto) {
@@ -732,7 +740,7 @@ VISIT_PROTO_FIELDS(
 }
 
 VISIT_PROTO_FIELDS(const sync_pb::EntitySpecifics& proto) {
-  static_assert(59 + 1 /* notes */ == GetNumDataTypes(),
+  static_assert(61 + 1 /* notes */ == GetNumDataTypes(),
                 "When adding a new protocol type, you will likely need to add "
                 "it here as well.");
   VISIT(encrypted);
@@ -796,6 +804,8 @@ VISIT_PROTO_FIELDS(const sync_pb::EntitySpecifics& proto) {
   VISIT(webauthn_credential);
   VISIT(ai_thread);
   VISIT(contextual_task);
+  VISIT(skill);
+  VISIT(gemini_thread);
 
   VISIT(notes);
 }
@@ -1247,6 +1257,22 @@ VISIT_PROTO_FIELDS(const sync_pb::PrintersAuthorizationServerSpecifics& proto) {
 
 VISIT_PROTO_FIELDS(const sync_pb::PriorityPreferenceSpecifics& proto) {
   VISIT(preference);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::PushNotificationMessage& proto) {
+  VISIT(title);
+  VISIT(text);
+  VISIT_REP(icon);
+  VISIT(favicon);
+  VISIT(destination_url);
+  VISIT(placeholder_title);
+  VISIT(placeholder_body);
+  VISIT(push_notification_client_id);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::PushNotificationMessage::Image& proto) {
+  VISIT(url);
+  VISIT(alt_text);
 }
 
 VISIT_PROTO_FIELDS(const sync_pb::ReadingListSpecifics& proto) {
@@ -1910,6 +1936,7 @@ VISIT_PROTO_FIELDS(const sync_pb::WebAppSpecifics& proto) {
   VISIT(relative_manifest_id);
   VISIT_ENUM(user_display_mode_cros);
   VISIT_REP(trusted_icons);
+  VISIT(migrated_from_manifest_id);
 }
 
 VISIT_PROTO_FIELDS(const sync_pb::WifiConfigurationSpecifics::
@@ -2039,6 +2066,11 @@ VISIT_PROTO_FIELDS(const sync_pb::AutofillValuableSpecifics& proto) {
   VISIT(loyalty_card);
   VISIT(vehicle_registration);
   VISIT(flight_reservation);
+  VISIT(passport);
+  VISIT(driver_license);
+  VISIT(national_id_card);
+  VISIT(redress_number);
+  VISIT(known_traveler_number);
   VISIT(serialized_chrome_valuables_metadata);
 }
 
@@ -2081,11 +2113,48 @@ VISIT_PROTO_FIELDS(const sync_pb::FlightReservation& proto) {
   VISIT(arrival_airport_utc_offset_seconds);
 }
 
+VISIT_PROTO_FIELDS(const sync_pb::Passport& proto) {
+  VISIT(masked_number);
+  VISIT(owner_name);
+  VISIT(country_code);
+  VISIT(issue_date_unix_epoch_micros);
+  VISIT(expiration_date_unix_epoch_micros);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::DriverLicense& proto) {
+  VISIT(masked_number);
+  VISIT(owner_name);
+  VISIT(country_code);
+  VISIT(region);
+  VISIT(issue_date_unix_epoch_micros);
+  VISIT(expiration_date_unix_epoch_micros);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::NationalIdCard& proto) {
+  VISIT(masked_number);
+  VISIT(owner_name);
+  VISIT(country_code);
+  VISIT(issue_date_unix_epoch_micros);
+  VISIT(expiry_date_unix_epoch_micros);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::RedressNumber& proto) {
+  VISIT(masked_number);
+  VISIT(owner_name);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::KnownTravelerNumber& proto) {
+  VISIT(masked_number);
+  VISIT(owner_name);
+  VISIT(expiry_date_unix_epoch_micros);
+}
+
 VISIT_PROTO_FIELDS(const sync_pb::AutofillValuableMetadataSpecifics& proto) {
   VISIT(valuable_id);
   VISIT(use_count);
   VISIT(last_used_date_unix_epoch_micros);
   VISIT(last_modified_date_unix_epoch_micros);
+  VISIT_ENUM(pass_type);
 }
 
 VISIT_PROTO_FIELDS(const sync_pb::AccountSettingSpecifics& proto) {
@@ -2162,6 +2231,28 @@ VISIT_PROTO_FIELDS(const sync_pb::SharedCommentSpecifics& proto) {
   VISIT(proto_version);
   VISIT(comment);
   VISIT(shared_url_context);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::SkillSpecifics& proto) {
+  VISIT(guid);
+  VISIT(name);
+  VISIT(icon);
+  VISIT(simple_skill);
+  VISIT(creation_time_windows_epoch_micros);
+  VISIT(last_update_time_windows_epoch_micros);
+  VISIT(schema_version);
+  VISIT_ENUM(skill_source);
+  VISIT(source_skill_id);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::SimpleSkill& proto) {
+  VISIT(prompt);
+  VISIT(description);
+}
+
+VISIT_PROTO_FIELDS(const sync_pb::GeminiThreadSpecifics& proto) {
+  VISIT(conversation_id);
+  VISIT(title);
 }
 
 VISIT_PROTO_FIELDS(const sync_pb::AiThreadSpecifics& proto) {

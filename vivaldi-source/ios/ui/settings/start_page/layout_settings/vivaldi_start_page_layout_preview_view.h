@@ -9,7 +9,7 @@
 #import "ios/ui/settings/start_page/layout_settings/vivaldi_start_page_layout_state.h"
 #import "ios/ui/settings/start_page/layout_settings/vivaldi_start_page_layout_style.h"
 
-typedef void(^LayoutHeightUpdatedBlock)(CGFloat height);
+typedef void (^LayoutHeightUpdatedBlock)(CGFloat height);
 
 @interface VivaldiStartPageLayoutPreviewView : UIView {
   // Instance variable for storing numberOfRows for preview

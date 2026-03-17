@@ -7,7 +7,7 @@
 #import "components/pref_registry/pref_registry_syncable.h"
 #import "components/prefs/pref_service.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 @implementation VivaldiGeneralSettingPrefs
 
@@ -21,13 +21,13 @@
 #pragma mark - GETTERS
 
 /// Returns showHomepage enabled status
-+ (BOOL)getHomepageEnabledWithPrefService: (PrefService*)prefService {
++ (BOOL)getHomepageEnabledWithPrefService:(PrefService*)prefService {
   return prefService->GetBoolean(vivaldiprefs::kVivaldiHomepageEnabled);
 }
 /// Returns Homepage Url
 + (NSString*)getHomepageUrlWithPrefService:(PrefService*)prefService {
-  NSString *url = base::SysUTF8ToNSString(
-                    prefService->GetString(vivaldiprefs::kVivaldiHomepageURL));
+  NSString* url = base::SysUTF8ToNSString(
+      prefService->GetString(vivaldiprefs::kVivaldiHomepageURL));
   return url;
 }
 

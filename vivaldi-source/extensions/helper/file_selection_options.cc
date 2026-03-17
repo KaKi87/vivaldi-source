@@ -22,8 +22,7 @@ class FileSelectionRunner : private ui::SelectFileDialog::Listener {
   FileSelectionRunner& operator=(const FileSelectionRunner&) = delete;
 
   // ui::SelectFileDialog::Listener:
-  void FileSelected(const ui::SelectedFileInfo& path,
-                    int index) override;
+  void FileSelected(const ui::SelectedFileInfo& path, int index) override;
   void FileSelectionCanceled() override;
 
   FileSelectionOptions::RunDialogResult callback_;

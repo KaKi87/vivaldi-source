@@ -89,14 +89,18 @@ import org.chromium.url.GURL;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 // Vivaldi
+import org.chromium.chrome.browser.app.ChromeActivity;
+import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.chrome.browser.tab.TabUtils;
+
 import org.vivaldi.browser.tabmodel.VivaldiTabModelUtils;
 
 /**
@@ -291,6 +295,25 @@ public class TabContextMenuCoordinator extends TabStripReorderingHelper<AnchorIn
                                         .build(),
                                 /* allowDialog= */ true);
             }
+            // List all custom Vivaldi id's here...
+            if (menuId == R.id.close_all_tabs_menu_id) {
+                tabModel.getTabRemover().closeTabs(
+                        TabClosureParams.closeAllTabs()
+                                .hideTabGroups(true)
+                                .tabClosingSource(TabClosingSource.TABLET_TAB_STRIP)
+                                .build(),
+                        true);
+            }
+            ChromeActivity activity = ((ChromeActivity) TabUtils.getActivity(tabs.get(0)));
+            if (activity != null) {
+                if (menuId == R.id.vivaldi_close_other_tabs) {
+                    VivaldiTabModelUtils.closeOtherTabs(activity.getTabModelSelector());
+                } else if (menuId == R.id.edit_group_name) {
+                    if (activity.getToolbarManager() != null
+                            && activity.getToolbarManager().getTabGroupUi() != null)
+                        activity.getToolbarManager().getTabGroupUi().resetTabListForCurrentTab();
+                }
+            }
         };
     }
 
@@ -348,9 +371,9 @@ public class TabContextMenuCoordinator extends TabStripReorderingHelper<AnchorIn
             buildMenuActionItemsForMultipleTabs(itemList, anchorInfo, tabs, isIncognito);
         }
 
-        // Note(david@vivaldi.com): Remove the pin tab menu item when tab pinning is not available.
-        VivaldiTabModelUtils.checkPinAvailabilityAndMaybeRemoveMenuItem(
-                tabModel, tabs, itemList, R.id.pin_tab_menu_id);
+        // Note(david@vivaldi.com): Remove or disable items if applicable.
+        VivaldiTabModelUtils.maybeRemoveOrDisableTabActionMenuItem(
+                tabModel, tabs, itemList, null);
     }
 
     @Override
@@ -377,10 +400,15 @@ public class TabContextMenuCoordinator extends TabStripReorderingHelper<AnchorIn
     private void buildMenuActionItemsForSingleTab(
             ModelList itemList, AnchorInfo anchorInfo, List<Tab> tabs, boolean isIncognito) {
         itemList.add(createMoveToTabGroupItem(tabs, isIncognito));
+
+        if (TabGroupUtils.isAnyTabInGroup(tabs))
+            itemList.add(buildListItem(
+                    R.string.tab_menu_item_edit_tab_stack, R.id.edit_group_name, isIncognito));
+
         if (TabGroupUtils.isAnyTabInGroup(tabs)) {
             itemList.add(createRemoveFromTabGroupItem(tabs, isIncognito));
         }
-        if (shouldShowMoveToWindowItem(tabs)) {
+        if (shouldShowMoveToWindowItem(tabs, anchorInfo)) {
             itemList.add(createMoveToWindowItem(anchorInfo, isIncognito));
         }
         List<ListItem> reorderItems = createReorderItems(anchorInfo);
@@ -401,6 +429,11 @@ public class TabContextMenuCoordinator extends TabStripReorderingHelper<AnchorIn
             itemList.add(createMuteUnmuteSiteItem(tabs, isIncognito));
         }
         itemList.add(createCloseItem(isIncognito));
+        // Vivaldi
+        itemList.add(buildListItem(
+                R.string.menu_close_all_tabs, R.id.close_all_tabs_menu_id, isIncognito));
+        itemList.add(buildListItem(
+                R.string.tabs_menu_close_other_tabs, R.id.vivaldi_close_other_tabs, isIncognito));
     }
 
     private void buildMenuActionItemsForMultipleTabs(
@@ -409,7 +442,7 @@ public class TabContextMenuCoordinator extends TabStripReorderingHelper<AnchorIn
         if (TabGroupUtils.isAnyTabInGroup(tabs)) {
             itemList.add(createRemoveFromTabGroupItem(tabs, isIncognito));
         }
-        if (shouldShowMoveToWindowItem(tabs)) {
+        if (shouldShowMoveToWindowItem(tabs, anchorInfo)) {
             itemList.add(createMoveToWindowItem(anchorInfo, isIncognito));
         }
         List<ListItem> reorderItems = createReorderItems(anchorInfo);
@@ -477,7 +510,6 @@ public class TabContextMenuCoordinator extends TabStripReorderingHelper<AnchorIn
                         ? getIncognitoTabGroups(tabs, groupToNotBeIncluded)
                         : getRegularTabGroups(tabs, groupToNotBeIncluded);
         if (!potentialGroups.isEmpty()) {
-            submenuItems.add(buildMenuDivider(isIncognito));
             submenuItems.addAll(potentialGroups);
         }
 
@@ -490,8 +522,13 @@ public class TabContextMenuCoordinator extends TabStripReorderingHelper<AnchorIn
                         .build());
     }
 
-    private boolean shouldShowMoveToWindowItem(List<Tab> tabs) {
+    private boolean shouldShowMoveToWindowItem(List<Tab> tabs, AnchorInfo anchorInfo) {
         if (TabGroupUtils.isAnyTabInGroup(tabs)) return false;
+        if (MultiWindowUtils.getInstanceCountWithFallback(PersistedInstanceType.ACTIVE) == 1
+                && (mTabModelSupplier.get().getTabCountSupplier().get()
+                        == anchorInfo.getAllTabIds().size())) {
+            return false;
+        }
         return MultiWindowUtils.isMultiInstanceApi31Enabled() && mMultiInstanceManager != null;
     }
 
@@ -577,6 +614,7 @@ public class TabContextMenuCoordinator extends TabStripReorderingHelper<AnchorIn
     }
 
     private static void recordMenuAction(int menuId, boolean isMultipleTabs) {
+        if (ChromeApplicationImpl.isVivaldi()) return;
         if (menuId == R.id.add_to_tab_group) {
             recordUserAction("AddToTabGroup", isMultipleTabs);
         } else if (menuId == R.id.remove_from_tab_group) {
@@ -631,10 +669,11 @@ public class TabContextMenuCoordinator extends TabStripReorderingHelper<AnchorIn
 
         // TODO(crbug.com/437327793): Stop filtering out Inactive windows if we can support moving a
         // tab to a group in an Inactive window.
-        Map<Integer, InstanceInfo> activeInstancesById = new HashMap<>();
-        List<InstanceInfo> activeInstances = assumeNonNull(mMultiInstanceManager).getInstanceInfo(ACTIVE);
+        Set<Integer> activeInstanceIds = new HashSet<>();
+        List<InstanceInfo> activeInstances =
+                assumeNonNull(mMultiInstanceManager).getInstanceInfo(ACTIVE);
         for (InstanceInfo activeInstance : activeInstances) {
-            activeInstancesById.put(activeInstance.instanceId, activeInstance);
+            activeInstanceIds.add(activeInstance.instanceId);
         }
 
         for (SavedTabGroup tabGroup : sortedTabGroups) {
@@ -648,7 +687,7 @@ public class TabContextMenuCoordinator extends TabStripReorderingHelper<AnchorIn
             @WindowId int windowId = tabWindowManager.findWindowIdForTabGroup(groupId);
             boolean isGroupInCurrentWindow =
                     windowId == mMultiInstanceManager.getCurrentInstanceId();
-            if (!activeInstancesById.containsKey(windowId)) {
+            if (!activeInstanceIds.contains(windowId)) {
                 continue; // Skip groups w/o active window.
             }
 
@@ -675,8 +714,12 @@ public class TabContextMenuCoordinator extends TabStripReorderingHelper<AnchorIn
                                     mTabGroupModelFilter,
                                     /* tabMovedCallback= */ null);
                         } else {
-                            mMultiInstanceManager.moveTabsToWindowAndMergeToDest(
-                                    activeInstancesById.get(windowId), tabs, firstTabInGroupTabId);
+                            mMultiInstanceManager.moveTabsToWindow(
+                                    windowId,
+                                    tabs,
+                                    /* destTabIndex= */ TabList.INVALID_TAB_INDEX,
+                                    /* destGroupTabId= */ firstTabInGroupTabId,
+                                    NewWindowAppSource.MENU);
                         }
                     };
             result.add(
@@ -768,7 +811,13 @@ public class TabContextMenuCoordinator extends TabStripReorderingHelper<AnchorIn
         if (tabs.isEmpty()) return;
         ungroupTabs(tabs);
         recordMenuAction(R.id.move_to_new_window_sub_menu_id, tabs.size() > 1);
-        assumeNonNull(mMultiInstanceManager).moveTabsToNewWindow(tabs, NewWindowAppSource.MENU);
+        assumeNonNull(mMultiInstanceManager)
+                .moveTabsToWindow(
+                        /* destWindowId= */ MultiInstanceManager.INVALID_WINDOW_ID,
+                        tabs,
+                        /* destTabIndex= */ TabList.INVALID_TAB_INDEX,
+                        /* destGroupTabId= */ TabList.INVALID_TAB_INDEX,
+                        NewWindowAppSource.MENU);
     }
 
     @Override

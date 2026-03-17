@@ -6,11 +6,11 @@
 #import "ios/ui/helpers/vivaldi_uiview_style_helper.h"
 #import "ios/ui/ntp/vivaldi_ntp_constants.h"
 
-@interface VivaldiSpeedDialContainerCell()<VivaldiSpeedDialContainerDelegate>
+@interface VivaldiSpeedDialContainerCell () <VivaldiSpeedDialContainerDelegate>
 // The view whole the children of the speed dial folder
-@property(nonatomic,weak) VivaldiSpeedDialContainerView* speedDialView;
+@property(nonatomic, weak) VivaldiSpeedDialContainerView* speedDialView;
 // Currently visible parent index
-@property(nonatomic,assign) NSInteger currentPage;
+@property(nonatomic, assign) NSInteger currentPage;
 @end
 
 @implementation VivaldiSpeedDialContainerCell
@@ -29,8 +29,8 @@
 
 #pragma mark - SET UP UI COMPONENTS
 - (void)setUpUI {
-  VivaldiSpeedDialContainerView *speedDialView =
-    [VivaldiSpeedDialContainerView new];
+  VivaldiSpeedDialContainerView* speedDialView =
+      [VivaldiSpeedDialContainerView new];
   _speedDialView = speedDialView;
   [self addSubview:speedDialView];
   [speedDialView fillSuperview];
@@ -43,17 +43,17 @@
 }
 
 - (void)configureWith:(NSArray*)speedDials
-               parent:(VivaldiSpeedDialItem*)parent
-        faviconLoader:(FaviconLoader*)faviconLoader
-   directMatchService:(direct_match::DirectMatchService*)directMatchService
-          layoutStyle:(VivaldiStartPageLayoutStyle)style
-         layoutColumn:(VivaldiStartPageLayoutColumn)column
-         showAddGroup:(BOOL)showAddGroup
-    frequentlyVisited:(BOOL)frequentlyVisited
-    topSitesAvailable:(BOOL)topSitesAvailable
-     topToolbarHidden:(BOOL)topToolbarHidden
-    verticalSizeClass:(UIUserInterfaceSizeClass)verticalSizeClass
-            wallpaper:(UIImage*)wallpaper {
+                parent:(VivaldiSpeedDialItem*)parent
+         faviconLoader:(FaviconLoader*)faviconLoader
+    directMatchService:(direct_match::DirectMatchService*)directMatchService
+           layoutStyle:(VivaldiStartPageLayoutStyle)style
+          layoutColumn:(VivaldiStartPageLayoutColumn)column
+          showAddGroup:(BOOL)showAddGroup
+     frequentlyVisited:(BOOL)frequentlyVisited
+     topSitesAvailable:(BOOL)topSitesAvailable
+      topToolbarHidden:(BOOL)topToolbarHidden
+     verticalSizeClass:(UIUserInterfaceSizeClass)verticalSizeClass
+             wallpaper:(UIImage*)wallpaper {
   [self.speedDialView configureWith:speedDials
                              parent:parent
                       faviconLoader:faviconLoader
@@ -70,8 +70,7 @@
 
 - (void)reloadLayoutWithStyle:(VivaldiStartPageLayoutStyle)style
                  layoutColumn:(VivaldiStartPageLayoutColumn)column {
-  [self.speedDialView reloadLayoutWithStyle:style
-                               layoutColumn:column];
+  [self.speedDialView reloadLayoutWithStyle:style layoutColumn:column];
 }
 
 - (void)setCurrentPage:(NSInteger)page {

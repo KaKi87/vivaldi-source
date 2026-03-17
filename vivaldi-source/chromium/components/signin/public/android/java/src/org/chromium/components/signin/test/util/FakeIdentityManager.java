@@ -14,6 +14,7 @@ import org.chromium.components.signin.base.CoreAccountInfo;
 import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.identitymanager.PrimaryAccountChangeEvent;
+import org.chromium.google_apis.gaia.CoreAccountId;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,6 +27,7 @@ public class FakeIdentityManager implements IdentityManager {
     private final List<Observer> mObservers = new ArrayList<>();
     private final Map<String, AccountInfo> mExtendedAccountInfos = new HashMap<>();
     private @Nullable CoreAccountInfo mPrimaryAccount;
+    private boolean mIsOnExtendedAccountInfoUpdatedBlocked;
     private boolean mIsClearPrimaryAccountAllowed;
 
     @Override
@@ -54,7 +56,17 @@ public class FakeIdentityManager implements IdentityManager {
     }
 
     @Override
-    public void refreshAccountInfoIfStale(List<AccountInfo> accountInfos) {}
+    public @Nullable AccountInfo findExtendedAccountInfoByAccountId(CoreAccountId accountId) {
+        for (AccountInfo accountInfo : mExtendedAccountInfos.values()) {
+            if (accountInfo.getId().equals(accountId)) {
+                return accountInfo;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public void refreshAccountInfoIfStale() {}
 
     @Override
     public boolean isClearPrimaryAccountAllowed() {
@@ -74,8 +86,10 @@ public class FakeIdentityManager implements IdentityManager {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
                     mExtendedAccountInfos.put(accountInfo.getEmail(), accountInfo);
-                    for (Observer observer : mObservers) {
-                        observer.onExtendedAccountInfoUpdated(accountInfo);
+                    if (!mIsOnExtendedAccountInfoUpdatedBlocked) {
+                        for (Observer observer : mObservers) {
+                            observer.onExtendedAccountInfoUpdated(accountInfo);
+                        }
                     }
                 });
     }
@@ -106,5 +120,13 @@ public class FakeIdentityManager implements IdentityManager {
 
     public void setIsClearPrimaryAccountAllowed(boolean isAllowed) {
         mIsClearPrimaryAccountAllowed = isAllowed;
+    }
+
+    public int getObserverCount() {
+        return mObservers.size();
+    }
+
+    public void blockExtendedAccountInfoUpdate() {
+        mIsOnExtendedAccountInfoUpdatedBlocked = true;
     }
 }

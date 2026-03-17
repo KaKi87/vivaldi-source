@@ -22,8 +22,9 @@
 #import "ios/ui/ntp/vivaldi_speed_dial_container_view.h"
 #import "ios/ui/ntp/vivaldi_speed_dial_home_mediator.h"
 #import "ios/ui/settings/start_page/quick_settings/vivaldi_start_page_quick_settings_coordinator.h"
-#import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs.h"
+#import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
+#import "ios/ui/settings/start_page/wallpaper_settings/vivaldi_wallpaper_notification_constants.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -34,8 +35,8 @@ CGFloat bottomToolbarHeight = 70.f;
 CGFloat animationStartDelay = 0.3;
 // Top toolbar navigation bar view height.
 CGFloat navigationBarHeight = 44.f;
-// Notification Identifier For Background Wallpaper
-NSString* vivaldiWallpaperUpdate = @"VivaldiBackgroundWallpaperUpdate";
+// Animation duration for wallpaper transitions
+const NSTimeInterval kWallpaperTransitionDuration = 0.3;
 
 BOOL ShouldUseModernNavigationBar() {
   if (@available(iOS 26.0, *)) {
@@ -43,17 +44,18 @@ BOOL ShouldUseModernNavigationBar() {
   }
   return NO;
 }
-}
+}  // namespace
 
-@interface VivaldiSpeedDialViewController ()<VivaldiSpeedDialContainerDelegate,
-                                                         SpeedDialHomeConsumer,
+@interface VivaldiSpeedDialViewController () <VivaldiSpeedDialContainerDelegate,
+                                              SpeedDialHomeConsumer,
                                               VivaldiNTPBottomToolbarConsumer> {
-direct_match::DirectMatchService* _directMatchService;
-// Start page settings coordinator.
-VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
+  direct_match::DirectMatchService* _directMatchService;
+  // Start page settings coordinator.
+  VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 }
 // The view that holds the speed dial folder children
-@property(weak,nonatomic) VivaldiSpeedDialContainerView* speedDialContainerView;
+@property(weak, nonatomic)
+    VivaldiSpeedDialContainerView* speedDialContainerView;
 // Bottom toolbar view provider
 @property(nonatomic, strong)
     VivaldiBottomToolbarViewProvider* bottomToolbarProvider;
@@ -66,25 +68,27 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 // Top constraint for the content container.
 @property(nonatomic, strong) NSLayoutConstraint* contentTopConstraint;
 // Bookmark Model that holds the bookmark data
-@property(assign,nonatomic) BookmarkModel* bookmarks;
+@property(assign, nonatomic) BookmarkModel* bookmarks;
 // FaviconLoader is a keyed service that uses LargeIconService to retrieve
 // favicon images.
-@property(assign,nonatomic) FaviconLoader* faviconLoader;
+@property(assign, nonatomic) FaviconLoader* faviconLoader;
 // The user's profile model used.
-@property(assign,nonatomic) ProfileIOS* profile;
+@property(assign, nonatomic) ProfileIOS* profile;
 // Current browser
-@property(assign,nonatomic) Browser* browser;
+@property(assign, nonatomic) Browser* browser;
 // The mediator that provides data for this view controller.
-@property(strong,nonatomic) VivaldiSpeedDialHomeMediator* mediator;
+@property(strong, nonatomic) VivaldiSpeedDialHomeMediator* mediator;
 // Array to hold the children
-@property(strong,nonatomic) NSMutableArray *speedDialChildItems;
+@property(strong, nonatomic) NSMutableArray* speedDialChildItems;
 // Speed dial folder which is currently presented
-@property(strong,nonatomic) VivaldiSpeedDialItem* currentItem;
+@property(strong, nonatomic) VivaldiSpeedDialItem* currentItem;
 // Parent of Speed dial folder which is currently presented.
-@property(strong,nonatomic) VivaldiSpeedDialItem* parentItem;
+@property(strong, nonatomic) VivaldiSpeedDialItem* parentItem;
+
+// Cached wallpaper image to avoid repeated base64 decoding on every access.
+@property(nonatomic, strong) UIImage* cachedWallpaperImage;
 
 @end
-
 
 @implementation VivaldiSpeedDialViewController
 
@@ -107,8 +111,8 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
   DCHECK(bookmarks);
   DCHECK(bookmarks->loaded());
   VivaldiSpeedDialViewController* controller =
-    [[VivaldiSpeedDialViewController alloc] initWithBookmarks:bookmarks
-                                                      browser:browser];
+      [[VivaldiSpeedDialViewController alloc] initWithBookmarks:bookmarks
+                                                        browser:browser];
   controller.faviconLoader = faviconLoader;
   controller.currentItem = item;
   controller.parentItem = parent;
@@ -144,6 +148,7 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 
 - (void)viewWillAppear:(BOOL)animated {
   [super viewWillAppear:animated];
+  [VivaldiStartPagePrefsHelper refreshDailyMixWallpaperIfNeeded];
   [self setupSpeedDialBackground];
   [self startObservingDeviceOrientationChange];
   [self loadSpeedDialViews];
@@ -182,7 +187,7 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 /// Set up all views
 - (void)setUpUI {
   self.view.backgroundColor =
-    [UIColor colorNamed:vNTPSpeedDialContainerbackgroundColor];
+      [UIColor colorNamed:vNTPSpeedDialContainerbackgroundColor];
   if (ShouldUseModernNavigationBar()) {
     [self setUpNavigationBar];
   }
@@ -230,16 +235,18 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
   [self refreshNavigationBarDisplay];
 }
 
--(void)setupSpeedDialBackground {
+- (void)setupSpeedDialBackground {
   [self.backgroundImageView removeFromSuperview];
 
-  UIImageView* backgroundImageView =
-      [[UIImageView alloc] initWithImage:[self getWallpaperImage]];
+  // Create image view first with no image to avoid blocking UI.
+  UIImageView* backgroundImageView = [[UIImageView alloc] initWithImage:nil];
   backgroundImageView.contentMode = UIViewContentModeScaleAspectFill;
   backgroundImageView.clipsToBounds = YES;
   self.backgroundImageView = backgroundImageView;
   [self.view insertSubview:backgroundImageView atIndex:0];
   [self.backgroundImageView fillSuperview];
+
+  [self loadAndDisplayWallpaperWithCompletion:nil];
 }
 
 /// Set up the speed dial view
@@ -343,7 +350,7 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 - (void)setUpBottomToolbarView {
   [self.bottomToolbarView.view removeFromSuperview];
 
-  VivaldiBottomToolbarViewProvider *toolbarProvider =
+  VivaldiBottomToolbarViewProvider* toolbarProvider =
       [[VivaldiBottomToolbarViewProvider alloc] init];
   self.bottomToolbarProvider = toolbarProvider;
   toolbarProvider.consumer = self;
@@ -357,10 +364,10 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 
   [self.view addSubview:self.bottomToolbarView.view];
   [self.bottomToolbarView.view anchorTop:nil
-                                leading:self.view.leadingAnchor
-                                 bottom:self.view.bottomAnchor
-                               trailing:self.view.trailingAnchor
-                                   size:CGSizeMake(0, bottomToolbarHeight)];
+                                 leading:self.view.leadingAnchor
+                                  bottom:self.view.bottomAnchor
+                                trailing:self.view.trailingAnchor
+                                    size:CGSizeMake(0, bottomToolbarHeight)];
 
   // Hide the toolbar initially.
   [self.bottomToolbarProvider handleToolbarVisibilityWithProgress:1];
@@ -373,13 +380,12 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 
 /// Create and start mediator to load the speed dial folder items
 - (void)loadSpeedDialViews {
-  BOOL loadable = self.bookmarks->loaded() &&
-                  self.currentItem;
+  BOOL loadable = self.bookmarks->loaded() && self.currentItem;
   if (!loadable)
     return;
-  self.mediator = [[VivaldiSpeedDialHomeMediator alloc]
-                      initWithProfile:self.profile
-                        bookmarkModel:self.bookmarks];
+  self.mediator =
+      [[VivaldiSpeedDialHomeMediator alloc] initWithProfile:self.profile
+                                              bookmarkModel:self.bookmarks];
   self.mediator.consumer = self;
   [self.mediator computeSpeedDialChildItems:self.currentItem];
 }
@@ -388,16 +394,17 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 - (void)startObservingDeviceOrientationChange {
   [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
   [[NSNotificationCenter defaultCenter]
-     addObserver:self
-        selector:@selector(handleDeviceOrientationChange:)
-            name:UIDeviceOrientationDidChangeNotification
-          object:[UIDevice currentDevice]];
+      addObserver:self
+         selector:@selector(handleDeviceOrientationChange:)
+             name:UIDeviceOrientationDidChangeNotification
+           object:[UIDevice currentDevice]];
 }
 
 /// Device orientation change handler
 - (void)handleDeviceOrientationChange:(NSNotification*)note {
-  [self.speedDialContainerView reloadLayoutWithStyle:[self currentLayoutStyle]
-                                        layoutColumn:[self currentLayoutColumn]];
+  [self.speedDialContainerView
+      reloadLayoutWithStyle:[self currentLayoutStyle]
+               layoutColumn:[self currentLayoutColumn]];
 }
 
 /// Refresh the UI when data source is updated.
@@ -405,27 +412,59 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
   [self loadSpeedDialViews];
 }
 
--(void)setupWallpaperUpdateNotifications {
-  [[NSNotificationCenter defaultCenter] addObserver:self
-                                        selector:@selector(updateWallpaper)
-                                        name:vivaldiWallpaperUpdate
-                                        object:nil];
+- (void)setupWallpaperUpdateNotifications {
+  [[NSNotificationCenter defaultCenter]
+      addObserver:self
+         selector:@selector(updateWallpaper)
+             name:vWallpaperUpdateNotificationName
+           object:nil];
 }
 
-- (void)updateWallpaper {
+- (void)loadAndDisplayWallpaperWithCompletion:(void (^)(void))completion {
   __weak __typeof(self) weakSelf = self;
-  dispatch_async(dispatch_get_main_queue(), ^{
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
     __strong __typeof(weakSelf) strongSelf = weakSelf;
-    if (strongSelf) {
-      strongSelf.backgroundImageView.image = [strongSelf getWallpaperImage];
-      [strongSelf updateBottomToolbarStateIfNeeded];
+    if (!strongSelf) {
+      return;
     }
+    UIImage* image = [strongSelf loadWallpaperImageSync];
+    dispatch_async(dispatch_get_main_queue(), ^{
+      __strong __typeof(weakSelf) mainThreadSelf = weakSelf;
+      if (mainThreadSelf) {
+        mainThreadSelf.cachedWallpaperImage = image;
+        [UIView transitionWithView:mainThreadSelf.backgroundImageView
+                          duration:kWallpaperTransitionDuration
+                           options:UIViewAnimationOptionTransitionCrossDissolve
+                        animations:^{
+                          mainThreadSelf.backgroundImageView.image = image;
+                        }
+                        completion:nil];
+        if (completion) {
+          completion();
+        }
+      }
+    });
   });
 }
 
-- (UIImage *)getWallpaperImage {
+- (void)updateWallpaper {
+  [self loadAndDisplayWallpaperWithCompletion:^{
+    [self updateBottomToolbarStateIfNeeded];
+  }];
+}
+
+// Loads the wallpaper image synchronously. Called from background thread only.
+- (UIImage*)loadWallpaperImageSync {
   // Loading the image name from preferences
-  NSString *wallpaper = [self selectedDefaultWallpaper];
+  NSString* wallpaper = [self selectedDefaultWallpaperForCurrentSequence];
+
+  if ([wallpaper isEqualToString:vDailyMixWallpaperName]) {
+    UIImage* dailyMix = [self dailyMixWallpaperForCurrentSequence];
+    if (!dailyMix) {
+      [self refreshDailyMixWallpaperIfNeededOnMainThread];
+    }
+    return dailyMix;
+  }
 
   // setting it to nil if string is empty
   // so that we don't get warning : Invalid asset name supplied
@@ -433,26 +472,26 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
     wallpaper = nil;
   }
   // Create and set the background image
-  UIImage *wallpaperImage = wallpaper ? [UIImage imageNamed:wallpaper] : nil;
-  // Check if the wallpaper name is nil and get custom wallpaper
-  if (wallpaper == nil) {
-    wallpaperImage = [self selectedCustomWallpaper];
+  UIImage* wallpaperImage = wallpaper ? [UIImage imageNamed:wallpaper] : nil;
+  // Check if we should fall back to custom wallpaper.
+  if (!wallpaperImage) {
+    wallpaperImage = [self selectedCustomWallpaperForCurrentSequence];
   }
   return wallpaperImage;
 }
 
 - (void)fadeInBottomToolbarView {
   __weak VivaldiSpeedDialViewController* weakSelf = self;
-  dispatch_after(
-      dispatch_time(DISPATCH_TIME_NOW,
-                    (int64_t)(animationStartDelay * NSEC_PER_SEC)),
-      dispatch_get_main_queue(), ^{
-        VivaldiSpeedDialViewController* strongSelf = weakSelf;
-        if (!strongSelf)
-          return;
-        [strongSelf.bottomToolbarProvider
-            handleToolbarVisibilityWithProgress:0 animated:YES];
-      });
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                               (int64_t)(animationStartDelay * NSEC_PER_SEC)),
+                 dispatch_get_main_queue(), ^{
+                   VivaldiSpeedDialViewController* strongSelf = weakSelf;
+                   if (!strongSelf)
+                     return;
+                   [strongSelf.bottomToolbarProvider
+                       handleToolbarVisibilityWithProgress:0
+                                                  animated:YES];
+                 });
 }
 
 - (void)updateBottomToolbarStateIfNeeded {
@@ -460,14 +499,12 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
   [self.bottomToolbarProvider
       setCustomizeButtonVisible:[self showStartPageCustomizeButton]];
 
-  [self.bottomToolbarProvider
-      setAddButtonVisible:[self showAddButton]];
+  [self.bottomToolbarProvider setAddButtonVisible:[self showAddButton]];
 
   // Update background shading for the toolbar
-  if ([self getWallpaperImage]) {
-    BOOL shouldUseDarkText =
-        [VivaldiGlobalHelpers
-            shouldUseDarkTextForImage:[self getWallpaperImage]];
+  if (self.cachedWallpaperImage) {
+    BOOL shouldUseDarkText = [VivaldiGlobalHelpers
+        shouldUseDarkTextForImage:self.cachedWallpaperImage];
     [self.bottomToolbarProvider setHasBackground:YES];
     // If the background demands dark text over it, it means the background is
     // brighter colors and we need to use bright shadow for the toolbar.
@@ -482,12 +519,13 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 /// Remove all observers set up.
 - (void)removeObservers {
   [[NSNotificationCenter defaultCenter]
-     removeObserver:self
-               name:UIDeviceOrientationDidChangeNotification
-             object:nil];
-  [[NSNotificationCenter defaultCenter] removeObserver:self
-                                                  name:vivaldiWallpaperUpdate
-                                                object:nil];
+      removeObserver:self
+                name:UIDeviceOrientationDidChangeNotification
+              object:nil];
+  [[NSNotificationCenter defaultCenter]
+      removeObserver:self
+                name:vWallpaperUpdateNotificationName
+              object:nil];
   self.mediator.consumer = nil;
   [self.mediator disconnect];
 
@@ -505,11 +543,62 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 /// Returns custom wallpaper name
 - (UIImage*)selectedCustomWallpaper {
   // It doesn't require size traits, image contentMode is aspect fill
-  UIImage *wallpaper =
-    UIDeviceOrientationIsLandscape([UIDevice currentDevice].orientation)
-      ? [VivaldiStartPagePrefsHelper getLandscapeWallpaper] :
-          [VivaldiStartPagePrefsHelper getPortraitWallpaper];
+  UIImage* wallpaper =
+      UIDeviceOrientationIsLandscape([UIDevice currentDevice].orientation)
+          ? [VivaldiStartPagePrefsHelper getLandscapeWallpaper]
+          : [VivaldiStartPagePrefsHelper getPortraitWallpaper];
   return wallpaper;
+}
+
+/// Returns preloaded wallpaper name and always reads prefs on main sequence.
+- (NSString*)selectedDefaultWallpaperForCurrentSequence {
+  if ([NSThread isMainThread]) {
+    return [self selectedDefaultWallpaper];
+  }
+
+  __block NSString* wallpaper = nil;
+  dispatch_sync(dispatch_get_main_queue(), ^{
+    wallpaper = [self selectedDefaultWallpaper];
+  });
+  return wallpaper;
+}
+
+/// Returns custom wallpaper and always reads prefs on main sequence.
+- (UIImage*)selectedCustomWallpaperForCurrentSequence {
+  if ([NSThread isMainThread]) {
+    return [self selectedCustomWallpaper];
+  }
+
+  __block UIImage* wallpaper = nil;
+  dispatch_sync(dispatch_get_main_queue(), ^{
+    wallpaper = [self selectedCustomWallpaper];
+  });
+  return wallpaper;
+}
+
+/// Returns Daily Mix wallpaper and always reads prefs on main sequence.
+- (UIImage*)dailyMixWallpaperForCurrentSequence {
+  if ([NSThread isMainThread]) {
+    return [VivaldiStartPagePrefsHelper getDailyMixWallpaper];
+  }
+
+  __block UIImage* wallpaper = nil;
+  dispatch_sync(dispatch_get_main_queue(), ^{
+    wallpaper = [VivaldiStartPagePrefsHelper getDailyMixWallpaper];
+  });
+  return wallpaper;
+}
+
+/// Schedules Daily Mix refresh on main sequence.
+- (void)refreshDailyMixWallpaperIfNeededOnMainThread {
+  if ([NSThread isMainThread]) {
+    [VivaldiStartPagePrefsHelper refreshDailyMixWallpaperIfNeeded];
+    return;
+  }
+
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [VivaldiStartPagePrefsHelper refreshDailyMixWallpaperIfNeeded];
+  });
 }
 
 /// Returns whether show speed dials is enabled
@@ -549,16 +638,15 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 }
 
 - (void)refreshNode:(const bookmarks::BookmarkNode*)bookmarkNode {
-  NSNumber *bookmarkNodeId = @(bookmarkNode->id());
-  NSDictionary *userInfo = @{vSpeedDialIdentifierKey:bookmarkNodeId};
+  NSNumber* bookmarkNodeId = @(bookmarkNode->id());
+  NSDictionary* userInfo = @{vSpeedDialIdentifierKey : bookmarkNodeId};
   [[NSNotificationCenter defaultCenter]
-       postNotificationName:vSpeedDialPropertyDidChange
-                     object:nil
-                   userInfo:userInfo];
+      postNotificationName:vSpeedDialPropertyDidChange
+                    object:nil
+                  userInfo:userInfo];
 }
 
-- (void)refreshMenuItems:(NSArray*)items
-               SDFolders:(NSArray*)SDFolders {
+- (void)refreshMenuItems:(NSArray*)items SDFolders:(NSArray*)SDFolders {
   // No op here since there's no menu in this view.
 }
 
@@ -572,7 +660,6 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 
 - (void)refreshChildItems:(NSArray<VivaldiSpeedDialItem*>*)items
                    parent:(VivaldiNTPTopToolbarItem*)parent {
-
   if (!self.currentItem || !self.faviconLoader)
     return;
 
@@ -580,23 +667,23 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
     return;
   }
 
-  BrowserActionFactory* actionFactory =
-      [[BrowserActionFactory alloc] initWithBrowser:_browser
-              scenario:kMenuScenarioHistogramBookmarkEntry];
+  BrowserActionFactory* actionFactory = [[BrowserActionFactory alloc]
+      initWithBrowser:_browser
+             scenario:kMenuScenarioHistogramBookmarkEntry];
   [self.speedDialContainerView configureActionFactory:actionFactory];
-  [self.speedDialContainerView configureWith:items
-                                      parent:self.currentItem
-                               faviconLoader:self.faviconLoader
-                          directMatchService:_directMatchService
-                                 layoutStyle:[self currentLayoutStyle]
-                                layoutColumn:[self currentLayoutColumn]
-                                showAddGroup:NO
-                           frequentlyVisited:NO
-                           topSitesAvailable:NO
-                            topToolbarHidden:NO
-                           verticalSizeClass:
-                                self.view.traitCollection.verticalSizeClass
-                                   wallpaper:[self getWallpaperImage]];
+  [self.speedDialContainerView
+           configureWith:items
+                  parent:self.currentItem
+           faviconLoader:self.faviconLoader
+      directMatchService:_directMatchService
+             layoutStyle:[self currentLayoutStyle]
+            layoutColumn:[self currentLayoutColumn]
+            showAddGroup:NO
+       frequentlyVisited:NO
+       topSitesAvailable:NO
+        topToolbarHidden:NO
+       verticalSizeClass:self.view.traitCollection.verticalSizeClass
+               wallpaper:self.cachedWallpaperImage];
 }
 
 - (void)setFrequentlyVisitedPagesEnabled:(BOOL)enabled {
@@ -607,7 +694,8 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
   // If speed dials set to disabled dismiss the customize sheet and
   // take user to homepage as the folder is invalid in that state.
   if (!enabled) {
-    [self.navigationController dismissViewControllerAnimated:YES completion:nil];
+    [self.navigationController dismissViewControllerAnimated:YES
+                                                  completion:nil];
     [self.navigationController popToRootViewControllerAnimated:YES];
     [self removeObservers];
   }
@@ -622,31 +710,30 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
 }
 
 - (void)reloadLayout {
-  [self.speedDialContainerView reloadLayoutWithStyle:[self currentLayoutStyle]
-                                        layoutColumn:[self currentLayoutColumn]];
+  [self.speedDialContainerView
+      reloadLayoutWithStyle:[self currentLayoutStyle]
+               layoutColumn:[self currentLayoutColumn]];
 }
 
 #pragma mark - VivaldiNTPBottomToolbarViewConsumer
 
 - (void)didTapAddButton {
   if ([self currentItem]) {
-    [self didSelectAddNewSpeedDial:NO
-                            parent:[self currentItem]];
+    [self didSelectAddNewSpeedDial:NO parent:[self currentItem]];
   }
 }
 
 - (void)didTapAddFolderButton {
   if ([self currentItem]) {
-    [self didSelectAddNewSpeedDial:YES
-                            parent:[self currentItem]];
+    [self didSelectAddNewSpeedDial:YES parent:[self currentItem]];
   }
 }
 
 - (void)didTapCustomizeButton {
   _startPageSettingsCoordinator =
       [[VivaldiStartPageQuickSettingsCoordinator alloc]
-            initWithBaseNavigationController:self.navigationController
-                                     browser:_browser];
+          initWithBaseNavigationController:self.navigationController
+                                   browser:_browser];
   [_startPageSettingsCoordinator start];
 }
 
@@ -670,15 +757,14 @@ VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
     // Hide toolbar when user navigates to a folder.
     [self.bottomToolbarProvider handleToolbarVisibilityWithProgress:1];
 
-    VivaldiSpeedDialViewController *controller =
-      [VivaldiSpeedDialViewController initWithItem:item
-                                            parent:parent
-                                         bookmarks:self.bookmarks
-                                           browser:self.browser
-                                     faviconLoader:self.faviconLoader];
+    VivaldiSpeedDialViewController* controller =
+        [VivaldiSpeedDialViewController initWithItem:item
+                                              parent:parent
+                                           bookmarks:self.bookmarks
+                                             browser:self.browser
+                                       faviconLoader:self.faviconLoader];
     controller.delegate = self;
-    [self.navigationController pushViewController:controller
-                                         animated:YES];
+    [self.navigationController pushViewController:controller animated:YES];
   } else {
     // Pass it to delegate to open the URL.
     if (self.delegate)

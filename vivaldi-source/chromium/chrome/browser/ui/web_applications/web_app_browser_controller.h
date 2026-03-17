@@ -176,6 +176,7 @@ class WebAppBrowserController : public AppBrowserController,
   void OnMetadataObtainedTriggerUpdateDialog(
       base::TimeTicks start_time,
       std::optional<WebAppIdentityUpdate> identity_update) const;
+  void OnUpdateDialogResult(WebAppIdentityUpdateResult result) const;
 
 #if BUILDFLAG(IS_CHROMEOS)
   void CheckDigitalAssetLinkRelationshipForAndroidApp(
@@ -205,6 +206,11 @@ class WebAppBrowserController : public AppBrowserController,
   // Save this at launch time in case it changes with a manifest update while
   // the window is open.
   const bool has_pinned_home_tab_ = false;
+
+  // Per-window Window Controls Overlay enabled state.
+  // Allows each window of the same app to have independent WCO state.
+  // Initialized from the app-level default when the window is created.
+  bool per_window_wco_enabled_ = false;
 
 #if BUILDFLAG(IS_CHROMEOS)
   // The result of digital asset link verification of the web app.

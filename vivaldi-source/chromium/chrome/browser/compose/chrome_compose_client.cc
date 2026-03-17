@@ -28,10 +28,10 @@
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/translate/chrome_translate_client.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/chrome_pages.h"
+#include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/hats/hats_service_factory.h"
 #include "chrome/browser/ui/hats/survey_config.h"
 #include "chrome/browser/ui/user_education/show_promo_in_page.h"
@@ -251,8 +251,6 @@ void ChromeComposeClient::BindComposeDialog(
 void ChromeComposeClient::ShowComposeDialog(
     EntryPoint ui_entry_point,
     const autofill::FormFieldData& trigger_field,
-    std::optional<autofill::AutofillClient::PopupScreenLocation>
-        popup_screen_location,
     ComposeCallback callback) {
   active_compose_ids_ = std::make_optional<FieldIdentifier>(
       trigger_field.global_id(), trigger_field.renderer_form_id());

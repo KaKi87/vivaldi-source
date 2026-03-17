@@ -28,9 +28,10 @@ DeveloperToolsMenuController::DeveloperToolsMenuController(
     content::WebContents* web_contents,
     const gfx::Point& location)
     : web_contents_(web_contents),
-      browser_(FindBrowserForEmbedderWebContents(web_contents)
-                   ? FindBrowserForEmbedderWebContents(web_contents)->AsWeakPtr()
-                   : nullptr),
+      browser_(
+          FindBrowserForEmbedderWebContents(web_contents)
+              ? FindBrowserForEmbedderWebContents(web_contents)->AsWeakPtr()
+              : nullptr),
       location_(location),
       enabled_(HasFeature()) {}
 
@@ -45,11 +46,10 @@ const extensions::Extension* DeveloperToolsMenuController::GetExtension()
 }
 
 bool DeveloperToolsMenuController::HasFeature() {
-  return
-    base::CommandLine::ForCurrentProcess()->HasSwitch(
-        apps::kLoadAndLaunchApp) ||
-    base::CommandLine::ForCurrentProcess()->HasSwitch(
-        switches::kDebugPackedApps);
+  return base::CommandLine::ForCurrentProcess()->HasSwitch(
+             apps::kLoadAndLaunchApp) ||
+         base::CommandLine::ForCurrentProcess()->HasSwitch(
+             switches::kDebugPackedApps);
 }
 
 void DeveloperToolsMenuController::PopulateModel(
@@ -107,16 +107,16 @@ bool DeveloperToolsMenuController::HandleCommand(int command_id) {
 
       case IDC_CONTENT_CONTEXT_INSPECTBACKGROUNDPAGE:
         if (platform_app && platform_app->is_platform_app()) {
-          extensions::devtools_util::InspectBackgroundPage(platform_app,
-              browser_->profile(),
+          extensions::devtools_util::InspectBackgroundPage(
+              platform_app, browser_->profile(),
               DevToolsOpenedByAction::kContextMenuInspect);
         }
         return true;
 
       case IDC_VIV_INSPECT_SERVICE_WORKER:
         if (platform_app && platform_app->is_platform_app()) {
-          extensions::devtools_util::InspectServiceWorkerBackground(platform_app,
-              browser_->profile(),
+          extensions::devtools_util::InspectServiceWorkerBackground(
+              platform_app, browser_->profile(),
               DevToolsOpenedByAction::kContextMenuInspect);
         }
         return true;

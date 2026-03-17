@@ -16,6 +16,10 @@
         "value": 1000000,
         "deprecated": "Bookmark write operations are no longer limited by Chrome.",
         "description": ""
+      },
+      "ROOT_NODE_ID": {
+        "value": "0",
+        "description": "The <code>id</code> associated with the root level node."
       }
     },
     "types": [
@@ -158,7 +162,6 @@
         "properties": {
           "parentId": {
             "type": "string",
-            "serialized_type": "int64",
             "optional": true,
             "description": "Defaults to the Other Bookmarks folder."
           },
@@ -219,14 +222,12 @@
             "description": "A single string-valued id, or an array of string-valued ids",
             "choices": [
               {
-                "type": "string",
-                "serialized_type": "int64"
+                "type": "string"
               },
               {
                 "type": "array",
                 "items": {
-                  "type": "string",
-                  "serialized_type": "int64"
+                  "type": "string"
                 },
                 "minItems": 1
               }
@@ -251,7 +252,6 @@
         "parameters": [
           {
             "type": "string",
-            "serialized_type": "int64",
             "name": "id"
           }
         ],
@@ -312,7 +312,6 @@
         "parameters": [
           {
             "type": "string",
-            "serialized_type": "int64",
             "name": "id",
             "description": "The ID of the root of the subtree to retrieve."
           }
@@ -404,7 +403,6 @@
         "parameters": [
           {
             "type": "string",
-            "serialized_type": "int64",
             "name": "id"
           },
           {
@@ -441,7 +439,6 @@
         "parameters": [
           {
             "type": "string",
-            "serialized_type": "int64",
             "name": "id"
           },
           {
@@ -501,7 +498,6 @@
         "parameters": [
           {
             "type": "string",
-            "serialized_type": "int64",
             "name": "id"
           }
         ],
@@ -518,7 +514,6 @@
         "parameters": [
           {
             "type": "string",
-            "serialized_type": "int64",
             "name": "id"
           }
         ],

@@ -96,9 +96,10 @@ bool VivaldiOverscrollController::ShouldIgnoreInertialEvent(
     const blink::WebInputEvent& event) const {
   return ignore_following_inertial_events_ &&
          IsGestureScrollUpdateInertialEvent(event);
-  }
+}
 
-bool VivaldiOverscrollController::WillHandleEvent(const blink::WebInputEvent& event) {
+bool VivaldiOverscrollController::WillHandleEvent(
+    const blink::WebInputEvent& event) {
   if (!ShouldProcessEvent(event))
     return false;
 
@@ -190,8 +191,9 @@ void VivaldiOverscrollController::OnDidOverscroll(
   behavior_ = params.overscroll_behavior;
 }
 
-void VivaldiOverscrollController::ReceivedEventACK(const blink::WebInputEvent& event,
-                                            bool processed) {
+void VivaldiOverscrollController::ReceivedEventACK(
+    const blink::WebInputEvent& event,
+    bool processed) {
   if (!ShouldProcessEvent(event))
     return;
 
@@ -441,9 +443,9 @@ bool VivaldiOverscrollController::ProcessEventForOverscroll(
 }
 
 bool VivaldiOverscrollController::ProcessOverscroll(float delta_x,
-                                             float delta_y,
-                                             bool is_touchpad,
-                                             bool is_inertial) {
+                                                    float delta_y,
+                                                    bool is_touchpad,
+                                                    bool is_inertial) {
   if (scroll_state_ == ScrollState::CONTENT_CONSUMING)
     return false;
 
@@ -567,7 +569,7 @@ void VivaldiOverscrollController::CompleteAction() {
 }
 
 void VivaldiOverscrollController::SetOverscrollMode(OverscrollMode mode,
-                                             OverscrollSource source) {
+                                                    OverscrollSource source) {
   if (overscroll_mode_ == mode)
     return;
 

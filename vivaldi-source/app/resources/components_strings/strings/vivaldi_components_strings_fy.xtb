@@ -25,6 +25,7 @@
 <translation id="2032962459168915086"><ph name="BEGIN_LINK" />Kontrolearje de proksy en de brânmuorre<ph name="END_LINK" /></translation>
 <translation id="2048261947532620704">Side oersette</translation>
 <translation id="2119505898009119320">Ferlient oan: <ph name="ORGANIZATION" /> [<ph name="JURISDICTION" />]</translation>
+<translation id="2148716181193084225">Hjoed</translation>
 <translation id="2166378884831602661">De webstee kin gjin feilige ferbining ferskaffe</translation>
 <translation id="2178904466768126352">Oanfallers op de webstee dyst besocht te besykjen, kinne skeadlike software ynstallearje wêrmei spul lykas wachtwurden, foto's berjochten of kredytkaart gegevens stellen of wiske kinne wurde.</translation>
 <translation id="2224337661447660594">Gjin ynternet</translation>
@@ -58,8 +59,9 @@
 <translation id="31207688938192855"><ph name="BEGIN_LINK" />Besykje it útfieren fan ferbining diagnoaze<ph name="END_LINK" />.</translation>
 <translation id="3154506275960390542">Dizze webstee befettet in formulier dat mooglik net befeilige ferstjoerd wurdt. Gegevens dy jo stjoere kinne besjoen wurde troch oaren of oanpast wurde troch in oanfaller om te feroarjen wat de tsjinner ûntfangt.</translation>
 <translation id="3176929007561373547">Kontrolearje jo proksy ynstellingen of nim kontakt op mei jo netwurkbehearder
- om te hifkjen dat de proksy tsjinner wurket. As jo tinke dat jo gjin proksy tsjinner
-nedich ha: <ph name="PLATFORM_TEXT" /></translation>
+      om te hifkjen dat de proksy tsjinner wurket.
+      As jo tinke dat jo gjin proksy tsjinner
+      nedich ha: <ph name="PLATFORM_TEXT" /></translation>
 <translation id="3226128629678568754">Druk de ferfarsk knop om de gegevens dy nedich binne om de side te laden op 'e nij te ferstjoeren.</translation>
 <translation id="3384522979010096022">Dyn organisaasje stiet it net ta datst dizze side besjochst</translation>
 <translation id="3422472998109090673"><ph name="HOST_NAME" /> is op it stuit net berikber.</translation>
@@ -70,7 +72,7 @@ nedich ha: <ph name="PLATFORM_TEXT" /></translation>
 <translation id="3566021033012934673">Jo ferbining is net privee</translation>
 <translation id="3574305903863751447"><ph name="CITY" /><ph name="STATE" /><ph name="COUNTRY" /></translation>
 <translation id="3586931643579894722">Details ferbergje</translation>
-<translation id="3614001939154393113">Oanfollers besykje miskien om dyn gegevens te stellen fan <ph name="BEGIN_BOLD" /><ph name="SITE" /><ph name="END_BOLD" /> (bgl. wachtwurden, berjochten of kredytkaart gegevens). <ph name="BEGIN_LEARN_MORE_LINK" />Mear ynformaasje oer dizze wacrkôging<ph name="END_LEARN_MORE_LINK" /></translation>
+<translation id="3614001939154393113">Oanfollers besykje miskien om dyn gegevens te stellen fan <ph name="BEGIN_BOLD" /><ph name="SITE" /><ph name="END_BOLD" /> (bgl. wachtwurden, berjochten of kredytkaart gegevens). <ph name="BEGIN_LEARN_MORE_LINK" />Mear ynformaasje oer dizze warskôging<ph name="END_LEARN_MORE_LINK" /></translation>
 <translation id="3630155396527302611">As dit programma al op de list stiet as in programma dat tagong hat ta
       it netwurk, helje it dan út de list en heakje it op 'e nij ta.</translation>
 <translation id="3658742229777143148">Revysje</translation>
@@ -92,7 +94,6 @@ nedich ha: <ph name="PLATFORM_TEXT" /></translation>
 <translation id="4250431568374086873">Jo ferbining mei dizze webstee is net folslein feilich</translation>
 <translation id="4265872034478892965">Tastean troch jo behearder</translation>
 <translation id="4305666528087210886">De wie gjin tagong ta de triem</translation>
-<translation id="4408413947728134509"><ph name="NUM_COOKIES" /> koekjes</translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> hat jo ynloch sertifikaat net akseptearre, of der is net ien ferskaft.</translation>
 <translation id="4506599922270137252">Nim kontakt om mei de systeembehearder</translation>
 <translation id="4522570452068850558">Details</translation>
@@ -109,9 +110,9 @@ nedich ha: <ph name="PLATFORM_TEXT" /></translation>
 <translation id="4943872375798546930">Gjin resultaten</translation>
 <translation id="5017554619425969104">Tekst dyst kopiearre hast</translation>
 <translation id="5023310440958281426">Kontrolearje it belied fan jo behearder</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 in brûkme)} other {(# in brûkme)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Kontrolearje it proksy adres<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bit)</translation>
+<translation id="5216942107514965959">Hjoed noch besocht</translation>
 <translation id="5355557959165512791">Jo kinne <ph name="SITE" /> op it stuit net besykje omdat it sertifikaat weromlútsen is. Netwurk flaters en oanfollen binne meastentiids tydlik, dus dizze side wurket letter wierskynlik wer goed.</translation>
 <translation id="5386426401304769735">De sertifikaat keten foar dizze webstee befettet in sertifikaat ûndertekene mei SHA-1.</translation>
 <translation id="5452270690849572955">Dizze <ph name="HOST_NAME" /> side koe net fûn wurde</translation>
@@ -130,7 +131,6 @@ nedich ha: <ph name="PLATFORM_TEXT" /></translation>
 <translation id="5838278095973806738">Jo moatte gjin gefoelige ynformaasje (lykas wachtwurden of kredytkaart) ynfiere op dizze webstee, omdat se stellen kinne wurde troch oanfallers.</translation>
 <translation id="5863515189965725638">IBAN bewurkje</translation>
 <translation id="5869405914158311789">Dizze webstee is net berikber</translation>
-<translation id="5920262536204764679">{NUM_COOKIES, plural, =1 {1 yn brûkme} other {# yn brûkme}}</translation>
 <translation id="5932224571077948991">Webstee lit oantwinge of misliedene advertinsjes sjen</translation>
 <translation id="6051221802930200923">Jo kinne <ph name="SITE" /> net besykje omdat de webstee brûkme makket fan sertifikaat pinning. Netwurk flaters en oanfollen binne meastentiids tydlik, dus dizze side wurket letter wierskynlik wer goed.</translation>
 <translation id="6146055958333702838">Kontrolearje de kabels en werstart de routers,modems of oare netwurk
@@ -184,6 +184,7 @@ nedich ha: <ph name="PLATFORM_TEXT" /></translation>
 <translation id="7951415247503192394">(32-bit)</translation>
 <translation id="7953236668995583915">Dizze side ferfarskje om de fernijde ynstellingen op dizze side ta te passen</translation>
 <translation id="8041940743680923270">Algemiene standert ynstelling brûke (Freegje)</translation>
+<translation id="8076492880354921740">Ljeppers</translation>
 <translation id="808894953321890993">Wachtwurd feroarje</translation>
 <translation id="8149426793427495338">Jo kompjûter is gien sliepen.</translation>
 <translation id="8150722005171944719">De triem op <ph name="URL" /> is net te berikken. It is miskien wol wiske, ferpleatst, of de triem foech beheind de tagong.</translation>

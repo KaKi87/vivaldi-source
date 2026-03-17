@@ -40,8 +40,8 @@
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/policy_constants.h"
 #include "components/saved_tab_groups/public/features.h"
+#include "components/split_tabs/split_tab_visual_data.h"
 #include "components/tab_groups/tab_group_id.h"
-#include "components/tabs/public/split_tab_visual_data.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/webapps/common/web_app_id.h"
 #include "content/public/browser/web_contents.h"
@@ -50,7 +50,7 @@
 #include "ui/base/window_open_disposition.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/host/glic_features.mojom.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
@@ -104,8 +104,8 @@ class TabStripModelPreventCloseTest : public PreventCloseTestBase,
 
   // TabStripModelObserver:
   MOCK_METHOD(void,
-              TabCloseCancelled,
-              (const content::WebContents* contents),
+              OnTabCloseCancelled,
+              (const tabs::TabInterface* tab),
               (override));
 
  protected:
@@ -131,7 +131,7 @@ IN_PROC_BROWSER_TEST_F(TabStripModelPreventCloseTest,
   EXPECT_EQ(!kShouldPreventClose, tab_strip_model->IsTabClosable(
                                       tab_strip_model->GetActiveWebContents()));
 
-  EXPECT_CALL(*this, TabCloseCancelled(_)).Times(kShouldPreventClose ? 1 : 0);
+  EXPECT_CALL(*this, OnTabCloseCancelled(_)).Times(kShouldPreventClose ? 1 : 0);
 
   tab_strip_model->CloseAllTabs();
   EXPECT_EQ(kShouldPreventClose ? 1 : 0, tab_strip_model->count());
@@ -172,7 +172,7 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_TRUE(
       tab_strip_model->IsTabClosable(tab_strip_model->GetActiveWebContents()));
 
-  EXPECT_CALL(*this, TabCloseCancelled(_)).Times(0);
+  EXPECT_CALL(*this, OnTabCloseCancelled(_)).Times(0);
 
   tab_strip_model->CloseAllTabs();
   EXPECT_EQ(0, tab_strip_model->count());
@@ -182,8 +182,7 @@ class TabStripModelBrowserTest : public InProcessBrowserTest,
                                  public TabStripModelObserver {
  public:
   TabStripModelBrowserTest() {
-    feature_list_.InitWithFeatures(
-        {features::kTabOrganization, features::kSideBySide}, {});
+    feature_list_.InitWithFeatures({features::kTabOrganization}, {});
   }
 
   void TearDownOnMainThread() override { observer_.Reset(); }
@@ -272,11 +271,6 @@ IN_PROC_BROWSER_TEST_F(TabStripModelBrowserTest, CommandOrganizeTabs) {
   EXPECT_NE(session, nullptr);
   EXPECT_EQ(session->request()->state(),
             TabOrganizationRequest::State::NOT_STARTED);
-
-  histogram_tester.ExpectUniqueSample("Tab.Organization.AllEntrypoints.Clicked",
-                                      true, 1);
-  histogram_tester.ExpectUniqueSample("Tab.Organization.TabContextMenu.Clicked",
-                                      true, 1);
 }
 
 IN_PROC_BROWSER_TEST_F(TabStripModelBrowserTest,
@@ -302,7 +296,7 @@ IN_PROC_BROWSER_TEST_F(TabStripModelBrowserTest,
       }
     }
 
-    std::optional<TabStripModelChange::RemoveReason> remove_reason() const {
+    std::optional<TabRemovedReason> remove_reason() const {
       return remove_reason_;
     }
     std::optional<tabs::TabInterface::DetachReason> tab_detach_reason() const {
@@ -310,7 +304,7 @@ IN_PROC_BROWSER_TEST_F(TabStripModelBrowserTest,
     }
 
    private:
-    std::optional<TabStripModelChange::RemoveReason> remove_reason_;
+    std::optional<TabRemovedReason> remove_reason_;
     std::optional<tabs::TabInterface::DetachReason> tab_detach_reason_;
   };
 
@@ -333,7 +327,7 @@ IN_PROC_BROWSER_TEST_F(TabStripModelBrowserTest,
                   tabs::TabInterface::DetachReason::kDelete));
   std::unique_ptr<content::WebContents> extracted_contents =
       tab_strip_model->DetachWebContentsAtForInsertion(1);
-  EXPECT_EQ(TabStripModelChange::RemoveReason::kInsertedIntoOtherTabStrip,
+  EXPECT_EQ(TabRemovedReason::kInsertedIntoOtherTabStrip,
             removed_observer.remove_reason());
   EXPECT_EQ(tabs::TabInterface::DetachReason::kDelete,
             removed_observer.tab_detach_reason());
@@ -513,7 +507,7 @@ IN_PROC_BROWSER_TEST_F(TabStripModelBrowserTest, CommandDuplicateSelected) {
             GetTabStripStateString(tab_strip_model));
 }
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 class TabStripModelGlicMultiTabBrowserTest : public TabStripModelBrowserTest {
  public:
   TabStripModelGlicMultiTabBrowserTest() {
@@ -640,7 +634,7 @@ class TabStripModelTestTabGroupEntryPointsEnabled
   }
 
   TabStrip* tabstrip() {
-    return views::AsViewClass<TabStripRegionView>(
+    return views::AsViewClass<HorizontalTabStripRegionView>(
                browser()->GetBrowserView().tab_strip_view())
         ->tab_strip();
   }
@@ -692,4 +686,4 @@ IN_PROC_BROWSER_TEST_F(TabStripModelTestTabGroupEntryPointsEnabled,
   EXPECT_FALSE(tab_group_model->GetMostRecentTabGroupId());
 }
 
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled

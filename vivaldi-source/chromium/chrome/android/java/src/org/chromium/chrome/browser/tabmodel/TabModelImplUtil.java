@@ -5,7 +5,8 @@
 package org.chromium.chrome.browser.tabmodel;
 
 import org.chromium.base.ObserverList;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -16,8 +17,8 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Common utility class for {@link TabModelImpl} and {@link TabCollectionTabModelImpl}. Allows
- * extracting common logic out of the two models.
+ * Utility class for {@link TabCollectionTabModelImpl}. Permits easier testing of some static
+ * helpers.
  */
 @NullMarked
 class TabModelImplUtil {
@@ -26,7 +27,7 @@ class TabModelImplUtil {
      *
      * @param model The {@link TabModel} to act on.
      * @param modelDelegate The {@link TabModelDelegate} to get the current tab from.
-     * @param currentTabSupplier The {@link ObservableSupplier} that supplies the current tab.
+     * @param currentTabSupplier The {@link MonotonicObservableSupplier} that supplies the current tab.
      * @param nextTabPolicySupplier The {@link NextTabPolicySupplier} to get the next tab policy.
      * @param closingTabs The list of tabs that are closing.
      * @param uponExit Whether the app is closing as a result of this tab closure.
@@ -36,7 +37,7 @@ class TabModelImplUtil {
     /* package */ static @Nullable Tab getNextTabIfClosed(
             TabModel model,
             TabModelDelegate modelDelegate,
-            ObservableSupplier<@Nullable Tab> currentTabSupplier,
+            NullableObservableSupplier<Tab> currentTabSupplier,
             NextTabPolicySupplier nextTabPolicySupplier,
             List<Tab> closingTabs,
             boolean uponExit,

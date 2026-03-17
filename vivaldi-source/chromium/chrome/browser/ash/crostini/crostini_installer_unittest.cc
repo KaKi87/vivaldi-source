@@ -13,7 +13,6 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
-#include "chrome/browser/ash/crostini/ansible/ansible_management_test_helper.h"
 #include "chrome/browser/ash/crostini/crostini_installer_ui_delegate.h"
 #include "chrome/browser/ash/crostini/crostini_test_helper.h"
 #include "chrome/browser/ash/crostini/crostini_types.mojom.h"
@@ -107,6 +106,20 @@ class CrostiniInstallerTest : public testing::Test {
   }
 
   void SetUp() override {
+    ash::ChunneldClient::InitializeFake();
+    ash::CiceroneClient::InitializeFake();
+    SetOSRelease();
+
+    // The ownership is managed by ConciergeClient's static methods.
+    // I.e., it's deleted by ConciergeClient::Shutdown.
+    waiting_fake_concierge_client_ =
+        new WaitingFakeConciergeClient(ash::FakeCiceroneClient::Get());
+
+    ash::DebugDaemonClient::InitializeFake();
+    ash::DlcserviceClient::InitializeFake();
+    ash::FakeSpacedClient::InitializeFake();
+    ash::SeneschalClient::InitializeFake();
+
     component_manager_ =
         base::MakeRefCounted<component_updater::FakeComponentManagerAsh>();
     component_manager_->set_supported_components({"cros-termina"});
@@ -117,25 +130,21 @@ class CrostiniInstallerTest : public testing::Test {
             base::FilePath("/install/path"), base::FilePath("/mount/path")));
     browser_part_.InitializeComponentManager(component_manager_);
 
-    ash::DlcserviceClient::InitializeFake();
-    ash::ChunneldClient::InitializeFake();
-    ash::CiceroneClient::InitializeFake();
-    ash::DebugDaemonClient::InitializeFake();
-    ash::FakeSpacedClient::InitializeFake();
-
-    SetOSRelease();
-    waiting_fake_concierge_client_ =
-        new WaitingFakeConciergeClient(ash::FakeCiceroneClient::Get());
-
-    ash::SeneschalClient::InitializeFake();
-
     disk_mount_manager_mock_ = new ash::disks::MockDiskMountManager;
     ash::disks::DiskMountManager::InitializeForTesting(
         disk_mount_manager_mock_);
 
+    TestingBrowserProcess::GetGlobal()->SetSystemNotificationHelper(
+        std::make_unique<SystemNotificationHelper>());
+
+    TestingBrowserProcess::GetGlobal()
+        ->platform_part()
+        ->InitializeSchedulerConfigurationManager();
+
     user_manager_.Reset(std::make_unique<user_manager::UserManagerImpl>(
         std::make_unique<user_manager::FakeUserManagerDelegate>(),
         TestingBrowserProcess::GetGlobal()->GetTestingLocalState()));
+
     const AccountId account_id =
         AccountId::FromUserEmailGaiaId("test@test", GaiaId("12345"));
     ASSERT_TRUE(user_manager::TestHelper(user_manager_.Get())
@@ -153,31 +162,31 @@ class CrostiniInstallerTest : public testing::Test {
 
     crostini_installer_ = std::make_unique<CrostiniInstaller>(profile_.get());
     crostini_installer_->set_skip_launching_terminal_for_testing();
-
-    g_browser_process->platform_part()
-        ->InitializeSchedulerConfigurationManager();
-    TestingBrowserProcess::GetGlobal()->SetSystemNotificationHelper(
-        std::make_unique<SystemNotificationHelper>());
   }
 
   void TearDown() override {
-    g_browser_process->platform_part()->ShutdownSchedulerConfigurationManager();
     crostini_installer_->Shutdown();
     crostini_installer_.reset();
     crostini_test_helper_.reset();
     profile_.reset();
     user_manager_.Reset();
+    TestingBrowserProcess::GetGlobal()
+        ->platform_part()
+        ->ShutdownSchedulerConfigurationManager();
+    TestingBrowserProcess::GetGlobal()->SetSystemNotificationHelper(nullptr);
+    disk_mount_manager_mock_ = nullptr;
     ash::disks::MockDiskMountManager::Shutdown();
+    browser_part_.ShutdownComponentManager();
+    component_manager_.reset();
+
     ash::SeneschalClient::Shutdown();
+    ash::FakeSpacedClient::Shutdown();
+    ash::DlcserviceClient::Shutdown();
     ash::DebugDaemonClient::Shutdown();
+    waiting_fake_concierge_client_ = nullptr;
     ash::ConciergeClient::Shutdown();
     ash::CiceroneClient::Shutdown();
     ash::ChunneldClient::Shutdown();
-    ash::DlcserviceClient::Shutdown();
-    ash::FakeSpacedClient::Shutdown();
-
-    browser_part_.ShutdownComponentManager();
-    component_manager_.reset();
   }
 
   void Install() {
@@ -204,11 +213,9 @@ class CrostiniInstallerTest : public testing::Test {
   base::HistogramTester histogram_tester_;
 
   // Owned by DiskMountManager
-  raw_ptr<ash::disks::MockDiskMountManager, DanglingUntriaged>
-      disk_mount_manager_mock_ = nullptr;
+  raw_ptr<ash::disks::MockDiskMountManager> disk_mount_manager_mock_ = nullptr;
 
-  raw_ptr<WaitingFakeConciergeClient, DanglingUntriaged>
-      waiting_fake_concierge_client_ = nullptr;
+  raw_ptr<WaitingFakeConciergeClient> waiting_fake_concierge_client_ = nullptr;
 
   user_manager::ScopedUserManager user_manager_;
   std::unique_ptr<TestingProfile> profile_;
@@ -244,47 +251,6 @@ TEST_F(CrostiniInstallerTest, InstallFlow) {
       1);
   histogram_tester_.ExpectTotalCount("Crostini.Setup.Started", 1);
   histogram_tester_.ExpectTotalCount("Crostini.Restarter.Started", 0);
-
-  EXPECT_TRUE(crostini_installer_->CanInstall())
-      << "Installer should recover to installable state";
-}
-
-TEST_F(CrostiniInstallerTest, InstallFlowWithAnsibleInfra) {
-  MockAnsibleManagementService* mock_ansible_management_service =
-      AnsibleManagementTestHelper::SetUpMockAnsibleManagementService(
-          profile_.get());
-  AnsibleManagementTestHelper test_helper(profile_.get());
-  test_helper.SetUpAnsiblePlaybookPreference();
-
-  EXPECT_CALL(*mock_ansible_management_service, ConfigureContainer).Times(1);
-  ON_CALL(*mock_ansible_management_service, ConfigureContainer)
-      .WillByDefault([](const guest_os::GuestId& conatiner_id,
-                        base::FilePath playbook,
-                        base::OnceCallback<void(bool success)> callback) {
-        std::move(callback).Run(true);
-      });
-
-  double last_progress = 0.0;
-  auto greater_equal_last_progress = Truly(
-      [&last_progress](double progress) { return progress >= last_progress; });
-
-  ExpectationSet expectation_set;
-  expectation_set +=
-      EXPECT_CALL(mock_callbacks_,
-                  OnProgress(_, AllOf(greater_equal_last_progress, Le(1.0))))
-          .WillRepeatedly(SaveArg<1>(&last_progress));
-  // |OnProgress()| should not happens after |OnFinished()|
-  EXPECT_CALL(mock_callbacks_, OnFinished(InstallerError::kNone))
-      .After(expectation_set);
-
-  Install();
-
-  task_environment_.RunUntilIdle();
-  histogram_tester_.ExpectUniqueSample(
-      "Crostini.SetupResult",
-      static_cast<base::HistogramBase::Sample32>(
-          CrostiniInstaller::SetupResult::kSuccess),
-      1);
 
   EXPECT_TRUE(crostini_installer_->CanInstall())
       << "Installer should recover to installable state";
@@ -378,40 +344,6 @@ TEST_F(CrostiniInstallerTest, InstallerError) {
       1);
   histogram_tester_.ExpectTotalCount("Crostini.Setup.Started", 1);
   histogram_tester_.ExpectTotalCount("Crostini.Restarter.Started", 0);
-
-  EXPECT_TRUE(crostini_installer_->CanInstall())
-      << "Installer should recover to installable state";
-}
-
-TEST_F(CrostiniInstallerTest, InstallerErrorWhileConfiguring) {
-  MockAnsibleManagementService* mock_ansible_management_service =
-      AnsibleManagementTestHelper::SetUpMockAnsibleManagementService(
-          profile_.get());
-  AnsibleManagementTestHelper test_helper(profile_.get());
-  test_helper.SetUpAnsiblePlaybookPreference();
-
-  EXPECT_CALL(*mock_ansible_management_service, ConfigureContainer).Times(1);
-  ON_CALL(*mock_ansible_management_service, ConfigureContainer)
-      .WillByDefault([](const guest_os::GuestId& container_id,
-                        base::FilePath playbook,
-                        base::OnceCallback<void(bool success)> callback) {
-        std::move(callback).Run(false);
-      });
-  Expectation expect_progresses =
-      EXPECT_CALL(mock_callbacks_, OnProgress(_, _)).Times(AnyNumber());
-  // |OnProgress()| should not happens after |OnFinished()|
-  EXPECT_CALL(mock_callbacks_,
-              OnFinished(InstallerError::kErrorConfiguringContainer))
-      .After(expect_progresses);
-
-  Install();
-
-  task_environment_.RunUntilIdle();
-  histogram_tester_.ExpectUniqueSample(
-      "Crostini.SetupResult",
-      static_cast<base::HistogramBase::Sample32>(
-          CrostiniInstaller::SetupResult::kErrorConfiguringContainer),
-      1);
 
   EXPECT_TRUE(crostini_installer_->CanInstall())
       << "Installer should recover to installable state";

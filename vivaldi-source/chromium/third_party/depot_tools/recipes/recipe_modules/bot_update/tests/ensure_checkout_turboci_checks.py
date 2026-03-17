@@ -8,6 +8,8 @@ from PB.turboci.graph.orchestrator.v1.check_kind import CheckKind
 from PB.turboci.graph.orchestrator.v1.check_state import CheckState
 from PB.turboci.graph.orchestrator.v1.graph_view import GraphView
 from PB.turboci.data.gerrit.v1.gerrit_change_info import GerritChangeInfo
+from PB.turboci.data.chrome.depot_tools.v1.bot_update_results import (
+    BotUpdateResults)
 from PB.turboci.data.gerrit.v1.gob_source_check_options import (
     GobSourceCheckOptions)
 from PB.turboci.data.gerrit.v1.gob_source_check_results import (
@@ -76,14 +78,13 @@ def GenTests(api):
 
   def check_ci_graph_assert(assert_, graph: GraphView):
     check_id = 'fake-check-id'
-    check_view = graph.checks[check_id]
-    assert_(list(graph.checks.keys()) == [check_id])
+    check = turboci.get_check_view(graph, check_id).check
 
-    assert_(check_view.check.kind == CheckKind.CHECK_KIND_SOURCE)
-    assert_(check_view.check.state == CheckState.CHECK_STATE_FINAL)
+    assert_(check.kind == CheckKind.CHECK_KIND_SOURCE)
+    assert_(check.state == CheckState.CHECK_STATE_FINAL)
 
     gob_source_check_options = turboci.get_option(GobSourceCheckOptions,
-                                                  check_view)
+                                                  check)
     expected_gob_source_check_options = GobSourceCheckOptions(
         base_pinned_repos=GobSourceCheckOptions.PinnedRepoMounts(
             mount_overrides=[
@@ -105,11 +106,32 @@ def GenTests(api):
     assert_(gob_source_check_options == expected_gob_source_check_options)
 
     gob_source_check_results = turboci.get_results(GobSourceCheckResults,
-                                                   check_view)
+                                                   check)
     expected_gob_source_check_results = [
         GobSourceCheckResults(),
     ]
     assert_(gob_source_check_results == expected_gob_source_check_results)
+
+    bot_update_check_results = turboci.get_results(BotUpdateResults, check)
+    expected_bot_update_check_results = [
+        BotUpdateResults(
+            manifest={
+                'bar':
+                BotUpdateResults.GitCommit(
+                    host='fake-host',
+                    project='bar',
+                    id='b' * 40,
+                ),
+                'foo':
+                BotUpdateResults.GitCommit(
+                    host='fake-host',
+                    project='foo',
+                    id='a' * 40,
+                ),
+            }),
+    ]
+    assert_(bot_update_check_results == expected_bot_update_check_results)
+
 
   yield api.test(
       'check-ci',
@@ -132,14 +154,13 @@ def GenTests(api):
 
   def check_ci_revision_only_graph_assert(assert_, graph: GraphView):
     check_id = 'fake-check-id'
-    check_view = graph.checks[check_id]
-    assert_(list(graph.checks.keys()) == [check_id])
+    check = turboci.get_check_view(graph, check_id).check
 
-    assert_(check_view.check.kind == CheckKind.CHECK_KIND_SOURCE)
-    assert_(check_view.check.state == CheckState.CHECK_STATE_FINAL)
+    assert_(check.kind == CheckKind.CHECK_KIND_SOURCE)
+    assert_(check.state == CheckState.CHECK_STATE_FINAL)
 
     gob_source_check_options = turboci.get_option(GobSourceCheckOptions,
-                                                  check_view)
+                                                  check)
     expected_gob_source_check_options = GobSourceCheckOptions(
         base_pinned_repos=GobSourceCheckOptions.PinnedRepoMounts(
             mount_overrides=[
@@ -157,11 +178,31 @@ def GenTests(api):
     assert_(gob_source_check_options == expected_gob_source_check_options)
 
     gob_source_check_results = turboci.get_results(GobSourceCheckResults,
-                                                   check_view)
+                                                   check)
     expected_gob_source_check_results = [
         GobSourceCheckResults(),
     ]
     assert_(gob_source_check_results == expected_gob_source_check_results)
+
+    bot_update_check_results = turboci.get_results(BotUpdateResults, check)
+    expected_bot_update_check_results = [
+        BotUpdateResults(
+            manifest={
+                'bar':
+                BotUpdateResults.GitCommit(
+                    host='fake-host',
+                    project='bar',
+                    id='b' * 40,
+                ),
+                'foo':
+                BotUpdateResults.GitCommit(
+                    host='fake-host',
+                    project='foo',
+                    id='a' * 40,
+                ),
+            }),
+    ]
+    assert_(bot_update_check_results == expected_bot_update_check_results)
 
   yield api.test(
       'check-ci-revision-only',
@@ -174,6 +215,7 @@ def GenTests(api):
           git_ref=None,
           revision='a' * 40,
       ),
+      api.bot_update.revisions({'bar': 'b' * 40}),
       api.bot_update.repo_urls({
           'foo': f'{_FOO_REPO_URL}.git',
           'bar': f'{_BAR_REPO_URL}.git',
@@ -184,14 +226,13 @@ def GenTests(api):
 
   def check_try_graph_assert(assert_, graph: GraphView):
     check_id = 'fake-check-id'
-    check_view = graph.checks[check_id]
-    assert_(list(graph.checks.keys()) == [check_id])
+    check = turboci.get_check_view(graph, check_id).check
 
-    assert_(check_view.check.kind == CheckKind.CHECK_KIND_SOURCE)
-    assert_(check_view.check.state == CheckState.CHECK_STATE_FINAL)
+    assert_(check.kind == CheckKind.CHECK_KIND_SOURCE)
+    assert_(check.state == CheckState.CHECK_STATE_FINAL)
 
     gob_source_check_options = turboci.get_option(GobSourceCheckOptions,
-                                                  check_view)
+                                                  check)
     expected_gob_source_check_options = GobSourceCheckOptions(
         gerrit_changes=[
             GobSourceCheckOptions.GerritChange(
@@ -218,7 +259,7 @@ def GenTests(api):
     assert_(gob_source_check_options == expected_gob_source_check_options)
 
     gob_source_check_results = turboci.get_results(GobSourceCheckResults,
-                                                   check_view)
+                                                   check)
     expected_gob_source_check_results = [
         GobSourceCheckResults(changes=[
             GerritChangeInfo(
@@ -233,6 +274,26 @@ def GenTests(api):
     ]
     assert_(gob_source_check_results == expected_gob_source_check_results)
 
+    bot_update_check_results = turboci.get_results(BotUpdateResults, check)
+    expected_bot_update_check_results = [
+        BotUpdateResults(
+            manifest={
+                'bar':
+                BotUpdateResults.GitCommit(
+                    host='fake-host',
+                    project='bar',
+                    id='b' * 40,
+                ),
+                'foo':
+                BotUpdateResults.GitCommit(
+                    host='fake-host',
+                    project='foo',
+                    id='a' * 40,
+                ),
+            }),
+    ]
+    assert_(bot_update_check_results == expected_bot_update_check_results)
+
   yield api.test(
       'check-try',
       api.properties(
@@ -244,6 +305,10 @@ def GenTests(api):
           change_number=123456,
           patch_set=7,
       ),
+      api.bot_update.revisions({
+          'foo': 'a' * 40,
+          'bar': 'b' * 40,
+      }),
       api.bot_update.repo_urls({
           'foo': f'{_FOO_REPO_URL}.git',
           'bar': f'{_BAR_REPO_URL}.git',

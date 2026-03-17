@@ -8,7 +8,7 @@
 #import "components/notes/note_node.h"
 
 @protocol NoteParentFolderViewDelegate
-- (void) didTapParentFolder;
+- (void)didTapParentFolder;
 @end
 
 // A view to hold folder selection view for the note editor
@@ -19,7 +19,7 @@
 - (instancetype)initWithCoder:(NSCoder*)aDecoder NS_UNAVAILABLE;
 
 // DELEGATE
-@property (nonatomic, weak) id<NoteParentFolderViewDelegate> delegate;
+@property(nonatomic, weak) id<NoteParentFolderViewDelegate> delegate;
 
 // SETTERS
 - (void)setParentFolderAttributesWithItem:(const vivaldi::NoteNode*)item;

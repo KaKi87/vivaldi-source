@@ -43,8 +43,8 @@
 #include "chrome/browser/signin/about_signin_internals_factory.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/spellchecker/spellcheck_factory.h"
+#include "chrome/browser/supervised_user/family_link_settings_service_factory.h"
 #include "chrome/browser/supervised_user/supervised_user_service_factory.h"
-#include "chrome/browser/supervised_user/supervised_user_settings_service_factory.h"
 #include "chrome/browser/sync/account_bookmark_sync_service_factory.h"
 #include "chrome/browser/sync/chrome_sync_client.h"
 #include "chrome/browser/sync/chrome_sync_controller_builder.h"
@@ -92,9 +92,9 @@
 
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "chrome/browser/extensions/sync/extension_sync_service.h"  // nogncheck
-#include "extensions/browser/api/storage/storage_frontend.h"   // nogncheck
-#include "extensions/browser/extension_system_provider.h"      // nogncheck
-#include "extensions/browser/extensions_browser_client.h"      // nogncheck
+#include "extensions/browser/api/storage/storage_frontend.h"        // nogncheck
+#include "extensions/browser/extension_system_provider.h"           // nogncheck
+#include "extensions/browser/extensions_browser_client.h"           // nogncheck
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -124,6 +124,7 @@
 // Must come after other includes, because FromJniType() uses Profile.
 #include "chrome/browser/sync/android/jni_headers/SyncServiceFactory_jni.h"
 #else  // BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/skills/skills_service_factory.h"
 #include "chrome/browser/webauthn/passkey_model_factory.h"
 #endif  // BUILDFLAG(IS_ANDROID)
 
@@ -263,12 +264,19 @@ syncer::DataTypeController::TypeVector CreateCommonControllers(
   builder.SetSharingMessageBridge(
       SharingMessageBridgeFactory::GetForBrowserContext(profile));
 #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
-  builder.SetSupervisedUserSettingsService(
-      SupervisedUserSettingsServiceFactory::GetForKey(
+  builder.SetFamilyLinkSettingsService(
+      supervised_user::FamilyLinkSettingsServiceFactory::GetForKey(
           profile->GetProfileKey()));
 #endif  // BUILDFLAG(ENABLE_SUPERVISED_USERS)
   builder.SetUserEventService(
       browser_sync::UserEventServiceFactory::GetForProfile(profile));
+  builder.SetSkillsService(
+#if BUILDFLAG(IS_ANDROID)
+      nullptr
+#else   // BUILDFLAG(IS_ANDROID)
+      skills::SkillsServiceFactory::GetForProfile(profile)
+#endif  // BUILDFLAG(IS_ANDROID)
+  );
 
   // Vivaldi
   builder.SetNoteSyncService(
@@ -368,7 +376,8 @@ std::unique_ptr<syncer::SyncClient> BuildSyncClient(Profile* profile) {
       SyncInvalidationsServiceFactory::GetForProfile(profile),
       DeviceInfoSyncServiceFactory::GetForProfile(profile),
       DataTypeStoreServiceFactory::GetForProfile(profile),
-      SupervisedUserSettingsServiceFactory::GetForKey(profile->GetProfileKey()),
+      supervised_user::FamilyLinkSettingsServiceFactory::GetForKey(
+          profile->GetProfileKey()),
       std::make_unique<browser_sync::ExtensionsActivityMonitor>(profile));
 }
 
@@ -406,9 +415,7 @@ std::unique_ptr<KeyedService> BuildSyncService(
       content::GetNetworkConnectionTracker();
   init_params.channel = chrome::GetChannel();
   init_params.debug_identifier = profile->GetDebugName();
-  if (base::FeatureList::IsEnabled(syncer::kSyncUseOsCryptAsync)) {
-    init_params.os_crypt_async = g_browser_process->os_crypt_async();
-  }
+  init_params.os_crypt_async = g_browser_process->os_crypt_async();
 
   bool local_sync_backend_enabled = false;
   // Only check the local sync backend pref on the supported platforms of
@@ -575,9 +582,12 @@ SyncServiceFactory::SyncServiceFactory()
   DependsOn(SecurityEventRecorderFactory::GetInstance());
   DependsOn(SendTabToSelfSyncServiceFactory::GetInstance());
   DependsOn(SharingMessageBridgeFactory::GetInstance());
+#if !BUILDFLAG(IS_ANDROID)
+  DependsOn(skills::SkillsServiceFactory::GetInstance());
+#endif  // !BUILDFLAG(IS_ANDROID)
   DependsOn(SpellcheckServiceFactory::GetInstance());
   DependsOn(SyncInvalidationsServiceFactory::GetInstance());
-  DependsOn(SupervisedUserSettingsServiceFactory::GetInstance());
+  DependsOn(supervised_user::FamilyLinkSettingsServiceFactory::GetInstance());
   DependsOn(SessionSyncServiceFactory::GetInstance());
   DependsOn(TemplateURLServiceFactory::GetInstance());
 #if !BUILDFLAG(IS_ANDROID)

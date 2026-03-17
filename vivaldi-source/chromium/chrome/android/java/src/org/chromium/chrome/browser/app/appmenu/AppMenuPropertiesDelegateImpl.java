@@ -23,6 +23,7 @@ import androidx.annotation.IntDef;
 import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.content.res.AppCompatResources;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.drawable.DrawableCompat;
 
 import com.google.common.primitives.UnsignedLongs;
@@ -33,10 +34,14 @@ import org.chromium.base.ResettersForTesting;
 import org.chromium.base.Token;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplier;
+import org.chromium.build.annotations.Contract;
+import org.chromium.build.annotations.EnsuresNonNullIf;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.build.annotations.RequiresNonNull;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
@@ -50,6 +55,7 @@ import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.multiwindow.MultiWindowModeStateDispatcher;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.night_mode.WebContentsDarkModeController;
+import org.chromium.chrome.browser.open_in_app.OpenInAppMenuItemProvider;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.readaloud.ReadAloudController;
 import org.chromium.chrome.browser.share.ShareHelper;
@@ -130,11 +136,12 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
     protected final Supplier<ReadAloudController> mReadAloudControllerSupplier;
 
     private CallbackController mCallbackController = new CallbackController();
-    private ObservableSupplier<BookmarkModel> mBookmarkModelSupplier;
+    private final NullableObservableSupplier<BookmarkModel> mBookmarkModelSupplier;
     private @Nullable ModelList mModelList;
     private int mReadAloudPos;
     protected @Nullable Runnable mReadAloudAppMenuResetter;
     private boolean mHasReadAloudInserted;
+    protected final @Nullable OpenInAppMenuItemProvider mOpenInAppMenuItemProvider;
 
     @VisibleForTesting
     @IntDef({
@@ -189,9 +196,12 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
      * @param toolbarManager The {@link ToolbarManager} for the containing activity.
      * @param decorView The decor {@link View}, e.g. from Window#getDecorView(), for the containing
      *     activity.
-     * @param layoutStateProvidersSupplier An {@link ObservableSupplier} for the {@link
+     * @param layoutStateProvidersSupplier An {@link MonotonicObservableSupplier} for the {@link
      *     LayoutStateProvider} associated with the containing activity.
-     * @param bookmarkModelSupplier An {@link ObservableSupplier} for the {@link BookmarkModel}
+     * @param bookmarkModelSupplier An {@link MonotonicObservableSupplier} for the {@link
+     *     BookmarkModel}.
+     * @param openInAppMenuItemProvider The {@link OpenInAppMenuItemProvider} that may provide an
+     *     open in app item.
      */
     protected AppMenuPropertiesDelegateImpl(
             Context context,
@@ -201,8 +211,9 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
             ToolbarManager toolbarManager,
             View decorView,
             @Nullable OneshotSupplier<LayoutStateProvider> layoutStateProvidersSupplier,
-            ObservableSupplier<BookmarkModel> bookmarkModelSupplier,
-            Supplier<ReadAloudController> readAloudControllerSupplier) {
+            NullableObservableSupplier<BookmarkModel> bookmarkModelSupplier,
+            Supplier<ReadAloudController> readAloudControllerSupplier,
+            @Nullable OpenInAppMenuItemProvider openInAppMenuItemProvider) {
         mContext = context;
         mIsTablet = DeviceFormFactor.isNonMultiDisplayContextOnTablet(mContext);
         mActivityTabProvider = activityTabProvider;
@@ -221,6 +232,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
         }
 
         mBookmarkModelSupplier = bookmarkModelSupplier;
+        mOpenInAppMenuItemProvider = openInAppMenuItemProvider;
     }
 
     @SuppressWarnings("NullAway")
@@ -547,6 +559,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
      * @return Whether the reader mode preferences menu item should be displayed.
      */
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
+    @Contract("null -> false")
     public boolean shouldShowReaderModePrefs(@Nullable Tab currentTab) {
         return currentTab != null
                 && DomDistillerUrlUtils.isDistilledPage(currentTab.getUrl())
@@ -558,6 +571,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
      * @return Whether reader mode is currently showing.
      */
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
+    @Contract("null -> false")
     public boolean isReaderModeShowing(@Nullable Tab currentTab) {
         return currentTab != null && DomDistillerUrlUtils.isDistilledPage(currentTab.getUrl());
     }
@@ -590,6 +604,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
      *     page menu item should be enabled.
      */
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
+    @Contract("null -> false")
     public boolean shouldEnableDownloadPage(@Nullable Tab currentTab) {
         return DownloadUtils.isAllowedToDownloadPage(currentTab);
     }
@@ -647,6 +662,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
      * @return Whether the translate menu item should be displayed.
      */
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
+    @Contract("null -> false")
     public boolean shouldShowTranslateMenuItem(@Nullable Tab currentTab) {
         return currentTab != null && TranslateUtils.canTranslateCurrentTab(currentTab, true);
     }
@@ -663,6 +679,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
     }
 
     /** Return whether the current tab should show the "Open with..." item. */
+    @Contract("null -> false")
     protected boolean shouldShowOpenWithItem(@Nullable Tab currentTab) {
         return currentTab != null
                 && currentTab.isNativePage()
@@ -719,8 +736,11 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
      *
      * @param currentTab Current tab being displayed.
      */
-    protected boolean shouldShowDownloadPageMenuItem(Tab currentTab) {
+    @Contract("null -> false")
+    protected boolean shouldShowDownloadPageMenuItem(@Nullable Tab currentTab) {
+
         if (BuildConfig.IS_OEM_AUTOMOTIVE_BUILD) return false;
+
         return isTabletSizeScreen() && shouldEnableDownloadPage(currentTab);
     }
 
@@ -759,6 +779,17 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
                         R.drawable.ic_file_download_white_24dp);
         downloadButton.set(AppMenuItemProperties.ENABLED, shouldEnableDownloadPage(currentTab));
         return downloadButton;
+    }
+
+    protected PropertyModel buildGlicActionModel(@Nullable Tab currentTab) {
+        PropertyModel glicButton =
+                buildModelForIcon(
+                        R.id.glic_menu_id,
+                        R.string.help_context_general, // Vivaldi
+                        R.string.help_context_general, // Vivaldi
+                        R.drawable.ic_spark_24dp);
+        glicButton.set(AppMenuItemProperties.ENABLED, true);
+        return glicButton;
     }
 
     /** Build the PropertyModel for the page info action. */
@@ -872,7 +903,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
         return null;
     }
 
-    private void observeReadabilityUpdates(Tab currentTab) {
+    private void observeReadabilityUpdates(@Nullable Tab currentTab) {
         ReadAloudController readAloudController = mReadAloudControllerSupplier.get();
         if (readAloudController == null) return;
 
@@ -891,7 +922,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
         readAloudController.addReadabilityUpdateListener(mReadAloudAppMenuResetter);
     }
 
-    private boolean isTabReadable(Tab tab) {
+    private boolean isTabReadable(@Nullable Tab tab) {
         ReadAloudController readAloudController = mReadAloudControllerSupplier.get();
         return tab != null && readAloudController != null && readAloudController.isReadable(tab);
     }
@@ -903,7 +934,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
      * @param modelList The list where the read aloud option should be added if conditions allow.
      * @param currentTab The currently selected tab.
      */
-    protected void observeAndMaybeAddReadAloud(ModelList modelList, Tab currentTab) {
+    protected void observeAndMaybeAddReadAloud(ModelList modelList, @Nullable Tab currentTab) {
         mReadAloudPos = modelList.size();
         observeReadabilityUpdates(currentTab);
         if (isTabReadable(currentTab)) {
@@ -1097,7 +1128,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
         if (currentTab != null && shouldCheckBookmarkStar(currentTab)) {
             bookmarkMenuModel.set(
                     AppMenuItemProperties.ICON,
-                    AppCompatResources.getDrawable(mContext, R.drawable.btn_star_filled));
+                    AppCompatResources.getDrawable(mContext, R.drawable.ic_star_filled_24dp));
             bookmarkMenuModel.set(AppMenuItemProperties.CHECKED, true);
             bookmarkMenuModel.set(
                     AppMenuItemProperties.TITLE_CONDENSED,
@@ -1132,7 +1163,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
             } else
             bookmarkMenuModel.set(
                     AppMenuItemProperties.ICON,
-                    AppCompatResources.getDrawable(mContext, R.drawable.star_outline_24dp));
+                    AppCompatResources.getDrawable(mContext, R.drawable.ic_star_24dp));
             bookmarkMenuModel.set(AppMenuItemProperties.CHECKED, false);
             bookmarkMenuModel.set(
                     AppMenuItemProperties.TITLE_CONDENSED,
@@ -1266,6 +1297,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
 
     /** Return whether auto darkening is enabled for the current Tab. */
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
+    @Contract("null, _-> false")
     public boolean shouldShowAutoDarkItem(@Nullable Tab currentTab, boolean isNativePage) {
         Profile profile = mTabModelSelector.getCurrentModel().getProfile();
         assert profile != null;
@@ -1307,11 +1339,6 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
     static void setPageBookmarkedForTesting(Boolean bookmarked) {
         sItemBookmarkedForTesting = bookmarked;
         ResettersForTesting.register(() -> sItemBookmarkedForTesting = null);
-    }
-
-    void setBookmarkModelSupplierForTesting(
-            ObservableSupplier<BookmarkModel> bookmarkModelSupplier) {
-        mBookmarkModelSupplier = bookmarkModelSupplier;
     }
 
     /**
@@ -1386,8 +1413,7 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
     }
 
     public @StringRes int getAddToGroupMenuItemString(@Nullable Token currentTabGroupId) {
-        TabGroupModelFilter filter =
-                mTabModelSelector.getTabGroupModelFilterProvider().getCurrentTabGroupModelFilter();
+        TabGroupModelFilter filter = mTabModelSelector.getCurrentTabGroupModelFilter();
         if (currentTabGroupId != null) return R.string.menu_move_tab_to_group;
         if (filter != null) {
             boolean hasGroups = filter.getTabGroupCount() != 0;
@@ -1396,15 +1422,32 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
         return R.string.menu_add_tab_to_group;
     }
 
-    protected CharSequence addOrRemoveNewLabel(String menuTitle, boolean showNewLabel) { // Vivaldi
-        if (!showNewLabel) {
-            return SpanApplier.removeSpanText(menuTitle,
-                    new SpanApplier.SpanInfo("<new>", "</new>"));
+    /** Returns whether to show the open in app menu item. */
+    @EnsuresNonNullIf("mOpenInAppMenuItemProvider")
+    protected boolean shouldShowOpenInAppItem() {
+        return mOpenInAppMenuItemProvider != null
+                && mOpenInAppMenuItemProvider.getOpenInAppInfoForMenuItem() != null;
+    }
+
+    /** Returns a new open in app menu item. */
+    @RequiresNonNull("mOpenInAppMenuItemProvider")
+    protected ListItem buildOpenInAppItem() {
+        var info = mOpenInAppMenuItemProvider.getOpenInAppInfoForMenuItem();
+        assert info != null;
+
+        PropertyModel model =
+                buildBaseModelForTextItem(R.id.open_in_app_menu_id)
+                        .with(AppMenuItemProperties.TITLE, mContext.getString(R.string.open_in_app))
+                        .build();
+        if (info.appIcon != null) {
+            model.set(AppMenuItemProperties.ICON, info.appIcon);
+            model.set(AppMenuItemProperties.ICON_NO_TINT, true);
+        } else {
+            model.set(
+                    AppMenuItemProperties.ICON,
+                    ContextCompat.getDrawable(mContext, R.drawable.open_in_new_tab));
         }
-        return SpanApplier.applySpans(menuTitle,
-                new SpanApplier.SpanInfo("<new>", "</new>", new SuperscriptSpan(),
-                        new RelativeSizeSpan(0.75f), new ForegroundColorSpan(
-                                SemanticColorUtils.getDefaultTextColorAccent1(mContext))));
+        return new ListItem(AppMenuItemType.STANDARD, model);
     }
 
     // Vivaldi Start
@@ -1690,4 +1733,5 @@ public abstract class AppMenuPropertiesDelegateImpl implements AppMenuProperties
         }
         return readerViewButton;
     }
+    // End Vivaldi
 }

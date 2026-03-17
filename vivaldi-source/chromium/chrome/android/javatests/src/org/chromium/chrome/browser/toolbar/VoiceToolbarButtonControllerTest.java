@@ -16,7 +16,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 
+import static org.chromium.base.test.transit.ViewFinder.waitForNoView;
 import static org.chromium.base.test.util.Restriction.RESTRICTION_TYPE_NON_LOW_END_DEVICE;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeNtpUrl;
 import static org.chromium.ui.test.util.ViewUtils.onViewWaiting;
 
 import android.view.View;
@@ -37,6 +39,7 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.Restriction;
+import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.omnibox.LocationBarCoordinator;
 import org.chromium.chrome.browser.omnibox.voice.VoiceRecognitionHandler;
@@ -48,7 +51,6 @@ import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.page.WebPageStation;
-import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.ui.modaldialog.DialogDismissalCause;
 import org.chromium.ui.modaldialog.ModalDialogManager.ModalDialogType;
 import org.chromium.ui.modaldialog.ModalDialogProperties;
@@ -108,14 +110,13 @@ public final class VoiceToolbarButtonControllerTest {
                         .getString(R.string.accessibility_toolbar_btn_mic);
     }
 
-    private void assertButtonMissingOrNonVoice() {
-        ViewUtils.waitForViewCheckingState(
+    private void assertButtonMissingOrNonVoice(ChromeTabbedActivity activity) {
+        waitForNoView(
+                activity,
                 allOf(
                         withId(R.id.optional_toolbar_button),
-                        isDisplayed(),
                         isEnabled(),
-                        withContentDescription(mButtonString)),
-                ViewUtils.VIEW_GONE | ViewUtils.VIEW_NULL);
+                        withContentDescription(mButtonString)));
     }
 
     @Test
@@ -130,9 +131,9 @@ public final class VoiceToolbarButtonControllerTest {
                         isEnabled(),
                         withContentDescription(mButtonString)));
 
-        mActivityTestRule.loadUrl(UrlConstants.NTP_URL);
+        mActivityTestRule.loadUrl(getOriginalNativeNtpUrl());
 
-        assertButtonMissingOrNonVoice();
+        assertButtonMissingOrNonVoice(mActivityTestRule.getActivity());
     }
 
     @Test
@@ -143,7 +144,7 @@ public final class VoiceToolbarButtonControllerTest {
         // Reload the page so the button provider is updated based on the mock.
         mActivityTestRule.loadUrl(mTestPageUrl);
 
-        assertButtonMissingOrNonVoice();
+        assertButtonMissingOrNonVoice(mActivityTestRule.getActivity());
     }
 
     @Test
@@ -158,9 +159,9 @@ public final class VoiceToolbarButtonControllerTest {
                         isEnabled(),
                         withContentDescription(mButtonString)));
 
-        mPage.openNewIncognitoTabOrWindowFast();
+        var incognitoNtp = mPage.openNewIncognitoTabOrWindowFast();
 
-        assertButtonMissingOrNonVoice();
+        assertButtonMissingOrNonVoice(incognitoNtp.getActivity());
     }
 
     @Test

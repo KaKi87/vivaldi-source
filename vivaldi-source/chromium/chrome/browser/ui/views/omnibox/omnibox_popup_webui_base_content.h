@@ -5,6 +5,8 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_OMNIBOX_OMNIBOX_POPUP_WEBUI_BASE_CONTENT_H_
 #define CHROME_BROWSER_UI_VIEWS_OMNIBOX_OMNIBOX_POPUP_WEBUI_BASE_CONTENT_H_
 
+#include <string_view>
+
 #include "base/memory/raw_ptr.h"
 #include "base/timer/timer.h"
 #include "chrome/browser/ui/webui/top_chrome/webui_contents_wrapper.h"
@@ -74,8 +76,8 @@ class OmniboxPopupWebUIBaseContent : public views::WebView,
       const content::MediaStreamRequest& request,
       content::MediaResponseCallback callback) override;
 
-  // Notifies the page the widget was hidden.
-  virtual void OnPopupHidden();
+  // Notifies the page the widget was hidden and performs cleanup.
+  virtual void Clear() = 0;
 
   // Returns the WebContents from within the wrapper. Don't use
   // GetWebContents() since that may be nullptr if the popup isn't visible.
@@ -92,11 +94,16 @@ class OmniboxPopupWebUIBaseContent : public views::WebView,
   // Set up the WebUI content page and hook up the Omnibox handlers.
   void SetContentURL(std::string_view url);
 
+  virtual std::string_view GetMetricPrefix() const = 0;
+
   OmniboxController* controller() { return controller_.get(); }
 
   LocationBarView* location_bar_view() { return location_bar_view_.get(); }
 
   bool top_rounded_corners() const { return top_rounded_corners_; }
+
+  // Detaches the WebContents and cleans up.
+  void Detach();
 
  private:
   // Loads the WebUI content using the cached `content_url`. Creates a new

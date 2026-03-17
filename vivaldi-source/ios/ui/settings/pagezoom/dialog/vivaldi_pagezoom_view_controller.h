@@ -22,8 +22,8 @@
 - (void)showVivaldiPageZoomSettings;
 @end
 
-@interface VivaldiPageZoomViewController :
-    UIViewController <VivaldiPageZoomDialogConsumer>
+@interface VivaldiPageZoomViewController
+    : UIViewController <VivaldiPageZoomDialogConsumer>
 @property(nonatomic, weak) id<TextZoomCommands> commandHandler;
 @property(nonatomic, weak) id<PageZoomHandler> zoomHandler;
 @property(nonatomic, weak) id<VivaldiPageZoomSettingsDelegate> settingsDelegate;

@@ -8,7 +8,6 @@
 #include <memory>
 #include <string>
 
-#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/time/time.h"
@@ -41,7 +40,7 @@ class ZoomBubbleView : public LocationBarBubbleDelegateView,
   // |immersive_mode_controller_| is present, the bubble will auto-close when
   // the top-of-window views are revealed.
   ZoomBubbleView(Browser* browser,
-                 views::View* anchor_view,
+                 views::BubbleAnchor anchor,
                  content::WebContents* web_contents,
                  DisplayReason reason);
   ~ZoomBubbleView() override;

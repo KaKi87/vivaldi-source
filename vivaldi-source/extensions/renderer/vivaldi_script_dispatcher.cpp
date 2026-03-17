@@ -46,14 +46,20 @@ void VivaldiRegisterNativeHandler(extensions::ModuleSystem* module_system,
 }
 
 // Called by Dispatcher::GetJsResources()
-void VivaldiAddScriptResources(extensions::ResourceBundleSourceMap* source_map) {
-  source_map->RegisterSource("webViewPrivateImpl", IDR_WEB_VIEW_PRIVATE_API_IMPL_JS);
-  source_map->RegisterSource("webViewPrivateMethods", IDR_WEB_VIEW_PRIVATE_API_METHODS_JS);
+void VivaldiAddScriptResources(
+    extensions::ResourceBundleSourceMap* source_map) {
+  source_map->RegisterSource("webViewPrivateImpl",
+                             IDR_WEB_VIEW_PRIVATE_API_IMPL_JS);
+  source_map->RegisterSource("webViewPrivateMethods",
+                             IDR_WEB_VIEW_PRIVATE_API_METHODS_JS);
 
-  source_map->RegisterSource("webViewEventsPrivate", IDR_WEB_VIEW_PRIVATE_EVENTS_JS);
+  source_map->RegisterSource("webViewEventsPrivate",
+                             IDR_WEB_VIEW_PRIVATE_EVENTS_JS);
 
-  source_map->RegisterSource("webViewAttributesPrivate", IDR_WEB_VIEW_PRIVATE_ATTRIBUTES_JS);
-  source_map->RegisterSource("webViewConstantsPrivate", IDR_WEB_VIEW_PRIVATE_CONSTANTS_JS);
+  source_map->RegisterSource("webViewAttributesPrivate",
+                             IDR_WEB_VIEW_PRIVATE_ATTRIBUTES_JS);
+  source_map->RegisterSource("webViewConstantsPrivate",
+                             IDR_WEB_VIEW_PRIVATE_CONSTANTS_JS);
 }
 
 // Called by Dispatcher::RequireGuestViewModules()

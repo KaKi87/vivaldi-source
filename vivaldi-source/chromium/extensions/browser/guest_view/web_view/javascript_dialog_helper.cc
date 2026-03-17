@@ -53,11 +53,12 @@ void JavaScriptDialogHelper::RunJavaScriptDialog(
     const std::u16string& default_prompt_text,
     DialogClosedCallback callback,
     bool* did_suppress_message) {
-  // Keep a local copy here. This is safe as the renderer is blocked until it is
-  // called.
-  dialog_callback_ = std::move(callback);
 
-  base::Value::Dict request_info;
+  // Vivaldi: Keep a local copy here. This is safe as the renderer is blocked
+  // until it is called.
+  dialog_callback_ = std::move(callback); // Vivaldi
+
+  base::DictValue request_info;
   request_info.Set(webview::kDefaultPromptText, default_prompt_text);
   request_info.Set(webview::kMessageText, message_text);
   request_info.Set(webview::kMessageType,
@@ -69,6 +70,7 @@ void JavaScriptDialogHelper::RunJavaScriptDialog(
   request_info.Set(
       webview::kOrigin,
       render_frame_host->GetMainFrame()->GetLastCommittedOrigin().Serialize());
+  // End Vivaldi
 
   WebViewPermissionHelper* web_view_permission_helper =
       web_view_guest_->web_view_permission_helper();
@@ -84,6 +86,7 @@ void JavaScriptDialogHelper::RunBeforeUnloadDialog(
     content::RenderFrameHost* render_frame_host,
     bool is_reload,
     DialogClosedCallback callback) {
+
   if (vivaldi::IsVivaldiRunning()) {
     // NOTE(pettern@vivaldi.com): We want beforeunload dialogs in Vivaldi,
     // so call the full implementation here.
@@ -95,7 +98,8 @@ void JavaScriptDialogHelper::RunBeforeUnloadDialog(
                                                 is_reload, std::move(callback));
       return;
     }
-  }
+  } // End Vivaldi
+
   // This is called if the guest has a beforeunload event handler.
   // This callback allows navigation to proceed.
   std::move(callback).Run(true, std::u16string());

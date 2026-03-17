@@ -72,6 +72,10 @@ UIImage* GetOmniboxSuggestionIcon(OmniboxSuggestionIconType icon_type) {
       symbol_name = kMagnifyingglassSparkSymbol;
       default_symbol = false;
       break;
+    case OmniboxSuggestionIconType::kNotesSpark:
+      symbol_name = kLineThreeSparkSymbol;
+      default_symbol = false;
+      break;
     case OmniboxSuggestionIconType::kCount:
       NOTREACHED();
 
@@ -104,9 +108,9 @@ UIImage* GetOmniboxSuggestionIcon(OmniboxSuggestionIconType icon_type) {
   return CustomSymbolWithPointSize(symbol_name, kSymbolSize);
 }
 
-#if BUILDFLAG(IOS_USE_BRANDED_SYMBOLS)
+#if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
 UIImage* GetBrandedGoogleIconForOmnibox() {
   return MakeSymbolMonochrome(
       CustomSymbolWithPointSize(kGoogleIconSymbol, kSymbolSize));
 }
-#endif  // BUILDFLAG(IOS_USE_BRANDED_SYMBOLS)
+#endif  // BUILDFLAG(IOS_USE_BRANDED_ASSETS)

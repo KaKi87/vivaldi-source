@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Gestisci le sorgenti del Blocco Annunci</translation>
 <translation id="1577761519530347814">Sincronizza le password salvate dei siti</translation>
 <translation id="1620921465699122417">Inserisci il testo da tradurre</translation>
+<translation id="1624621765073396937">Scorri per chiudere la scheda</translation>
 <translation id="1631998297781042533">Siti popolari</translation>
 <translation id="1644574205037202324">Cronologia</translation>
 <translation id="1655816024544228768">Sport</translation>
@@ -106,6 +107,7 @@
 <translation id="2330644510603114741">Comportamento scheda</translation>
 <translation id="233493642829799329">Modificandola alcune delle schede potrebbero ricaricarsi</translation>
 <translation id="2336309953058658733">Svuota cestino</translation>
+<translation id="2336679896177818431">Apri il commutatore schede scorrendo verso l'alto o verso il basso sulla barra degli indirizzi</translation>
 <translation id="2359808026110333948">Continua</translation>
 <translation id="2386793615875593361">1 selezionata</translation>
 <translation id="2387049655823108978">Sincronizza le schede aperte da altri dispositivi</translation>
@@ -127,6 +129,7 @@
 <translation id="261264557609353020">Pagina d'avvio</translation>
 <translation id="2619628557366098325">Portoghese (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">Sistema</translation>
+<translation id="2638305832232696831">Abilita il gesto di scorrimento sulla barra degli indirizzi</translation>
 <translation id="2653659639078652383">Invia</translation>
 <translation id="2666092431469916601">In alto</translation>
 <translation id="2677862276555105603">Annuncio
@@ -134,7 +137,7 @@ bloccato</translation>
 <translation id="2678542925523700624">Estone (<ph name="ORIGIN" />)</translation>
 <translation id="2701366016894985129">Annunci nei risultati di ricerca</translation>
 <translation id="2702801445560668637">Lista di lettura</translation>
-<translation id="2709516037105925701">Completamento automatico</translation>
+<translation id="2709516037105925701">Compilazione automatica</translation>
 <translation id="271033894570825754">Nuovo</translation>
 <translation id="2712076950889800659">Continuando, accetti il <ph name="BEGIN_LINK" />Contratto di licenza con l'utente finale<ph name="END_LINK" /> e <ph name="BEGIN_LINK" />Informativa sulla privacy<ph name="END_LINK" /> di Vivaldi</translation>
 <translation id="2720646732332242062">Abilita scorciatoie</translation>
@@ -153,6 +156,7 @@ bloccato</translation>
 <translation id="2862504765180635001">Siamo spiacenti di sentirlo!</translation>
 <translation id="2878511608894704031">Cancella tutto</translation>
 <translation id="2884735088411646852">Ordinamento</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (Blocca varie seccature)</translation>
 <translation id="2898963176829412617">Nuova cartella…</translation>
 <translation id="2918704853620385162">Apri una nuova scheda alla chiusura dell'ultima scheda</translation>
 <translation id="2924890236896835588">Nome gruppo</translation>
@@ -172,6 +176,7 @@ bloccato</translation>
 <translation id="3142562627629111859">Nuovo gruppo</translation>
 <translation id="3157931365184549694">Ripristina</translation>
 <translation id="3159285901314605198">Immagine di sfondo</translation>
+<translation id="317084213044777332">Imposta come ricerca predefinita</translation>
 <translation id="3177673846235066154">Il server ha rifiutato le tue credenziali.</translation>
 <translation id="3180057018690062250">Streaming</translation>
 <translation id="3180358318770512945">Genitorialità</translation>
@@ -262,7 +267,7 @@ bloccato</translation>
 <translation id="4151468644762710975">Ripristina i motori di ricerca predefiniti</translation>
 <translation id="4152011295694446843">Qui troverai i tuoi segnalibri</translation>
 <translation id="4152623049003960417">Dettagli tracciante</translation>
-<translation id="4176463684765177261">Disabilita</translation>
+<translation id="4176463684765177261">Disattivato</translation>
 <translation id="4181792832006033883">Vivaldi è supportato dai nostri utenti, non da GAFAM o dagli investitori. Ogni donazione sostiene direttamente la nostra missione per un Internet aperto e privato. Partecipa al cambiamento.</translation>
 <translation id="4184746246941929945">Vivaldi ha collaborato con <ph name="PARTNER_NAME" /> per non bloccare gli annunci su questa pagina. Questi annunci aiutano a finanziare lo sviluppo di Vivaldi.</translation>
 <translation id="4193549853510262477">Rilevato automaticamente</translation>
@@ -358,7 +363,7 @@ bloccato</translation>
 <translation id="5116316489033177455">Sincronizza Segnalibri e Selezioni rapide</translation>
 <translation id="5122095890854520072">Lettone (<ph name="ORIGIN" />)</translation>
 <translation id="5128025282874907098">Il 100% delle donazioni sarà utilizzato per finanziare lo sviluppo a lungo termine di Vivaldi e la nostra lotta per un web migliore.</translation>
-<translation id="5153806174841856652">Accesso fallito</translation>
+<translation id="5153806174841856652">Accesso non riuscito</translation>
 <translation id="5160018607418677056"><ph name="BEGIN_LINK" />Invia nuovamente il codice<ph name="END_LINK" /></translation>
 <translation id="5166345991950198590">Mostra Siti più usati</translation>
 <translation id="5191012692655103305">Recupero schede e cronologia...</translation>
@@ -594,6 +599,7 @@ bloccato</translation>
 <translation id="8066170816074394954">Errore server.</translation>
 <translation id="8076492880354921740">Schede</translation>
 <translation id="8077675488769462025">Schede non attive</translation>
+<translation id="8079925180539182073">Il motore di ricerca predefinito non può essere rimosso.</translation>
 <translation id="8112996065264879835">Questo codice non corrisponde a quello che ti abbiamo inviato.
          Hai raggiunto il limite massimo di tentativi errati. Richiedi un nuovo codice usando l'opzione Invia di nuovo qui sotto.</translation>
 <translation id="8131740175452115882">Conferma</translation>
@@ -639,6 +645,7 @@ bloccato</translation>
 <translation id="856439694359429369">Tocca per ulteriori opzioni o doppio tocco per aprire.</translation>
 <translation id="8591818185775466306">Cancella <ph name="ITEM_TYPE" /></translation>
 <translation id="8605953154325672921">Nome utente necessario</translation>
+<translation id="861259508026988871">Aggiungi come motore di ricerca</translation>
 <translation id="8675578805254882416">Caricamento</translation>
 <translation id="8677007239430848917">Aggiungi la tua prima nota toccando l'icona più in basso</translation>
 <translation id="8684294196284714094">Pronto a impostare Vivaldi come browser predefinito?</translation>

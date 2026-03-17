@@ -141,7 +141,7 @@ void ChromeWebViewPermissionHelperDelegate::BlockedUnauthorizedPlugin(
   const char kPluginName[] = "name";
   const char kPluginIdentifier[] = "identifier";
 
-  base::Value::Dict info;
+  base::DictValue info;
   info.Set(kPluginName, name);
   info.Set(kPluginIdentifier, identifier);
   web_view_permission_helper()->RequestPermission(
@@ -187,7 +187,7 @@ void ChromeWebViewPermissionHelperDelegate::
             blink::mojom::MediaStreamType::DEVICE_VIDEO_CAPTURE) {
       std::move(callback).Run(
           blink::mojom::StreamDevicesSet(),
-          blink::mojom::MediaStreamRequestResult::PERMISSION_DISMISSED,
+          blink::mojom::MediaStreamRequestResult::INVALID_DEVICE_TYPE_REQUEST,
           std::unique_ptr<content::MediaStreamUI>());
       return;
     }
@@ -216,7 +216,7 @@ void ChromeWebViewPermissionHelperDelegate::
     }
   }
 
-  base::Value::Dict request_info;
+  base::DictValue request_info;
   request_info.Set(guest_view::kUrl, request.security_origin.spec());
   web_view_permission_helper()->RequestPermission(
       WEB_VIEW_PERMISSION_TYPE_MEDIA, std::move(request_info),
@@ -258,7 +258,7 @@ void ChromeWebViewPermissionHelperDelegate::CanDownload(
     const GURL& url,
     const std::string& request_method,
     base::OnceCallback<void(bool)> callback) {
-  base::Value::Dict request_info;
+  base::DictValue request_info;
   request_info.Set(guest_view::kUrl, url.spec());
 
   // Vivaldi
@@ -299,7 +299,7 @@ void ChromeWebViewPermissionHelperDelegate::RequestPointerLockPermission(
     bool user_gesture,
     bool last_unlocked_by_target,
     base::OnceCallback<void(bool)> callback) {
-  base::Value::Dict request_info;
+  base::DictValue request_info;
   request_info.Set(guest_view::kUserGesture, user_gesture);
   request_info.Set(webview::kLastUnlockedBySelf, last_unlocked_by_target);
   request_info.Set(guest_view::kUrl, web_view_permission_helper()
@@ -347,7 +347,7 @@ void ChromeWebViewPermissionHelperDelegate::RequestGeolocationPermission(
     return;
   }
 
-  base::Value::Dict request_info;
+  base::DictValue request_info;
   request_info.Set(guest_view::kUrl, requesting_frame.spec());
   request_info.Set(guest_view::kUserGesture, user_gesture);
 
@@ -395,7 +395,7 @@ void ChromeWebViewPermissionHelperDelegate::RequestHidPermission(
   }
 
   auto request_info =
-      base::Value::Dict().Set(guest_view::kUrl, requesting_frame_url.spec());
+      base::DictValue().Set(guest_view::kUrl, requesting_frame_url.spec());
 
   WebViewPermissionHelper::PermissionResponseCallback permission_callback =
       base::BindOnce(
@@ -418,7 +418,7 @@ void ChromeWebViewPermissionHelperDelegate::RequestFileSystemPermission(
     const GURL& url,
     bool allowed_by_default,
     base::OnceCallback<void(bool)> callback) {
-  base::Value::Dict request_info;
+  base::DictValue request_info;
   request_info.Set(guest_view::kUrl, url.spec());
   web_view_permission_helper()->RequestPermission(
       WEB_VIEW_PERMISSION_TYPE_FILESYSTEM, std::move(request_info),
@@ -448,7 +448,7 @@ void ChromeWebViewPermissionHelperDelegate::RequestFullscreenPermission(
     return;
   }
 
-  base::Value::Dict request_info;
+  base::DictValue request_info;
   request_info.Set(webview::kOrigin, requesting_origin.GetURL().spec());
   web_view_permission_helper()->RequestPermission(
       WEB_VIEW_PERMISSION_TYPE_FULLSCREEN, std::move(request_info),
@@ -475,7 +475,7 @@ void ChromeWebViewPermissionHelperDelegate::RequestClipboardReadWritePermission(
   }
   } // ! isvivaldirunning
 
-  auto request_info = base::Value::Dict()
+  auto request_info = base::DictValue()
                           .Set(guest_view::kUrl, requesting_frame_url.spec())
                           .Set(guest_view::kUserGesture, user_gesture);
 
@@ -536,7 +536,7 @@ void ChromeWebViewPermissionHelperDelegate::
   // This permission request always has user_gesture=true.
   // That's why we don't add respective entry to the dict.
   auto request_info =
-      base::Value::Dict().Set(guest_view::kUrl, requesting_frame_url.spec());
+      base::DictValue().Set(guest_view::kUrl, requesting_frame_url.spec());
 
   WebViewPermissionHelper::PermissionResponseCallback permission_callback =
       base::BindOnce(&ChromeWebViewPermissionHelperDelegate::
@@ -623,10 +623,12 @@ ChromeWebViewPermissionHelperDelegate::OverridePermissionResult(
 
   const url::Origin& origin =
       web_view_guest()->owner_rfh()->GetLastCommittedOrigin();
-  // chrome://glic requires additional permissions, and webview's
-  // permissionrequest API does not handle clipboard access or screen wake lock.
+  // chrome://glic and chrome://contextual-tasks requires additional
+  // permissions, and webview's permissionrequest API does not handle clipboard
+  // access or screen wake lock.
   if (origin.scheme() == content::kChromeUIScheme &&
-      origin.host() == chrome::kChromeUIGlicHost) {
+      (origin.host() == chrome::kChromeUIGlicHost ||
+       origin.host() == chrome::kChromeUIContextualTasksHost)) {
     switch (type) {
       case ContentSettingsType::CLIPBOARD_READ_WRITE:
       case ContentSettingsType::CLIPBOARD_SANITIZED_WRITE:

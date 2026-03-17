@@ -23,8 +23,8 @@
            withStyler:(ChromeTableViewStyler*)styler {
   [super configureCell:tableCell withStyler:styler];
   VivaldiTableViewTextSpinnerButtonCell* cell =
-      base::apple::ObjCCastStrict<VivaldiTableViewTextSpinnerButtonCell>
-                                                                  (tableCell);
+      base::apple::ObjCCastStrict<VivaldiTableViewTextSpinnerButtonCell>(
+          tableCell);
   [cell setUpViewWithActivityIndicator];
 }
 
@@ -37,9 +37,8 @@
 @implementation VivaldiTableViewTextSpinnerButtonCell
 #pragma mark - Public Methods
 - (void)setUpViewWithActivityIndicator {
-  UIActivityIndicatorView *activityIndicator =
-      [[UIActivityIndicatorView alloc]
-          initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+  UIActivityIndicatorView* activityIndicator = [[UIActivityIndicatorView alloc]
+      initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
   _activityIndicator = activityIndicator;
   activityIndicator.color = UIColor.whiteColor;
   activityIndicator.hidesWhenStopped = YES;
@@ -50,13 +49,14 @@
 - (void)setActivityIndicatorEnabled:(BOOL)enable {
   [UIView animateWithDuration:0.2
                    animations:^{
-    self.button.alpha = enable ? 0 : 1;
-    if (enable) {
-      [self.activityIndicator startAnimating];
-    } else {
-      [self.activityIndicator stopAnimating];
-    }
-  } completion:nil];
+                     self.button.alpha = enable ? 0 : 1;
+                     if (enable) {
+                       [self.activityIndicator startAnimating];
+                     } else {
+                       [self.activityIndicator stopAnimating];
+                     }
+                   }
+                   completion:nil];
 }
 
 #pragma mark - UITableViewCell

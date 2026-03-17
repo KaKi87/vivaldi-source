@@ -18,7 +18,7 @@ source_set("vivaldi_ad_tracker_blocker") {
     "//base:i18n",
     "//base",
     "//ios/chrome/app/strings",
-    "//ios/chrome/browser/page_info/ui_bundled",
+    "//ios/chrome/browser/page_info/ui",
     "//ios/chrome/common/ui/util",
     "//ui/base",
     "//vivaldi/ios/ui/ad_tracker_blocker/cells",

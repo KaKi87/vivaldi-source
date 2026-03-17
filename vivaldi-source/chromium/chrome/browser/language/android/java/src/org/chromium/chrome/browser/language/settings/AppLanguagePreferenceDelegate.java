@@ -17,11 +17,9 @@ import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager.SnackbarController;
+import org.chromium.ui.modaldialog.ModalDialogManager;
+import org.chromium.ui.modaldialog.ModalDialogManagerHolder;
 import org.chromium.ui.util.TokenHolder;
-
-// Vivaldi
-import org.chromium.build.BuildConfig;
-import org.vivaldi.browser.common.VivaldiRelaunchUtils;
 
 /**
  * Helper class to manage the preferences UI when selecting an app language from LanguageSettings.
@@ -70,8 +68,17 @@ public class AppLanguagePreferenceDelegate {
             LanguageSettings fragment, LanguageItemPickerPreference preference, Profile profile) {
         mActivity = fragment.getActivity();
         mPreference = preference;
+        @Nullable ModalDialogManager modalDialogManager = null;
+        if (mActivity instanceof ModalDialogManagerHolder holder) {
+            modalDialogManager = holder.getModalDialogManager();
+        }
         mSnackbarManager =
-                new SnackbarManager(mActivity, mActivity.findViewById(android.R.id.content), null);
+                new SnackbarManager(
+                        mActivity,
+                        mActivity.findViewById(android.R.id.content),
+                        null,
+                        null,
+                        modalDialogManager);
         mProfile = profile;
     }
 
@@ -133,13 +140,6 @@ public class AppLanguagePreferenceDelegate {
                         .getString(R.string.languages_split_ready, nativeName, appName);
         mPreference.setSummary(summary);
         mPreference.setEnabled(true);
-
-        // Vivaldi
-        if (BuildConfig.IS_VIVALDI) {
-            VivaldiRelaunchUtils.showRelaunchDialog(mActivity, null);
-            return;
-        }
-
         makeAndShowRestartSnackbar();
     }
 

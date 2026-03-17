@@ -112,11 +112,11 @@ bool IsKoreanLocale(const std::string& locale) {
   return locale == "ko" || locale == "ko-KR";
 }
 
-#if !BUILDFLAG(IS_IOS)
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
 bool IsEnglishLocale(const std::string& locale) {
   return base::StartsWith(locale, "en", base::CompareCase::SENSITIVE);
 }
-#endif  // !BUILDFLAG(IS_IOS)
+#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
 
 }  // namespace
 
@@ -216,8 +216,6 @@ size_t OmniboxFieldTrial::GetProviderMaxMatches(
 
   return default_max_matches_per_provider;
 }
-
-
 
 void OmniboxFieldTrial::GetDefaultHUPScoringParams(
     HUPScoringParams* scoring_params) {
@@ -447,15 +445,13 @@ bool OmniboxFieldTrial::IsOnDeviceTailSuggestEnabled(
     return false;
   }
 
-  // Currently only launch for English locales. Remove this flag once i18n is
-  // also launched.
-  // Do not launch for iOS since the feature is not supported in iOS yet.
-#if !BUILDFLAG(IS_IOS)
+// On Desktop the model is only launched for English locales.
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
   if (IsEnglishLocale(locale)) {
     return base::FeatureList::IsEnabled(
         omnibox::kOnDeviceTailEnableEnglishModel);
   }
-#endif  // !BUILDFLAG(IS_IOS)
+#endif  // !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
 
   return base::FeatureList::IsEnabled(omnibox::kOnDeviceTailModel);
 }
@@ -464,17 +460,6 @@ bool OmniboxFieldTrial::ShouldEncodeLeadingSpaceForOnDeviceTailSuggest() {
   return base::GetFieldTrialParamByFeatureAsBool(omnibox::kOnDeviceTailModel,
                                                  "ShouldEncodeLeadingSpace",
                                                  /*default_value=*/false);
-}
-
-bool OmniboxFieldTrial::ShouldApplyOnDeviceHeadModelSelectionFix() {
-  return base::GetFieldTrialParamByFeatureAsBool(
-             omnibox::kOnDeviceHeadProviderNonIncognito,
-             OmniboxFieldTrial::kOnDeviceHeadModelSelectionFix,
-             /*default_value=*/true) ||
-         base::GetFieldTrialParamByFeatureAsBool(
-             omnibox::kOnDeviceHeadProviderIncognito,
-             OmniboxFieldTrial::kOnDeviceHeadModelSelectionFix,
-             /*default_value=*/true);
 }
 
 bool OmniboxFieldTrial::IsOnDeviceHeadSuggestEnabledForLocale(
@@ -564,7 +549,6 @@ const char OmniboxFieldTrial::kSuppressPsuggestBackfillWithMIAParam[] =
 
 const char OmniboxFieldTrial::kOnDeviceHeadModelLocaleConstraint[] =
     "ForceModelLocaleConstraint";
-const char OmniboxFieldTrial::kOnDeviceHeadModelSelectionFix[] = "SelectionFix";
 
 int OmniboxFieldTrial::kDefaultMinimumTimeBetweenSuggestQueriesMs = 100;
 
@@ -596,24 +580,11 @@ const base::FeatureParam<bool> kZeroSuggestPrefetchDebounceFromLastRun(
     "ZeroSuggestPrefetchDebounceFromLastRun",
     true);
 
-// The maximum number of entries stored by the in-memory zero-suggest cache at
-// at any given time (LRU eviction policy is used to enforce this limit).
-const base::FeatureParam<int> kZeroSuggestCacheMaxSize(
-    &omnibox::kZeroSuggestInMemoryCaching,
-    "ZeroSuggestCacheMaxSize",
-    5);
-
-bool IsZeroSuggestPrefetchingEnabled() {
-  return base::FeatureList::IsEnabled(omnibox::kZeroSuggestPrefetching) ||
-         base::FeatureList::IsEnabled(omnibox::kZeroSuggestPrefetchingOnSRP) ||
-         base::FeatureList::IsEnabled(omnibox::kZeroSuggestPrefetchingOnWeb);
-}
-
 bool IsZeroSuggestPrefetchingEnabledInContext(
     metrics::OmniboxEventProto::PageClassification page_classification) {
   switch (page_classification) {
     case metrics::OmniboxEventProto::NTP_ZPS_PREFETCH:
-      return base::FeatureList::IsEnabled(omnibox::kZeroSuggestPrefetching);
+      return true;
     case metrics::OmniboxEventProto::SRP_ZPS_PREFETCH:
       return base::FeatureList::IsEnabled(
           omnibox::kZeroSuggestPrefetchingOnSRP);
@@ -657,9 +628,9 @@ bool IsHideSuggestionGroupHeadersEnabledInContext(
 
 bool IsAimOmniboxEntrypointEnabled(
     const AimEligibilityService* aim_eligibility_service) {
-  return AimEligibilityService::GenericKillSwitchFeatureCheck(
-      aim_eligibility_service, omnibox::kAiModeOmniboxEntryPoint,
-      omnibox::kAiModeOmniboxEntryPointEnUs);
+  // `aim_eligibility_service` can be null in tests.
+  return base::FeatureList::IsEnabled(omnibox::kAiModeOmniboxEntryPoint) &&
+         aim_eligibility_service && aim_eligibility_service->IsAimEligible();
 }
 
 bool IsAimStarterPackEnabled(

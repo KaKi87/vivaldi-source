@@ -7,11 +7,12 @@
 namespace vivaldi {
 
 unsigned int getDisplayId(NSScreen* screen) {
-  return [[[screen deviceDescription]
-      objectForKey:@"NSScreenNumber"] unsignedIntValue];
+  return [[[screen deviceDescription] objectForKey:@"NSScreenNumber"]
+      unsignedIntValue];
 }
 
-void VerifyWindowSizeInternal(NSWindow* window, const display::Display& old_display) {
+void VerifyWindowSizeInternal(NSWindow* window,
+                              const display::Display& old_display) {
   // The screen that the window is on
   unsigned int window_screen_display_id = getDisplayId([window screen]);
 
@@ -60,7 +61,7 @@ void VerifyWindowSizeInternal(NSWindow* window, const display::Display& old_disp
     }
     if (y_pos + window_height > selected_screen_visible_height) {
       y_pos = selected_screen_full_height - window_height -
-        [NSApp mainMenu].menuBarHeight + selected_screen_origin_y;
+              [NSApp mainMenu].menuBarHeight + selected_screen_origin_y;
       updateWindowFrame = true;
     }
     if (window_width > selected_screen_width) {
@@ -73,7 +74,7 @@ void VerifyWindowSizeInternal(NSWindow* window, const display::Display& old_disp
     }
     if (updateWindowFrame) {
       [window setFrame:CGRectMake(x_pos, y_pos, window_width, window_height)
-              display:YES];
+               display:YES];
     }
   }
 }
@@ -90,4 +91,4 @@ void VerifyWindowSize(NSWindow* window, const display::Displays& old_displays) {
   }
 }
 
-} // vivaldi
+}  // namespace vivaldi

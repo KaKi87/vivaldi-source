@@ -11,7 +11,7 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_dialogs.h"
+#include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/web_applications/web_app_install_params.h"
@@ -23,8 +23,8 @@
 #include "content/public/browser/web_contents.h"
 #include "ui/base/accelerators/menu_label_accelerator_util.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "ui/menus/simple_menu_model.h"
 #include "ui/gfx/text_elider.h"
+#include "ui/menus/simple_menu_model.h"
 
 constexpr size_t kMaxAppNameLength = 30;
 
@@ -130,7 +130,8 @@ void PWAMenuController::PopulateModel(ui::SimpleMenuModel* menu_model) {
         l10n_util::GetStringFUTF16(
             IDS_OPEN_IN_APP_WINDOW,
             gfx::TruncateString(
-                base::UTF8ToUTF16(provider->registrar_unsafe().GetAppShortName(*pwa)),
+                base::UTF8ToUTF16(
+                    provider->registrar_unsafe().GetAppShortName(*pwa)),
                 kMaxAppNameLength, gfx::CHARACTER_BREAK)));
   } else {
     std::u16string install_pwa_item_name = GetInstallPWALabel(browser_);
@@ -168,8 +169,7 @@ bool PWAMenuController::HandleCommand(int command_id) {
 
     case IDC_INSTALL_PWA:
       web_app::CreateWebAppFromCurrentWebContents(
-          browser_,
-          web_app::WebAppInstallFlow::kInstallSite);
+          browser_, web_app::WebAppInstallFlow::kInstallSite);
       return true;
 
     case IDC_OPEN_IN_PWA_WINDOW:

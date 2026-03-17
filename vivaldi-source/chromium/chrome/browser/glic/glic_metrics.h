@@ -4,6 +4,9 @@
 
 #ifndef CHROME_BROWSER_GLIC_GLIC_METRICS_H_
 #define CHROME_BROWSER_GLIC_GLIC_METRICS_H_
+#include "chrome/common/buildflags.h"
+
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 
 #include <memory>
 #include <set>
@@ -13,9 +16,12 @@
 #include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "build/build_config.h"
+#include "chrome/browser/glic/glic_enums.h"
 #include "chrome/browser/glic/host/context/glic_tab_data.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/public/glic_instance.h"
+#include "chrome/browser/glic/public/glic_instance_metrics_backwards_compatibility.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "services/metrics/public/cpp/ukm_source_id.h"
 #include "ui/display/display.h"
@@ -186,7 +192,27 @@ enum class ResponseSegmentation {
   kHandoffButtonAttachedAudio = 54,
   kHandoffButtonDetachedText = 55,
   kHandoffButtonDetachedAudio = 56,
-  kMaxValue = kHandoffButtonDetachedAudio,
+  kSkillsAttachedText = 57,
+  kSkillsAttachedAudio = 58,
+  kSkillsDetachedText = 59,
+  kSkillsDetachedAudio = 60,
+  kAutoOpenedByContextualCueAttachedText = 65,
+  kAutoOpenedByContextualCueAttachedAudio = 66,
+  kAutoOpenedByContextualCueDetachedText = 67,
+  kAutoOpenedByContextualCueDetachedAudio = 68,
+  kPdfSummarizeButtonAttachedText = 69,
+  kPdfSummarizeButtonAttachedAudio = 70,
+  kPdfSummarizeButtonDetachedText = 71,
+  kPdfSummarizeButtonDetachedAudio = 72,
+  kNavigationCaptureAttachedText = 73,
+  kNavigationCaptureAttachedAudio = 74,
+  kNavigationCaptureDetachedText = 75,
+  kNavigationCaptureDetachedAudio = 76,
+  kAutoOpenedForPdfAttachedText = 77,
+  kAutoOpenedForPdfAttachedAudio = 78,
+  kAutoOpenedForPdfDetachedText = 79,
+  kAutoOpenedForPdfDetachedAudio = 80,
+  kMaxValue = kAutoOpenedForPdfDetachedAudio,
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicResponseSegmentation)
 
@@ -225,22 +251,6 @@ enum class GlicRequestEvent {
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicRequestEvent)
 
-// Error types for when attempting to extract context from a tab.
-// LINT.IfChange(GlicGetContextFromTabError)
-enum class GlicGetContextFromTabError {
-  kUnknown = 0,
-  // Tab context requests when the panel is hidden are now reported as both as
-  // "hidden" and "error" in Glic.Api.* histograms.
-  kPermissionDeniedWindowNotShowing_DEPRECATED = 1,
-  kTabNotFound = 2,
-  kPermissionDeniedContextPermissionNotEnabled = 3,
-  kPermissionDenied = 4,
-  kWebContentsChanged = 5,
-  kPageContextNotEligible = 6,
-  kMaxValue = kPageContextNotEligible,
-};
-// LINT.ThenChange(//tools/metrics/histograms/metadata/glic/enums.xml:GlicGetContextFromTabError)
-
 // LINT.IfChange(GlicTabPinnedForSharingResult)
 enum class GlicTabPinnedForSharingResult {
   kPinTabForSharingFailedTooManyTabs = 0,
@@ -272,7 +282,7 @@ class BrowserActivityObserver;
 // Responsible for all glic web-client metrics, and all stateful glic metrics.
 // Some stateless glic metrics are logged inline in the relevant code for
 // convenience.
-class GlicMetrics {
+class GlicMetrics : public GlicInstanceMetricsBackwardsCompatibility {
  public:
   class Delegate {
    public:
@@ -290,27 +300,38 @@ class GlicMetrics {
   GlicMetrics(Profile* profile, GlicEnabling* enabling);
   GlicMetrics(const GlicMetrics&) = delete;
   GlicMetrics& operator=(const GlicMetrics&) = delete;
-  ~GlicMetrics();
+  ~GlicMetrics() override;
+
+  // `GlicInstanceMetricsBackwardsCompatibility`:
+  void OnUserInputSubmitted(mojom::WebClientMode mode) override;
+  void OnReaction(mojom::MetricUserInputReactionType reaction_type) override;
+  void OnResponseStarted() override;
+  void OnResponseStopped(mojom::ResponseStopCause cause) override;
+  void OnTurnCompleted(mojom::WebClientModel model,
+                       base::TimeDelta duration) override;
+  void DidRequestContextFromTab(tabs::TabInterface& tab) override;
+  void OnGlicScrollAttempt() override;
+  void OnGlicScrollComplete(bool success) override;
 
   // See glic.mojom for details. These are events from the web client. The
   // lifetime of the web client is scoped to that of the window, so if these
   // methods are called then controller_ is guaranteed to exist.
-  void OnUserInputSubmitted(mojom::WebClientMode mode);
   void OnContextUploadStarted();
   void OnContextUploadCompleted();
-  void OnReaction(mojom::MetricUserInputReactionType reaction_type);
-  void OnResponseStarted();
-  void OnResponseStopped(mojom::ResponseStopCause cause);
   void OnSessionTerminated();
   void OnResponseRated(bool positive);
-  void OnTurnCompleted(mojom::WebClientModel model, base::TimeDelta duration);
-  void OnModelChanged(mojom::WebClientModel model);
   void OnRecordUseCounter(uint16_t counter);
 
   void OnAttachedToBrowser(AttachChangeReason reason);
   void OnDetachedFromBrowser(AttachChangeReason reason);
 
   // ----Public API called by other glic classes-----
+  // Called when the "Trust-First Onboarding" flow is shown (side panel).
+  void OnTrustFirstOnboardingShown();
+  // Called when the user completes the onboarding flow (consents).
+  void OnTrustFirstOnboardingAccept();
+  // Called when the user dismisses the onboarding flow without consenting.
+  void OnTrustFirstOnboardingDismissed();
   // Called when the user clicks Accept in the FRE.
   void OnFreAccepted();
   // Called when the glic window starts to open.
@@ -336,12 +357,6 @@ class GlicMetrics {
   void OnGlicWindowClose(Browser* last_active_browser,
                          std::optional<display::Display> display,
                          const gfx::Rect& glic_bounds);
-  // Called when glic requests a scroll.
-  void OnGlicScrollAttempt();
-  // Called when scrolling starts (after glic requests to scroll) or if
-  // the operation fails. `success` is true if a scroll was successfully
-  // triggered.
-  void OnGlicScrollComplete(bool success);
 
   // Called when a tab is pinned for sharing with glic. `success` is true if the
   // pinning was successful.
@@ -381,14 +396,9 @@ class GlicMetrics {
 
   void SetDelegateForTesting(std::unique_ptr<Delegate> delegate);
 
-  // Must be called when context is requested from a tab.
-  void DidRequestContextFromTab(content::WebContents& web_contents);
-
   // Sets the input mode of the web client. Should be called when the panel is
   // opened and in every subsequent mode change.
   void SetWebClientMode(mojom::WebClientMode mode);
-
-  mojom::WebClientModel current_model() const { return current_model_; }
 
  private:
   // Called when `impression_timer_` fires.
@@ -414,16 +424,17 @@ class GlicMetrics {
       std::optional<display::Display> display,
       const gfx::Point& glic_center_point);
 
+#if !BUILDFLAG(IS_ANDROID)
   // Returns the area relative to the given chrome browser a given center point
   // is.
   ChromeRelativePosition GetChromeRelativePositionOfPoint(
       Browser* browser,
       const gfx::Point& glic_center_point);
-
   // Returns the percent overlap of the given glic bounds and the given chrome
   // browser.
   PercentOverlap GetPercentOverlapWithBrowser(Browser* browser,
                                               const gfx::Rect& glic_bounds);
+#endif
 
   base::TimeTicks fre_accepted_time_;
 
@@ -453,8 +464,6 @@ class GlicMetrics {
   // Tracks the source ID from the latest tab context requested by the web
   // client. It is reset when user input is submitted.
   ukm::SourceId last_tab_context_source_id_ = ukm::NoURLSourceId();
-
-  mojom::WebClientModel current_model_ = mojom::WebClientModel::kDefault;
 
   // Session state. `session_start_time_` is a sentinel that is cleared in
   // OnGlicWindowClose() and is used to determine whether
@@ -492,6 +501,9 @@ class GlicMetrics {
   // The timestamp when the glic window starts to be shown.
   base::TimeTicks show_start_time_;
 
+  // The timestamp when the onboarding flow was shown.
+  base::TimeTicks onboarding_shown_time_;
+
   // The following variables are used for recording scroll related metrics.
   // The number of scroll attempts  (tracked per session and reset when the
   // session ends).
@@ -514,4 +526,5 @@ class GlicMetrics {
 };
 
 }  // namespace glic
+#endif
 #endif  // CHROME_BROWSER_GLIC_GLIC_METRICS_H_

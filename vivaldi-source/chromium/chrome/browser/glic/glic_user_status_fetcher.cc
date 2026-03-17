@@ -85,7 +85,6 @@ GlicUserStatusFetcher::GlicUserStatusFetcher(Profile* profile,
                                              base::RepeatingClosure callback)
     : profile_(profile), callback_(std::move(callback)) {
   endpoint_ = GURL(features::kGlicUserStatusUrl.Get());
-  oauth2_scope_ = features::kGeminiOAuth2Scope.Get();
 
   signin::IdentityManager* identity_manager =
       IdentityManagerFactory::GetForProfile(profile_);
@@ -131,7 +130,7 @@ std::optional<CachedUserStatus> GlicUserStatusFetcher::GetCachedUserStatus(
     return std::nullopt;
   }
 
-  const base::Value::Dict& pref_dict =
+  const base::DictValue& pref_dict =
       profile->GetPrefs()->GetDict(glic::prefs::kGlicUserStatus);
 
   if (pref_dict.empty()) {
@@ -290,7 +289,7 @@ void GlicUserStatusFetcher::UpdateUserStatus() {
           identity_manager,
           identity_manager->GetPrimaryAccountId(signin::ConsentLevel::kSignin),
           profile_->GetURLLoaderFactory(),
-          std::vector<std::string>{oauth2_scope_}),
+          signin::OAuthConsumerId::kGlicUserStatus),
       profile_->GetURLLoaderFactory(),
       base::ThreadPool::CreateSequencedTaskRunner(
           {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
@@ -447,7 +446,7 @@ void GlicUserStatusFetcher::ProcessResponse(
   // We don't overwrite the previous GlicUserStatus when UserStatusCode is
   // SERVER_UNAVAILABLE.
   if (user_status.user_status_code != UserStatusCode::SERVER_UNAVAILABLE) {
-    base::Value::Dict data;
+    base::DictValue data;
     data.Set(kAccountId, account_id_hash);
     data.Set(kUserStatus, user_status.user_status_code);
     data.Set(kUpdatedAt, user_status.last_updated.InSecondsFSinceUnixEpoch());

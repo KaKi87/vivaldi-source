@@ -33,6 +33,7 @@
 #include "components/metrics/unsent_log_store.h"
 #include "components/prefs/testing_pref_service.h"
 #include "components/sync/protocol/sync_enums.pb.h"
+#include "components/sync/service/sync_service_observer.h"
 #include "components/sync/test/test_sync_service.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "components/ukm/ukm_pref_names.h"
@@ -183,7 +184,7 @@ class MockSyncService : public syncer::TestSyncService {
   }
 
   // The list of observers of the SyncService state.
-  base::ObserverList<syncer::SyncServiceObserver>::Unchecked observers_;
+  base::ObserverList<syncer::SyncServiceObserver> observers_;
 };
 
 struct IndependentAppMetricsTestParams {
@@ -307,7 +308,7 @@ class ChromeMetricsServiceClientTestIgnoredForAppMetrics
 
   ukm::Report GetUkmReport() {
     metrics::UnsentLogStore* log_store =
-        GetUkmService()->reporting_service_for_testing().ukm_log_store();
+        GetUkmService()->reporting_service()->ukm_log_store();
     EXPECT_GE(log_store->size(), 1ul);
     log_store->StageNextLog();
 

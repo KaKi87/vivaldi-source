@@ -22,13 +22,11 @@
 #import "ios/chrome/browser/favicon/model/favicon_browser_agent.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_controller.h"
 #import "ios/chrome/browser/infobars/model/overlays/browser_agent/infobar_overlay_browser_agent_util.h"
-#import "ios/chrome/browser/intelligence/bwg/model/bwg_browser_agent.h"
+#import "ios/chrome/browser/intelligence/bwg/model/gemini_browser_agent.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/intelligence/persist_tab_context/model/persist_tab_context_browser_agent.h"
 #import "ios/chrome/browser/intents/model/user_activity_browser_agent.h"
-#import "ios/chrome/browser/lens/model/lens_browser_agent.h"
 #import "ios/chrome/browser/metrics/model/tab_usage_recorder_browser_agent.h"
-#import "ios/chrome/browser/metrics/model/web_state_list_metrics_browser_agent.h"
 #import "ios/chrome/browser/omnibox/model/omnibox_position/omnibox_position_browser_agent.h"
 #import "ios/chrome/browser/policy/model/policy_watcher_browser_agent.h"
 #import "ios/chrome/browser/prerender/model/prerender_browser_agent.h"
@@ -43,13 +41,15 @@
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/reader_mode_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/signin/model/authentication_service.h"
+#import "ios/chrome/browser/signin/model/authentication_service_factory.h"
 #import "ios/chrome/browser/snapshots/model/snapshot_browser_agent.h"
 #import "ios/chrome/browser/start_surface/ui_bundled/start_surface_recent_tab_browser_agent.h"
 #import "ios/chrome/browser/sync/model/sync_error_browser_agent.h"
 #import "ios/chrome/browser/tab_insertion/model/tab_insertion_browser_agent.h"
 #import "ios/chrome/browser/tabs/model/synced_window_delegate_browser_agent.h"
 #import "ios/chrome/browser/tabs/model/tabs_dependency_installer_manager.h"
-#import "ios/chrome/browser/toolbar/ui_bundled/fullscreen/toolbars_size_browser_agent.h"
+#import "ios/chrome/browser/toolbar/legacy/ui_bundled/fullscreen/toolbars_size_browser_agent.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_browser_agent.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_notifier_browser_agent.h"
 #import "ios/chrome/browser/view_source/model/view_source_browser_agent.h"
@@ -57,7 +57,6 @@
 #import "ios/chrome/browser/web/model/web_navigation_browser_agent.h"
 #import "ios/chrome/browser/web/model/web_state_delegate_browser_agent.h"
 #import "ios/chrome/browser/web/model/web_state_update_browser_agent.h"
-#import "ios/chrome/browser/web_state_list/model/session_metrics.h"
 #import "ios/chrome/browser/web_state_list/model/web_usage_enabler/web_usage_enabler_browser_agent.h"
 #import "ios/public/provider/chrome/browser/app_utils/app_utils_api.h"
 
@@ -134,8 +133,6 @@ void AttachBrowserAgentsForActiveBrowser(Browser* browser) {
     }
   }
 
-  // LensBrowserAgent must be created before WebNavigationBrowserAgent.
-  LensBrowserAgent::CreateForBrowser(browser);
   WebNavigationBrowserAgent::CreateForBrowser(browser);
 
   if (!browser_is_off_record) {
@@ -152,8 +149,7 @@ void AttachBrowserAgentsForActiveBrowser(Browser* browser) {
     SendTabToSelfBrowserAgent::CreateForBrowser(browser);
   }
 
-  WebStateDelegateBrowserAgent::CreateForBrowser(
-      browser, TabInsertionBrowserAgent::FromBrowser(browser));
+  WebStateDelegateBrowserAgent::CreateForBrowser(browser);
 
   // ViewSourceBrowserAgent requires TabInsertionBrowserAgent, and is only used
   // in debug builds.
@@ -163,9 +159,6 @@ void AttachBrowserAgentsForActiveBrowser(Browser* browser) {
 
   // UrlLoadingBrowserAgent requires UrlLoadingNotifierBrowserAgent.
   UrlLoadingBrowserAgent::CreateForBrowser(browser);
-
-  WebStateListMetricsBrowserAgent::CreateForBrowser(
-      browser, SessionMetrics::FromProfile(profile));
 
   // Normal profiles are the only ones to get tab usage recorder.
   if (!browser_is_off_record) {
@@ -201,8 +194,9 @@ void AttachBrowserAgentsForActiveBrowser(Browser* browser) {
   CredentialProviderBrowserAgent::CreateForBrowser(browser);
 #endif
 
-  if (!browser_is_off_record && IsPageActionMenuEnabled()) {
-    BwgBrowserAgent::CreateForBrowser(browser);
+  if (!browser_is_inactive && !browser_is_temporary && !browser_is_off_record &&
+      IsPageActionMenuEnabled()) {
+    GeminiBrowserAgent::CreateForBrowser(browser);
   }
 
   if (!browser_is_inactive && !browser_is_temporary && !browser_is_off_record) {
@@ -217,7 +211,9 @@ void AttachBrowserAgentsForActiveBrowser(Browser* browser) {
   }
 
   if (!browser_is_inactive && !browser_is_temporary && !browser_is_off_record) {
-    PrerenderBrowserAgent::CreateForBrowser(browser);
+    PrerenderBrowserAgent::CreateForBrowser(
+        browser,
+        AuthenticationServiceFactory::GetForProfile(browser->GetProfile()));
   }
 
   if (IsCleanupPersistedTabContextsEnabled() && !browser_is_off_record &&

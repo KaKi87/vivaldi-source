@@ -13,9 +13,9 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/script_executor.h"
 #include "extensions/browser/scripting_utils.h"
+#include "extensions/common/extension.h"
 #include "extensions/common/mojom/code_injection.mojom-forward.h"
 #include "extensions/common/mojom/execution_world.mojom-shared.h"
-#include "extensions/common/extension.h"
 
 using media_session::mojom::MediaSessionAction;
 
@@ -24,11 +24,9 @@ namespace vivaldi {
 VideoPIPController::VideoPIPController(
     vivaldi::VideoPIPController::Delegate* delegate,
     content::WebContents* web_contents)
-    : content::WebContentsObserver(web_contents), delegate_(delegate) {
-}
+    : content::WebContentsObserver(web_contents), delegate_(delegate) {}
 
-VideoPIPController::~VideoPIPController() {
-}
+VideoPIPController::~VideoPIPController() {}
 
 void VideoPIPController::WebContentsDestroyed() {
   content::WebContentsObserver::Observe(nullptr);
@@ -49,10 +47,8 @@ void VideoPIPController::SliderValueChanged(views::Slider* sender,
   SetVolume(value);
 }
 
-void VideoPIPController::SliderDragStarted(views::Slider* sender) {
-}
-void VideoPIPController::SliderDragEnded(views::Slider* sender) {
-}
+void VideoPIPController::SliderDragStarted(views::Slider* sender) {}
+void VideoPIPController::SliderDragEnded(views::Slider* sender) {}
 
 void VideoPIPController::SetVolume(float volume_multiplier) {
   std::string script =

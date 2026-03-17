@@ -2,22 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "chrome/browser/ash/customization/customization_document.h"
 
 #include <stddef.h>
 
 #include "base/command_line.h"
+#include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/threading/thread_restrictions.h"
 #include "chrome/browser/ash/base/locale_util.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/global_features.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/webui/ash/login/l10n_util.h"
 #include "chrome/test/base/in_process_browser_test.h"
@@ -88,10 +85,11 @@ std::string GetExpectedLanguage(const std::string& required) {
   std::string expected = required;
 
   for (size_t i = 0; i < std::size(locale_aliases); ++i) {
-    if (required != locale_aliases[i].locale_alias)
+    if (required != UNSAFE_TODO(locale_aliases[i]).locale_alias) {
       continue;
+    }
 
-    expected = locale_aliases[i].locale_name;
+    expected = UNSAFE_TODO(locale_aliases[i]).locale_name;
     break;
   }
 
@@ -198,9 +196,10 @@ typedef InProcessBrowserTest CustomizationLocaleTest;
 IN_PROC_BROWSER_TEST_F(CustomizationLocaleTest, CheckAvailableLocales) {
   for (size_t i = 0; i < languages_available.size(); ++i) {
     LanguageSwitchedWaiter waiter(base::BindOnce(&VerifyLanguageSwitched));
-    locale_util::SwitchLanguage(languages_available[i], true, true,
-                                waiter.Callback(),
-                                ProfileManager::GetActiveUserProfile());
+    locale_util::SwitchLanguage(
+        g_browser_process->GetFeatures()->application_locale_storage(),
+        languages_available[i], true, true, waiter.Callback(),
+        ProfileManager::GetActiveUserProfile());
     waiter.Wait();
     {
       base::ScopedAllowBlockingForTesting allow_blocking;
@@ -248,7 +247,7 @@ IN_PROC_BROWSER_TEST_P(CustomizationVPDTest, GetUILanguageList) {
       << "Test failed for initial_locale='" << GetParam() << "'";
 
   for (size_t i = 0; i < ui_language_list.size(); ++i) {
-    base::Value::Dict* language_info = ui_language_list[i].GetIfDict();
+    base::DictValue* language_info = ui_language_list[i].GetIfDict();
 
     ASSERT_TRUE(language_info)
         << "Test failed for initial_locale='" << GetParam() << "', i=" << i;

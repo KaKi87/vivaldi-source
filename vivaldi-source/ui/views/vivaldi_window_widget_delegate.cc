@@ -64,8 +64,10 @@
 #include "browser/win/vivaldi_utils.h"
 #endif  // BUILDFLAG(IS_WIN)
 
-#define TOPLEVEL_MINIMUM_WIDTH 500 // Minimum width for main window, popups and Settings.
-#define TOPLEVEL_MINIMUM_HEIGHT 400 // Minimum height for main window, popups and Settings.
+#define TOPLEVEL_MINIMUM_WIDTH \
+  500  // Minimum width for main window, popups and Settings.
+#define TOPLEVEL_MINIMUM_HEIGHT \
+  400  // Minimum height for main window, popups and Settings.
 
 namespace {
 
@@ -165,7 +167,7 @@ class VivaldiSplashBackground : public views::Background {
 
     // Heart at the bottom center:
     int size = 178;
-    int margin = 48; // Spacing from the bottom of the window.
+    int margin = 48;  // Spacing from the bottom of the window.
     const ui::ThemedVectorIcon& logo =
         ui::ThemedVectorIcon(&kVivaldiHeartIcon, text_color_, size);
     canvas->DrawImageInt(logo.GetImageSkia(view->GetColorProvider()),
@@ -198,14 +200,15 @@ const views::Widget* VivaldiWindowWidgetDelegate::GetWidget() const {
   return window_->GetWidget();
 }
 
-std::unique_ptr<views::FrameView> VivaldiWindowWidgetDelegate::CreateFrameView(views::Widget* widget) {
+std::unique_ptr<views::FrameView> VivaldiWindowWidgetDelegate::CreateFrameView(
+    views::Widget* widget) {
   DCHECK_EQ(widget, window_->GetWidget());
 
 #if defined(USE_AURA)
   // On Mac Vivaldi Frame view handles both frameless and with-native-frame
   // cases.
   if (window_->with_native_frame()) {
-    return std::make_unique<VivaldiNativeFrameView>(widget, window_);
+    return std::make_unique<VivaldiNativeFrameView>(window_);
   }
 #endif
   return CreateVivaldiWindowFrameView(window_);
@@ -452,5 +455,4 @@ bool VivaldiWindowWidgetDelegate::ExecuteWindowsCommand(int command_id) {
   return chrome::ExecuteCommand(browser, command_id);
 }
 
-void VivaldiWindowWidgetDelegate::WindowClosing() {
-}
+void VivaldiWindowWidgetDelegate::WindowClosing() {}

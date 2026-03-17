@@ -13,7 +13,7 @@
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-@interface VivaldiAddressBarSettingsCoordinator ()<
+@interface VivaldiAddressBarSettingsCoordinator () <
     VivaldiHostingControllerPresentationDelegate>
 @property(nonatomic, strong)
     VivaldiAddressBarSettingsViewProvider* viewProvider;
@@ -54,17 +54,16 @@
 
   self.mediator = [[VivaldiAddressBarSettingsMediator alloc]
       initWithOriginalPrefService:self.browser->GetProfile()
-                                 ->GetOriginalProfile()
-                                 ->GetPrefs()];
+                                      ->GetOriginalProfile()
+                                      ->GetPrefs()];
   self.mediator.consumer = self.viewProvider;
   self.viewProvider.settingsStateConsumer = self.mediator;
 
   // Add Done button
-  UIBarButtonItem* doneItem =
-    [[UIBarButtonItem alloc]
-        initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                             target:self
-                             action:@selector(handleDoneButtonTap)];
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
   self.viewController.navigationItem.rightBarButtonItem = doneItem;
 
   [self.baseNavigationController pushViewController:self.viewController
@@ -110,6 +109,11 @@
 - (void)hostingController:(UIViewController*)hostingController
                 didMoveTo:(UIViewController* _Nullable)parent {
   DCHECK_EQ(self.viewController, hostingController);
+  if (self.delegate) {
+    [self.delegate vivaldiAddressBarSettingsCoordinatorWasRemoved:self];
+    return;
+  }
+
   [self stop];
 }
 

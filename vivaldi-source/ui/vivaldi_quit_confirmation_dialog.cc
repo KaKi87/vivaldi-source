@@ -5,7 +5,7 @@
 #include "app/vivaldi_resources.h"
 #include "base/functional/callback.h"
 #include "base/strings/utf_string_conversions.h"
-#include "chrome/browser/ui/browser_dialogs.h"
+#include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/grit/generated_resources.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/views/border.h"

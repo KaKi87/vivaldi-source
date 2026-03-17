@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">Yeni vərəq qrupunda açın</translation>
 <translation id="1925021887439448749">Fərdi veb ünvanı daxil et</translation>
 <translation id="2038563949887743358">Kompyuter versiyanı açın</translation>
+<translation id="2072027001582274150">İstifadə edilməmiş və ya təkrarlanan vərəqlər</translation>
 <translation id="208033313373016095">Veb səhifələr üçün oxuyucu baxışı</translation>
 <translation id="2149973817440762519">Əlfəcinə düzəliş et</translation>
 <translation id="2306442503286132111">Əlfəcin, <ph name="FOLDER_NAME" /> qovluğunda saxlanıldı</translation>
@@ -28,8 +29,8 @@
 <translation id="2951071800649516099">Sonra oxumaq üçün oxu siyahınıza səhifələr əlavə et</translation>
 <translation id="3029276696788198026">Əvvəlcədən yükləmə yoxdur</translation>
 <translation id="3060635849835183725">{BOOKMARKS_COUNT,plural,
-          =1{<ph name="BOOKMARKS_COUNT_ONE" /> əlfəcin}
-          other{<ph name="BOOKMARKS_COUNT_MANY" /> əlfəcinlər}}</translation>
+          =1 {<ph name="BOOKMARKS_COUNT_ONE" /> əlfəcin}
+          other {<ph name="BOOKMARKS_COUNT_MANY" /> əlfəcinlər}}</translation>
 <translation id="3076631378407175873">Müəllif Hüquqları <ph name="YEAR" /> Vivaldi Technologies AS aiddir. Bütün hüquqlar qorunur.</translation>
 <translation id="3110967157686007724">Məxfi vərəq</translation>
 <translation id="3232293466644486101">Baxılmış məlumatlarını silin…</translation>
@@ -46,6 +47,10 @@
 <translation id="385051799172605136">Geriyə</translation>
 <translation id="3987993985790029246">Keçidi kopyalamaq</translation>
 <translation id="399014816462153200">Məqalələri oxuyun:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> vərəq}
+          other {<ph name="TAB_COUNT_MANY" /> vərəqlər, <ph name="TAB_COUNT_INCOGNITO" /> gizli}}</translation>
+<translation id="408336132633586393">Gizli pəncərə</translation>
 <translation id="4121750346708795461">Bu tətbiqi istifadə etməklə Siz Vivaldi'nin <ph name="BEGIN_LINK1" /> İstifadə Şərtlərini <ph name="END_LINK1" /> və <ph name="BEGIN_LINK2" /> Məxfilik Siyasətini <ph name="END_LINK2" /> qəbul etmiş olursunuz.</translation>
 <translation id="4137746084635924146">Cihazın hazırkı dili</translation>
 <translation id="4167670741834902166">Yeni məxfi vərəq</translation>
@@ -55,9 +60,7 @@
 <translation id="4269820728363426813">Keçid ünvanını kopyalamaq</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Android ayarlarında ekran kilidini aktiv edin<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Şifrə idarəedici</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {1 gün və çox istifadə olunmayan vərəqlər və qruplar}
-          other {# gün və çox istifadə olunmayan vərəqlər və qruplar}}</translation>
+<translation id="441100617989818073">İstifadə olunmayan və ya təkrarlanan vərəqlər və qruplar</translation>
 <translation id="451872707440238414">Əlfəcinizi axtarın</translation>
 <translation id="4526803704855831732">Məxfi vərəqlər</translation>
 <translation id="4532845899244822526">Qovluq seçmək</translation>
@@ -71,6 +74,9 @@ Bir toxunuşla axtarış yalnız Vivaldidə Google standart axtarış mühərrik
 <translation id="4883379392681899581">Məxfi rejimdən çıxın</translation>
 <translation id="4943872375798546930">Nəticə yoxdur</translation>
 <translation id="49576331685473090">Məzmun əngəlləyici</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> gizli vərəq}
+          other {<ph name="TAB_COUNT_NORMAL" /> gizli vərəqlər}}</translation>
 <translation id="5079259810715830221">Google saytı öz səhifəsindəki keçidlərin məxfi olaraq öncədən yüklənməsi sorğusu göndərdiyi zaman, Vivaldi səhifələri Google xidməti ilə kukilər olmadan şifrələyir və öncədən yükləyir. Bu sizin kimliyinizi öncədən yüklənən saytlardan gizlədir.</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" /> yaddaş sahəsi</translation>
 <translation id="5144385790872094440">Daxil olduğunuz bəzi səhifələr əvvəlcədən yüklənib. Səhifələr Google saytı və ya tətbiqi ilə əlaqələndirildikdə Google serverləri vasitəsilə əvvəlcədən yüklənə bilər.</translation>
@@ -103,6 +109,7 @@ Axtarış qaydalarını tənzimləmək üçün basıb saxlayın. Axtarış vasit
 <translation id="6909589135458168665">Səhifələri əvvəlcədən yükləmək</translation>
 <translation id="7029995644714925509">Hər hansı bir sayt, öz səhifəsindəki keçidlərin məxfi olaraq öncədən yüklənməsi sorğusu göndərdiyi zaman, Vivaldi səhifələri kukilər olmadan Google xidməti ilə şifrələyir və öncədən yükləyir. Bu, sizin kimliyinizi öncədən yüklənən saytlardan gizlədir.</translation>
 <translation id="706339621163631076">Veb-bələdçi məxfilik siyasəti</translation>
+<translation id="7100573672995171864">Vivaldi-ni ayarlayın və idarə edin</translation>
 <translation id="732145680195464316">Əlfəcin, <ph name="PRODUCT_NAME" /> tətbiqinə əlavə edildi</translation>
 <translation id="7324354302972299151">"Do Not Track" sorğusu göndərin</translation>
 <translation id="7359002509206457351">Ödəniş üsullarına giriş</translation>
@@ -124,14 +131,11 @@ Axtarış qaydalarını tənzimləmək üçün basıb saxlayın. Axtarış vasit
 <translation id="8348430946834215779">Mümkün olduqda HTTPS istifadə edin və onu dəstəkləməyən saytları yükləməzdən əvvəl xəbərdarlıq alın</translation>
 <translation id="8560602726703398413">Əlfəcinlərdə oxuma siyahısını tap</translation>
 <translation id="85991616550051997">Ev səhifəsinə keçin</translation>
-<translation id="8693232767599693749">Oxu rejimini gözdən keşirək?</translation>
+<translation id="8738163682604285902">Oxu rejimi aktiv olunsun?</translation>
 <translation id="8820817407110198400">Əlfəcinlər</translation>
 <translation id="9042893549633094279">Məxfilik və təhlükəsizlik</translation>
 <translation id="9063523880881406963">Komputer versiyasını söndürün</translation>
 <translation id="9080642952018487277">Gizli işləmək</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {1 gün və ondan çox istifadə olunmayıb}
-          other {# gün və ondan çox istifadə olunmayıb}}</translation>
 <translation id="930124987204876019">Tarixçə, kuki, sayt verilənlərini və keşi silin…</translation>
 <translation id="961856697154696964">Baxdığınız məlumatları silmək</translation>
 </translationbundle>

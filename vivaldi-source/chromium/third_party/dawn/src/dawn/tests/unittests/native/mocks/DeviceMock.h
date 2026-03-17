@@ -112,6 +112,10 @@ class DeviceMock : public DeviceBase {
                 CreateUninitializedRenderPipelineImpl,
                 (const UnpackedPtr<RenderPipelineDescriptor>&),
                 (override));
+    MOCK_METHOD(ResultOrError<Ref<ResourceTableBase>>,
+                CreateResourceTableImpl,
+                (const ResourceTableDescriptor*),
+                (override));
     MOCK_METHOD(ResultOrError<Ref<SamplerBase>>,
                 CreateSamplerImpl,
                 (const SamplerDescriptor*),
@@ -136,7 +140,7 @@ class DeviceMock : public DeviceBase {
 
     MOCK_METHOD(MaybeError, TickImpl, (), (override));
 
-    MOCK_METHOD(void, DestroyImpl, (), (override));
+    MOCK_METHOD(void, DestroyImpl, (DestroyReason), (override));
 };
 
 }  // namespace dawn::native

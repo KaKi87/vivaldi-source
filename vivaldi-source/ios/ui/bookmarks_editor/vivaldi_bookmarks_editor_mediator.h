@@ -16,8 +16,8 @@ using bookmarks::BookmarkModel;
 using bookmarks::BookmarkNode;
 
 // Mediator for the bookmark editor
-@interface VivaldiBookmarksEditorMediator :
-    NSObject<VivaldiBookmarksEditorConsumer>
+@interface VivaldiBookmarksEditorMediator
+    : NSObject <VivaldiBookmarksEditorConsumer>
 
 // BookmarkNode to edit.
 @property(nonatomic, readonly) const bookmarks::BookmarkNode* bookmark;
@@ -27,10 +27,10 @@ using bookmarks::BookmarkNode;
 @property(nonatomic, weak) id<SnackbarCommands> snackbarCommandsHandler;
 @property(nonatomic, assign) BOOL isEditing;
 
-- (instancetype)
-    initWithBookmarkModel:(BookmarkModel*)bookmarkModel
-             bookmarkNode:(const bookmarks::BookmarkNode*)bookmarkNode
-             profile:(ProfileIOS*)profile
+- (instancetype)initWithBookmarkModel:(BookmarkModel*)bookmarkModel
+                         bookmarkNode:
+                             (const bookmarks::BookmarkNode*)bookmarkNode
+                              profile:(ProfileIOS*)profile
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;

@@ -10,6 +10,8 @@ import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isFocused;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNonNativeHistoryUrl;
+
 import android.app.Activity;
 import android.view.MenuItem;
 
@@ -21,6 +23,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 
 import org.chromium.base.ThreadUtils;
+import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Restriction;
@@ -30,14 +33,20 @@ import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
 import org.chromium.chrome.test.transit.ntp.RegularNewTabPageStation;
 import org.chromium.chrome.test.transit.page.WebPageStation;
-import org.chromium.components.embedder_support.util.UrlConstants;
+import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
+import org.chromium.ui.base.ActivityResultTracker;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.DeviceInput;
+import org.chromium.ui.base.WindowAndroid;
+import org.chromium.ui.modaldialog.ModalDialogManager;
+
+import java.util.function.Supplier;
 
 /** Tests for the History page on large form factors device. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -49,6 +58,11 @@ public class HistoryPageOnLffTest {
     public AutoResetCtaTransitTestRule mCtaTestRule =
             ChromeTransitTestRules.autoResetCtaActivityRule();
 
+    @Mock private WindowAndroid mWindowAndroid;
+    @Mock private SnackbarManager mSnackbarManager;
+    @Mock private BottomSheetController mBottomSheetController;
+    @Mock private Supplier<ModalDialogManager> mModalDialogManagerSupplier;
+    @Mock private ActivityResultTracker mActivityResultTracker;
     @Mock private Profile mProfile;
 
     /**
@@ -69,7 +83,7 @@ public class HistoryPageOnLffTest {
         RegularNewTabPageStation historyPage = tab1Page.openNewTabFast();
 
         // 4. Load chrome://history/ in the newly opened tab.
-        String historyUrl = UrlConstants.HISTORY_URL;
+        String historyUrl = getOriginalNonNativeHistoryUrl();
         WebPageStation historyWebPage =
                 historyPage.loadPageProgrammatically(
                         historyUrl,
@@ -127,11 +141,14 @@ public class HistoryPageOnLffTest {
         StubbedHistoryProvider historyProvider = new StubbedHistoryProvider();
         HistoryManager historyManager =
                 new HistoryManager(
+                        mProfile,
+                        mWindowAndroid,
                         activity,
                         true,
-                        null,
-                        mProfile,
-                        /* bottomSheetController= */ null,
+                        mSnackbarManager,
+                        SupplierUtils.of(mBottomSheetController),
+                        mModalDialogManagerSupplier,
+                        mActivityResultTracker,
                         /* Supplier<Tab>= */ null,
                         historyProvider,
                         new HistoryUmaRecorder(),

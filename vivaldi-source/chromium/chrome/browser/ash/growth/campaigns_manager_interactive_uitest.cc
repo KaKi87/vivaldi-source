@@ -20,6 +20,7 @@
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/strings/strcat.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
@@ -604,7 +605,7 @@ class CampaignsManagerInteractiveUiNotificationTest
   auto ReloadCampaigns() {
     return Do([]() {
       auto* campaigns_manager = growth::CampaignsManager::Get();
-      auto empty_campaigns = base::Value::Dict();
+      auto empty_campaigns = base::DictValue();
       campaigns_manager->SetCampaignsForTesting(&empty_campaigns);
     });
   }

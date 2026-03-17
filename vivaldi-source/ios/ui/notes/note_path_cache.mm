@@ -8,14 +8,10 @@
 #import "components/prefs/pref_service.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/ui/notes/note_utils_ios.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
-#if !defined(__has_feature) || !__has_feature(objc_arc)
-#error "This file requires ARC support."
-#endif
-
-using vivaldi::NotesModel;
 using vivaldi::NoteNode;
+using vivaldi::NotesModel;
 
 namespace {
 const int64_t kFolderNone = -1;
@@ -24,23 +20,25 @@ const int64_t kFolderNone = -1;
 @implementation NotePathCache
 
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry {
-  registry->RegisterInt64Pref(vivaldiprefs::kVivaldiNoteCachedFolderId, kFolderNone);
+  registry->RegisterInt64Pref(vivaldiprefs::kVivaldiNoteCachedFolderId,
+                              kFolderNone);
   registry->RegisterIntegerPref(vivaldiprefs::kVivaldiNoteCachedTopMostRow, 0);
 }
 
 + (void)cacheNoteTopMostRowWithPrefService:(PrefService*)prefService
-                                      folderId:(int64_t)folderId
-                                    topMostRow:(int)topMostRow {
+                                  folderId:(int64_t)folderId
+                                topMostRow:(int)topMostRow {
   prefService->SetInt64(vivaldiprefs::kVivaldiNoteCachedFolderId, folderId);
-  prefService->SetInteger(vivaldiprefs::kVivaldiNoteCachedTopMostRow, topMostRow);
+  prefService->SetInteger(vivaldiprefs::kVivaldiNoteCachedTopMostRow,
+                          topMostRow);
 }
 
 + (BOOL)getNoteTopMostRowCacheWithPrefService:(PrefService*)prefService
-                                            model:
-                                                (vivaldi::NotesModel*)model
-                                         folderId:(int64_t*)folderId
-                                       topMostRow:(int*)topMostRow {
-  if (!folderId) return NO;
+                                        model:(vivaldi::NotesModel*)model
+                                     folderId:(int64_t*)folderId
+                                   topMostRow:(int*)topMostRow {
+  if (!folderId)
+    return NO;
 
   *folderId = prefService->GetInt64(vivaldiprefs::kVivaldiNoteCachedFolderId);
 
@@ -49,13 +47,13 @@ const int64_t kFolderNone = -1;
     return NO;
 
   // Create note Path.
-  const NoteNode* note =
-      note_utils_ios::FindFolderById(model, *folderId);
+  const NoteNode* note = note_utils_ios::FindFolderById(model, *folderId);
   // The note node is gone from model, maybe deleted remotely.
   if (!note)
     return NO;
 
-  *topMostRow = prefService->GetInteger(vivaldiprefs::kVivaldiNoteCachedTopMostRow);
+  *topMostRow =
+      prefService->GetInteger(vivaldiprefs::kVivaldiNoteCachedTopMostRow);
   return YES;
 }
 

@@ -7,7 +7,7 @@
 #import "base/strings/utf_string_conversions.h"
 #import "components/notes/note_node.h"
 #import "components/notes/notes_model.h"
-#import "ios/chrome/browser/browser_container/ui_bundled/edit_menu_alert_delegate.h"
+#import "ios/chrome/browser/browser_content/ui_bundled/edit_menu_alert_delegate.h"
 #import "ios/chrome/browser/omnibox/ui/omnibox_text_field_ios.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
@@ -27,7 +27,7 @@ typedef void (^ProceduralBlockWithBlockWithItemArray)(
     ProceduralBlockWithItemArray);
 }  // namespace
 
-@interface CopyToNoteMediator()
+@interface CopyToNoteMediator ()
 @property(nonatomic, assign) Browser* browser;
 @property(nonatomic, assign) vivaldi::NotesModel* notesModel;
 @end
@@ -61,26 +61,25 @@ typedef void (^ProceduralBlockWithBlockWithItemArray)(
       if (defaultNoteFolder) {
         self.notesModel->AddNote(defaultNoteFolder,
                                  defaultNoteFolder->children().size(),
-                                 base::SysNSStringToUTF16(text),
-                                 GURL(), base::SysNSStringToUTF16(text));
+                                 base::SysNSStringToUTF16(text), GURL(),
+                                 base::SysNSStringToUTF16(text));
       }
     }
   } else {
     __weak __typeof(self) weakSelf = self;
     void (^javascript_completion)(const base::Value*) =
-      ^(const base::Value* value) {
-        if (weakSelf.notesModel) {
-          const vivaldi::NoteNode* defaultNoteFolder =
-              weakSelf.notesModel->main_node();
-          if (defaultNoteFolder) {
-            weakSelf.notesModel->AddNote(defaultNoteFolder,
-                                         defaultNoteFolder->children().size(),
-                                         base::UTF8ToUTF16(value->GetString()),
-                                         GURL(),
-                                         base::UTF8ToUTF16(value->GetString()));
+        ^(const base::Value* value) {
+          if (weakSelf.notesModel) {
+            const vivaldi::NoteNode* defaultNoteFolder =
+                weakSelf.notesModel->main_node();
+            if (defaultNoteFolder) {
+              weakSelf.notesModel->AddNote(
+                  defaultNoteFolder, defaultNoteFolder->children().size(),
+                  base::UTF8ToUTF16(value->GetString()), GURL(),
+                  base::UTF8ToUTF16(value->GetString()));
+            }
           }
-        }
-      };
+        };
 
     web::WebState* currentWebState =
         self.browser->GetWebStateList()->GetActiveWebState();
@@ -98,13 +97,12 @@ typedef void (^ProceduralBlockWithBlockWithItemArray)(
   __weak __typeof(self) weakSelf = self;
   NSString* title = l10n_util::GetNSString(IDS_VIVALDI_COPY_TO_NOTE);
   NSString* copyToNoteId = @"chromecommand.copytonote";
-  UIAction* action =
-      [UIAction actionWithTitle:title
-                          image:nil
-                     identifier:copyToNoteId
-                        handler:^(UIAction* a) {
-                          [weakSelf handleCopyToNoteSelection];
-                        }];
+  UIAction* action = [UIAction actionWithTitle:title
+                                         image:nil
+                                    identifier:copyToNoteId
+                                       handler:^(UIAction* a) {
+                                         [weakSelf handleCopyToNoteSelection];
+                                       }];
   completion(@[ action ]);
 }
 

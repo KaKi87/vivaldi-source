@@ -20,6 +20,7 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.IntentSender;
 import android.content.IntentSender.SendIntentException;
+import android.os.Build;
 
 import androidx.annotation.Nullable;
 import androidx.lifecycle.Lifecycle.State;
@@ -69,6 +70,7 @@ public class ShareHelperMultiInstanceUnitTest {
 
     @After
     public void tearDown() {
+        ShadowLooper.idleMainLooper();
         mWindowBar.closeWindow();
         mWindowFoo.closeWindow();
         ChromeSharedPreferences.getInstance()
@@ -223,9 +225,11 @@ public class ShareHelperMultiInstanceUnitTest {
             assertThat(mShareIntent).isNotNull();
             Intent sendBackIntent =
                     new Intent().putExtra(Intent.EXTRA_CHOSEN_COMPONENT, componentName);
-            IntentSender sender =
-                    mShareIntent.intent.getParcelableExtra(
-                            Intent.EXTRA_CHOSEN_COMPONENT_INTENT_SENDER);
+            String extraKey =
+                    Build.VERSION.SDK_INT >= 35
+                            ? Intent.EXTRA_CHOOSER_RESULT_INTENT_SENDER
+                            : Intent.EXTRA_CHOSEN_COMPONENT_INTENT_SENDER;
+            IntentSender sender = mShareIntent.intent.getParcelableExtra(extraKey);
             sender.sendIntent(
                     mActivity.getApplicationContext(),
                     Activity.RESULT_OK,

@@ -52,8 +52,7 @@ class VivaldiBrowserMainExtraPartsSmall : public ChromeBrowserMainExtraParts {
   VivaldiBrowserMainExtraPartsSmall(const VivaldiBrowserMainExtraPartsSmall&) =
       delete;
   VivaldiBrowserMainExtraPartsSmall& operator=(
-      const VivaldiBrowserMainExtraPartsSmall&) =
-      delete;
+      const VivaldiBrowserMainExtraPartsSmall&) = delete;
 
   // Overridden from ChromeBrowserMainExtraParts:
   void PostEarlyInitialization() override;

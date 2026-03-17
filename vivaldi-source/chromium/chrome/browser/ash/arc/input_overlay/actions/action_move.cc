@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "chrome/browser/ash/arc/input_overlay/actions/action_move.h"
 
 #include <algorithm>
@@ -14,7 +9,7 @@
 #include <string_view>
 
 #include "base/check_op.h"
-#include "base/containers/contains.h"
+#include "base/compiler_specific.h"
 #include "base/notimplemented.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ash/arc/input_overlay/actions/action.h"
@@ -38,7 +33,7 @@ constexpr char kTargetArea[] = "target_area";
 constexpr char kTopLeft[] = "top_left";
 constexpr char kBottomRight[] = "bottom_right";
 
-std::unique_ptr<Position> ParseApplyAreaPosition(const base::Value::Dict& dict,
+std::unique_ptr<Position> ParseApplyAreaPosition(const base::DictValue& dict,
                                                  std::string_view key) {
   const auto* point = dict.FindDict(key);
   if (!point) {
@@ -181,7 +176,7 @@ ActionMove::ActionMove(TouchInjector* touch_injector)
 
 ActionMove::~ActionMove() = default;
 
-bool ActionMove::ParseFromJson(const base::Value::Dict& value) {
+bool ActionMove::ParseFromJson(const base::DictValue& value) {
   Action::ParseFromJson(value);
   if (parsed_input_sources_ == InputSource::IS_KEYBOARD) {
     if (original_positions_.empty()) {
@@ -216,7 +211,7 @@ void ActionMove::InitByChangingActionType(Action* action) {
   current_input_ = InputElement::CreateActionMoveKeyElement(keycodes);
 }
 
-bool ActionMove::ParseJsonFromKeyboard(const base::Value::Dict& value) {
+bool ActionMove::ParseJsonFromKeyboard(const base::DictValue& value) {
   const auto* list = value.FindList(kKeys);
   if (!list) {
     LOG(ERROR) << "Require key codes for move key action: " << name_ << ".";
@@ -238,7 +233,7 @@ bool ActionMove::ParseJsonFromKeyboard(const base::Value::Dict& value) {
                  << "}.";
       return false;
     }
-    if (base::Contains(keycodes, key)) {
+    if (std::ranges::contains(keycodes, key)) {
       LOG(ERROR) << "Duplicated key {" << val
                  << "} for move key action: " << name_;
       return false;
@@ -251,7 +246,7 @@ bool ActionMove::ParseJsonFromKeyboard(const base::Value::Dict& value) {
   return true;
 }
 
-bool ActionMove::ParseJsonFromMouse(const base::Value::Dict& value) {
+bool ActionMove::ParseJsonFromMouse(const base::DictValue& value) {
   const auto* mouse_action = value.FindString(kMouseAction);
   if (!mouse_action) {
     LOG(ERROR) << "Must include mouse action for mouse-bound move action.";
@@ -501,8 +496,8 @@ void ActionMove::CalculateMoveVector(gfx::PointF& touch_press_pos,
                                      const gfx::RectF& content_bounds,
                                      const gfx::Transform* rotation_transform) {
   DCHECK_LT(direction_index, kActionMoveKeysSize);
-  auto new_move = gfx::Vector2dF(kDirection[direction_index][0],
-                                 kDirection[direction_index][1]);
+  auto new_move = gfx::Vector2dF(UNSAFE_TODO(kDirection[direction_index])[0],
+                                 UNSAFE_TODO(kDirection[direction_index])[1]);
   const float display_scale_factor =
       touch_injector_->window()->GetHost()->device_scale_factor();
   const float scale = display_scale_factor * move_distance_;

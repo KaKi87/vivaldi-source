@@ -4,6 +4,8 @@
 
 #import "ios/chrome/browser/prerender/model/prerender_browser_agent.h"
 
+#import <utility>
+
 #import "base/auto_reset.h"
 #import "base/check.h"
 #import "base/check_deref.h"
@@ -18,7 +20,6 @@
 #import "base/task/bind_post_task.h"
 #import "base/task/sequenced_task_runner.h"
 #import "base/time/time.h"
-#import "base/types/cxx23_to_underlying.h"
 #import "components/prefs/pref_service.h"
 #import "components/signin/ios/browser/account_consistency_service.h"
 #import "components/signin/ios/browser/manage_accounts_delegate.h"
@@ -80,11 +81,11 @@ prerender_prefs::NetworkPredictionSetting NetworkPredictionSettingFromPrefs(
     PrefService* prefs) {
   using prerender_prefs::NetworkPredictionSetting;
   switch (prefs->GetInteger(prefs::kNetworkPredictionSetting)) {
-    case base::to_underlying(NetworkPredictionSetting::kDisabled):
+    case std::to_underlying(NetworkPredictionSetting::kDisabled):
       return NetworkPredictionSetting::kDisabled;
-    case base::to_underlying(NetworkPredictionSetting::kEnabledWifiOnly):
+    case std::to_underlying(NetworkPredictionSetting::kEnabledWifiOnly):
       return NetworkPredictionSetting::kEnabledWifiOnly;
-    case base::to_underlying(NetworkPredictionSetting::kEnabledWifiAndCellular):
+    case std::to_underlying(NetworkPredictionSetting::kEnabledWifiAndCellular):
       return NetworkPredictionSetting::kEnabledWifiAndCellular;
     default:
       // If the value stored in the PrefService is unexpected, return
@@ -369,6 +370,9 @@ class PrerenderBrowserAgent::ManageAccountsDelegate final
   void OnGoIncognito(const GURL& url) final {
     agent_->ScheduleCancelPrerender();
   }
+  bool SigninEnabled() const final {
+    return agent_->signin_enabled_data_source_->SigninEnabled();
+  }
 
  private:
   const raw_ref<PrerenderBrowserAgent> agent_;
@@ -384,8 +388,11 @@ enum class PrerenderBrowserAgent::PrerenderFinalStatus {
   kMaxValue = kNotAllowed,
 };
 
-PrerenderBrowserAgent::PrerenderBrowserAgent(Browser* browser)
-    : BrowserUserData(browser) {
+PrerenderBrowserAgent::PrerenderBrowserAgent(
+    Browser* browser,
+    signin::SigninEnabledDataSource* signin_enabled_data_source)
+    : BrowserUserData(browser),
+      signin_enabled_data_source_(signin_enabled_data_source) {
   net::NetworkChangeNotifier::AddNetworkChangeObserver(this);
   registrar_.Init(browser_->GetProfile()->GetPrefs());
   registrar_.Add(prefs::kNetworkPredictionSetting,
@@ -591,9 +598,9 @@ void PrerenderBrowserAgent::StartPendingRequest() {
   AttachTabHelpers(web_state, TabHelperFilter::kPrerender);
   crash_report_helper::MonitorURLsForPreloadWebState(web_state);
 
+  ProfileIOS* profile = browser_->GetProfile();
   if (AccountConsistencyService* service =
-          ios::AccountConsistencyServiceFactory::GetForProfile(
-              browser_->GetProfile())) {
+          ios::AccountConsistencyServiceFactory::GetForProfile(profile)) {
     if (!manage_accounts_delegate_) {
       manage_accounts_delegate_ =
           std::make_unique<ManageAccountsDelegate>(this);

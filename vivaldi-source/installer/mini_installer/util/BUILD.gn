@@ -190,6 +190,7 @@ static_library("with_no_strings") {
       "//crypto",
       "//rlz/buildflags",
       "//third_party/icu",
+      "//vivaldi/base:obsolete_md5",
       "//vivaldi/installer/win:language_names_include",
     ]
 
@@ -288,6 +289,16 @@ source_set("constants") {
 }
 
 if (is_win) {
+  source_set("isolation_support") {
+    public = [ "isolation_support.h" ]
+    sources = [ "isolation_support.cc" ]
+
+    deps = [
+      "//base",
+      "//chrome/install_static:install_static_util",
+    ]
+  }
+
   source_set("did_run_support") {
     public = [ "update_did_run_state.h" ]
 

@@ -24,6 +24,7 @@ animationRangeEnd
 animationRangeStart
 animationTimeline
 animationTimingFunction
+animationTrigger
 appRegion
 appearance
 ascentOverride
@@ -131,12 +132,14 @@ colorScheme
 columnCount
 columnFill
 columnGap
+columnHeight
 columnRule
 columnRuleColor
 columnRuleStyle
 columnRuleWidth
 columnSpan
 columnWidth
+columnWrap
 columns
 contain
 containIntrinsicBlockSize
@@ -484,6 +487,7 @@ textEmphasisColor
 textEmphasisPosition
 textEmphasisStyle
 textIndent
+textJustify
 textOrientation
 textOverflow
 textRendering
@@ -497,6 +501,15 @@ textWrap
 textWrapMode
 textWrapStyle
 timelineScope
+timelineTrigger
+timelineTriggerActivationRange
+timelineTriggerActivationRangeEnd
+timelineTriggerActivationRangeStart
+timelineTriggerActiveRange
+timelineTriggerActiveRangeEnd
+timelineTriggerActiveRangeStart
+timelineTriggerName
+timelineTriggerSource
 top
 touchAction
 transform
@@ -510,6 +523,7 @@ transitionDuration
 transitionProperty
 transitionTimingFunction
 translate
+triggerScope
 types
 unicodeBidi
 unicodeRange

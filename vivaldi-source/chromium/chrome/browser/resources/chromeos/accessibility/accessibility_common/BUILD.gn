@@ -3,7 +3,6 @@
 # found in the LICENSE file.
 
 import("//build/config/chromeos/ui_mode.gni")
-import("//build/config/features.gni")
 import(
     "//chrome/browser/resources/chromeos/accessibility/tools/run_jsbundler.gni")
 import("//chrome/test/base/ash/js2gtest.gni")
@@ -37,9 +36,9 @@ misc_sources = [
   "dictation/earcons/audio_end.wav",
   "dictation/earcons/audio_initiate.wav",
   "dictation/earcons/null_selection.wav",
+  "offscreen.html",
+  "sandboxed_pumpkin_tagger.html",
 ]
-
-js_modules = [ "dictation/parse/simple_parse_strategy.js" ]
 
 # TS files to build.
 ts_modules = [
@@ -53,10 +52,13 @@ ts_modules = [
   "dictation/metrics_utils.ts",
   "dictation/ui_controller.ts",
   "dictation/macros/list_commands_macro.ts",
+  "dictation/offscreen_audio.ts",
+  "dictation/offscreen_pumpkin_worker.ts",
   "dictation/parse/input_text_strategy.ts",
   "dictation/parse/parse_strategy.ts",
   "dictation/parse/pumpkin_parse_strategy.ts",
   "dictation/parse/sandboxed_pumpkin_tagger.ts",
+  "dictation/parse/simple_parse_strategy.ts",
   "dictation/parse/pumpkin/pumpkin_constants.ts",
   "dictation/parse/speech_parser.ts",
   "facegaze/bubble_controller.ts",
@@ -68,11 +70,15 @@ ts_modules = [
   "facegaze/gesture_timer.ts",
   "facegaze/metrics_utils.ts",
   "facegaze/mouse_controller.ts",
+  "facegaze/offscreen_web_cam.ts",
   "facegaze/scroll_mode_controller.ts",
   "facegaze/macros/mouse_long_click_macro.ts",
   "facegaze/macros/mouse_scroll_macro.ts",
   "facegaze/macros/reset_cursor_macro.ts",
   "magnifier/magnifier.ts",
+  "messenger.ts",
+  "offscreen.ts",
+  "offscreen_command_type.ts",
 ]
 
 # The relative path in the staging directory of TS modules that need to be copied from another directory.
@@ -82,7 +88,7 @@ ts_definitions = [
   "$mediapipe_dir/vision.d.ts",
   "dictation/parse/pumpkin/pumpkin_tagger_externs.d.ts",
   "../definitions/accessibility_features_mv2.d.ts",
-  "../definitions/accessibility_private_mv2.d.ts",
+  "../definitions/accessibility_private_mv3.d.ts",
   "../definitions/audio.d.ts",
   "../definitions/automation.d.ts",
   "../definitions/command_line_private.d.ts",
@@ -92,24 +98,24 @@ ts_definitions = [
   "../definitions/input_method_private.d.ts",
   "../definitions/language_settings_private.d.ts",
   "../definitions/metrics_private.d.ts",
+  "../definitions/offscreen.d.ts",
   "../definitions/runtime.d.ts",
   "../definitions/settings_private_mv2.d.ts",
   "../definitions/speech_recognition_private.d.ts",
   "../definitions/tabs.d.ts",
-  "../definitions/settings_private_mv2.d.ts",
   "../definitions/windows.d.ts",
   "//tools/typescript/definitions/chrome_event.d.ts",
   "//tools/typescript/definitions/i18n.d.ts",
   "//tools/typescript/definitions/pending.d.ts",
 ]
 
-ts_library("ts_build") {
+ts_library("build_ts") {
   root_dir = "$ts_build_staging_dir"
   out_dir = tsc_out_dir
 
   composite = true
 
-  deps = [ "../common:ts_build" ]
+  deps = [ "../common:build_ts" ]
 
   # Targets that need to run before running the TS build.
   extra_deps = [
@@ -132,11 +138,13 @@ ts_library("ts_build") {
 
   definitions = ts_definitions
 
-  in_files = js_modules + ts_modules + copied_ts_modules
+  in_files = ts_modules + copied_ts_modules
 
   tsconfig_base = "../tsconfig.base.json"
 }
 
+# TODO(crbug.com/388867838): Use bundle_js and minify_js, similar to what is
+# done for mv2.
 # Instead of setting up copy targets, use a script to copy all files.
 run_jsbundler("copied_files") {
   mode = "copy"
@@ -148,18 +156,17 @@ run_jsbundler("copied_files") {
     "magnifier",
   ]
   deps = [
+    ":build_ts",
     ":copy_mediapipe_files",
-    ":ts_build",
     "../common:copied_files",
   ]
 
   sources =
-      misc_sources + filter_include(get_target_outputs(":ts_build"), [ "*.js" ])
+      misc_sources + filter_include(get_target_outputs(":build_ts"), [ "*.js" ])
 
   rewrite_rules = [
     rebase_path("$tsc_out_dir", root_build_dir) + ":",
     rebase_path(".", root_build_dir) + ":",
-    rebase_path(closure_library_dir, root_build_dir) + ":closure",
   ]
 }
 
@@ -177,7 +184,7 @@ copy("copy_mediapipe_files") {
 # will also be copied into this folder, which will allow us to support a TS
 # build that uses both checked-in and generated files.
 copy("stage_ts_build") {
-  sources = js_modules + ts_modules
+  sources = ts_modules
   outputs = [ "$ts_build_staging_dir/{{source_target_relative}}" ]
 }
 
@@ -201,7 +208,8 @@ source_set("browser_tests") {
     "$root_out_dir/chrome_200_percent.pak",
     "$root_out_dir/locales/en-US.pak",
     "$root_out_dir/resources.pak",
-    "$root_out_dir/resources/chromeos/accessibility/accessibility_common/",
+    "$accessibility_common_dir/",
+
     "$root_out_dir/test_data/chrome/browser/resources/chromeos/accessibility/accessibility_common/",
 
     # The test uses data from the original location, not the copied one.
@@ -248,7 +256,7 @@ js2gtest("accessibility_common_extjs_tests") {
 
   # The test base classes generate C++ code with these deps.
   deps = [
-    ":ts_build",
+    ":build_ts",
     "//ash",
     "//ash/keyboard/ui",
     "//base",

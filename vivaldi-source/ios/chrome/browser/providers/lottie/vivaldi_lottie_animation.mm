@@ -6,8 +6,8 @@
 #import "ios/public/provider/chrome/browser/lottie/lottie_animation_configuration.h"
 
 #if !BUILDFLAG(IS_IOS_MACCATALYST)
-#import "vivaldi/Lottie/Lottie-Swift.h"
 #import "base/check.h"
+#import "vivaldi/Lottie/Lottie-Swift.h"
 #endif  // BUILDFLAG(IS_IOS_MACCATALYST)
 
 @interface VivaldiLottieAnimation : NSObject <LottieAnimation>
@@ -34,16 +34,16 @@
     DCHECK(config);
     DCHECK(config.animationName);
 
-  CompatibleAnimation* compatibleAnimation = [[CompatibleAnimation alloc]
-      initWithName:config.animationName
-      subdirectory:nil
-            bundle:config.bundle == nil ? base::apple::FrameworkBundle()
-                                        : config.bundle];
+    CompatibleAnimation* compatibleAnimation = [[CompatibleAnimation alloc]
+        initWithName:config.animationName
+        subdirectory:nil
+              bundle:config.bundle == nil ? base::apple::FrameworkBundle()
+                                          : config.bundle];
 
-  _lottieAnimation = [[CompatibleAnimationView alloc]
-      initWithCompatibleAnimation:compatibleAnimation];
-  _lottieAnimation.contentMode = UIViewContentModeScaleAspectFit;
-  _lottieAnimation.loopAnimationCount = config.shouldLoop ? -1 : 0;
+    _lottieAnimation = [[CompatibleAnimationView alloc]
+        initWithCompatibleAnimation:compatibleAnimation];
+    _lottieAnimation.contentMode = UIViewContentModeScaleAspectFit;
+    _lottieAnimation.loopAnimationCount = config.shouldLoop ? -1 : 0;
 #endif  // BUILDFLAG(IS_IOS_MACCATALYST)
   }
   return self;
@@ -71,7 +71,7 @@
 #if !BUILDFLAG(IS_IOS_MACCATALYST)
   [_lottieAnimation setColorValue:color
                        forKeypath:[[CompatibleAnimationKeypath alloc]
-                                  initWithKeypath:keypath]];
+                                      initWithKeypath:keypath]];
 #endif  // BUILDFLAG(IS_IOS_MACCATALYST)
 }
 
@@ -86,7 +86,7 @@
     (NSDictionary<NSString*, NSString*>*)dictionaryTextProvider {
   _lottieAnimation.compatibleDictionaryTextProvider =
       [[CompatibleDictionaryTextProvider alloc]
-          initWithValues:dictionaryTextProvider];;
+          initWithValues:dictionaryTextProvider];
 }
 
 - (BOOL)isAnimationPlaying {

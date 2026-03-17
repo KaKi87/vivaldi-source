@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Bi sayt ilə bağlantınızın təhlükəsizliyi tam təmin olunmayıb</translation>
 <translation id="4265872034478892965">İnzibatçınız tərəfindən icazə verildi</translation>
 <translation id="4305666528087210886">Faylınıza giriş mümkün olmadı</translation>
-<translation id="4408413947728134509"><ph name="NUM_COOKIES" /> kukiləri</translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" />sizin sertifikatınızı qəbul etmədi və ya sertifikat təqdim edilməyib.</translation>
 <translation id="4506599922270137252">Sistem inzibatçınızla əlaqə saxlayın</translation>
 <translation id="4522570452068850558">Təfərrütlar</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Nəticə yoxdur</translation>
 <translation id="5017554619425969104">Kopyalanmış mətn</translation>
 <translation id="5023310440958281426">İnzibatçının qoyduğu qayfaları yoxlayın</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 kuki faylı istifadə olunur)} other {(# kuki faylları istifadə olunur)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Proksi ünvanının yoxlanılması<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bit)</translation>
 <translation id="5216942107514965959">Bu gün sonuncu</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Bu saytda şəxsi məlumatlarınızı (məs., şifrələr və ya bank kartı kodları) yazmaqdan çəkinin. Bu məlumatlar fırıldaqçıların əlinə keçə bilər.</translation>
 <translation id="5863515189965725638">IBAN -a düzəliş etmək</translation>
 <translation id="5869405914158311789">Sayta giriş əldə edilə bilmədi</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{1 istifadə edilir}other{# istifadə edilir}}</translation>
 <translation id="5932224571077948991">Sayt bezdirici və ya aldadıcı reklamları göstərir</translation>
 <translation id="6051221802930200923">İndi siz <ph name="SITE" /> saytına daxil ola bilməzsiniz, çünki sayt Certificate Pinning mexanizmindən istifadə edir. Şəbəkə xətası və sayta kənar hücumların yaratdığı problem adətən müvəqqəti xarakter daşıyır. Yəqin ki, bir müddət sonra sayt işləyəcəkdir.</translation>
 <translation id="6146055958333702838">Kabelin qoşulmasını yoxlayın və routerləri, modemləri və başqa şəbəkə

@@ -79,7 +79,8 @@ void CreateOrUpdateShortcuts(const base::FilePath& target,
 // install status (failed, new_install, updated etc).
 //
 // install_params: See install_params.h
-// prefs: initial preferences. See installer/mini_installer/util/initial_preferences.h.
+// prefs: initial preferences. See
+// installer/mini_installer/util/initial_preferences.h.
 //
 // Note: since caller unpacks Chrome to install_temp_path\source, the caller
 // is responsible for cleaning up install_temp_path.

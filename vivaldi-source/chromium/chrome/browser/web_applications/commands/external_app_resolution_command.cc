@@ -108,9 +108,7 @@ ExternalAppResolutionCommand::ExternalAppResolutionCommand(
       install_options_(install_options),
       installed_placeholder_app_id_(std::move(installed_placeholder_app_id)),
       install_surface_(ConvertExternalInstallSourceToInstallSource(
-          install_options_.install_source)),
-      install_error_log_entry_(/*background_installation=*/true,
-                               install_surface_) {
+          install_options_.install_source)) {
   GetMutableDebugValue().Set("external_install_options",
                              install_options_.AsDebugValue());
   GetMutableDebugValue().Set(
@@ -420,11 +418,17 @@ void ExternalAppResolutionCommand::OnIconsRetrievedUpgradeLockDescription(
   PopulateProductIcons(web_app_info_.get(), &icons_map);
   PopulateTrustedIconBitmaps(*web_app_info_.get(), icons_map);
   PopulateOtherIcons(web_app_info_.get(), icons_map);
+  if (web_app_info_->is_generated_icon) {
+    GetMutableDebugValue().Set("is_generated_icon", true);
+  }
 
   RecordDownloadedIconsResultAndHttpStatusCodes(result, icons_http_results);
 
-  install_error_log_entry_.LogDownloadedIconsErrors(
-      *web_app_info_, result, icons_map, icons_http_results);
+  base::DictValue icon_errors =
+      LogDownloadedIconsErrors(result, icons_map, icons_http_results);
+  if (!icon_errors.empty()) {
+    GetMutableDebugValue().Set("icon_errors", std::move(icon_errors));
+  }
   UpdateInfoWithParamsAndUpgradeLock(result !=
                                      IconsDownloadedResult::kCompleted);
 }
@@ -471,11 +475,10 @@ void ExternalAppResolutionCommand::OnLockUpgradedFinalizeInstall(
   finalize_options.add_to_desktop = install_params_->add_to_desktop;
   finalize_options.add_to_quick_launch_bar =
       install_params_->add_to_quick_launch_bar;
-
-  if (apps_lock_->registrar().IsInstallState(
-          app_id_, {proto::InstallState::SUGGESTED_FROM_ANOTHER_DEVICE,
-                    proto::InstallState::INSTALLED_WITHOUT_OS_INTEGRATION,
-                    proto::InstallState::INSTALLED_WITH_OS_INTEGRATION})) {
+  // TODO(crbug.com/379136842): This is likely too 'permissive' of a check, and
+  // different more restrictive filter should likely be used instead.
+  if (apps_lock_->registrar().AppMatches(
+          app_id_, WebAppFilter::IsAppSurfaceableToUser())) {
     // If an installation is triggered for the same app but with a
     // different install_url, then we overwrite the manifest fields.
     // If icon downloads fail, then we would not overwrite the icon
@@ -508,13 +511,6 @@ void ExternalAppResolutionCommand::OnInstallFinalized(
       Profile::FromBrowserContext(web_contents_->GetBrowserContext())
           ->GetPrefs(),
       app_id_, install_surface_);
-
-  if (base::FeatureList::IsEnabled(features::kRecordWebAppDebugInfo)) {
-    if (install_error_log_entry_.HasErrorDict()) {
-      command_manager()->LogToInstallManager(
-          install_error_log_entry_.TakeErrorDict());
-    }
-  }
 
   webapps::InstallableMetrics::TrackInstallResult(webapps::IsSuccess(code),
                                                   install_surface_);

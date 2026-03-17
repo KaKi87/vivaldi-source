@@ -15,7 +15,7 @@
     show-all$="[[shouldShowAll]]">
   <settings-ai-info-card slot="view" id="aiInfoCard"></settings-ai-info-card>
 
-<if expr="enable_glic">
+<if expr="enable_glic"> <!-- Vivaldi keep disabled -->
   <template is="dom-if" if="[[showGlicSettings_]]">
     <settings-glic-page slot="view" id="glic" prefs="{{prefs}}">
     </settings-glic-page>
@@ -37,13 +37,6 @@
         data-parent-view-id="parent" prefs="{{prefs}}"
         route-path$="[[routes_.HISTORY_SEARCH.path]]">
     </settings-history-search-page>
-  </template>
-
-  <template is="dom-if" if="[[showCompareControl_]]">
-    <settings-ai-compare-subpage slot="view" id="compare"
-        data-parent-view-id="parent" prefs="{{prefs}}"
-        route-path$="[[routes_.COMPARE.path]]">
-    </settings-ai-compare-subpage>
   </template>
 
   <template is="dom-if" if="[[showComposeControl_]]">

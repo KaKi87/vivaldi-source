@@ -28,7 +28,6 @@ static_library("update") {
       "//content/public/browser",
       "//rlz/buildflags",
       "//vivaldi/app:resources",
-      "//vivaldi/prefs:prefs_strings",
       "//vivaldi/extensions/schema"
     ]
     if (is_win) {

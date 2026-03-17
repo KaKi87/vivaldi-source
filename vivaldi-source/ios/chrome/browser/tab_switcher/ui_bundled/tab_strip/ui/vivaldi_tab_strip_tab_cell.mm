@@ -490,13 +490,12 @@ NSString* closeSymbolName = @"tabstrip_close_tab";
 - (void)updateColors {
   BOOL isSelected = self.isSelected;
 
-  UIColor* tabColor = isSelected ?
-      _selectedTabBackgroundColor : _backgroundTabBackgroundColor;
-  CGFloat alpha =
-      CGColorGetAlpha(tabColor.CGColor);
+  UIColor* tabColor =
+      isSelected ? _selectedTabBackgroundColor : _backgroundTabBackgroundColor;
+  CGFloat alpha = CGColorGetAlpha(tabColor.CGColor);
   // Multiple alpha twice to show highlighted effect
-  _accessibilityContainerView.backgroundColor = [tabColor
-          colorWithAlphaComponent:_hovered ? alpha * 2 : alpha];
+  _accessibilityContainerView.backgroundColor =
+      [tabColor colorWithAlphaComponent:_hovered ? alpha * 2 : alpha];
 
   _titleLabel.textColor = [self tabContentsTintColor];
   _faviconView.tintColor = [self tabContentsTintColor];
@@ -815,18 +814,6 @@ NSString* closeSymbolName = @"tabstrip_close_tab";
   titleLabel.adjustsFontForContentSizeCategory = YES;
 
   return titleLabel;
-}
-
-// Returns a new gradient view.
-- (GradientView*)createGradientView {
-  GradientView* gradientView = [[GradientView alloc]
-      initWithStartColor:[TabStripHelper.cellBackgroundColor
-                             colorWithAlphaComponent:0]
-                endColor:TabStripHelper.cellBackgroundColor
-              startPoint:CGPointMake(0.0f, 0.5f)
-                endPoint:CGPointMake(1.0f, 0.5f)];
-  gradientView.translatesAutoresizingMaskIntoConstraints = NO;
-  return gradientView;
 }
 
 // Returns a new title container view.

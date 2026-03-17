@@ -43,8 +43,10 @@ bool DecompressMozLz4(const base::FilePath& input_path,
 
   // Read decompressed size (u32 after the header, stored in little-endian
   // format)
-  const uint8_t* size_ptr = reinterpret_cast<const uint8_t*>(compressed_data.data() + 8);
-  uint32_t decompressed_size = size_ptr[3] << 24 | size_ptr[2] << 16 | size_ptr[1] << 8 | size_ptr[0];
+  const uint8_t* size_ptr =
+      reinterpret_cast<const uint8_t*>(compressed_data.data() + 8);
+  uint32_t decompressed_size =
+      size_ptr[3] << 24 | size_ptr[2] << 16 | size_ptr[1] << 8 | size_ptr[0];
 
   if (decompressed_size == 0 ||
       decompressed_size > 100 * 1024 * 1024) {  // Limit to 100MB max
@@ -92,11 +94,11 @@ std::string mapGroup(std::map<std::string, std::string>& mappings,
 
 /// Takes the deserialized JSON and prepares Imported tab instances based on
 /// that.
-bool ExtractTabsFromSession(const base::Value::Dict& session_dict,
+bool ExtractTabsFromSession(const base::DictValue& session_dict,
                             std::vector<ImportedTabEntry>& imported_tabs) {
   std::map<std::string, std::string> group_mapping;
 
-  const base::Value::List* windows = session_dict.FindList("windows");
+  const base::ListValue* windows = session_dict.FindList("windows");
   if (!windows) {
     return false;
   }
@@ -106,7 +108,7 @@ bool ExtractTabsFromSession(const base::Value::Dict& session_dict,
     if (!window.is_dict()) {
       return false;
     }
-    const base::Value::List* tabs = window.GetDict().FindList("tabs");
+    const base::ListValue* tabs = window.GetDict().FindList("tabs");
     if (!tabs) {
       return false;
     }
@@ -122,7 +124,7 @@ bool ExtractTabsFromSession(const base::Value::Dict& session_dict,
       if (group)
         imported_tab.group = mapGroup(group_mapping, *group);
 
-      const base::Value::List* entries = tab.GetDict().FindList("entries");
+      const base::ListValue* entries = tab.GetDict().FindList("entries");
       if (!entries || entries->empty()) {
         return false;
       }
@@ -174,7 +176,7 @@ void ImportFirefoxTabs(FirefoxImporter* instance,
     return;
   }
 
-  base::Value::Dict* session_dict = json_value->GetIfDict();
+  base::DictValue* session_dict = json_value->GetIfDict();
   if (!session_dict) {
     LOG(ERROR) << "FirefoxImport: Session JSON is not a dictionary";
     return;

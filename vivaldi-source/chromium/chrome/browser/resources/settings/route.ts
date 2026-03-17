@@ -152,6 +152,11 @@ function addPrivacyChildRoutes(r: Partial<SettingsRoutes>) {
     r.SITE_SETTINGS_LOCAL_NETWORK_ACCESS =
         r.SITE_SETTINGS.createChild('localNetworkAccess');
   }
+  if (loadTimeData.getBoolean('enableLocalNetworkAccessSplitPermissions')) {
+    r.SITE_SETTINGS_LOCAL_NETWORK = r.SITE_SETTINGS.createChild('localNetwork');
+    r.SITE_SETTINGS_LOOPBACK_NETWORK =
+        r.SITE_SETTINGS.createChild('loopbackNetwork');
+  }
 }
 
 /**
@@ -209,7 +214,7 @@ function createRoutes(): SettingsRoutes {
     if (loadTimeData.getBoolean('showCompareControl')) {
       r.COMPARE = r.AI.createChild('/ai/compareProducts');
     }
-    // <if expr="enable_glic">
+    // <if expr="enable_glic"> // Vivaldi keep disabled
     if (loadTimeData.getBoolean('showGlicSettings')) {
       r.GEMINI = r.AI.createChild('/ai/gemini');
     }
@@ -226,8 +231,8 @@ function createRoutes(): SettingsRoutes {
   if (loadTimeData.getBoolean('enableYourSavedInfoSettingsPage')) {
     if (visibility.yourSavedInfo !== false) {
       r.YOUR_SAVED_INFO = r.BASIC.createSection(
-          '/yourSavedInfo', 'yourSavedInfo',
-          loadTimeData.getString('yourSavedInfoPageTitle'));
+          '/autofill', 'yourSavedInfo',
+          loadTimeData.getString('autofillPageTitle'));
 
       r.PAYMENTS = r.YOUR_SAVED_INFO.createChild('/payments');
       r.YOUR_SAVED_INFO_CONTACT_INFO =
@@ -263,7 +268,7 @@ function createRoutes(): SettingsRoutes {
     addPrivacyChildRoutes(r);
   }
 
-  // <if expr="not is_chromeos">
+  // <if expr="_google_chrome and not is_chromeos">
   if (visibility.defaultBrowser !== false) {
     r.DEFAULT_BROWSER = r.BASIC.createSection(
         '/defaultBrowser', 'defaultBrowser',

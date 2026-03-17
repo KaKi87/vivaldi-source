@@ -481,7 +481,7 @@ bool VivaldiDesktopWindowTreeHostWin::GetClientAreaInsets(
     int frame_thickness) const {
   // System window decorations, or maximized windows gets a frame drawn
   // regardless. Do not set any insets.
-  if (window_->with_native_frame() ) {
+  if (window_->with_native_frame()) {
     return false;
   }
 

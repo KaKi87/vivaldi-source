@@ -4,6 +4,20 @@
 
 package org.chromium.chrome.browser.url_constants;
 
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeBookmarksUrl;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeHistoryUrl;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeNtpGurl;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeNtpUrl;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNonNativeBookmarksUrl;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNonNativeHistoryUrl;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNonNativeNtpGurl;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNonNativeNtpUrl;
+import static org.chromium.chrome.browser.url_constants.UrlOverrideUtils.isBookmarksPageOverrideEnabled;
+import static org.chromium.chrome.browser.url_constants.UrlOverrideUtils.isHistoryPageOverrideEnabled;
+import static org.chromium.chrome.browser.url_constants.UrlOverrideUtils.isIncognitoBookmarksPageOverrideEnabled;
+import static org.chromium.chrome.browser.url_constants.UrlOverrideUtils.isIncognitoNtpOverrideEnabled;
+import static org.chromium.chrome.browser.url_constants.UrlOverrideUtils.isNtpOverrideEnabled;
+
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.ResettersForTesting;
@@ -11,8 +25,6 @@ import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.url_constants.UrlConstantResolver.PreNativeGurlHolder;
-import org.chromium.components.embedder_support.util.UrlConstants;
-import org.chromium.url.GURL;
 
 /**
  * This factory creates and keeps a single ExtensionsUrlOverrideRegistryManager for incognito
@@ -20,11 +32,6 @@ import org.chromium.url.GURL;
  */
 @NullMarked
 public class UrlConstantResolverFactory {
-    private static final String SERIALIZED_NATIVE_NTP_URL =
-            "82,1,true,0,13,0,-1,0,-1,16,6,0,-1,22,1,0,-1,0,-1,false,false,chrome-native://newtab/";
-    private static final String SERIALIZED_NTP_URL =
-            "73,1,true,0,6,0,-1,0,-1,9,6,0,-1,15,1,0,-1,0,-1,false,false,chrome://newtab/";
-
     private static @Nullable PreNativeGurlHolder sPreNativeNtpGurl;
     private static @Nullable UrlConstantResolver sOriginalResolver;
     private static @Nullable UrlConstantResolver sIncognitoResolver;
@@ -69,44 +76,32 @@ public class UrlConstantResolverFactory {
 
     private static UrlConstantResolver buildOriginalResolver() {
         UrlConstantResolver resolver = new UrlConstantResolver();
-        resolver.registerPreNativeGurl(UrlConstants.NTP_URL, getPreNativeNtpGurlHolder());
+        resolver.registerPreNativeGurl(getOriginalNativeNtpUrl(), getPreNativeNtpGurlHolder());
 
         resolver.registerOverride(
-                UrlConstants.NTP_URL,
-                () ->
-                        ExtensionsUrlOverrideRegistry.getNtpOverrideEnabled()
-                                ? UrlConstants.NTP_NON_NATIVE_URL
-                                : null);
+                getOriginalNativeNtpUrl(),
+                () -> isNtpOverrideEnabled() ? getOriginalNonNativeNtpUrl() : null);
         resolver.registerOverride(
-                UrlConstants.BOOKMARKS_NATIVE_URL,
-                () ->
-                        ExtensionsUrlOverrideRegistry.getBookmarksPageOverrideEnabled()
-                                ? UrlConstants.BOOKMARKS_URL
-                                : null);
+                getOriginalNativeBookmarksUrl(),
+                () -> isBookmarksPageOverrideEnabled() ? getOriginalNonNativeBookmarksUrl() : null);
         resolver.registerOverride(
-                UrlConstants.NATIVE_HISTORY_URL,
-                () ->
-                        ExtensionsUrlOverrideRegistry.getHistoryPageOverrideEnabled()
-                                ? UrlConstants.HISTORY_URL
-                                : null);
+                getOriginalNativeHistoryUrl(),
+                () -> isHistoryPageOverrideEnabled() ? getOriginalNonNativeHistoryUrl() : null);
         return resolver;
     }
 
     private static UrlConstantResolver buildIncognitoResolver() {
         UrlConstantResolver resolver = new UrlConstantResolver();
-        resolver.registerPreNativeGurl(UrlConstants.NTP_URL, getPreNativeNtpGurlHolder());
+        resolver.registerPreNativeGurl(getOriginalNativeNtpUrl(), getPreNativeNtpGurlHolder());
 
         resolver.registerOverride(
-                UrlConstants.NTP_URL,
-                () ->
-                        ExtensionsUrlOverrideRegistry.getIncognitoNtpOverrideEnabled()
-                                ? UrlConstants.NTP_NON_NATIVE_URL
-                                : null);
+                getOriginalNativeNtpUrl(),
+                () -> isIncognitoNtpOverrideEnabled() ? getOriginalNonNativeNtpUrl() : null);
         resolver.registerOverride(
-                UrlConstants.BOOKMARKS_NATIVE_URL,
+                getOriginalNativeBookmarksUrl(),
                 () ->
-                        ExtensionsUrlOverrideRegistry.getIncognitoBookmarksPageOverrideEnabled()
-                                ? UrlConstants.BOOKMARKS_URL
+                        isIncognitoBookmarksPageOverrideEnabled()
+                                ? getOriginalNonNativeBookmarksUrl()
                                 : null);
         return resolver;
     }
@@ -130,12 +125,6 @@ public class UrlConstantResolverFactory {
     }
 
     private static PreNativeGurlHolder buildPreNativeNtpGurlHolder() {
-        return new PreNativeGurlHolder(
-                deserializeGurlString(SERIALIZED_NATIVE_NTP_URL),
-                deserializeGurlString(SERIALIZED_NTP_URL));
-    }
-
-    private static GURL deserializeGurlString(String serializedGurl) {
-        return GURL.deserializeLatestVersionOnly(serializedGurl.replace(',', '\0'));
+        return new PreNativeGurlHolder(getOriginalNativeNtpGurl(), getOriginalNonNativeNtpGurl());
     }
 }

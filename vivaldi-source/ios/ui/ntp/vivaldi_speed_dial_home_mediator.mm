@@ -19,9 +19,9 @@
 #import "ios/chrome/browser/bookmarks/model/bookmark_model_bridge_observer.h"
 #import "ios/chrome/browser/bookmarks/model/managed_bookmark_service_factory.h"
 #import "ios/chrome/browser/bookmarks/ui_bundled/bookmark_utils_ios.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/cells/content_suggestions_most_visited_item.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/cells/most_visited_tiles_config.h"
-#import "ios/chrome/browser/first_run/ui_bundled/first_run_util.h"
+#import "ios/chrome/browser/content_suggestions/most_visited_tiles/ui/most_visited_item.h"
+#import "ios/chrome/browser/content_suggestions/most_visited_tiles/ui/most_visited_tiles_config.h"
+#import "ios/chrome/browser/first_run/public/first_run_util.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
@@ -35,7 +35,7 @@
 #import "ios/ui/ntp/vivaldi_speed_dial_page_type.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "url/gurl.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
@@ -43,15 +43,15 @@
 using bookmarks::BookmarkModel;
 using bookmarks::BookmarkNode;
 using bookmarks::ManagedBookmarkService;
-using vivaldi_bookmark_kit::GetSpeeddial;
-using vivaldi_bookmark_kit::IsSeparator;
-using vivaldi_bookmark_kit::IsDirectChildOfRoot;
 using l10n_util::GetNSString;
+using vivaldi_bookmark_kit::GetSpeeddial;
+using vivaldi_bookmark_kit::IsDirectChildOfRoot;
+using vivaldi_bookmark_kit::IsSeparator;
 
-@interface VivaldiSpeedDialHomeMediator ()<BookmarkModelBridgeObserver,
-                                           VivaldiMostVisitedSitesConsumer,
-                                           PrefObserverDelegate,
-                                           BooleanObserver> {
+@interface VivaldiSpeedDialHomeMediator () <BookmarkModelBridgeObserver,
+                                            VivaldiMostVisitedSitesConsumer,
+                                            PrefObserverDelegate,
+                                            BooleanObserver> {
   // Preference service from the application context.
   PrefService* _prefs;
   // Pref observer to track changes to prefs.
@@ -75,15 +75,16 @@ using l10n_util::GetNSString;
 }
 
 // Manager that provides most visited sites
-@property(nonatomic,strong)
+@property(nonatomic, strong)
     VivaldiMostVisitedSitesManager* mostVisitedSiteManager;
 // Most visited items from the MostVisitedSites service currently displayed.
-@property(nonatomic,strong) MostVisitedTilesConfig* mostVisitedConfig;
+@property(nonatomic, strong) MostVisitedTilesConfig* mostVisitedConfig;
 // Collection of toolbar items
 @property(nonatomic, strong)
     NSMutableArray<VivaldiNTPTopToolbarItem*>* toolbarItems;
 // Collection of cached toolbar items. This is used to compare whether toolbar
-// items count is changed due to CRUD operation either initiated by user or sync.
+// items count is changed due to CRUD operation either initiated by user or
+// sync.
 @property(nonatomic, strong)
     NSMutableArray<VivaldiNTPTopToolbarItem*>* cachedToolbarItems;
 // Cache to quickly map folder node ids to toolbar items.
@@ -110,12 +111,11 @@ using l10n_util::GetNSString;
   if ((self = [super init])) {
     _profile = profile;
     _bookmarkModel = bookmarkModel->AsWeakPtr();
-    _bookmarkModelBridge = std::make_unique<BookmarkModelBridge>(
-          self, _bookmarkModel.get());
+    _bookmarkModelBridge =
+        std::make_unique<BookmarkModelBridge>(self, _bookmarkModel.get());
 
     VivaldiMostVisitedSitesManager* mostVisitedSiteManager =
-        [[VivaldiMostVisitedSitesManager alloc]
-            initWithProfile:profile];
+        [[VivaldiMostVisitedSitesManager alloc] initWithProfile:profile];
     mostVisitedSiteManager.consumer = self;
     _mostVisitedSiteManager = mostVisitedSiteManager;
 
@@ -128,42 +128,37 @@ using l10n_util::GetNSString;
     _prefObserverBridge->ObserveChangesForPreference(
         vivaldiprefs::kVivaldiStartPageSDMaximumColumns, &_prefChangeRegistrar);
 
-    _tabBarEnabled =
-        [[PrefBackedBoolean alloc]
-             initWithPrefService:_prefs
-                prefName:vivaldiprefs::kVivaldiDesktopTabsEnabled];
-        [_tabBarEnabled setObserver:self];
+    _tabBarEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:_prefs
+                   prefName:vivaldiprefs::kVivaldiDesktopTabsEnabled];
+    [_tabBarEnabled setObserver:self];
     [self booleanDidChange:_tabBarEnabled];
 
-    _bottomOmniboxEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:GetApplicationContext()->GetLocalState()
-                 prefName:omnibox::kIsOmniboxInBottomPosition];
+    _bottomOmniboxEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:GetApplicationContext()->GetLocalState()
+                   prefName:omnibox::kIsOmniboxInBottomPosition];
     [_bottomOmniboxEnabled setObserver:self];
     [self booleanDidChange:_bottomOmniboxEnabled];
 
-    _showAddButton =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:GetApplicationContext()->GetLocalState()
-                 prefName:vivaldiprefs::kVivaldiStartPageShowAddButton];
+    _showAddButton = [[PrefBackedBoolean alloc]
+        initWithPrefService:GetApplicationContext()->GetLocalState()
+                   prefName:vivaldiprefs::kVivaldiStartPageShowAddButton];
     [_showAddButton setObserver:self];
     [self booleanDidChange:_showAddButton];
 
-    _showFrequentlyVisited =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:_prefs
-                prefName:vivaldiprefs::kVivaldiStartPageShowFrequentlyVisited];
+    _showFrequentlyVisited = [[PrefBackedBoolean alloc]
+        initWithPrefService:_prefs
+                   prefName:vivaldiprefs::
+                                kVivaldiStartPageShowFrequentlyVisited];
     [_showFrequentlyVisited setObserver:self];
 
-    _showSpeedDials =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:_prefs
-                       prefName:vivaldiprefs::kVivaldiStartPageShowSpeedDials];
+    _showSpeedDials = [[PrefBackedBoolean alloc]
+        initWithPrefService:_prefs
+                   prefName:vivaldiprefs::kVivaldiStartPageShowSpeedDials];
     [_showSpeedDials setObserver:self];
     [self booleanDidChange:_showSpeedDials];
 
-    _showCustomizeStartPageButton =
-      [[PrefBackedBoolean alloc]
+    _showCustomizeStartPageButton = [[PrefBackedBoolean alloc]
         initWithPrefService:_prefs
                    prefName:vivaldiprefs::kVivaldiStartPageShowCustomizeButton];
     [_showCustomizeStartPageButton setObserver:self];
@@ -241,8 +236,7 @@ using l10n_util::GetNSString;
 }
 
 - (void)removeMostVisited:(VivaldiSpeedDialItem*)item {
-  for (ContentSuggestionsMostVisitedItem *tile in
-          _mostVisitedConfig.mostVisitedItems) {
+  for (MostVisitedItem* tile in _mostVisitedConfig.mostVisitedItems) {
     if (tile.URL == item.url) {
       [_mostVisitedSiteManager removeMostVisited:tile];
       break;
@@ -266,9 +260,7 @@ using l10n_util::GetNSString;
   if (item && item.bookmarkNode) {
     [self reloadChildrenForBookmarkNode:item.bookmarkNode];
   } else {
-
     for (VivaldiNTPTopToolbarItem* group in self.toolbarItems) {
-
       if ([group.uuid length] <= 0)
         continue;
 
@@ -276,10 +268,9 @@ using l10n_util::GetNSString;
           base::SysNSStringToUTF8([group.uuid lowercaseString]);
       base::Uuid uuid = base::Uuid::ParseLowercase(uuidString);
 
-      const bookmarks::BookmarkNode* node =
-          _bookmarkModel.get()->GetNodeByUuid(uuid,
-              bookmarks::BookmarkModel::
-                  NodeTypeForUuidLookup::kLocalOrSyncableNodes);
+      const bookmarks::BookmarkNode* node = _bookmarkModel.get()->GetNodeByUuid(
+          uuid, bookmarks::BookmarkModel::NodeTypeForUuidLookup::
+                    kLocalOrSyncableNodes);
 
       [self reloadChildrenForBookmarkNode:node];
     }
@@ -288,9 +279,7 @@ using l10n_util::GetNSString;
 
 - (void)moveSpeedDialItem:(VivaldiSpeedDialItem*)item
                  position:(NSInteger)position {
-  _bookmarkModel.get()->Move(item.bookmarkNode,
-                             item.parent,
-                             position);
+  _bookmarkModel.get()->Move(item.bookmarkNode, item.parent, position);
 }
 
 - (void)deleteSpeedDialItem:(VivaldiSpeedDialItem*)item {
@@ -298,9 +287,7 @@ using l10n_util::GetNSString;
     std::vector<const bookmarks::BookmarkNode*> nodes;
     nodes.push_back(item.bookmarkNode);
     const BookmarkNode* trashFolder = _bookmarkModel.get()->trash_node();
-    bookmark_utils_ios::MoveBookmarks(nodes,
-                                      _bookmarkModel.get(),
-                                      trashFolder);
+    bookmark_utils_ios::MoveBookmarks(nodes, _bookmarkModel.get(), trashFolder);
   }
 }
 
@@ -323,13 +310,11 @@ using l10n_util::GetNSString;
 
 /// Fetches speed dial folders and their children, notifies consumers.
 - (void)computeTopToolbarItems {
-
   // Clear old data so we don’t retain stale groups.
   [self.toolbarItems removeAllObjects];
   [self.toolbarItemsByPrimaryId removeAllObjects];
 
   if ([self showSpeedDials]) {
-
     std::vector<const BookmarkNode*> root_nodes;
 
     // Push top-level nodes if they have children
@@ -350,9 +335,8 @@ using l10n_util::GetNSString;
     base::stack<const BookmarkNode*> stack;
 
     for (std::vector<const BookmarkNode*>::reverse_iterator it =
-        root_nodes.rbegin();
-         it != root_nodes.rend();
-         ++it) {
+             root_nodes.rbegin();
+         it != root_nodes.rend(); ++it) {
       stack.push(*it);
     }
 
@@ -375,9 +359,7 @@ using l10n_util::GetNSString;
         }
       }
 
-      for (auto it = root_nodes.rbegin();
-           it != root_nodes.rend();
-           ++it) {
+      for (auto it = root_nodes.rbegin(); it != root_nodes.rend(); ++it) {
         stack.push(*it);
       }
     }
@@ -385,24 +367,24 @@ using l10n_util::GetNSString;
 
   // If top sites is enabled
   if (vivaldi_features::IsTopSitesEnabled() && [self showFrequentlyVisited]) {
-    VivaldiNTPTopToolbarItem* toolbarItem =
-        [[VivaldiNTPTopToolbarItem alloc]
-             initWithPrimaryId:nil
-                          uuid:nil
-                title:GetNSString(IDS_IOS_START_PAGE_FREQUENTLY_VISITED_TITLE)
-                      pageType:VivaldiSpeedDialPageTypeTopSites];
-    toolbarItem.children = [self listTopSiteItems];;
-    [self.toolbarItems insertObject:toolbarItem
-                            atIndex:0];
+    VivaldiNTPTopToolbarItem* toolbarItem = [[VivaldiNTPTopToolbarItem alloc]
+        initWithPrimaryId:nil
+                     uuid:nil
+                    title:GetNSString(
+                              IDS_IOS_START_PAGE_FREQUENTLY_VISITED_TITLE)
+                 pageType:VivaldiSpeedDialPageTypeTopSites];
+    toolbarItem.children = [self listTopSiteItems];
+    ;
+    [self.toolbarItems insertObject:toolbarItem atIndex:0];
   }
 
   // Add extra "Add Group" item
-  [self.toolbarItems addObject:
-     [[VivaldiNTPTopToolbarItem alloc]
-          initWithPrimaryId:nil
-                       uuid:nil
-                      title:@""
-                   pageType:VivaldiSpeedDialPageTypeAddGroup]];
+  [self.toolbarItems
+      addObject:[[VivaldiNTPTopToolbarItem alloc]
+                    initWithPrimaryId:nil
+                                 uuid:nil
+                                title:@""
+                             pageType:VivaldiSpeedDialPageTypeAddGroup]];
 
   // Refresh the UI
   [self.consumer refreshMenuItems:self.toolbarItems];
@@ -411,10 +393,9 @@ using l10n_util::GetNSString;
   // happen after sync or if user adds/removes any group.
   // This prevents reloading the toolbar and index for every sync cycle when
   // this function is called but nothing is changed.
-  BOOL areEqual =
-      [VivaldiNTPTopToolbarItemHelper
-          compareEqualityForFirst:self.toolbarItems
-                           second:self.cachedToolbarItems];
+  BOOL areEqual = [VivaldiNTPTopToolbarItemHelper
+      compareEqualityForFirst:self.toolbarItems
+                       second:self.cachedToolbarItems];
   if (self.toolbarItems.count > 0 && !areEqual) {
     self.cachedToolbarItems = [self.toolbarItems copy];
     [self.consumer selectToolbarItemWithIndex:self.selectedMenuItemIndex];
@@ -424,18 +405,16 @@ using l10n_util::GetNSString;
 // Create and return a ToolbarItem from provided BookmarkNode computing the
 // children of that node.
 - (VivaldiNTPTopToolbarItem*)buildGroupForNode:(const BookmarkNode*)node {
-
   NSString* uuidString;
   if (node->uuid().is_valid()) {
     uuidString = base::SysUTF8ToNSString(node->uuid().AsLowercaseString());
   }
 
-  VivaldiNTPTopToolbarItem* groupItem =
-      [[VivaldiNTPTopToolbarItem alloc]
-           initWithPrimaryId:@(node->id())
-                        uuid:uuidString
-                       title:bookmark_utils_ios::TitleForBookmarkNode(node)
-                    pageType:VivaldiSpeedDialPageTypeSpeedDial];
+  VivaldiNTPTopToolbarItem* groupItem = [[VivaldiNTPTopToolbarItem alloc]
+      initWithPrimaryId:@(node->id())
+                   uuid:uuidString
+                  title:bookmark_utils_ios::TitleForBookmarkNode(node)
+               pageType:VivaldiSpeedDialPageTypeSpeedDial];
 
   NSMutableArray* childrens = [[NSMutableArray alloc] init];
   if (node->is_folder()) {
@@ -492,7 +471,7 @@ using l10n_util::GetNSString;
 
   // Find the toolbar item with matching page type
   for (NSUInteger i = 0; i < self.toolbarItems.count; i++) {
-    VivaldiNTPTopToolbarItem *item = self.toolbarItems[i];
+    VivaldiNTPTopToolbarItem* item = self.toolbarItems[i];
     if (item.pageType == VivaldiSpeedDialPageTypeTopSites) {
       toolbarItem = item;
       toolbarItem.children = topSites;
@@ -508,8 +487,7 @@ using l10n_util::GetNSString;
 - (NSMutableArray<VivaldiSpeedDialItem*>*)listTopSiteItems {
   NSMutableArray<VivaldiSpeedDialItem*>* topSites =
       [[NSMutableArray alloc] init];
-  for (ContentSuggestionsMostVisitedItem* tile in
-            _mostVisitedConfig.mostVisitedItems) {
+  for (MostVisitedItem* tile in _mostVisitedConfig.mostVisitedItems) {
     VivaldiSpeedDialItem* item =
         [[VivaldiSpeedDialItem alloc] initWithTitle:tile.title url:tile.URL];
     item.imageDataSource = _mostVisitedConfig.imageDataSource;
@@ -519,45 +497,40 @@ using l10n_util::GetNSString;
 }
 
 /// Sort and return children of a speed dial folder
-- (NSArray*)sortSpeedDials:(NSArray*)items
-                    byMode:(SpeedDialSortingMode)mode  {
-
-  NSArray* sortedArray = [items sortedArrayUsingComparator:
-                          ^NSComparisonResult(VivaldiSpeedDialItem *first,
-                                              VivaldiSpeedDialItem *second) {
-    switch (mode) {
-      case SpeedDialSortingManual:
-        // Return as it is coming from bookmark model by default
-        return NSOrderedAscending;
-      case SpeedDialSortingByTitle:
-        // Sort by title
-        return [first.title compare:second.title
-                            options:NSCaseInsensitiveSearch];
-      case SpeedDialSortingByAddress:
-        // Sort by address
-        return [self compare:first.urlString
-                     second:second.urlString];
-      case SpeedDialSortingByNickname:
-        // Sort by nickname
-        return [self compare:first.nickname
-                     second:second.nickname];
-      case SpeedDialSortingByDescription:
-        // Sort by description
-        return [self compare:first.description
-                     second:second.description];
-      case SpeedDialSortingByDate:
-        // Sort by date
-        return [first.createdAt compare:second.createdAt];
-      case SpeedDialSortingByKind:
-        // Sort by kind
-        return [self compare:first.isFolder
-                      second:second.isFolder
-                foldersFirst:YES];
-      default:
-        // Return as it is coming from bookmark model by default
-        return NSOrderedAscending;
-    }
-  }];
+- (NSArray*)sortSpeedDials:(NSArray*)items byMode:(SpeedDialSortingMode)mode {
+  NSArray* sortedArray =
+      [items sortedArrayUsingComparator:^NSComparisonResult(
+                 VivaldiSpeedDialItem* first, VivaldiSpeedDialItem* second) {
+        switch (mode) {
+          case SpeedDialSortingManual:
+            // Return as it is coming from bookmark model by default
+            return NSOrderedAscending;
+          case SpeedDialSortingByTitle:
+            // Sort by title
+            return [first.title compare:second.title
+                                options:NSCaseInsensitiveSearch];
+          case SpeedDialSortingByAddress:
+            // Sort by address
+            return [self compare:first.urlString second:second.urlString];
+          case SpeedDialSortingByNickname:
+            // Sort by nickname
+            return [self compare:first.nickname second:second.nickname];
+          case SpeedDialSortingByDescription:
+            // Sort by description
+            return [self compare:first.description second:second.description];
+          case SpeedDialSortingByDate:
+            // Sort by date
+            return [first.createdAt compare:second.createdAt];
+          case SpeedDialSortingByKind:
+            // Sort by kind
+            return [self compare:first.isFolder
+                          second:second.isFolder
+                    foldersFirst:YES];
+          default:
+            // Return as it is coming from bookmark model by default
+            return NSOrderedAscending;
+        }
+      }];
 
   // If the current sorting order is descending
   // Reverse the array & check it is not sort by SpeedDialSortingManual
@@ -571,10 +544,8 @@ using l10n_util::GetNSString;
 }
 
 /// Returns sorted result from two provided NSString keys.
-- (NSComparisonResult)compare:(NSString*)first
-                       second:(NSString*)second {
-  return [VivaldiGlobalHelpers compare:first
-                                second:second];
+- (NSComparisonResult)compare:(NSString*)first second:(NSString*)second {
+  return [VivaldiGlobalHelpers compare:first second:second];
 }
 
 /// Returns sorted result from two provided BOOL keys, and sorting order.
@@ -640,8 +611,7 @@ using l10n_util::GetNSString;
 
   VivaldiSpeedDialItem* updatedItem = nil;
   for (VivaldiSpeedDialItem* item in children) {
-    if (item.bookmarkNode == bookmarkNode ||
-        [item id] == bookmarkNode->id()) {
+    if (item.bookmarkNode == bookmarkNode || [item id] == bookmarkNode->id()) {
       updatedItem = item;
       break;
     }
@@ -673,7 +643,7 @@ using l10n_util::GetNSString;
 
 // Checks whether two child arrays share the same order.
 - (BOOL)children:(NSArray<VivaldiSpeedDialItem*>*)lhs
- haveSameOrderAs:(NSArray<VivaldiSpeedDialItem*>*)rhs {
+    haveSameOrderAs:(NSArray<VivaldiSpeedDialItem*>*)rhs {
   if (lhs == rhs) {
     return YES;
   }
@@ -717,7 +687,7 @@ using l10n_util::GetNSString;
   VivaldiStartPageStartItemType openWith =
       [VivaldiStartPagePrefs getReopenStartPageWithItem];
 
-  NSInteger index = 0; // Default index
+  NSInteger index = 0;  // Default index
 
   switch (openWith) {
     // Case when the user prefers to open with the first group or
@@ -842,10 +812,9 @@ using l10n_util::GetNSString;
   if ([self shouldResortChildrenForToolbarItem:toolbarItem]) {
     NSArray<VivaldiSpeedDialItem*>* currentChildren = toolbarItem.children;
     NSArray<VivaldiSpeedDialItem*>* resortedChildren =
-        [self sortSpeedDials:currentChildren
-                      byMode:self.currentSortingMode];
-    BOOL orderChanged =
-        ![self children:currentChildren haveSameOrderAs:resortedChildren];
+        [self sortSpeedDials:currentChildren byMode:self.currentSortingMode];
+    BOOL orderChanged = ![self children:currentChildren
+                        haveSameOrderAs:resortedChildren];
     toolbarItem.children = resortedChildren;
     if (orderChanged) {
       [self.consumer refreshChildItems:toolbarItem.children parent:toolbarItem];

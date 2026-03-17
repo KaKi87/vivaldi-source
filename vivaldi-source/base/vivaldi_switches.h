@@ -43,7 +43,7 @@ SWITCHES_EXPORT extern const char kVivaldiUpdateURL[];
 #if BUILDFLAG(IS_WIN)
 // Only used from the Windows installer to do a clean shutdown.
 SWITCHES_EXPORT extern const char kCleanShutdown[];
-#endif //IS_WIN
+#endif  // IS_WIN
 
 #ifdef VIVALDI_V8_CONTEXT_SNAPSHOT
 SWITCHES_EXPORT extern const char kVivaldiSnapshotProcess[];

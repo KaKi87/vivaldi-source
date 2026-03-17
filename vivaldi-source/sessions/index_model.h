@@ -35,8 +35,10 @@ class Index_Model : public KeyedService {
   void LoadFinished(std::unique_ptr<IndexLoadDetails> details);
 
   bool Move(const Index_Node* node, const Index_Node* parent, size_t index);
-  Index_Node* Add(std::unique_ptr<Index_Node> node, Index_Node* parent,
-                 size_t index, std::string owner = "");
+  Index_Node* Add(std::unique_ptr<Index_Node> node,
+                  Index_Node* parent,
+                  size_t index,
+                  std::string owner = "");
   bool SetTitle(Index_Node* node, const std::u16string& title);
   bool Change(Index_Node* node, Index_Node* from);
   bool Swap(Index_Node* node_a, Index_Node* node_b);

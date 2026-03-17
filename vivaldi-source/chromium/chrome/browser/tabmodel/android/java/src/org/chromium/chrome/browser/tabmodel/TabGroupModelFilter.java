@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Set;
 
 /** Interface for getting tab groups for the tabs in the {@link TabModel}. */
+// TODO(crbug.com/463685717): Consider merging with TabModel.
 @NullMarked
 public interface TabGroupModelFilter extends SupportsTabModelObserver {
 
@@ -273,10 +274,11 @@ public interface TabGroupModelFilter extends SupportsTabModelObserver {
             List<Tab> tabsToExclude, boolean includePendingClosures);
 
     /**
-     * Returns the current title of the tab group or null if a title is not set. Prefer {@link
+     * Returns the current title of the tab group, or {@link
+     * TabGroupTitleUtils#UNSET_TAB_GROUP_TITLE} if a title is not set. Prefer {@link
      * TabGroupTitleUtils#getDisplayableTitle} in most cases.
      */
-    @Nullable String getTabGroupTitle(Token tabGroupId);
+    String getTabGroupTitle(Token tabGroupId);
 
     /**
      * {@see #getTabGroupTitle(Token)}. This looks up the tab group via {@code groupedTab}. This is
@@ -284,10 +286,10 @@ public interface TabGroupModelFilter extends SupportsTabModelObserver {
      * TabGroupTitleUtils#getDisplayableTitle} or {@link #getTabGroupTitle(Token)} method in most
      * cases.
      */
-    @Nullable String getTabGroupTitle(Tab groupedTab);
+    String getTabGroupTitle(Tab groupedTab);
 
     /** Stores the given title for the tab group. */
-    void setTabGroupTitle(Token tabGroupId, @Nullable String title);
+    void setTabGroupTitle(Token tabGroupId, String title);
 
     /** Deletes the stored title for the tab group, defaulting it back to "N tabs." */
     void deleteTabGroupTitle(Token tabGroupId);
@@ -339,5 +341,5 @@ public interface TabGroupModelFilter extends SupportsTabModelObserver {
     void deleteTabGroupCollapsed(Token tabGroupId);
 
     /** Vivaldi */
-    void maybeDissolveTabStacks();
+    void maybeDissolveTabStacks(boolean force);
 }

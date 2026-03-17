@@ -447,6 +447,9 @@ TEST_P(SharedBufferMemoryTests, UninitializedBufferRemainsUninitialized) {
 
 // Read and write a buffer with MapWrite and CopySrc usages.
 TEST_P(SharedBufferMemoryTests, ReadWriteSharedMapWriteBuffer) {
+    // TODO(crbug.com/468353728): Flaky on Snapdragon X Elite w/ D3D12.
+    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm() && IsD3D12());
+
     // Create buffer buffer with initialized data.
     wgpu::SharedBufferMemory memory = GetParam().mBackend->CreateSharedBufferMemory(
         device, kMapWriteUsages, kBufferSize, kBufferData);
@@ -469,6 +472,9 @@ TEST_P(SharedBufferMemoryTests, ReadWriteSharedMapWriteBuffer) {
 
 // Read and write a buffer with MapRead and CopyDst usages.
 TEST_P(SharedBufferMemoryTests, ReadWriteSharedMapReadBuffer) {
+    // TODO(crbug.com/468353728): Flaky on Snapdragon X Elite w/ D3D12.
+    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm() && IsD3D12());
+
     // Create buffer buffer with initialized data.
     wgpu::SharedBufferMemory memory = GetParam().mBackend->CreateSharedBufferMemory(
         device, kMapReadUsages, kBufferSize, kBufferData);
@@ -669,6 +675,9 @@ TEST_P(SharedBufferMemoryTests, UseInPassEnsureSynchronization) {
 
 // Test to ensure WriteBuffer waits on a fence provided to BeginAccess.
 TEST_P(SharedBufferMemoryTests, WriteBufferEnsureSynchronization) {
+    // TODO(crbug.com/468353728): Flaky on Snapdragon X Elite w/ D3D12.
+    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm() && IsD3D12());
+
     wgpu::SharedBufferMemory memory =
         GetParam().mBackend->CreateSharedBufferMemory(device, kMapReadUsages, kBufferSize * 2);
     wgpu::Buffer buffer = memory.CreateBuffer();

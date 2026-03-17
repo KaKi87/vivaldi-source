@@ -18,7 +18,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/test/scoped_feature_list.h"
-#include "chrome/browser/ui/browser_dialogs.h"
+#include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/web_applications/web_app_menu_model.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
 #include "chrome/browser/web_applications/test/os_integration_test_override_impl.h"
@@ -98,7 +98,7 @@ enum class InstallableSite {
 
 enum class Title { kStandaloneOriginal, kStandaloneUpdated };
 
-enum class Color { kRed, kGreen };
+enum class Color { kRed, kGreen, kGreenSmallDiff };
 
 enum class ProfileClient { kClient2, kClient1 };
 
@@ -326,7 +326,7 @@ class WebAppIntegrationTestDriver {
   void NavigatePwa(Site app, Site to);
   void NavigateNotfoundUrl();
   void NewAppTab(Site site);
-  void ManifestUpdateIcon(Site site);
+  void ManifestUpdateIcon(Site site, Color update_color);
   void ManifestUpdateTitle(Site site, Title title);
   void ManifestUpdateDisplay(Site site, Display display);
   void ManifestUpdateScopeTo(Site app, Site scope);
@@ -425,7 +425,7 @@ class WebAppIntegrationTestDriver {
 
   // Wait for the manifest update to start after the site has been loaded and
   // the manifest url loaded as well.
-  void AwaitManifestUpdateStartedPostNavigation();
+  void AwaitManifestUpdateStartedPostNavigation(content::WebContents*);
 
   void HandleAppIdentityUpdateDialogResponse(
       UpdateDialogResponse response,
@@ -504,7 +504,6 @@ class WebAppIntegrationTestDriver {
   Browser* app_browser() { return app_browser_; }
   WebAppProvider* provider() { return WebAppProvider::GetForTest(profile()); }
   IconLabelBubbleView* pwa_install_view();
-  views::Button* intent_chip_view();
 
   const net::EmbeddedTestServer& GetTestServerForSiteMode(Site site_mode) const;
 

@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.res.Configuration;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.PersistableBundle;
 import android.os.SystemClock;
 import android.view.Display;
 import android.view.View;
@@ -38,12 +39,15 @@ import org.chromium.chrome.browser.WarmupManager;
 import org.chromium.chrome.browser.base.ColdStartTracker;
 import org.chromium.chrome.browser.firstrun.FirstRunFlowSequencer;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
+import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcherProvider;
 import org.chromium.chrome.browser.metrics.SimpleStartupForegroundSessionDetector;
 import org.chromium.chrome.browser.multiwindow.MultiWindowModeStateDispatcher;
 import org.chromium.chrome.browser.multiwindow.MultiWindowModeStateDispatcherImpl;
+import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
+import org.chromium.chrome.browser.tabmodel.SupportedProfileType;
 import org.chromium.chrome.browser.util.BrowserUiUtils;
 import org.chromium.components.browser_ui.share.ShareHelper;
 import org.chromium.components.browser_ui.util.FirstDrawDetector;
@@ -54,6 +58,7 @@ import org.chromium.ui.base.IntentRequestTracker;
 import org.chromium.ui.base.UiAndroidFeatureList;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.display.DisplayUtil;
+import org.chromium.ui.widget.Toast;
 
 import org.vivaldi.browser.common.VivaldiUtils;
 
@@ -66,6 +71,7 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
     @VisibleForTesting
     public static final String FIRST_DRAW_COMPLETED_TIME_MS_UMA = "FirstDrawCompletedTime";
 
+    public static final String TAG_PERSIST_ACROSS_REBOOTS = "PersistAcrossReboots";
     public static final String TAG_MULTI_INSTANCE = "MultiInstance";
 
     protected final Handler mHandler;
@@ -97,6 +103,8 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
     private @Nullable ActivityWindowAndroid mWindowAndroid;
     private @MonotonicNonNull OneshotSupplier<ProfileProvider> mProfileProviderSupplier;
     private @Nullable Bundle mSavedInstanceState;
+    private boolean mReceivedPersistentState;
+    private @Nullable PersistableBundle mPersistentInstanceState;
     private int mCurrentOrientation;
     private boolean mDestroyed;
     private boolean mIsTablet;
@@ -140,15 +148,21 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
     @Override
     protected void onDestroy() {
         mDestroyed = true;
-        mLifecycleDispatcher.onDestroyStarted();
 
+        // Dispatch onDestroy() for objects created for the activity.
+        mLifecycleDispatcher.dispatchOnDestroy();
+
+        // Destroy ActivityWindowAndroid if it exists. This must be after
+        // mLifecycleDispatcher.dispatchOnDestroy() because objects subscribing to
+        // mLifecycleDispatcher's onDestroy events may have references to ActivityWindowAndroid.
         if (mWindowAndroid != null) {
             mWindowAndroid.destroy();
             mWindowAndroid = null;
         }
 
+        // Finally, destroy the activity. This must be after destroying ActivityWindowAndroid
+        // because it has a reference to the Activity.
         super.onDestroy();
-        mLifecycleDispatcher.dispatchOnDestroy();
     }
 
     @Override
@@ -347,9 +361,27 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
         TraceEvent.end("AsyncInitializationActivity.onCreate()");
     }
 
+    @Override
+    public void onCreate(
+            @Nullable Bundle savedInstanceState, @Nullable PersistableBundle outPersistentState) {
+        if (ChromeFeatureList.sPersistAcrossRebootsDebugLogs.isEnabled()) {
+            Log.i(TAG_PERSIST_ACROSS_REBOOTS, "onCreate()");
+        }
+        if (shouldPersistAcrossReboots()) {
+            mReceivedPersistentState = outPersistentState != null;
+            if (ChromeFeatureList.sPersistAcrossRebootsDebugLogs.isEnabled()) {
+                Log.i(
+                        TAG_PERSIST_ACROSS_REBOOTS,
+                        mReceivedPersistentState ? "Has persistent state" : "No persistent state");
+            }
+            mPersistentInstanceState = outPersistentState;
+        }
+        super.onCreate(savedInstanceState, outPersistentState);
+    }
+
     /**
-     * Override to perform operations in the first opportunity after the framework calls
-     * {@link #onCreate}. Note the activity may still be aborted by {@link #onCreateInternal}.
+     * Override to perform operations in the first opportunity after the framework calls {@link
+     * #onCreate}. Note the activity may still be aborted by {@link #onCreateInternal}.
      */
     protected void onPreCreate() {}
 
@@ -415,6 +447,20 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
         mWindowAndroid = createWindowAndroid();
         mIntentRequestTracker.restoreInstanceState(getSavedInstanceState());
         mProfileProviderSupplier = createProfileProvider();
+        if (getSupportedProfileType() == SupportedProfileType.OFF_THE_RECORD) {
+            mProfileProviderSupplier.runSyncOrOnAvailable(
+                    (profileProvider) -> {
+                        Profile profile = profileProvider.getOriginalProfile();
+                        if (profile != null && !IncognitoUtils.isIncognitoModeEnabled(profile)) {
+                            Toast.makeText(
+                                            AsyncInitializationActivity.this,
+                                            R.string.incognito_not_available_message,
+                                            Toast.LENGTH_LONG)
+                                    .show();
+                            finishAndRemoveTask();
+                        }
+                    });
+        }
 
         mStartupDelayed = shouldDelayBrowserStartup();
 
@@ -505,6 +551,13 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
     }
 
     /**
+     * @return The supported profile type for this activity.
+     */
+    protected @SupportedProfileType int getSupportedProfileType() {
+        return SupportedProfileType.UNSET;
+    }
+
+    /**
      * @return The uptime for the activity creation in ms.
      */
     protected long getOnCreateTimestampMs() {
@@ -546,9 +599,36 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
         return mSavedInstanceState;
     }
 
+    /**
+     * @return The saved {@link PersistableBundle} for the last persisted state.
+     */
+    public @Nullable PersistableBundle getPersistentInstanceState() {
+        if (!shouldPersistAcrossReboots()) {
+            assert mPersistentInstanceState == null
+                    : "Persistent state should be null if the feature is not enabled.";
+            return null;
+        }
+        return mPersistentInstanceState;
+    }
+
+    /**
+     * @return Whether persistent state was restored during this session, i.e. whether a non-null
+     *     {@link PersistableBundle} was received from the OS in this Activity's #onCreate().
+     */
+    public boolean wasPersistentStateRestored() {
+        return mReceivedPersistentState;
+    }
+
     /** Resets the saved state and makes it unavailable for the rest of the activity lifecycle. */
     protected void resetSavedInstanceState() {
         mSavedInstanceState = null;
+    }
+
+    /**
+     * Resets the persistent state and makes it unavailable for the rest of the activity lifecycle.
+     */
+    protected void resetPersistentInstanceState() {
+        mPersistentInstanceState = null;
     }
 
     @CallSuper
@@ -684,8 +764,8 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
     public void performOnConfigurationChanged(Configuration newConfig) {}
 
     @Override
-    public void onMultiWindowModeChanged(boolean inMultiWindowMode) {
-        super.onMultiWindowModeChanged(inMultiWindowMode);
+    public void handleMultiWindowModeChanged(boolean inMultiWindowMode) {
+        super.handleMultiWindowModeChanged(inMultiWindowMode);
         mMultiWindowModeStateDispatcher.dispatchMultiWindowModeChanged(inMultiWindowMode);
     }
 
@@ -775,6 +855,16 @@ public abstract class AsyncInitializationActivity extends ChromeBaseAppCompatAct
         mIntentRequestTracker.saveInstanceState(outState);
 
         mLifecycleDispatcher.dispatchOnSaveInstanceState(outState);
+    }
+
+    @CallSuper
+    @Override
+    public void onSaveInstanceState(Bundle outState, PersistableBundle outPersistentState) {
+        super.onSaveInstanceState(outState, outPersistentState);
+
+        if (shouldPersistAcrossReboots()) {
+            mLifecycleDispatcher.dispatchOnSaveInstanceState(outState, outPersistentState);
+        }
     }
 
     @CallSuper

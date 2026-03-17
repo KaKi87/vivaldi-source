@@ -10,7 +10,8 @@
 
 namespace viv_importer {
 
-void DetectOperaMailProfiles(std::vector<user_data_importer::SourceProfile>* profiles) {
+void DetectOperaMailProfiles(
+    std::vector<user_data_importer::SourceProfile>* profiles) {
   user_data_importer::SourceProfile opera;
   opera.importer_name = l10n_util::GetStringUTF16(IDS_IMPORT_FROM_OPERA_MAIL);
   opera.importer_type = user_data_importer::TYPE_OPERA;

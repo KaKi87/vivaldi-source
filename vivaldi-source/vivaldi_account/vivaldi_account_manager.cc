@@ -62,8 +62,8 @@ constexpr char kErrorDescriptionKey[] = "error_description";
 
 constexpr char16_t kVivaldiDomain[] = u"vivaldi.net";
 
-std::optional<base::Value::Dict> ParseServerResponse(
-    std::unique_ptr<std::string> data) {
+std::optional<base::DictValue> ParseServerResponse(
+    std::optional<std::string> data) {
   if (!data)
     return std::nullopt;
 
@@ -76,11 +76,11 @@ std::optional<base::Value::Dict> ParseServerResponse(
 }
 
 bool ParseGetAccessTokenSuccessResponse(
-    std::unique_ptr<std::string> response_body,
+    std::optional<std::string> response_body,
     std::string& access_token,
     int& expires_in,
     std::string& refresh_token) {
-  std::optional<base::Value::Dict> dict =
+  std::optional<base::DictValue> dict =
       ParseServerResponse(std::move(response_body));
   if (!dict)
     return false;
@@ -95,8 +95,8 @@ bool ParseGetAccessTokenSuccessResponse(
   return true;
 }
 
-std::string ParseFailureResponse(std::unique_ptr<std::string> response_body) {
-  std::optional<base::Value::Dict> dict =
+std::string ParseFailureResponse(std::optional<std::string> response_body) {
+  std::optional<base::DictValue> dict =
       ParseServerResponse(std::move(response_body));
   if (dict) {
     if (std::string* server_message = dict->FindString(kErrorDescriptionKey)) {
@@ -326,7 +326,7 @@ void VivaldiAccountManager::Reset() {
 void VivaldiAccountManager::OnTokenRequestDone(
     bool using_password,
     std::unique_ptr<network::SimpleURLLoader> url_loader,
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   if (!url_loader->ResponseInfo() || !url_loader->ResponseInfo()->headers) {
     access_token_request_handler_->Retry();
     NotifyTokenFetchFailed(NETWORK_ERROR,
@@ -355,7 +355,7 @@ void VivaldiAccountManager::OnTokenRequestDone(
   if (response_code != net::HTTP_OK) {
     access_token_request_handler_->Retry();
     std::string server_message;
-    if (response_body.get())
+    if (response_body)
       server_message.swap(*response_body);
     NotifyTokenFetchFailed(SERVER_ERROR, server_message, response_code);
     return;
@@ -412,7 +412,7 @@ bool VivaldiAccountManager::UpdateAccountInfoFromJwt(const std::string& jwt) {
     return false;
   }
 
-  const base::Value::Dict& token_info = value->GetDict();
+  const base::DictValue& token_info = value->GetDict();
   const std::string* account_id = token_info.FindString(kAccountIdKey);
   const std::string* picture_url = token_info.FindString(kPictureUrlKey);
   const std::string* donation_tier = token_info.FindString(kDonationTierKey);
@@ -425,7 +425,7 @@ bool VivaldiAccountManager::UpdateAccountInfoFromJwt(const std::string& jwt) {
       .username = account_info_.username,
       .account_id = *account_id,
       .picture_url = picture_url ? *picture_url : "",
-      .donation_tier = donation_tier ? *donation_tier: ""};
+      .donation_tier = donation_tier ? *donation_tier : ""};
 
   if (account_info_ == new_account_info) {
     return false;
@@ -451,7 +451,7 @@ base::Time VivaldiAccountManager::GetTokenRequestTime() const {
   return base::Time();
 }
 
-base::Time VivaldiAccountManager::GetNextTokenRequestTime() const  {
+base::Time VivaldiAccountManager::GetNextTokenRequestTime() const {
   if (access_token_request_handler_)
     return access_token_request_handler_->GetNextRequestTime();
   return base::Time();

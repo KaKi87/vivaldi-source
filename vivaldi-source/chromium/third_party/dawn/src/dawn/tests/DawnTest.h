@@ -125,6 +125,10 @@
 #define EXPECT_PIXEL_RGBA8_BETWEEN(color0, color1, texture, x, y) \
     AddTextureBetweenColorsExpectation(__FILE__, __LINE__, color0, color1, texture, x, y)
 
+// Test a pixel of the mip level 0 of a 3D texture.
+#define EXPECT_PIXEL_3D_RGBA8_EQ(expected, texture, x, y, z) \
+    AddTextureExpectation(__FILE__, __LINE__, expected, texture, {x, y, z})
+
 #define EXPECT_TEXTURE_EQ(...) AddTextureExpectation(__FILE__, __LINE__, __VA_ARGS__)
 
 #define EXPECT_TEXTURE_FLOAT16_EQ(...) \
@@ -188,12 +192,15 @@ class WireClient;
 class WireServer;
 }  // namespace wire
 
+class Recorder;
+
 class DawnTestEnvironment : public testing::Environment {
   public:
     DawnTestEnvironment(int argc, char** argv);
     ~DawnTestEnvironment() override;
 
     static void SetEnvironment(DawnTestEnvironment* env);
+    static DawnTestEnvironment* GetEnvironment();
 
     std::vector<AdapterTestParam> GetAvailableAdapterTestParamsForBackends(
         const BackendTestConfig* params,
@@ -204,6 +211,7 @@ class DawnTestEnvironment : public testing::Environment {
 
     bool UsesWire() const;
     bool IsImplicitDeviceSyncEnabled() const;
+    bool IsCaptureReplayCheckingEnabled() const;
     native::BackendValidationLevel GetBackendValidationLevel() const;
     native::Instance* GetInstance() const;
     bool HasVendorIdFilter() const;
@@ -235,6 +243,7 @@ class DawnTestEnvironment : public testing::Environment {
     bool ValidateToggles(native::Instance* instance) const;
 
     bool mUseWire = false;
+    bool mCheckCaptureReplay = false;
     bool mEnableImplicitDeviceSync = false;
     native::BackendValidationLevel mBackendValidationLevel =
         native::BackendValidationLevel::Disabled;
@@ -273,12 +282,16 @@ class DawnTestBase {
     bool IsD3D12() const;
     bool IsMetal() const;
     bool IsNull() const;
-    bool IsWebGPUOnWebGPU() const;
-    bool IsWebGPUOn(wgpu::BackendType backend) const;
-    bool IsWebGPUOnSwiftshader() const;
     bool IsOpenGL() const;
     bool IsOpenGLES() const;
     bool IsVulkan() const;
+    // You should only use this if you really care that it's specifically WebGPUOnWebGPU.
+    // Otherwise you should use one of the other backend checks.
+    bool IsWebGPUOnWebGPU() const;
+    // Use this specifically to check that it's WebGPUOnWebGPU with a specific backend
+    bool IsWebGPUOn(wgpu::BackendType backend) const;
+    // Checks the actual backend, even on WebGPUOnWebGPU
+    bool IsBackend(wgpu::BackendType backend) const;
 
     bool IsAMD() const;
     bool IsApple() const;
@@ -298,6 +311,7 @@ class DawnTestBase {
     bool IsIntelGen12OrLater() const;
 
     bool IsWindows() const;
+    bool IsWindows11() const;
     bool IsLinux() const;
     bool IsMacOS(int32_t majorVersion = -1, int32_t minorVersion = -1) const;
     bool IsAndroid() const;
@@ -315,6 +329,8 @@ class DawnTestBase {
     bool IsTestLauncherBotMode() const;
 
     bool IsDXC() const;
+
+    bool IsCaptureReplayCheckingEnabled() const;
 
     static bool IsAsan();
     static bool IsTsan();
@@ -362,6 +378,9 @@ class DawnTestBase {
   protected:
     wgpu::Instance instance;
     wgpu::Adapter adapter;
+    // wgpu::AdapterInfo needs to be a unique_ptr because it has a destructor
+    // that must be called before the device/instance has been freed.
+    std::unique_ptr<wgpu::AdapterInfo> mAdapterInfo;
     dawn::utils::ComboLimits adapterLimits;
     wgpu::Device device;
     dawn::utils::ComboLimits deviceLimits;
@@ -383,6 +402,8 @@ class DawnTestBase {
         mDeviceLostCallback;
     uint32_t mDeviceLostCallbackFailedCreationAllowedCount = 0;
     uint32_t mDeviceLostCallbackFailedCreationCalledCount = 0;
+
+    bool mCheckCaptureReplay = false;
 
     // Helper methods to implement the EXPECT_ macros
     std::ostringstream& AddBufferExpectation(const char* file,
@@ -757,28 +778,30 @@ class DawnTestBase {
         wgpu::Device device;
         wgpu::Buffer buffer;
         uint64_t bufferSize;
+        std::string label;
         raw_ptr<const void> mappedData = nullptr;
     };
     std::vector<ReadbackSlot> mReadbackSlots;
 
     // Maps all the buffers and fill ReadbackSlot::mappedData
-    void MapSlotsSynchronously();
-    std::atomic<size_t> mNumPendingMapOperations = 0;
+    void MapSlotsSynchronously(std::span<ReadbackSlot> readbacks);
 
     // Reserve space where the data for an expectation can be copied
     struct ReadbackReservation {
         wgpu::Device device;
         wgpu::Buffer buffer;
         size_t slot;
-        uint64_t offset;
     };
     ReadbackReservation ReserveReadback(wgpu::Device targetDevice, uint64_t readbackSize);
+
+    // Used for --check-capture-replay flag for expectations of the replayed readback buffers.
+    std::unique_ptr<Recorder> mRecorder;
+    void CheckReplayedReadbackBuffers(std::span<ReadbackSlot> existingReadbacks);
 
     struct DeferredExpectation {
         const char* file;
         int line;
         size_t readbackSlot;
-        uint64_t readbackOffset;
         uint64_t size;
         uint32_t rowBytes = 0;
         uint32_t bytesPerRow = 0;
@@ -819,8 +842,10 @@ class DawnTestBase {
 
 // Skip a test when the test failing on a specific HW / backend / OS combination. We can disable
 // this macro with the command line parameter "--run-suppressed-tests".
-#define DAWN_SUPPRESS_TEST_IF(condition) \
-    DAWN_SKIP_TEST_IF_BASE(!RunSuppressedTests() && condition, "suppressed", condition)
+#define DAWN_SUPPRESS_TEST_IF(condition)                                                         \
+    DAWN_SKIP_TEST_IF_BASE(                                                                      \
+        !DawnTestEnvironment::GetEnvironment()->RunSuppressedTests() && condition, "suppressed", \
+        condition)
 
 #define EXPECT_DEPRECATION_WARNINGS(statement, n)                             \
     do {                                                                      \

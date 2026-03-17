@@ -26,7 +26,6 @@
 #import "ios/ui/notes/note_model_bridge_observer.h"
 #import "ios/ui/notes/note_ui_constants.h"
 #import "ios/ui/notes/note_utils_ios.h"
-#import "ios/ui/notes/cells/note_folder_item.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -58,7 +57,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 using vivaldi::NoteNode;
 
-@interface NoteFolderChooserViewController ()<
+@interface NoteFolderChooserViewController () <
     NoteModelBridgeObserver,
     UITableViewDataSource,
     UITableViewDelegate,
@@ -108,11 +107,10 @@ using vivaldi::NoteNode;
 
 // The view controller to present when pushing to add or edit folder
 @property(nonatomic, strong)
-  NoteAddEditFolderViewController* noteFolderEditorController;
+    NoteAddEditFolderViewController* noteFolderEditorController;
 // The user's profile used.
 @property(nonatomic, assign) ProfileIOS* profile;
-@property(nonatomic, weak)
-  NoteFolderSelectionHeaderView* tableHeaderView;
+@property(nonatomic, weak) NoteFolderSelectionHeaderView* tableHeaderView;
 @property(nonatomic, strong) NSString* searchText;
 
 @end
@@ -154,8 +152,7 @@ using vivaldi::NoteNode;
     _selectedFolder = selectedFolder;
 
     // Set up the note model oberver.
-    _modelBridge.reset(
-        new notes::NoteModelBridge(self, _noteModel));
+    _modelBridge.reset(new notes::NoteModelBridge(self, _noteModel));
 
     _profile = _browser->GetProfile()->GetOriginalProfile();
   }
@@ -180,8 +177,7 @@ using vivaldi::NoteNode;
   [super viewDidLoad];
   [super loadModel];
 
-  self.view.accessibilityIdentifier =
-      kNoteFolderPickerViewContainerIdentifier;
+  self.view.accessibilityIdentifier = kNoteFolderPickerViewContainerIdentifier;
   self.title = l10n_util::GetNSString(IDS_VIVALDI_NOTE_CHOOSE_GROUP_BUTTON);
 
   if (self.allowsCancel) {
@@ -234,9 +230,9 @@ using vivaldi::NoteNode;
 
 - (UIView*)tableView:(UITableView*)tableView
     viewForHeaderInSection:(NSInteger)section {
-  CGRect headerViewFrame =
-      CGRectMake(0, 0, CGRectGetWidth(tableView.frame),
-                 [self tableView:tableView heightForHeaderInSection:section]);
+  CGRect headerViewFrame = CGRectMake(0, 0, CGRectGetWidth(tableView.frame),
+                                      [self tableView:tableView
+                                          heightForHeaderInSection:section]);
   UIView* headerView = [[UIView alloc] initWithFrame:headerViewFrame];
   if (section ==
           [self.tableViewModel
@@ -269,7 +265,7 @@ using vivaldi::NoteNode;
   [tableView deselectRowAtIndexPath:indexPath animated:YES];
 
   switch ([self.tableViewModel
-           sectionIdentifierForSectionIndex:indexPath.section]) {
+      sectionIdentifierForSectionIndex:indexPath.section]) {
     case SectionIdentifierAddFolder:
       [self pushFolderAddViewController];
       break;
@@ -287,7 +283,7 @@ using vivaldi::NoteNode;
       }
       const NoteNode* folder;
       NoteFolderItem* folderItem = base::apple::ObjCCast<NoteFolderItem>(
-        [self.tableViewModel itemAtIndexPath:indexPath]);
+          [self.tableViewModel itemAtIndexPath:indexPath]);
       folder = folderItem.noteNode;
       [self changeSelectedFolder:folder];
       [self delayedNotifyDelegateOfSelection];
@@ -321,15 +317,15 @@ using vivaldi::NoteNode;
 }
 
 - (void)noteNode:(const NoteNode*)noteNode
-     movedFromParent:(const NoteNode*)oldParent
-            toParent:(const NoteNode*)newParent {
+    movedFromParent:(const NoteNode*)oldParent
+           toParent:(const NoteNode*)newParent {
   if (noteNode->is_folder()) {
     [self reloadModel];
   }
 }
 
 - (void)noteNodeDeleted:(const NoteNode*)noteNode
-                 fromFolder:(const NoteNode*)folder {
+             fromFolder:(const NoteNode*)folder {
   // Remove node from editedNodes if it is already deleted (possibly remotely by
   // another sync device).
   if (self.editedNodes.find(noteNode) != self.editedNodes.end()) {
@@ -379,7 +375,7 @@ using vivaldi::NoteNode;
 
 - (void)reloadModel {
   _folders = note_utils_ios::VisibleNonDescendantNodes(self.editedNodes,
-                                                           self.noteModel);
+                                                       self.noteModel);
   // Delete any existing section.
   if ([self.tableViewModel
           hasSectionForSectionIdentifier:SectionIdentifierAddFolder])
@@ -391,14 +387,13 @@ using vivaldi::NoteNode;
         removeSectionWithIdentifier:SectionIdentifierNoteFolders];
 
   // Creates Folders Section
-  [self.tableViewModel
-      addSectionWithIdentifier:SectionIdentifierNoteFolders];
+  [self.tableViewModel addSectionWithIdentifier:SectionIdentifierNoteFolders];
 
   // Adds default "Add Folder" item if needed.
   if ([self shouldShowDefaultSection]) {
     NoteFolderItem* createFolderItem =
         [[NoteFolderItem alloc] initWithType:ItemTypeCreateNewFolder
-                                           style:NoteFolderStyleNewFolder];
+                                       style:NoteFolderStyleNewFolder];
     // Add the "Add Folder" Item to the same section as the rest of the folder
     // entries.
     [self.tableViewModel addItem:createFolderItem
@@ -407,9 +402,9 @@ using vivaldi::NoteNode;
   // Add Folders entries.
   for (NSUInteger row = 0; row < _folders.size(); row++) {
     const NoteNode* folderNode = self.folders[row];
-    NoteFolderItem* folderItem = [[NoteFolderItem alloc]
-        initWithType:ItemTypeNoteFolder
-               style:NoteFolderStyleFolderEntry];
+    NoteFolderItem* folderItem =
+        [[NoteFolderItem alloc] initWithType:ItemTypeNoteFolder
+                                       style:NoteFolderStyleFolderEntry];
     folderItem.title = note_utils_ios::TitleForNoteNode(folderNode);
     folderItem.currentFolder = (self.selectedFolder == folderNode);
     // Indentation level.
@@ -434,12 +429,11 @@ using vivaldi::NoteNode;
 - (void)pushFolderAddViewController {
   DCHECK(self.allowsNewFolders);
   NoteAddEditFolderViewController* folderCreator =
-      [NoteAddEditFolderViewController
-        initWithBrowser:self.browser
-                   item:nil
-                 parent:self.selectedFolder
-            isEditing:NO
-         allowsCancel:NO];
+      [NoteAddEditFolderViewController initWithBrowser:self.browser
+                                                  item:nil
+                                                parent:self.selectedFolder
+                                             isEditing:NO
+                                          allowsCancel:NO];
   folderCreator.delegate = self;
 
   [self.navigationController pushViewController:folderCreator animated:YES];
@@ -462,36 +456,32 @@ using vivaldi::NoteNode;
 }
 
 - (void)computeNoteTableViewDataMatching:(NSString*)searchText
-                  orShowMessageWhenNoResults:(NSString*)noResults {
+              orShowMessageWhenNoResults:(NSString*)noResults {
   // Delete any existing section.
   if ([self.tableViewModel
           hasSectionForSectionIdentifier:SectionIdentifierNoteFolders])
     [self.tableViewModel
         removeSectionWithIdentifier:SectionIdentifierNoteFolders];
- if ([self.tableViewModel
+  if ([self.tableViewModel
           hasSectionForSectionIdentifier:NoteHomeSectionIdentifierMessages])
     [self.tableViewModel
         removeSectionWithIdentifier:NoteHomeSectionIdentifierMessages];
 
   // Creates Folders and empty result Section
+  [self.tableViewModel addSectionWithIdentifier:SectionIdentifierNoteFolders];
   [self.tableViewModel
-      addSectionWithIdentifier:SectionIdentifierNoteFolders];
-   [self.tableViewModel
       addSectionWithIdentifier:NoteHomeSectionIdentifierMessages];
 
   std::vector<const NoteNode*> nodes;
-  self.noteModel->GetNotesFoldersMatching(
-        base::SysNSStringToUTF16(searchText),
-        kMaxNotesSearchResults,
-        nodes);
+  self.noteModel->GetNotesFoldersMatching(base::SysNSStringToUTF16(searchText),
+                                          kMaxNotesSearchResults, nodes);
   int count = 0;
   for (const NoteNode* node : nodes) {
-  // When search result is visible ignore the folder indentation and
-  // show a normal list.
+    // When search result is visible ignore the folder indentation and
+    // show a normal list.
     NoteFolderItem* folderItem =
-        [[NoteFolderItem alloc]
-            initWithType:ItemTypeNoteFolder
-                   style:NoteFolderStyleFolderEntry];
+        [[NoteFolderItem alloc] initWithType:ItemTypeNoteFolder
+                                       style:NoteFolderStyleFolderEntry];
     folderItem.title = note_utils_ios::TitleForNoteNode(node);
     folderItem.currentFolder = (self.selectedFolder == node);
     folderItem.noteNode = node;
@@ -503,7 +493,7 @@ using vivaldi::NoteNode;
 
   if (count == 0) {
     TableViewTextItem* item =
-      [[TableViewTextItem alloc] initWithType:NoteHomeItemTypeMessage];
+        [[TableViewTextItem alloc] initWithType:NoteHomeItemTypeMessage];
     item.textColor = [UIColor colorNamed:kTextPrimaryColor];
     item.text = noResults;
     [self.tableViewModel addItem:item
@@ -514,9 +504,8 @@ using vivaldi::NoteNode;
 /// Set up the table header view that contains the search bar
 - (void)setUpTableHeaderView {
   NoteFolderSelectionHeaderView* tableHeaderView =
-    [NoteFolderSelectionHeaderView new];
-  tableHeaderView.frame = CGRectMake(0, 0,
-                                     self.view.bounds.size.width,
+      [NoteFolderSelectionHeaderView new];
+  tableHeaderView.frame = CGRectMake(0, 0, self.view.bounds.size.width,
                                      vNoteFolderSelectionHeaderViewHeight);
   _tableHeaderView = tableHeaderView;
   self.tableView.tableHeaderView = tableHeaderView;
@@ -526,15 +515,14 @@ using vivaldi::NoteNode;
 /// Parameters: Item can be nil, parent is non-null and a boolean whether
 /// presenting on editing mode or not is provided.
 - (void)navigateToNoteFolderEditor:(NoteNode*)item
-                                parent:(NoteNode*)parent
-                             isEditing:(BOOL)isEditing {
+                            parent:(NoteNode*)parent
+                         isEditing:(BOOL)isEditing {
   NoteAddEditFolderViewController* controller =
-    [NoteAddEditFolderViewController
-       initWithBrowser:self.browser
-                  item:item
-                parent:parent
-             isEditing:isEditing
-          allowsCancel:NO];
+      [NoteAddEditFolderViewController initWithBrowser:self.browser
+                                                  item:item
+                                                parent:parent
+                                             isEditing:isEditing
+                                          allowsCancel:NO];
 
   controller.delegate = self;
   [self.navigationController pushViewController:controller animated:YES];

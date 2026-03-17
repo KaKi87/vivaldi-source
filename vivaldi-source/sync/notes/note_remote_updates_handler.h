@@ -5,7 +5,6 @@
 #ifndef SYNC_NOTES_NOTE_REMOTE_UPDATES_HANDLER_H_
 #define SYNC_NOTES_NOTE_REMOTE_UPDATES_HANDLER_H_
 
-#include <map>
 #include <vector>
 
 #include "base/memory/raw_ptr.h"

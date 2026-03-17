@@ -31,7 +31,7 @@ const UIEdgeInsets kSessionInfoEditPadding = UIEdgeInsetsMake(0, 8, 0, 12);
 const UIFontTextStyle nameTextStyle = UIFontTextStyleHeadline;
 const UIFontTextStyle sessionTextStyle = UIFontTextStyleFootnote;
 
-}
+}  // namespace
 
 #pragma mark - VivaldiTableViewSyncUserInfoItem
 
@@ -46,7 +46,7 @@ const UIFontTextStyle sessionTextStyle = UIFontTextStyleFootnote;
 }
 
 - (void)configureHeaderFooterView:(VivaldiTableViewSyncUserInfoView*)header
-           withStyler:(ChromeTableViewStyler*)styler {
+                       withStyler:(ChromeTableViewStyler*)styler {
   [super configureHeaderFooterView:header withStyler:styler];
 
   // Add extra space before the name to optically align the user name with
@@ -84,14 +84,14 @@ const UIFontTextStyle sessionTextStyle = UIFontTextStyleFootnote;
     _sessionInfoContainer = [self setupSessionInfoPillView];
 
     UIStackView* verticalStackView = [[UIStackView alloc]
-        initWithArrangedSubviews:@[_userNameLabel, _sessionInfoContainer]];
+        initWithArrangedSubviews:@[ _userNameLabel, _sessionInfoContainer ]];
     verticalStackView.axis = UILayoutConstraintAxisVertical;
     verticalStackView.alignment = UIStackViewAlignmentLeading;
     verticalStackView.spacing = kVerticalStackViewSpacing;
 
     _profileImageView = [UIImageView new];
     _profileImageView.contentMode = UIViewContentModeScaleAspectFill;
-    _profileImageView.layer.cornerRadius = kAvatarImageSize/2;
+    _profileImageView.layer.cornerRadius = kAvatarImageSize / 2;
     _profileImageView.layer.masksToBounds = YES;
     _profileImageView.userInteractionEnabled = YES;
 
@@ -106,15 +106,15 @@ const UIFontTextStyle sessionTextStyle = UIFontTextStyleFootnote;
     _badgeImageView.contentMode = UIViewContentModeScaleAspectFit;
 
     UIStackView* stackView = [[UIStackView alloc]
-        initWithArrangedSubviews:@[_profileImageView, verticalStackView]];
+        initWithArrangedSubviews:@[ _profileImageView, verticalStackView ]];
     stackView.axis = UILayoutConstraintAxisHorizontal;
     stackView.alignment = UIStackViewAlignmentCenter;
     stackView.spacing = kHorizontalStackViewSpacing;
     [self.contentView addSubview:stackView];
 
-    [stackView fillSuperviewWithPadding:UIEdgeInsetsMake(
-              kStackMargin,kStackMargin,
-              kStackMargin,kStackMargin)];
+    [stackView
+        fillSuperviewWithPadding:UIEdgeInsetsMake(kStackMargin, kStackMargin,
+                                                  kStackMargin, kStackMargin)];
   }
   // Add badgeImageView as a sibling of imageView
   [self.contentView addSubview:_badgeImageView];
@@ -123,17 +123,16 @@ const UIFontTextStyle sessionTextStyle = UIFontTextStyleFootnote;
   [NSLayoutConstraint activateConstraints:@[
     [_badgeImageView.widthAnchor constraintEqualToConstant:kBadgeImageSize],
     [_badgeImageView.heightAnchor constraintEqualToConstant:kBadgeImageSize],
-    [_badgeImageView.bottomAnchor constraintEqualToAnchor:
-      _profileImageView.bottomAnchor],
-    [_badgeImageView.rightAnchor constraintEqualToAnchor:
-      _profileImageView.rightAnchor]
+    [_badgeImageView.bottomAnchor
+        constraintEqualToAnchor:_profileImageView.bottomAnchor],
+    [_badgeImageView.rightAnchor
+        constraintEqualToAnchor:_profileImageView.rightAnchor]
   ]];
   return self;
 }
 
 - (UIView*)setupSessionInfoPillView {
-
-  UIView *pillView = [[UIView alloc] init];
+  UIView* pillView = [[UIView alloc] init];
   pillView.backgroundColor =
       [UIColor colorNamed:kGroupedSecondaryBackgroundColor];
   pillView.layer.cornerRadius = kSessionInfoPillRadius;
@@ -141,8 +140,7 @@ const UIFontTextStyle sessionTextStyle = UIFontTextStyleFootnote;
 
   _sessionNameLabel = [[UILabel alloc] init];
   _sessionNameLabel.textColor = [UIColor colorNamed:kTextSecondaryColor];
-  _sessionNameLabel.font =
-      [UIFont preferredFontForTextStyle:sessionTextStyle];
+  _sessionNameLabel.font = [UIFont preferredFontForTextStyle:sessionTextStyle];
   _sessionNameLabel.textAlignment = NSTextAlignmentCenter;
   _sessionNameLabel.numberOfLines = 0;
   [pillView addSubview:_sessionNameLabel];
@@ -152,7 +150,7 @@ const UIFontTextStyle sessionTextStyle = UIFontTextStyleFootnote;
                       trailing:nil
                        padding:kSessionNameLabelPadding];
 
-  UIView *separator = [[UIView alloc] init];
+  UIView* separator = [[UIView alloc] init];
   separator.backgroundColor = [UIColor tertiarySystemGroupedBackgroundColor];
   [pillView addSubview:separator];
   [separator anchorTop:pillView.topAnchor
@@ -162,10 +160,10 @@ const UIFontTextStyle sessionTextStyle = UIFontTextStyleFootnote;
                padding:kSessionInfoSeparatorPadding
                   size:kSessionInfoSeparatorSize];
 
-  NSString* buttonTitle =
-      [NSString stringWithFormat:@" %@",
-          l10n_util::GetNSString(IDS_VIVALDI_SYNC_DEVICE_NAME_EDIT)];
-  UIButton *editButton = [UIButton buttonWithType:UIButtonTypeSystem];
+  NSString* buttonTitle = [NSString
+      stringWithFormat:@" %@", l10n_util::GetNSString(
+                                   IDS_VIVALDI_SYNC_DEVICE_NAME_EDIT)];
+  UIButton* editButton = [UIButton buttonWithType:UIButtonTypeSystem];
   [editButton setTitle:buttonTitle forState:UIControlStateNormal];
 
   UIImageSymbolConfiguration* symbolConfig = [UIImageSymbolConfiguration
@@ -173,9 +171,9 @@ const UIFontTextStyle sessionTextStyle = UIFontTextStyleFootnote;
                           weight:UIImageSymbolWeightRegular
                            scale:UIImageSymbolScaleMedium];
   [editButton setPreferredSymbolConfiguration:symbolConfig
-                        forImageInState:UIControlStateNormal];
-  [editButton setImage:DefaultSymbolWithPointSize(
-                                    kPencilSymbol, kSessionInfoEditSymbolPoint)
+                              forImageInState:UIControlStateNormal];
+  [editButton setImage:DefaultSymbolWithPointSize(kPencilSymbol,
+                                                  kSessionInfoEditSymbolPoint)
               forState:UIControlStateNormal];
   editButton.imageView.contentMode = UIViewContentModeScaleAspectFit;
   editButton.titleLabel.font =
@@ -188,8 +186,8 @@ const UIFontTextStyle sessionTextStyle = UIFontTextStyleFootnote;
 
   [pillView addSubview:editButton];
   [editButton anchorTop:nil
-               leading:separator.trailingAnchor
-                bottom:nil
+                leading:separator.trailingAnchor
+                 bottom:nil
                trailing:pillView.trailingAnchor
                 padding:kSessionInfoEditPadding
                    size:kSessionInfoEditSize];
@@ -215,10 +213,10 @@ const UIFontTextStyle sessionTextStyle = UIFontTextStyleFootnote;
 
 - (void)setUserAvatar:(UIImage*)image {
   CGSize size = CGSizeMake(kAvatarImageSize, kAvatarImageSize);
-  self.profileImageView.layer.cornerRadius = kAvatarImageSize/2;
+  self.profileImageView.layer.cornerRadius = kAvatarImageSize / 2;
   self.profileImageView.layer.masksToBounds = YES;
   self.profileImageView.image =
-    ResizeImage(image, size, ProjectionMode::kAspectFill);
+      ResizeImage(image, size, ProjectionMode::kAspectFill);
 }
 
 #pragma mark - Actions

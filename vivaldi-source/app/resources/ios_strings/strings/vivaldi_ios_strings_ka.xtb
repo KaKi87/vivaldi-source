@@ -23,6 +23,7 @@
 <translation id="2565593432251168402">დააორგანიზეთ თქვენი ბრაუზერი ჩანართის ჯგუფების შექმნით</translation>
 <translation id="2783161812871838616">კომპიუტერის საიტის მოთხოვნა</translation>
 <translation id="2806957659107692459">ჩანართების ჯგუფის შექმნა</translation>
+<translation id="2830375794722738493">პირადი ჩანართების დამალვა</translation>
 <translation id="2899836479226240291">Vivaldi-ში ბმულები ავტომატურად რომ გაიხსნას, აქციეთ ის ბრაუზერის ნაგულისხმევ აპად.</translation>
 <translation id="3365529507898144230">Photos-ში შენახვა</translation>
 <translation id="3434473769478814796">ჩასმა და გადასვლა</translation>
@@ -61,6 +62,9 @@
 <translation id="5431239785743546285">თქვენ მიერ წაკითხული გვერდები</translation>
 <translation id="5521301883748677039">წავშალო ჩანართების ჯგუფი?</translation>
 <translation id="5544011153887687593">ჩანართების ჯგუფის ჩანართი. <ph name="TAB_INDEX_IN_GROUP" /> <ph name="NUMBER_OF_TABS_IN_GROUP" />-დან.</translation>
+<translation id="5548760955356983418">Handsoff საშუალებას გაძლევთ, დაიწყოთ ვებგვერდის თვალიერება ამ მოწყობილობაზე და შემდეგ თქვენს Mac-ზე გააგრზელოთ. ამჟამად გახსნილი ვებგვერდი თქვენი Mac-ის კუთხეში გამოჩნდება.
+
+Handsoff მორგების ფანჯრის ზოგად ჩანართში უნდა ჩართოთ და თქვენი მოწყობილობები იგივე iCloud-ის ანგარიშს უნდა იყენებდეს.</translation>
 <translation id="5614553682702429503">შევინახო პაროლი?</translation>
 <translation id="5620163320393916465">შენახული პაროლების გარეშე</translation>
 <translation id="570209299585559496">ნაგულისხმევი საიტის ხედის შეცვლა შეგიძლიათ მენიუში 'მორგება', შემდეგ 'შემცველობის მორგება'</translation>
@@ -73,9 +77,11 @@
 <translation id="6233792867654386826">შეყვანილი ბმულების გახსნა Vivaldi-ში.</translation>
 <translation id="6271462272606946663">მობილური საიტის მოთხოვნის დამალვა</translation>
 <translation id="6309282378909663947">პაროლები Vivaldi-ის პაროლების მმართველიდან</translation>
+<translation id="6464648082977038075">პირადი ჩანართების დახურვა</translation>
 <translation id="6478587527114893588">ჯგუფის დახურვა.</translation>
 <translation id="6527405730445064713">ჩანართების ჯგუფი. ჩამოშლილი.</translation>
 <translation id="6532106788206463496">ცვლილებების შენახვა</translation>
+<translation id="6575010608310776688">გაგრძელება პირად რეჟიმში</translation>
 <translation id="6636411080833380839">წაშლა ჯგუფიდან</translation>
 <translation id="6644512095122093795">პაროლების შენახვის შეთავაზება</translation>
 <translation id="6666425778700353369">ეს წაშლის ჩანართების ჯგუფს ყველა მოწყობილობიდან, რომელიც <ph name="USER_EMAIL" />-შია შესული.</translation>
@@ -114,6 +120,8 @@
 <translation id="8951084872625418241">ახალი ჩანართი ჯგუფში</translation>
 <translation id="9042893549633094279">კონფიდენციალობა და უსაფრთხოება</translation>
 <translation id="9094033019050270033">პაროლის განახლება</translation>
+<translation id="9203116392574189331">Handoff</translation>
 <translation id="944434461715569989">ჯგუფის დატოვება</translation>
 <translation id="959061183386231608">ჩანართების ჯგუფი ღია დარჩება ამ მოწყობილობაზე, მაგრამ ჩანართების ჯგუფი სამუდამოდ წაიშლება.</translation>
+<translation id="988141524645182168">სხვა მოწყობილობები</translation>
 </translationbundle>

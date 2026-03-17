@@ -21,6 +21,7 @@
 #include "components/url_pattern_index/uint64_hasher.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
+#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/http/http_request_headers.h"
 #include "third_party/re2/src/re2/re2.h"
 #include "third_party/re2/src/re2/stringpiece.h"
@@ -198,23 +199,25 @@ struct ContentInjectionIndexTraversalResults {
     std::string abp_snippets_isolated_arguments;
     for (const flat::ScriptletInjectionRule* rule :
          scriptlet_injection_rules.selected) {
-      if (rule->scriptlet_name()->string_view() ==
-          kAbpSnippetsMainScriptletName) {
-        DCHECK(rule->arguments()->size() == 1);
-        // The ABP snippet arguments were purposefully left with a trailing
-        // comma at the parsing stage. We can just concatenate them here.
-        abp_snippets_main_arguments += rule->arguments()->Get(0)->str();
-      } else if (rule->scriptlet_name()->string_view() ==
-                 kAbpSnippetsIsolatedScriptletName) {
-        DCHECK(rule->arguments()->size() == 1);
-        abp_snippets_isolated_arguments += rule->arguments()->Get(0)->str();
-      } else {
-        RulesIndex::ScriptletInjection scriptlet_injection;
-        scriptlet_injection.first = rule->scriptlet_name()->str();
-        for (auto* argument : *(rule->arguments()))
-          scriptlet_injection.second.push_back(argument->str());
-        injection_data.scriptlet_injections.push_back(
-            std::move(scriptlet_injection));
+      for (const flat::Scriptlet* scriptlet : *rule->scriptlets()) {
+        if (scriptlet->name()->string_view() == kAbpSnippetsMainScriptletName) {
+          DCHECK(scriptlet->arguments()->size() == 1);
+          // The ABP snippet arguments were purposefully left with a trailing
+          // comma at the parsing stage. We can just concatenate them here.
+          abp_snippets_main_arguments += scriptlet->arguments()->Get(0)->str();
+        } else if (scriptlet->name()->string_view() ==
+                   kAbpSnippetsIsolatedScriptletName) {
+          DCHECK(scriptlet->arguments()->size() == 1);
+          abp_snippets_isolated_arguments +=
+              scriptlet->arguments()->Get(0)->str();
+        } else {
+          RulesIndex::ScriptletInjection scriptlet_injection;
+          scriptlet_injection.first = scriptlet->name()->str();
+          for (auto* argument : *(scriptlet->arguments()))
+            scriptlet_injection.second.push_back(argument->str());
+          injection_data.scriptlet_injections.push_back(
+              std::move(scriptlet_injection));
+        }
       }
     }
 
@@ -226,6 +229,55 @@ struct ContentInjectionIndexTraversalResults {
     return injection_data;
   }
 };
+
+std::optional<uint32_t> GetSubdomainNodeIndex(
+    std::string_view domain_piece,
+    size_t tree_size,
+    std::optional<size_t> first_child_node_index,
+    const FlatStringList* subdomains) {
+  if (subdomains == nullptr || subdomains->size() == 0)
+    return std::nullopt;
+
+  CHECK(first_child_node_index);
+
+  // If the `subdomains` list is short, then the simple strategy is usually
+  // faster.
+  constexpr size_t kSmallSubdomainListSize = 5;
+  if (subdomains->size() <= kSmallSubdomainListSize) {
+    for (auto subdomain = subdomains->begin(); subdomain != subdomains->end();
+         subdomain++) {
+      if (subdomain->string_view() == domain_piece) {
+        CHECK((subdomain - subdomains->begin()) + *first_child_node_index <
+              tree_size);
+
+        return (subdomain - subdomains->begin()) + *first_child_node_index;
+      }
+    }
+    return std::nullopt;
+  }
+
+  auto compare = [](const flatbuffers::String* lhs,
+                    const std::string_view& rhs) {
+    std::string lhs_str = lhs->str();
+    return std::lexicographical_compare(lhs_str.begin(), lhs_str.end(),
+                                        rhs.begin(), rhs.end());
+  };
+
+  const auto& subdomain = std::lower_bound(
+      subdomains->begin(), subdomains->end(), domain_piece, compare);
+  if (subdomain == subdomains->end())
+    return std::nullopt;
+
+  std::string subdomain_str = subdomain->str();
+  if (!std::equal(subdomain_str.begin(), subdomain_str.end(),
+                  domain_piece.begin(), domain_piece.end()))
+    return std::nullopt;
+
+  CHECK((subdomain - subdomains->begin()) + *first_child_node_index <
+        tree_size);
+
+  return (subdomain - subdomains->begin()) + *first_child_node_index;
+}
 
 bool DoesRulePartyMatch(const flat::RequestFilterRule& rule,
                         const RulesIndex::BaseQuery& query) {
@@ -315,97 +367,129 @@ bool DoesUrlMatchRulePattern(const RuleAndSource& rule_and_source,
   }
 }
 
-// Returns the size of the longest (sub-)domain of `origin` matching one of the
-// `domains` in the list.
+// Returns whether the `origin` matches the domain constraints of the `rule`. To
+// match a generic constraint, the origin must not match any excluded domain. To
+// match a specific constraint (which has some included domains), the origin
+// must match one of the included domains.
 //
-// The `domains` should be sorted in descending order of their length, and
-// ascending alphabetical order within the groups of same-length domains.
-size_t GetLongestMatchingSubdomain(const url::Origin& origin,
-                                   const FlatStringList& domains) {
-  // If the `domains` list is short, then the simple strategy is usually faster.
-  if (domains.size() <= 5) {
-    for (auto* domain : domains) {
-      const std::string_view domain_piece = ToStringPiece(domain);
-      if (origin.DomainIs(domain_piece))
-        return domain_piece.size();
-    }
-    return 0;
-  }
-  // Otherwise look for each subdomain of the `origin` using binary search.
-
-  DCHECK(!origin.opaque());
-  std::string_view canonicalized_host(origin.host());
-  if (canonicalized_host.empty())
-    return 0;
-
-  // If the host name ends with a dot, then ignore it.
-  if (canonicalized_host.back() == '.')
-    canonicalized_host.remove_suffix(1);
-
-  // The `left` bound of the search is shared between iterations, because
-  // subdomains are considered in decreasing order of their lengths, therefore
-  // each consecutive lower_bound will be at least as far as the previous.
-  flatbuffers::uoffset_t left = 0;
-  for (size_t position = 0;; ++position) {
-    const std::string_view subdomain = canonicalized_host.substr(position);
-
-    flatbuffers::uoffset_t right = domains.size();
-    while (left + 1 < right) {
-      auto middle = left + (right - left) / 2;
-      DCHECK_LT(middle, domains.size());
-      if (SizePrioritizedStringCompare(ToStringPiece(domains[middle]),
-                                       subdomain) <= 0)
-        left = middle;
-      else
-        right = middle;
-    }
-
-    DCHECK_LT(left, domains.size());
-    if (ToStringPiece(domains[left]) == subdomain)
-      return subdomain.size();
-
-    position = canonicalized_host.find('.', position);
-    if (position == std::string_view::npos)
-      break;
-  }
-
-  return 0;
-}
-
-// Returns whether the `origin` matches the domain list of the `rule`. A match
-// means that the longest domain in `domains` that `origin` is a sub-domain of
-// is not an exception OR all the `domains` are exceptions and neither matches
-// the `origin`. Thus, domain filters with more domain components trump filters
-// with fewer domain components, i.e. the more specific a filter is, the higher
-// the priority.
-//
-// A rule whose domain list is empty or contains only negative domains is still
-// considered a "generic" rule. Therefore, if `disable_generic_rules` is set,
-// this function will always return false for such rules if they are simple
-// modify rules.
-bool DoesOriginMatchDomainList(const url::Origin& origin,
-                               const flat::RequestFilterRule& rule,
-                               bool disable_generic_rules) {
-  const bool is_generic = !rule.domains_included();
-  DCHECK(is_generic || rule.domains_included()->size());
+// If `disable_generic_rules` is set, this function will always return false for
+// generic rules if they are regular modify rules. Allow rules and important
+// rules are always evaluated.
+bool DoesOriginMatchFromDomainConstraints(const url::Origin& origin,
+                                          const RuleAndSource& rule_and_source,
+                                          bool disable_generic_rules) {
+  const bool is_generic =
+      IsGeneric(*rule_and_source.rule->from_domain_constraints());
   if (disable_generic_rules && is_generic &&
-      rule.decision() == flat::Decision_MODIFY)
+      rule_and_source.rule->decision() == flat::Decision_MODIFY)
     return false;
 
   // Unique `origin` matches lists of exception domains only.
   if (origin.opaque())
     return is_generic;
 
-  size_t longest_matching_included_domain_length = 1;
-  if (!is_generic) {
-    longest_matching_included_domain_length =
-        GetLongestMatchingSubdomain(origin, *rule.domains_included());
+  const flat::DomainConstraintsTree* domain_constraints_tree =
+      rule_and_source.rule->from_domain_constraints();
+
+  const size_t registry_length =
+      net::registry_controlled_domains::GetCanonicalHostRegistryLength(
+          origin.host(),
+          net::registry_controlled_domains::INCLUDE_UNKNOWN_REGISTRIES,
+          net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
+
+  const flat::DomainConstraintsNode* hostname_node =
+      domain_constraints_tree->nodes()->Get(
+          domain_constraints_tree->hostnames_node_index());
+  const flat::DomainConstraintsNode* entity_node = nullptr;
+
+  size_t seen_length = 0;
+  enum { kIncluded, kExcluded, kNoMatch } match = kNoMatch;
+
+  auto labels = base::SplitStringPiece(
+      origin.host(), ".", base::WhitespaceHandling::KEEP_WHITESPACE,
+      base::SplitResult::SPLIT_WANT_ALL);
+
+  for (std::string_view& label : base::Reversed(labels)) {
+    if (hostname_node) {
+      std::optional<uint32_t> subdomain_node_index = GetSubdomainNodeIndex(
+          label, domain_constraints_tree->nodes()->size(),
+          hostname_node->first_child_node_index(), hostname_node->subdomains());
+      hostname_node =
+          subdomain_node_index
+              ? domain_constraints_tree->nodes()->Get(*subdomain_node_index)
+              : nullptr;
+    }
+    if (entity_node) {
+      std::optional<uint32_t> subdomain_node_index = GetSubdomainNodeIndex(
+          label, domain_constraints_tree->nodes()->size(),
+          entity_node->first_child_node_index(), entity_node->subdomains());
+      entity_node =
+          subdomain_node_index
+              ? domain_constraints_tree->nodes()->Get(*subdomain_node_index)
+              : nullptr;
+    }
+
+    if (!hostname_node && !entity_node && seen_length >= registry_length + 1) {
+      // No match
+      break;
+    }
+
+    if (hostname_node) {
+      if (hostname_node->type() == flat::DomainConstraintNodeType_INCLUDED) {
+        match = kIncluded;
+      } else if (hostname_node->type() ==
+                 flat::DomainConstraintNodeType_EXCLUDED) {
+        match = kExcluded;
+        break;
+      }
+    }
+
+    if (entity_node) {
+      if (entity_node->type() == flat::DomainConstraintNodeType_INCLUDED) {
+        match = kIncluded;
+      } else if (entity_node->type() ==
+                 flat::DomainConstraintNodeType_EXCLUDED) {
+        match = kExcluded;
+        break;
+      }
+    }
+
+    seen_length += label.length() + 1;
+    if (seen_length == registry_length + 1) {
+      entity_node = domain_constraints_tree->nodes()->Get(
+          domain_constraints_tree->entities_node_index());
+    }
   }
-  if (longest_matching_included_domain_length && rule.domains_excluded()) {
-    return GetLongestMatchingSubdomain(origin, *rule.domains_excluded()) <
-           longest_matching_included_domain_length;
+
+  if (match == kExcluded) {
+    return false;
   }
-  return !!longest_matching_included_domain_length;
+
+  if (domain_constraints_tree->excluded_regexes()) {
+    for (auto* regex : *domain_constraints_tree->excluded_regexes()) {
+      if (RE2::PartialMatch(
+              re2::StringPiece(origin.host().data(), origin.host().size()),
+              rule_and_source.source_buffer->GetRegexForPattern(regex))) {
+        return false;
+      }
+    }
+  }
+
+  if (match == kIncluded || (is_generic && match == kNoMatch)) {
+    return true;
+  }
+
+  if (domain_constraints_tree->included_regexes()) {
+    for (auto* regex : *domain_constraints_tree->included_regexes()) {
+      if (RE2::PartialMatch(
+              re2::StringPiece(origin.host().data(), origin.host().size()),
+              rule_and_source.source_buffer->GetRegexForPattern(regex))) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 bool DoesMatchAdAttributionParams(
@@ -442,31 +526,27 @@ bool DoesMatchAdAttributionParams(
 RuleAndSource GetRequestFilterRuleAndSourceFromId(
     const RulesIndex::RulesBufferMap& rule_buffers,
     const flat::RuleId& rule_id) {
-  auto rule_buffer = rule_buffers.find(rule_id.source_id());
-  DCHECK(rule_buffer != rule_buffers.end());
+  const RuleBufferHolder& rule_buffer = rule_buffers.at(rule_id.source_id());
   return RuleAndSource{
-      rule_buffer->second.rules_list()->request_filter_rules_list()->Get(
+      rule_buffer.rules_list()->request_filter_rules_list()->Get(
           rule_id.rule_nr()),
-      &rule_buffer->second};
+      &rule_buffer};
 }
 
 const flat::CosmeticRule* GetCosmeticRuleFromId(
     const RulesIndex::RulesBufferMap& rule_buffers,
     const flat::RuleId& rule_id) {
-  auto rule_buffer = rule_buffers.find(rule_id.source_id());
-  DCHECK(rule_buffer != rule_buffers.end());
-  return rule_buffer->second.rules_list()->cosmetic_rules_list()->Get(
+  const RuleBufferHolder& rule_buffer = rule_buffers.at(rule_id.source_id());
+  return rule_buffer.rules_list()->cosmetic_rules_list()->Get(
       rule_id.rule_nr());
 }
 
 const flat::ScriptletInjectionRule* GetScriptletInjectionRuleFromId(
     const RulesIndex::RulesBufferMap& rule_buffers,
     const flat::RuleId& rule_id) {
-  auto rule_buffer = rule_buffers.find(rule_id.source_id());
-  DCHECK(rule_buffer != rule_buffers.end());
-  return rule_buffer->second.rules_list()
-      ->scriptlet_injection_rules_list()
-      ->Get(rule_id.rule_nr());
+  const RuleBufferHolder& rule_buffer = rule_buffers.at(rule_id.source_id());
+  return rule_buffer.rules_list()->scriptlet_injection_rules_list()->Get(
+      rule_id.rule_nr());
 }
 
 bool AddActivationsFromRule(ActivationsFound& activations,
@@ -516,7 +596,8 @@ void GetActivationsFromCandidates(
       continue;
     }
 
-    if (!DoesOriginMatchDomainList(query.GetOrigin(), rule, false)) {
+    if (!DoesOriginMatchFromDomainConstraints(query.GetOrigin(),
+                                              rule_and_source, false)) {
       continue;
     }
 
@@ -582,8 +663,9 @@ std::optional<RuleAndSource> FindMatchAmongCandidates(
       continue;
     }
 
-    if (!DoesOriginMatchDomainList(query.GetOrigin(), rule,
-                                   query.WantsDisableGenericRules())) {
+    if (!DoesOriginMatchFromDomainConstraints(
+            query.GetOrigin(), rule_and_source,
+            query.WantsDisableGenericRules())) {
       continue;
     }
 
@@ -618,11 +700,11 @@ std::optional<RuleAndSource> FindMatchAmongCandidates(
   return std::nullopt;
 }
 
-// `sorted_candidates` is sorted with by GetRulePriority. The modifier value of
-// matching rules are stored in `result` based on modifier type. For a given
-// modifier value, only the rule with highest priority is stored for a given
-// modifier value gets stored. If a pass all rule is encountered, it is stored
-// separately and no further tule gets entered for that type.
+// `sorted_candidates` is sorted with by GetRulePriority. The modifier value
+// of matching rules are stored in `result` based on modifier type. For a
+// given modifier value, only the rule with highest priority is stored for a
+// given modifier value gets stored. If a pass all rule is encountered, it is
+// stored separately and no further tule gets entered for that type.
 void FindModifierRulesMatchesCandidates(
     const FlatRulesByModifierList* sorted_candidates_by_modifier,
     const RulesIndex::RulesBufferMap& rule_buffers,
@@ -687,8 +769,9 @@ void FindModifierRulesMatchesCandidates(
         continue;
       }
 
-      if (!DoesOriginMatchDomainList(query.GetOrigin(), rule,
-                                     query.WantsDisableGenericRules())) {
+      if (!DoesOriginMatchFromDomainConstraints(
+              query.GetOrigin(), rule_and_source,
+              query.WantsDisableGenericRules())) {
         continue;
       }
 
@@ -749,51 +832,19 @@ void FindMatchingRuleInMap(
   }
 }
 
-std::optional<uint32_t> GetSubdomainNodeIndex(
-    std::string_view domain_piece,
-    const flatbuffers::Vector<
-        flatbuffers::Offset<flat::ContentInjectionRulesNode>>* tree,
-    const flat::ContentInjectionRulesNode* node) {
-  if (!node->subdomains())
-    return std::nullopt;
-
-  auto compare = [](const flatbuffers::String* lhs,
-                    const std::string_view& rhs) {
-    std::string lhs_str = lhs->str();
-    return std::lexicographical_compare(lhs_str.begin(), lhs_str.end(),
-                                        rhs.begin(), rhs.end());
-  };
-
-  const auto& subdomain =
-      std::lower_bound(node->subdomains()->begin(), node->subdomains()->end(),
-                       domain_piece, compare);
-  if (subdomain == node->subdomains()->end())
-    return std::nullopt;
-
-  std::string subdomain_str = subdomain->str();
-  if (!std::equal(subdomain_str.begin(), subdomain_str.end(),
-                  domain_piece.begin(), domain_piece.end()))
-    return std::nullopt;
-
-  DCHECK((subdomain - node->subdomains()->begin()) +
-             node->first_child_node_index() <
-         tree->size());
-
-  return (subdomain - node->subdomains()->begin()) +
-         node->first_child_node_index();
-}
-
 void GetSelectorsForDomain(
+    bool skip_cosmetic_rules,
     const RulesIndex::RulesBufferMap& rules_buffers,
-    std::vector<std::string_view>::const_reverse_iterator domain_piece,
-    std::vector<std::string_view>::const_reverse_iterator domain_end,
     ContentInjectionIndexTraversalResults* results,
     const flatbuffers::Vector<
-        flatbuffers::Offset<flat::ContentInjectionRulesNode>>* tree,
-    const flat::ContentInjectionRulesNode* node) {
-  for (const auto* rule_for_domain : *node->rules()) {
+        flatbuffers::Offset<flat::ContentInjectionRuleForDomain>>&
+        rules_for_domain) {
+  for (const auto* rule_for_domain : rules_for_domain) {
     switch (rule_for_domain->rule_type()) {
       case flat::ContentInjectionRuleType_COSMETIC: {
+        if (skip_cosmetic_rules) {
+          continue;
+        }
         const flat::CosmeticRule* rule =
             GetCosmeticRuleFromId(rules_buffers, *rule_for_domain->rule_id());
         if (rule_for_domain->allow_for_domain()) {
@@ -818,18 +869,6 @@ void GetSelectorsForDomain(
       }
     }
   }
-
-  if (domain_piece == domain_end)
-    return;
-
-  std::optional<uint32_t> subdomain_node_index =
-      GetSubdomainNodeIndex(*domain_piece++, tree, node);
-
-  if (!subdomain_node_index)
-    return;
-
-  GetSelectorsForDomain(rules_buffers, domain_piece, domain_end, results, tree,
-                        tree->Get(subdomain_node_index.value()));
   return;
 }
 }  // namespace
@@ -1057,23 +1096,21 @@ RulesIndex::InjectionData& RulesIndex::InjectionData::operator=(
 
 RulesIndex::InjectionData RulesIndex::GetInjectionDataForOrigin(
     const url::Origin& origin,
-    bool disable_specific_rules,
-    bool disable_generic_rules) {
+    bool disable_specific_cosmetic_rules,
+    bool disable_generic_cosmetic_rules) {
   ContentInjectionIndexTraversalResults results;
 
-  const auto* tree = rules_index_->content_injection_rules_tree();
+  const flat::ContentInjectionRulesTreeRoot* tree =
+      rules_index_->content_injection_rules_tree();
 
-  const flat::ContentInjectionRulesNode* root =
-      tree->Get(rules_index_->content_injection_rule_tree_root_index());
-
-  for (const auto* rule_for_domain : *root->rules()) {
+  for (const auto* rule_for_domain : *tree->rules()) {
     switch (rule_for_domain->rule_type()) {
       case flat::ContentInjectionRuleType_COSMETIC: {
         const flat::CosmeticRule* rule =
             GetCosmeticRuleFromId(rules_buffers_, *rule_for_domain->rule_id());
         if (rule_for_domain->allow_for_domain())
           results.cosmetic_rules.exceptions.insert(rule);
-        else if (!disable_generic_rules)
+        else if (!disable_generic_cosmetic_rules)
           results.cosmetic_rules.selected.insert(rule);
         break;
       }
@@ -1081,28 +1118,81 @@ RulesIndex::InjectionData RulesIndex::GetInjectionDataForOrigin(
         const flat::ScriptletInjectionRule* rule =
             GetScriptletInjectionRuleFromId(rules_buffers_,
                                             *rule_for_domain->rule_id());
-        if (rule_for_domain->allow_for_domain())
-          results.scriptlet_injection_rules.exceptions.insert(rule);
-        else if (!disable_generic_rules)
-          results.scriptlet_injection_rules.selected.insert(rule);
+        CHECK(rule_for_domain->allow_for_domain());
+        results.scriptlet_injection_rules.exceptions.insert(rule);
         break;
       }
     }
   }
 
-  if (origin.host().empty() || disable_specific_rules)
+  if (origin.host().empty())
     return results.ToInjectionData();
 
-  const auto domain_pieces = base::SplitStringPiece(
-      origin.host(), ".", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
+  // Note that disable_specific_cosmetic hide does not apply to scriptlets in
+  // the uBlock implementatio, so we still retrieve those.
 
-  std::optional<uint32_t> subdomain_node_index = GetSubdomainNodeIndex(
-      domain_pieces.back(), rules_index_->content_injection_rules_tree(), root);
+  const size_t registry_length =
+      net::registry_controlled_domains::GetCanonicalHostRegistryLength(
+          origin.host(),
+          net::registry_controlled_domains::INCLUDE_UNKNOWN_REGISTRIES,
+          net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
+  const flat::ContentInjectionRulesTreeNode* hostname_node =
+      tree->nodes()->Get(tree->hostnames_index());
+  const flat::ContentInjectionRulesTreeNode* entity_node = nullptr;
+  size_t seen_length = 0;
 
-  if (subdomain_node_index)
-    GetSelectorsForDomain(rules_buffers_, domain_pieces.rbegin() + 1,
-                          domain_pieces.rend(), &results, tree,
-                          tree->Get(subdomain_node_index.value()));
+  auto labels = base::SplitStringPiece(
+      origin.host(), ".", base::WhitespaceHandling::KEEP_WHITESPACE,
+      base::SplitResult::SPLIT_WANT_ALL);
+
+  for (std::string_view& label : base::Reversed(labels)) {
+    if (hostname_node) {
+      std::optional<uint32_t> subdomain_node_index = GetSubdomainNodeIndex(
+          label, tree->nodes()->size(), hostname_node->first_child_node_index(),
+          hostname_node->subdomains());
+      hostname_node = subdomain_node_index
+                          ? tree->nodes()->Get(*subdomain_node_index)
+                          : nullptr;
+    }
+    if (entity_node) {
+      std::optional<uint32_t> subdomain_node_index = GetSubdomainNodeIndex(
+          label, tree->nodes()->size(), entity_node->first_child_node_index(),
+          entity_node->subdomains());
+      entity_node = subdomain_node_index
+                        ? tree->nodes()->Get(*subdomain_node_index)
+                        : nullptr;
+    }
+
+    if (hostname_node) {
+      GetSelectorsForDomain(disable_specific_cosmetic_rules, rules_buffers_,
+                            &results, *hostname_node->rules());
+    }
+
+    if (entity_node) {
+      GetSelectorsForDomain(disable_specific_cosmetic_rules, rules_buffers_,
+                            &results, *entity_node->rules());
+    }
+
+    seen_length += label.length() + 1;
+    if (seen_length == registry_length + 1) {
+      entity_node = tree->nodes()->Get(tree->entities_index());
+    }
+  }
+
+  for (auto* regex : *tree->regexes()) {
+    // Use the rule buffer from the first rule using this regex to cache it.
+    // There will in most cases only be one anyway.
+    CHECK_GT(regex->rules()->size(), 0ull);
+    const RuleBufferHolder& rule_buffer =
+        rules_buffers_.at(regex->rules()->Get(0)->rule_id()->source_id());
+
+    if (RE2::PartialMatch(
+            re2::StringPiece(origin.host().data(), origin.host().size()),
+            rule_buffer.GetRegexForPattern(regex->regex()))) {
+      GetSelectorsForDomain(disable_specific_cosmetic_rules, rules_buffers_,
+                            &results, *regex->rules());
+    }
+  }
 
   return results.ToInjectionData();
 }

@@ -42,6 +42,7 @@ bool IsConfigRelatedUpdateOriginValue(
     case sync_pb::SyncEnums::UNKNOWN_ORIGIN:
     case sync_pb::SyncEnums::PERIODIC:
     case sync_pb::SyncEnums::GU_TRIGGER:
+    case sync_pb::SyncEnums::DEVICE_STATISTICS_METRICS:
       return false;
   }
   NOTREACHED();
@@ -112,10 +113,10 @@ void SyncSchedulerImpl::OnCredentialsUpdated() {
 }
 
 void SyncSchedulerImpl::OnConnectionStatusChange(
-    network::mojom::ConnectionType type) {
+    net::NetworkChangeNotifier::ConnectionType type) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
-  if (type != network::mojom::ConnectionType::CONNECTION_NONE &&
+  if (type != net::NetworkChangeNotifier::ConnectionType::CONNECTION_NONE &&
       HttpResponse::CONNECTION_UNAVAILABLE ==
           cycle_context_->connection_manager()->server_status()) {
     // Optimistically assume that the connection is fixed and try
@@ -464,8 +465,8 @@ void SyncSchedulerImpl::HandleFailure(
             ? wait_interval_->length
             : delay_provider_->GetInitialDelay(model_neutral_state);
     base::TimeDelta next_delay = delay_provider_->GetDelay(previous_delay);
-    wait_interval_.emplace(
-        WaitInterval::BlockingMode::kExponentialBackoff, next_delay);
+    wait_interval_.emplace(WaitInterval::BlockingMode::kExponentialBackoff,
+                           next_delay);
     SDVLOG(2) << "Sync cycle failed.  Will back off for "
               << wait_interval_->length.InMilliseconds() << "ms.";
   }
@@ -725,8 +726,8 @@ bool SyncSchedulerImpl::IsGlobalBackoff() const {
 void SyncSchedulerImpl::OnThrottled(const base::TimeDelta& throttle_duration) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
   base::UmaHistogramBoolean("Sync.ThrottledAllDataTypes", true);
-  wait_interval_.emplace(
-      WaitInterval::BlockingMode::kThrottled, throttle_duration);
+  wait_interval_.emplace(WaitInterval::BlockingMode::kThrottled,
+                         throttle_duration);
   for (SyncEngineEventListener& observer : *cycle_context_->listeners()) {
     observer.OnThrottledTypesChanged(DataTypeSet::All());
   }

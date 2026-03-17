@@ -19,7 +19,7 @@
 #import "ui/base/l10n/l10n_util.h"
 
 @interface ModalPageCoordinator () <UIAdaptivePresentationControllerDelegate,
-                              WKNavigationDelegate>
+                                    WKNavigationDelegate>
 
 @property(nonatomic, strong) ModalPageViewController* viewController;
 @property(nonatomic, strong) NSURL* url;
@@ -37,8 +37,7 @@
                                      title:(NSString*)title {
   DCHECK(url);
   DCHECK(title);
-  self = [super initWithBaseViewController:baseViewController
-                                   browser:browser];
+  self = [super initWithBaseViewController:baseViewController browser:browser];
   if (self) {
     _url = url;
     _title = title;

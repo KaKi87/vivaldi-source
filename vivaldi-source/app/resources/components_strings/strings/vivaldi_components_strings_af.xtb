@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">U verbinding aan hierdie werf is nie heeltemal veilig nie</translation>
 <translation id="4265872034478892965">Deur u administrateur toegelaat</translation>
 <translation id="4305666528087210886">Kon nie toegang tot u lêer kry nie</translation>
-<translation id="4408413947728134509">Koekies <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> het nie u aantekensertifikaat aanvaar nie, of een is dalk nie verskaf nie.</translation>
 <translation id="4506599922270137252">Kontak tans die stelseladmin</translation>
 <translation id="4522570452068850558">Details</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Geen resultate</translation>
 <translation id="5017554619425969104">Teks wat u gekopieer het</translation>
 <translation id="5023310440958281426">Gaan u administrateur se beleide na</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 in gebruik)} other {(# in gebruik)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Gaan tans die instaanbedieneradres na<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bis)</translation>
 <translation id="5216942107514965959">Vandag laas besoek</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">U moet liefs geen sensitiewe inligting (bv. wagwoorde of kredietkaarte) op hierdie werf invoer nie omdat dit deur aanvallers gesteel kan word.</translation>
 <translation id="5863515189965725638">Wysig IBAN</translation>
 <translation id="5869405914158311789">Hierdie werf kan nie bereik word nie</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{1 word gebruik}other{# word gebruik}}</translation>
 <translation id="5932224571077948991">Werf vertoon indringerige of misleidende advertensies</translation>
 <translation id="6051221802930200923">U kan nie nou <ph name="SITE" /> besoek nie omdat die webwerf sertifikaatopsluiting gebruik. Netwerkfoute en -aanvalle is gewoonlik tydelik, dus sal hierdie blad waarskynlik later werk.</translation>
 <translation id="6146055958333702838">Gaan enige kabels na en herlaai enige roeteerders, modems of ander

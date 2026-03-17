@@ -15,9 +15,9 @@
 @property(nonatomic, assign) ATBSettingType type;
 
 // INITIALIZER
-- (instancetype) initWithTitle:(NSString*)title
-                      subtitle:(NSString*)subtitle
-                          type:(ATBSettingType)type;
+- (instancetype)initWithTitle:(NSString*)title
+                     subtitle:(NSString*)subtitle
+                         type:(ATBSettingType)type;
 
 @end
 

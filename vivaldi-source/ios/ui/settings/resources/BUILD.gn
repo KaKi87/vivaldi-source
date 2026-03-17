@@ -74,6 +74,10 @@ bundle_data_xcassets("main_setting_assets") {
     # vivaldi_setting_version
     "MainSettingAssets.xcassets/vivaldi_setting_version.imageset/Contents.json",
     "MainSettingAssets.xcassets/vivaldi_setting_version.imageset/vivaldi_setting_version.pdf",
+
+    # vivaldi_setting_safari
+    "MainSettingAssets.xcassets/vivaldi_setting_safari.imageset/Contents.json",
+    "MainSettingAssets.xcassets/vivaldi_setting_safari.imageset/vivaldi_setting_safari.pdf",
   ]
 }
 

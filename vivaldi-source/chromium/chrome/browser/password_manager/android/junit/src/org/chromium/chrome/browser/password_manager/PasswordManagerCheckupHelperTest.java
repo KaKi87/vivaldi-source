@@ -46,7 +46,8 @@ import org.robolectric.shadows.ShadowSystemClock;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.HistogramWatcher;
@@ -96,14 +97,13 @@ public class PasswordManagerCheckupHelperTest {
 
     @Mock private PendingIntent mPendingIntentMock;
 
-    @Mock private ObservableSupplier<ModalDialogManager> mModalDialogManagerSupplier;
-
     // TODO(crbug.com/40854050): Use fake instead of mock
     @Mock private PasswordManagerBackendSupportHelper mBackendSupportHelperMock;
 
     private SettingsCustomTabLauncher mSettingsCustomTabLauncher;
 
     private ModalDialogManager mModalDialogManager;
+    private SettableMonotonicObservableSupplier<ModalDialogManager> mModalDialogManagerSupplier;
 
     @Mock private LoadingModalDialogCoordinator mLoadingModalDialogCoordinator;
     private LoadingModalDialogCoordinator.Observer mLoadingDialogCoordinatorObserver;
@@ -121,7 +121,7 @@ public class PasswordManagerCheckupHelperTest {
                 new ModalDialogManager(
                         mock(ModalDialogManager.Presenter.class),
                         ModalDialogManager.ModalDialogType.APP);
-        when(mModalDialogManagerSupplier.get()).thenReturn(mModalDialogManager);
+        mModalDialogManagerSupplier = ObservableSuppliers.createMonotonic(mModalDialogManager);
         doAnswer(
                         invocation -> {
                             mLoadingDialogCoordinatorObserver = invocation.getArgument(0);
@@ -679,7 +679,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
 
@@ -695,7 +695,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
 
@@ -713,7 +713,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
 
@@ -731,7 +731,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
 
@@ -750,7 +750,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
 
@@ -769,7 +769,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
 
@@ -787,7 +787,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
 
@@ -808,7 +808,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
 
@@ -827,7 +827,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
 
@@ -848,7 +848,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
 
@@ -869,7 +869,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
     }
@@ -886,7 +886,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
 
@@ -907,7 +907,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
     }
@@ -924,7 +924,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
 
@@ -947,7 +947,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
 
@@ -966,7 +966,7 @@ public class PasswordManagerCheckupHelperTest {
                 PasswordCheckReferrer.SAFETY_CHECK,
                 TEST_EMAIL_ADDRESS,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
+                mModalDialogManager,
                 ContextUtils.getApplicationContext(),
                 mSettingsCustomTabLauncher);
 
@@ -1127,7 +1127,6 @@ public class PasswordManagerCheckupHelperTest {
     }
 
     private void chooseToSyncPasswords() {
-        when(mSyncServiceMock.isSyncFeatureEnabled()).thenReturn(true);
         when(mSyncServiceMock.getSelectedTypes()).thenReturn(Set.of(UserSelectableType.PASSWORDS));
         when(mSyncServiceMock.getAccountInfo())
                 .thenReturn(

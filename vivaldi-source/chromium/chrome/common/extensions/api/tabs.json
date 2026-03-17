@@ -56,9 +56,7 @@
             "type": "integer",
             "minimum": -1,
             "optional": true,
-            "description": "The ID of the Split View that the tab belongs to.",
-            // TODO(crbug.com/433273595): Enable documentation when ready for launch.
-            "nodoc": true
+            "description": "The ID of the Split View that the tab belongs to."
           },
           "windowId": {"type": "integer", "minimum": -1, "description": "The ID of the window that contains the tab."},
           "openerTabId": {"type": "integer", "minimum": 0, "optional": true, "description": "The ID of the tab that opened this tab, if any. This property is only present if the opener tab still exists."},
@@ -166,8 +164,7 @@
       },
       "SPLIT_VIEW_ID_NONE": {
         "value": -1,
-        "description": "An ID that represents the absence of a split tab.",
-        "nodoc": true
+        "description": "An ID that represents the absence of a split tab."
       },
       "TAB_ID_NONE": {
         "value": -1,
@@ -273,7 +270,7 @@
             {
               "name": "response",
               "type": "any",
-              "description": "The JSON response object sent by the handler of the request. If an error occurs while connecting to the specified tab, the callback is called with no arguments and $(ref:runtime.lastError) is set to the error message."
+              "description": "The JSON response object sent by the handler of the request. If an error occurs while connecting to the specified tab, the promise will be rejected."
             }
           ]
         }
@@ -320,7 +317,7 @@
             {
               "name": "response",
               "type": "any",
-              "description": "The JSON response object sent by the handler of the message. If an error occurs while connecting to the specified tab, the callback is called with no arguments and $(ref:runtime.lastError) is set to the error message."
+              "description": "The JSON response object sent by the handler of the message. If an error occurs while connecting to the specified tab, the promise will be rejected."
             }
           ]
         }
@@ -937,7 +934,7 @@
         "returns_async": {
           "name": "callback",
           "optional": true,
-          "description": "Called after all the JavaScript has been executed.",
+          "description": "Resolves after all the JavaScript has been executed.",
           "parameters": [
             {
               "name": "result",
@@ -965,7 +962,7 @@
         "returns_async": {
           "name": "callback",
           "optional": true,
-          "description": "Called when all the CSS has been inserted.",
+          "description": "Resolves when all the CSS has been inserted.",
           "parameters": []
         }
       },
@@ -991,7 +988,7 @@
         "returns_async": {
           "name": "callback",
           "optional": true,
-          "description": "Called when all the CSS has been removed.",
+          "description": "Resolves when all the CSS has been removed.",
           "parameters": []
         }
       },
@@ -1016,7 +1013,7 @@
         "returns_async": {
           "name": "callback",
           "optional": true,
-          "description": "Called after the zoom factor has been changed.",
+          "description": "Resolves after the zoom factor has been changed.",
           "parameters": []
         }
       },
@@ -1035,7 +1032,7 @@
         ],
         "returns_async": {
           "name": "callback",
-          "description": "Called with the tab's current zoom factor after it has been fetched.",
+          "description": "Resolves with the tab's current zoom factor after it has been fetched.",
           "parameters": [
             {
               "type": "number",
@@ -1066,7 +1063,7 @@
         "returns_async": {
           "name": "callback",
           "optional": true,
-          "description": "Called after the zoom settings are changed.",
+          "description": "Resolves after the zoom settings are changed.",
           "parameters": []
         }
       },
@@ -1085,7 +1082,7 @@
         ],
         "returns_async": {
           "name": "callback",
-          "description": "Called with the tab's current zoom settings.",
+          "description": "Resolves with the tab's current zoom settings.",
           "parameters": [
             {
               "$ref": "ZoomSettings",
@@ -1111,7 +1108,7 @@
         "returns_async": {
           "name": "callback",
           "optional": true,
-          "description": "Called after the operation is completed.",
+          "description": "Resolves after the operation is completed.",
           "parameters": [
             {
               "name": "tab",

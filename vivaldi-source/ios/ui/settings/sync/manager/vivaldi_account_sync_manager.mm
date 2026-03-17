@@ -7,8 +7,8 @@
 #import "base/check.h"
 #import "base/strings/sys_string_conversions.h"
 #import "components/sync/base/user_selectable_type.h"
-#import "components/sync/service/sync_service_observer.h"
 #import "components/sync/service/sync_service.h"
+#import "components/sync/service/sync_service_observer.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
@@ -35,7 +35,7 @@ const std::string ERROR_ACCOUNT_NOT_ACTIVATED = "17006";
 const double vConnectionTimeout = 60.0;
 const double kAvatarSize = 30.0;
 NSString* avatarPlaceholder = @"person.circle.fill";
-}
+}  // namespace
 
 @interface VivaldiAccountSyncManager () <VivaldiAccountSyncManagerConsumer> {
   std::unique_ptr<VivaldiAccountSyncManagerObserverBridge>
@@ -61,8 +61,8 @@ NSString* avatarPlaceholder = @"person.circle.fill";
 
 #pragma mark - INITIALIZERS
 - (instancetype)initWithBrowser:(Browser*)browser {
-  if ((self =
-        [self initWithProfile:browser->GetProfile()->GetOriginalProfile()])) {
+  if ((self = [self
+           initWithProfile:browser->GetProfile()->GetOriginalProfile()])) {
     _browser = browser;
   }
   return self;
@@ -88,8 +88,7 @@ NSString* avatarPlaceholder = @"person.circle.fill";
 
 - (instancetype)initWithAccountManager:
                     (vivaldi::VivaldiAccountManager*)vivaldiAccountManager
-                           syncService:
-                               (syncer::SyncService*)syncService {
+                           syncService:(syncer::SyncService*)syncService {
   if ((self = [super init])) {
     _vivaldiAccountManager = vivaldiAccountManager;
     _syncService = syncService;
@@ -141,15 +140,13 @@ NSString* avatarPlaceholder = @"person.circle.fill";
     avatar = self.cachedAvatarImage;
   }
 
-  return ResizeImage(avatar,
-                  CGSize(kAvatarSize, kAvatarSize),
-                  ProjectionMode::kAspectFit);
+  return ResizeImage(avatar, CGSize(kAvatarSize, kAvatarSize),
+                     ProjectionMode::kAspectFit);
 }
 
 - (VivaldiDonationBadgeTier)donationBadgeTier {
-  NSString* donationTierString =
-      base::SysUTF8ToNSString(
-          _vivaldiAccountManager->account_info().donation_tier);
+  NSString* donationTierString = base::SysUTF8ToNSString(
+      _vivaldiAccountManager->account_info().donation_tier);
   if (donationTierString != nil && [donationTierString length] > 0) {
     NSUInteger badgeTier = [donationTierString integerValue];
     return (VivaldiDonationBadgeTier)badgeTier;
@@ -337,22 +334,22 @@ NSString* avatarPlaceholder = @"person.circle.fill";
 
 - (void)cacheUserAvatar {
   VivaldiAccountManager::AccountInfo account_info =
-  _vivaldiAccountManager->account_info();
+      _vivaldiAccountManager->account_info();
   NSURL* avatarURL =
       [NSURL URLWithString:base::SysUTF8ToNSString(account_info.picture_url)];
 
   __weak __typeof(self) weakSelf = self;
   [self fetchAccountAvatar:avatarURL
          completionHandler:^(NSData* data, NSURLResponse* response,
-                              NSError* error) {
-    if (error) {
-      return;
-    }
+                             NSError* error) {
+           if (error) {
+             return;
+           }
 
-    dispatch_async(dispatch_get_main_queue(), ^{
-      weakSelf.cachedAvatarImage = [UIImage imageWithData:data];
-    });
-  }];
+           dispatch_async(dispatch_get_main_queue(), ^{
+             weakSelf.cachedAvatarImage = [UIImage imageWithData:data];
+           });
+         }];
 }
 
 - (void)fetchAccountAvatar:(NSURL*)url
@@ -418,8 +415,7 @@ NSString* avatarPlaceholder = @"person.circle.fill";
     return NO;
   }
   // if user is missing credentials, we show the sync error dialog
-  if (accountState == CREDENTIALS_MISSING ||
-      accountState == LOGIN_FAILED ||
+  if (accountState == CREDENTIALS_MISSING || accountState == LOGIN_FAILED ||
       accountState == NOT_ACTIVATED) {
     return YES;
   }
@@ -428,8 +424,8 @@ NSString* avatarPlaceholder = @"person.circle.fill";
   if (!_syncService->IsSyncFeatureActive()) {
     return YES;
   }
-  //If encryption password is not entered, we show the sync error dialog
-  // Handles if encryption password is not entered
+  // If encryption password is not entered, we show the sync error dialog
+  //  Handles if encryption password is not entered
   if (!_syncService->IsEngineInitialized()) {
     return YES;
   }

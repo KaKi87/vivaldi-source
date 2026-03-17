@@ -13,7 +13,7 @@
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_swift.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 @interface VivaldiSearchEngineEditorMediator () <SearchEngineObserving> {
   // Profile and service dependencies
@@ -119,8 +119,7 @@
   _templateURLService->ResetTemplateURL(
       itemToUpdate, base::SysNSStringToUTF16(_editingItemInternal.name),
       base::SysNSStringToUTF16(_editingItemInternal.nickname),
-      GetUrlFromDisplay(
-          base::SysNSStringToUTF8(_editingItemInternal.url)),
+      GetUrlFromDisplay(base::SysNSStringToUTF8(_editingItemInternal.url)),
       GetUrlFromDisplay(
           base::SysNSStringToUTF8(_editingItemInternal.postParameters)),
       GetUrlFromDisplay(
@@ -141,8 +140,8 @@
   TemplateURLData data;
   data.SetShortName(base::SysNSStringToUTF16(_editingItemInternal.name));
   data.SetKeyword(base::SysNSStringToUTF16(_editingItemInternal.nickname));
-  data.SetURL(GetUrlFromDisplay(
-      base::SysNSStringToUTF8(_editingItemInternal.url)));
+  data.SetURL(
+      GetUrlFromDisplay(base::SysNSStringToUTF8(_editingItemInternal.url)));
   data.suggestions_url = GetUrlFromDisplay(
       base::SysNSStringToUTF8(_editingItemInternal.suggestURL));
   data.image_url = GetUrlFromDisplay(

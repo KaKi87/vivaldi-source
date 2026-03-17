@@ -60,4 +60,14 @@ extern const CGFloat vPinnedViewHorizontalPadding;
 extern const CGFloat vPinnedCellHeight;
 extern const CGFloat vPinnedCellHorizontalLayoutInsets;
 
+// Returns the adjusted corner radius for an inset view inside a rounded rect.
+static inline CGFloat GridInnerCornerRadius(CGFloat outer_radius,
+                                            CGFloat inset) {
+  CGFloat inner_radius = outer_radius - inset;
+  return inner_radius > 0 ? inner_radius : 0;
+}
+
+// Animation duration for tab grid background and toolbar color change.
+extern const CGFloat vTabGridBGChangeAnimationDuration;
+
 #endif  // IOS_CHROME_BROWSER_UI_TAB_SWITCHER_TAB_GRID_TAB_GRID_CONSTANTS_VIVALDI_H_

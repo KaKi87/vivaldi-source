@@ -44,8 +44,6 @@ namespace {
 // Therefore, we need to have the number of bitstream buffers. See b/277368164.
 static unsigned int kMinInFlightFrames = 12;
 
-// TODO(crbug.com/1045825): Support encoding parameter changes.
-
 // Callbacks can be called from any thread, but WeakPtrs are not thread-safe.
 // This helper thunk wraps a WeakPtr into an 'Optional' value, so the WeakPtr is
 // only dereferenced after rescheduling the task on the specified task runner.
@@ -342,7 +340,7 @@ void VideoEncoderClient::RequireBitstreamBuffers(
       /*natural_size=*/encoder_client_config_.output_resolution, frame_rate,
       encoder_client_config_.input_storage_type ==
               VideoEncodeAccelerator::Config::StorageType::kGpuMemoryBuffer
-          ? VideoFrame::STORAGE_GPU_MEMORY_BUFFER
+          ? VideoFrame::STORAGE_MAPPABLE_SHARED_IMAGE
           : VideoFrame::STORAGE_SHMEM);
 
   output_buffer_size_ = output_buffer_size;

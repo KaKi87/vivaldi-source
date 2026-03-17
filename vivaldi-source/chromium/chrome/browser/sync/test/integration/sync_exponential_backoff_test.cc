@@ -3,16 +3,16 @@
 // found in the LICENSE file.
 
 #include "base/functional/bind.h"
+#include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "chrome/browser/sync/test/integration/bookmarks_helper.h"
 #include "chrome/browser/sync/test/integration/exponential_backoff_helper.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
 #include "chrome/browser/sync/test/integration/updated_progress_marker_checker.h"
+#include "components/sync/base/features.h"
 #include "components/sync/engine/polling_constants.h"
 #include "components/sync/service/sync_service_impl.h"
-#include "components/sync/test/fake_server_http_post_provider.h"
 #include "content/public/test/browser_test.h"
-#include "content/public/test/network_connection_change_simulator.h"
 #include "net/base/network_change_notifier.h"
 
 namespace {
@@ -21,9 +21,16 @@ using bookmarks_helper::AddFolder;
 using bookmarks_helper::ServerBookmarksEqualityChecker;
 using exponential_backoff_helper::ExponentialBackoffChecker;
 
-class SyncExponentialBackoffTest : public SyncTest {
+class SyncExponentialBackoffTest
+    : public SyncTest,
+      public testing::WithParamInterface<SyncTest::SetupSyncMode> {
  public:
-  SyncExponentialBackoffTest() : SyncTest(SINGLE_CLIENT) {}
+  SyncExponentialBackoffTest() : SyncTest(SINGLE_CLIENT) {
+    if (GetSetupSyncMode() == SetupSyncMode::kSyncTransportOnly) {
+      scoped_feature_list_.InitAndEnableFeature(
+          syncer::kReplaceSyncPromosWithSignInPromos);
+    }
+  }
 
   SyncExponentialBackoffTest(const SyncExponentialBackoffTest&) = delete;
   SyncExponentialBackoffTest& operator=(const SyncExponentialBackoffTest&) =
@@ -36,26 +43,44 @@ class SyncExponentialBackoffTest : public SyncTest {
     net::NetworkChangeNotifier::SetTestNotificationsOnly(true);
     SyncTest::SetUp();
   }
+
+  SyncTest::SetupSyncMode GetSetupSyncMode() const override {
+    return GetParam();
+  }
+
+  bookmarks_helper::StoreType GetBookmarksStoreType() const {
+    return GetSetupSyncMode() == SyncTest::SetupSyncMode::kSyncTransportOnly
+               ? bookmarks_helper::StoreType::kAccountStore
+               : bookmarks_helper::StoreType::kLocalOrSyncableStore;
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
-IN_PROC_BROWSER_TEST_F(SyncExponentialBackoffTest, OfflineToOnline) {
+INSTANTIATE_TEST_SUITE_P(,
+                         SyncExponentialBackoffTest,
+                         GetSyncTestModes(),
+                         testing::PrintToStringParamName());
+
+IN_PROC_BROWSER_TEST_P(SyncExponentialBackoffTest, OfflineToOnline) {
   const std::u16string kFolderTitle1 = u"folder1";
   const std::u16string kFolderTitle2 = u"folder2";
 
   ASSERT_TRUE(SetupSync());
 
   // Add an item and ensure that sync is successful.
-  ASSERT_TRUE(AddFolder(0, 0, kFolderTitle1));
+  ASSERT_TRUE(AddFolder(0, 0, kFolderTitle1, GetBookmarksStoreType()));
   std::vector<ServerBookmarksEqualityChecker::ExpectedBookmark>
       expected_bookmarks = {{kFolderTitle1, GURL()}};
   ASSERT_TRUE(ServerBookmarksEqualityChecker(expected_bookmarks,
                                              /*cryptographer=*/nullptr)
                   .Wait());
 
-  fake_server::FakeServerHttpPostProvider::DisableNetwork();
+  DisableNetwork();
 
   // Add a new item to trigger another sync cycle.
-  ASSERT_TRUE(AddFolder(0, 0, kFolderTitle2));
+  ASSERT_TRUE(AddFolder(0, 0, kFolderTitle2, GetBookmarksStoreType()));
 
   // Verify that the client goes into exponential backoff while it is unable to
   // reach the sync server.
@@ -69,10 +94,7 @@ IN_PROC_BROWSER_TEST_F(SyncExponentialBackoffTest, OfflineToOnline) {
 
   // Trigger network change notification and remember time when it happened.
   // Ensure that scheduler runs canary job immediately.
-  fake_server::FakeServerHttpPostProvider::EnableNetwork();
-  content::NetworkConnectionChangeSimulator connection_change_simulator;
-  connection_change_simulator.SetConnectionType(
-      network::mojom::ConnectionType::CONNECTION_ETHERNET);
+  EnableNetwork();
 
   base::Time network_notification_time = base::Time::Now();
 
@@ -90,17 +112,17 @@ IN_PROC_BROWSER_TEST_F(SyncExponentialBackoffTest, OfflineToOnline) {
   EXPECT_LE(recovery_time, base::Seconds(2));
 }
 
-IN_PROC_BROWSER_TEST_F(SyncExponentialBackoffTest, ServerRedirect) {
+IN_PROC_BROWSER_TEST_P(SyncExponentialBackoffTest, ServerRedirect) {
   ASSERT_TRUE(SetupSync());
 
   // Add an item and ensure that sync is successful.
-  ASSERT_TRUE(AddFolder(0, 0, u"folder1"));
+  ASSERT_TRUE(AddFolder(0, 0, u"folder1", GetBookmarksStoreType()));
   ASSERT_TRUE(UpdatedProgressMarkerChecker(GetSyncService(0)).Wait());
 
   GetFakeServer()->SetHttpError(net::HTTP_USE_PROXY);
 
   // Add a new item to trigger another sync cycle.
-  ASSERT_TRUE(AddFolder(0, 0, u"folder2"));
+  ASSERT_TRUE(AddFolder(0, 0, u"folder2", GetBookmarksStoreType()));
 
   // Verify that the client goes into exponential backoff while it is unable to
   // reach the sync server.
@@ -109,17 +131,17 @@ IN_PROC_BROWSER_TEST_F(SyncExponentialBackoffTest, ServerRedirect) {
                   .Wait());
 }
 
-IN_PROC_BROWSER_TEST_F(SyncExponentialBackoffTest, InternalServerError) {
+IN_PROC_BROWSER_TEST_P(SyncExponentialBackoffTest, InternalServerError) {
   ASSERT_TRUE(SetupSync());
 
   // Add an item and ensure that sync is successful.
-  ASSERT_TRUE(AddFolder(0, 0, u"folder1"));
+  ASSERT_TRUE(AddFolder(0, 0, u"folder1", GetBookmarksStoreType()));
   ASSERT_TRUE(UpdatedProgressMarkerChecker(GetSyncService(0)).Wait());
 
   GetFakeServer()->SetHttpError(net::HTTP_INTERNAL_SERVER_ERROR);
 
   // Add a new item to trigger another sync cycle.
-  ASSERT_TRUE(AddFolder(0, 0, u"folder2"));
+  ASSERT_TRUE(AddFolder(0, 0, u"folder2", GetBookmarksStoreType()));
 
   // Verify that the client goes into exponential backoff while it is unable to
   // reach the sync server.
@@ -128,17 +150,17 @@ IN_PROC_BROWSER_TEST_F(SyncExponentialBackoffTest, InternalServerError) {
                   .Wait());
 }
 
-IN_PROC_BROWSER_TEST_F(SyncExponentialBackoffTest, TransientErrorTest) {
+IN_PROC_BROWSER_TEST_P(SyncExponentialBackoffTest, TransientErrorTest) {
   ASSERT_TRUE(SetupSync());
 
   // Add an item and ensure that sync is successful.
-  ASSERT_TRUE(AddFolder(0, 0, u"folder1"));
+  ASSERT_TRUE(AddFolder(0, 0, u"folder1", GetBookmarksStoreType()));
   ASSERT_TRUE(UpdatedProgressMarkerChecker(GetSyncService(0)).Wait());
 
   GetFakeServer()->TriggerError(sync_pb::SyncEnums::TRANSIENT_ERROR);
 
   // Add a new item to trigger another sync cycle.
-  ASSERT_TRUE(AddFolder(0, 0, u"folder2"));
+  ASSERT_TRUE(AddFolder(0, 0, u"folder2", GetBookmarksStoreType()));
 
   // Verify that the client goes into exponential backoff while it is unable to
   // reach the sync server.

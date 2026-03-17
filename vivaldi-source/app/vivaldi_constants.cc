@@ -24,18 +24,19 @@ const char kVivaldiBugReportUrl[] = VIVALDI_BUGREPORT_URL;
 const char kVivaldiCrashReportUploadUrl[] = VIVALDI_CRASH_REPORT_UPLOAD_URL;
 // Defines the URL that should be opened in an empty incognito window.
 const char kVivaldiIncognitoURL[] = "chrome-extension://" VIVALDI_APP_ID
-                                 "/components/"
-                                 "private-intro/private-intro.html";
+                                    "/components/"
+                                    "private-intro/private-intro.html";
 const char kVivaldiGuestSessionURL[] = "chrome-extension://" VIVALDI_APP_ID
                                        "/components/"
                                        "guest-intro/guest-intro.html";
-const char kVivaldiMailURL[] = "chrome-extension://" VIVALDI_APP_ID
-                               "/components/mail/mail.html";
+const char kVivaldiMailURL[] =
+    "chrome-extension://" VIVALDI_APP_ID "/components/mail/mail.html";
 // Defines the URL that should be opened in an empty new tab or window.
 const char kVivaldiNewTabURL[] = "chrome://vivaldi-webui/startpage";
 
-const char kVivaldiCrashStartPageURL[] = "chrome-extension://" VIVALDI_APP_ID
-                               "/components/session-recovery/session-recovery.html";
+const char kVivaldiCrashStartPageURL[] =
+    "chrome-extension://" VIVALDI_APP_ID
+    "/components/session-recovery/session-recovery.html";
 
 // Error message reported to extensions trying to use Vivaldi reserved APIs
 const char kVivaldiReservedApiError[] =

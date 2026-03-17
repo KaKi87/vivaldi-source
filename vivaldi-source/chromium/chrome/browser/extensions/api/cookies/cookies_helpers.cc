@@ -159,9 +159,9 @@ Cookie CreateCookie(const net::CanonicalCookie& canonical_cookie,
   return cookie;
 }
 
-CookieStore CreateCookieStore(Profile* profile, base::Value::List tab_ids) {
+CookieStore CreateCookieStore(Profile* profile, base::ListValue tab_ids) {
   DCHECK(profile);
-  base::Value::Dict dict;
+  base::DictValue dict;
   dict.Set(kIdKey, GetStoreIdFromProfile(profile));
   dict.Set(kTabIdsKey, std::move(tab_ids));
 
@@ -224,7 +224,7 @@ void AppendMatchingCookiesFromCookieAccessResultListToVector(
   }
 }
 
-void AppendToTabIdList(WindowController* window, base::Value::List& tab_ids) {
+void AppendToTabIdList(WindowController* window, base::ListValue& tab_ids) {
   for (int i = 0; i < window->GetTabCount(); ++i) {
     tab_ids.Append(ExtensionTabUtil::GetTabId(window->GetWebContentsAt(i)));
   }

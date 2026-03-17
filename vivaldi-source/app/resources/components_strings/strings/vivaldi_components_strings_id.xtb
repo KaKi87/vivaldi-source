@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Sambungan ke situs ini tidak sepenuhnya aman</translation>
 <translation id="4265872034478892965">Diizinkan oleh administrator</translation>
 <translation id="4305666528087210886">Berkas Anda tidak dapat diakses</translation>
-<translation id="4408413947728134509">Kuki <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> tidak menerima sertifikat masuk anda, atau sertifikat masuk mungkin tidak tersedia.</translation>
 <translation id="4506599922270137252">Menghubungi admin sistem</translation>
 <translation id="4522570452068850558">Semua Detail</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Tidak ada hasil</translation>
 <translation id="5017554619425969104">Teks yang disalin</translation>
 <translation id="5023310440958281426">Periksa kebijakan administrator anda</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 dipakai)} other {(# dipakai)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Memeriksa alamat proxy<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 bit)</translation>
 <translation id="5216942107514965959">Yang baru saja dikunjungi hari ini</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Jangan masukkan informasi sensitif apapun di situs ini (misalnya, sandi atau kartu kredit), karena penyerang dapat mencurinya.</translation>
 <translation id="5863515189965725638">Edit IBAN</translation>
 <translation id="5869405914158311789">Situs ini tidak dapat dijangkau</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{1 terpakai}other{# terpakai}}</translation>
 <translation id="5932224571077948991">Situs menampilkan iklan yang mengganggu atau menyesatkan</translation>
 <translation id="6051221802930200923">Anda tidak dapat membuka <ph name="SITE" /> sekarang karena situs menggunakan penyematan sertifikat. Galat jaringan dan serangan biasanya bersifat sementara, sehingga halaman ini mungkin akan berfungsi nanti.</translation>
 <translation id="6146055958333702838">Periksa semua kabel dan mulai ulang semua router, modem, atau semua perangkat

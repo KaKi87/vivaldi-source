@@ -75,7 +75,7 @@ device_management_storage::DMPolicyMap ToDMPolicyMap(
   device_management_storage::DMPolicyMap out;
   std::ranges::transform(
       in, std::inserter(out, out.end()),
-      [](const std::pair<policy::CloudPolicyClientTypeParams,
+      [](const std::pair<policy::PolicyTypeToFetch,
                          enterprise_management::PolicyFetchResponse>&
              response) {
         return std::make_pair(response.first.policy_type(),
@@ -116,7 +116,6 @@ class ClientDataDelegate : public policy::ClientDataDelegate {
   void FillRegisterBrowserRequest(
       enterprise_management::RegisterBrowserRequest* request,
       base::OnceClosure callback) const override {
-    request->set_machine_name(policy::GetMachineName());
     request->set_os_platform(policy::GetOSPlatform());
     request->set_os_version(policy::GetOSVersion());
     request->set_allocated_browser_device_identifier(

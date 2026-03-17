@@ -71,7 +71,8 @@ class FakeDelegate : public EncryptedReportingClient::Delegate {
 };
 
 ReportingServerConnector::TestEnvironment::TestEnvironment()
-    : store_(std::make_unique<::policy::MockCloudPolicyStore>()),
+    : store_(std::make_unique<::policy::MockCloudPolicyStore>(
+          ::policy::dm_protocol::kChromeDevicePolicyType)),
       core_(std::make_unique<::policy::CloudPolicyCore>(
           ::policy::dm_protocol::kChromeDevicePolicyType,
           std::string(),
@@ -115,7 +116,7 @@ ReportingServerConnector::TestEnvironment::~TestEnvironment() {
   base::Singleton<ReportingServerConnector>::OnExit(nullptr);
 }
 
-base::Value::Dict ReportingServerConnector::TestEnvironment::request_body(
+base::DictValue ReportingServerConnector::TestEnvironment::request_body(
     size_t index) {
   CHECK_GT(url_loader_factory()->pending_requests()->size(), index);
   const network::ResourceRequest& request =
@@ -143,7 +144,7 @@ void ReportingServerConnector::TestEnvironment::SimulateResponseForRequest(
 
 void ReportingServerConnector::TestEnvironment::
     SimulateCustomResponseForRequest(size_t index,
-                                     StatusOr<base::Value::Dict> response) {
+                                     StatusOr<base::DictValue> response) {
   const std::string& pending_request_url =
       (*url_loader_factory()->pending_requests())[0].request.url.spec();
   std::string response_string;

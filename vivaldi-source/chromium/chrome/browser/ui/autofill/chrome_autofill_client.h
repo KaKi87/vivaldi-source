@@ -40,12 +40,11 @@
 #include "components/autofill/core/browser/ui/payments/card_unmask_prompt_options.h"
 #include "components/signin/public/identity_manager/account_info.h"
 #include "content/public/browser/visibility.h"
-#include "content/public/browser/web_contents_observer.h"
 
 #if BUILDFLAG(IS_ANDROID)
 #include "chrome/browser/ui/autofill/autofill_snackbar_controller_impl.h"
-#include "components/autofill/core/browser/integrators/fast_checkout/fast_checkout_client.h"
 #else  // BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/actor/actor_task.h"  // nogncheck
 #include "chrome/browser/ui/autofill/autofill_field_promo_controller.h"
 #endif  // BUILDFLAG(IS_ANDROID)
 
@@ -53,13 +52,18 @@ namespace optimization_guide {
 class RemoteModelExecutor;
 }
 
+namespace tabs {
+class TabInterface;
+}
+
 namespace autofill {
 
 #if BUILDFLAG(IS_ANDROID)
 // TODO(crbug.com/364089352): When //c/b/ui/android/autofill gets modularized,
-// //c/b/ui/autofill/ can depend directly on it. Now, forward declare the
-// SaveUpdateAddressProfileFlowManager.
+// //c/b/ui/autofill/ can depend directly on it.
+class AutofillAiSaveUpdateEntityFlowManager;
 class SaveUpdateAddressProfileFlowManager;
+class AutofillMessageController;
 #endif
 
 class AutofillOptimizationGuideDecider;
@@ -86,8 +90,7 @@ enum class SuggestionType;
 // tests derive from it. Member functions should be final unless they need to be
 // mocked or overridden in subclasses and you have verified that they are not
 // called, directly or indirectly, from the constructor.
-class ChromeAutofillClient : public ContentAutofillClient,
-                             public content::WebContentsObserver {
+class ChromeAutofillClient : public ContentAutofillClient {
  public:
   // Creates a new ChromeAutofillClient for the given `web_contents` if no
   // ContentAutofillClient is associated with the `web_contents` yet. Otherwise,
@@ -126,6 +129,7 @@ class ChromeAutofillClient : public ContentAutofillClient,
   PersonalDataManager& GetPersonalDataManager() final;
   ValuablesDataManager* GetValuablesDataManager() final;
   EntityDataManager* GetEntityDataManager() final;
+  WalletPassAccessManager* GetWalletPassAccessManager() final;
   SingleFieldFillRouter& GetSingleFieldFillRouter() final;
   AutocompleteHistoryManager* GetAutocompleteHistoryManager() final;
   AutofillComposeDelegate* GetComposeDelegate() final;
@@ -156,7 +160,6 @@ class ChromeAutofillClient : public ContentAutofillClient,
   translate::TranslateDriver* GetTranslateDriver() final;
   GeoIpCountryCode GetVariationConfigCountryCode() const final;
   profile_metrics::BrowserProfileType GetProfileType() const final;
-  FastCheckoutClient* GetFastCheckoutClient() final;
   void ShowAutofillSettings(SuggestionType suggestion_type) final;
   void ConfirmSaveAddressProfile(
       const AutofillProfile& profile,
@@ -173,13 +176,13 @@ class ChromeAutofillClient : public ContentAutofillClient,
   void UpdateAutofillDataListValues(
       base::span<const SelectOption> datalist) final;
   base::span<const Suggestion> GetAutofillSuggestions() const final;
-  std::optional<PopupScreenLocation> GetPopupScreenLocation() const final;
   std::optional<SuggestionUiSessionId>
   GetSessionIdForCurrentAutofillSuggestions() const final;
   void UpdateAutofillSuggestions(
       const std::vector<Suggestion>& suggestions,
       FillingProduct main_filling_product,
-      AutofillSuggestionTriggerSource trigger_source) final;
+      AutofillSuggestionTriggerSource trigger_source,
+      AutofillSuggestionsIgnoreFocusLoss ignore_focus_loss) final;
   void HideAutofillSuggestions(SuggestionHidingReason reason) final;
   void TriggerUserPerceptionOfAutofillSurvey(
       FillingProduct filling_product,
@@ -194,13 +197,12 @@ class ChromeAutofillClient : public ContentAutofillClient,
       bool prompt_accepted,
       EntityType entity_type,
       const base::flat_set<EntityTypeName>& saved_entities) final;
-  bool IsActorTaskActive() const final;
+  bool IsTabInActorMode() const final;
   bool IsAutofillEnabled() const final;
   bool IsAutofillProfileEnabled() const final;
   bool IsAutocompleteEnabled() const final;
   bool IsWalletStorageEnabled() const final;
   bool IsPasswordManagerEnabled() const final;
-  void DidFillForm(AutofillTriggerSource trigger_source, bool is_refill) final;
   bool IsContextSecure() const final;
   LogManager* GetCurrentLogManager() final;
   autofill_metrics::FormInteractionsUkmLogger& GetFormInteractionsUkmLogger()
@@ -211,10 +213,13 @@ class ChromeAutofillClient : public ContentAutofillClient,
   // The AutofillSnackbarController is used to show a snackbar notification
   // on Android.
   AutofillSnackbarControllerImpl* GetAutofillSnackbarController() final;
+
+  // The AutofillMessageController is used to show native Android messages via
+  // the messages API.
+  AutofillMessageController* GetAutofillMessageController();
 #endif
-  FormInteractionsFlowId GetCurrentFormInteractionsFlowId() final;
-  std::unique_ptr<device_reauth::DeviceAuthenticator> GetDeviceAuthenticator()
-      final;
+  std::unique_ptr<device_reauth::DeviceAuthenticator> GetDeviceAuthenticator(
+      std::string histogram) final;
   bool ShowAutofillFieldIphForFeature(const FormFieldData& field,
                                       AutofillClient::IphFeature feature) final;
   void HideAutofillFieldIph() final;
@@ -232,7 +237,10 @@ class ChromeAutofillClient : public ContentAutofillClient,
   void ShowEntityImportBubble(
       EntityInstance new_entity,
       std::optional<EntityInstance> old_entity,
-      EntityImportPromptResultCallback prompt_closed_callback) override;
+      bool save_is_synchronous,
+      EntityImportPromptResultCallback prompt_result_callback) final;
+  void CloseEntityImportBubble() final;
+  void ShowAutofillAiLocalSaveNotification() final;
   void ShowEmailVerifiedToast() final;
 
   // TODO(crbug.com/407666146): Create a test API.
@@ -283,11 +291,21 @@ class ChromeAutofillClient : public ContentAutofillClient,
 
  private:
   Profile* GetProfile() const;
+  tabs::TabInterface* GetTabInterface();
   bool SupportsConsentlessExecution(const url::Origin& origin);
   void ShowAutofillSuggestionsImpl(
       SuggestionUiSessionId session_id,
       const PopupOpenArgs& open_args,
       base::WeakPtr<AutofillSuggestionDelegate> delegate);
+
+#if !BUILDFLAG(IS_ANDROID)
+  // Called when an actor task is created or an existing one changes state. It
+  // may be called for actors unrelated to the current tab. If an update is
+  // related to the current tab.
+  // TODO(crbug.com/469428128) Enable on android once crrev.com/c/7298488 lands.
+  void OnActorTaskStateChange(actor::TaskId task_id,
+                              actor::ActorTask::State state);
+#endif  // !BUILDFLAG(IS_ANDROID)
 
   const raw_ptr<LogRouter> log_router_ =
       AutofillLogRouterFactory::GetForBrowserContext(
@@ -313,15 +331,16 @@ class ChromeAutofillClient : public ContentAutofillClient,
       payments_autofill_client_.GetMerchantPromoCodeManager()};
 
   base::WeakPtr<AutofillSuggestionController> suggestion_controller_;
-  FormInteractionsFlowId flow_id_;
   base::Time flow_id_date_;
   // If set to true, the popup will stay open regardless of external changes on
   // the test machine, that may normally cause the popup to be hidden
   bool keep_popup_open_for_testing_ = false;
 #if BUILDFLAG(IS_ANDROID)
+  std::unique_ptr<AutofillMessageController> autofill_message_controller_;
+  std::unique_ptr<AutofillAiSaveUpdateEntityFlowManager>
+      autofill_ai_save_update_entity_flow_manager_;
   std::unique_ptr<SaveUpdateAddressProfileFlowManager>
       save_update_address_profile_flow_manager_;
-  std::unique_ptr<FastCheckoutClient> fast_checkout_client_;
   std::unique_ptr<AutofillSnackbarControllerImpl>
       autofill_snackbar_controller_impl_;
 #else   // BUILDFLAG(IS_ANDROID)
@@ -336,6 +355,19 @@ class ChromeAutofillClient : public ContentAutofillClient,
   std::unique_ptr<OtpFieldDetector> otp_field_detector_;
   std::unique_ptr<EmailVerifierDelegate> email_verifier_delegate_;
   std::unique_ptr<ChromeOtpPhishGuardDelegate> otp_phish_guard_delegate_;
+
+#if !BUILDFLAG(IS_ANDROID)
+  // Removes the subscription when the `ChromeAutofillClient` is destroyed.
+  base::CallbackListSubscription actor_task_state_changed_subscription_;
+
+  // Responsible for keeping track if (and which) actor is interacting with
+  // the current tab. When present, some parts of Autofill may behave
+  // differently. There can be at most one actor on a given tab. If there is no
+  // actor interacting with the current tab it is `std::nullopt`.
+  std::optional<actor::TaskId> active_actor_task_;
+#endif  // BUILDFLAG(IS_ANDROID)
+
+  SEQUENCE_CHECKER(sequence_checker_);
 
   base::WeakPtrFactory<ChromeAutofillClient> weak_ptr_factory_{this};
 };

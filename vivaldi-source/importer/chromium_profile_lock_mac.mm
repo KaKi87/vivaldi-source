@@ -8,17 +8,11 @@
 #include "base/apple/foundation_util.h"
 #include "base/files/file_util.h"
 
-void ChromiumProfileLock::Init() {
+void ChromiumProfileLock::Init() {}
 
-}
+void ChromiumProfileLock::Lock() {}
 
-void ChromiumProfileLock::Lock() {
-
-}
-
-void ChromiumProfileLock::Unlock() {
-
-}
+void ChromiumProfileLock::Unlock() {}
 
 bool ChromiumProfileLock::HasAcquired() {
   NSString* lockfile = base::apple::FilePathToNSString(lock_file_);

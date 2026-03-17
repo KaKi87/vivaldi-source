@@ -6,7 +6,6 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <utility>
 
 #include "android_webview/browser/aw_browser_permission_request_delegate.h"
@@ -15,7 +14,6 @@
 #include "android_webview/browser/aw_settings.h"
 #include "android_webview/common/aw_features.h"
 #include "base/check.h"
-#include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/logging.h"
@@ -32,6 +30,7 @@
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 #include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/permissions/permission_utils.h"
 
@@ -156,7 +155,7 @@ class LastRequestResultCache {
     return requesting + "," + embedding;
   }
 
-  using StatusMap = std::unordered_map<std::string, PermissionStatus>;
+  using StatusMap = absl::flat_hash_map<std::string, PermissionStatus>;
   StatusMap pmi_result_cache_;
 };
 
@@ -216,7 +215,7 @@ class AwPermissionManager::PendingRequest {
   }
 
   bool HasPermissionType(PermissionType type) {
-    return base::Contains(permission_index_map_, type);
+    return permission_index_map_.contains(type);
   }
 
   bool IsCompleted() const {
@@ -316,6 +315,9 @@ void AwPermissionManager::RequestPermissions(
 
     switch (permissions[i]) {
       case PermissionType::GEOLOCATION:
+      case PermissionType::GEOLOCATION_APPROXIMATE:
+        // TODO(crbug.com/466367918): Decide whether we want to support a
+        // separate approximate only geolocation permission in webview.
         delegate->RequestGeolocationPermission(
             pending_request_raw->requesting_origin,
             base::BindOnce(&OnRequestResponse, weak_ptr_factory_.GetWeakPtr(),
@@ -349,7 +351,7 @@ void AwPermissionManager::RequestPermissions(
       case PermissionType::AUDIO_CAPTURE:
       case PermissionType::VIDEO_CAPTURE:
       case PermissionType::NOTIFICATIONS:
-      case PermissionType::DURABLE_STORAGE:
+      case PermissionType::PERSISTENT_STORAGE:
       case PermissionType::BACKGROUND_SYNC:
       case PermissionType::CLIPBOARD_READ_WRITE:
       case PermissionType::PAYMENT_HANDLER:
@@ -397,9 +399,11 @@ void AwPermissionManager::RequestPermissions(
             content::PermissionResult(PermissionStatus::DENIED));
         break;
       case PermissionType::LOCAL_NETWORK_ACCESS:
-        // PermissionType::LOCAL_NETWORK_ACCESS requests are always granted so
-        // that local network requests in WebView work as-is. WebView is
-        // currently out-of-scope for Local Network Access restrictions.
+      case PermissionType::LOCAL_NETWORK:
+      case PermissionType::LOOPBACK_NETWORK:
+        // LNA permission requests are always granted so that local network
+        // requests in WebView work as-is. WebView is currently out-of-scope for
+        // Local Network Access restrictions.
         pending_request_raw->SetPermissionResult(
             permissions[i],
             content::PermissionResult(PermissionStatus::GRANTED));
@@ -514,12 +518,17 @@ PermissionStatus AwPermissionManager::GetPermissionStatusInternal(
                                       embedding_origin);
 
     case blink::PermissionType::GEOLOCATION:
+    case blink::PermissionType::GEOLOCATION_APPROXIMATE:
+      // TODO(crbug.com/466367918): Decide whether we want to support
+      // approximate only geolocation permission in webview.
       return GetGeolocationPermission(requesting_origin, web_contents);
 
     case blink::PermissionType::CLIPBOARD_SANITIZED_WRITE:
     case blink::PermissionType::MIDI:
     case blink::PermissionType::SENSORS:
     case blink::PermissionType::LOCAL_NETWORK_ACCESS:
+    case blink::PermissionType::LOCAL_NETWORK:
+    case blink::PermissionType::LOOPBACK_NETWORK:
       // These permissions are auto-granted by WebView.
       return PermissionStatus::GRANTED;
 
@@ -537,7 +546,7 @@ PermissionStatus AwPermissionManager::GetPermissionStatusInternal(
     case blink::PermissionType::CAPTURED_SURFACE_CONTROL:
     case blink::PermissionType::CLIPBOARD_READ_WRITE:
     case blink::PermissionType::DISPLAY_CAPTURE:
-    case blink::PermissionType::DURABLE_STORAGE:
+    case blink::PermissionType::PERSISTENT_STORAGE:
     case blink::PermissionType::HAND_TRACKING:
     case blink::PermissionType::IDLE_DETECTION:
     case blink::PermissionType::KEYBOARD_LOCK:
@@ -672,6 +681,9 @@ void AwPermissionManager::CancelPermissionRequest(int request_id) {
 
     switch (permission) {
       case PermissionType::GEOLOCATION:
+      case PermissionType::GEOLOCATION_APPROXIMATE:
+        // TODO(crbug.com/466367918): Decide whether we want to support
+        // approximate only geolocation permission in webview.
         if (delegate)
           delegate->CancelGeolocationPermissionRequests(requesting_origin);
         break;
@@ -685,7 +697,7 @@ void AwPermissionManager::CancelPermissionRequest(int request_id) {
           delegate->CancelMIDISysexPermissionRequests(requesting_origin);
         break;
       case PermissionType::NOTIFICATIONS:
-      case PermissionType::DURABLE_STORAGE:
+      case PermissionType::PERSISTENT_STORAGE:
       case PermissionType::AUDIO_CAPTURE:
       case PermissionType::VIDEO_CAPTURE:
       case PermissionType::BACKGROUND_SYNC:
@@ -721,6 +733,8 @@ void AwPermissionManager::CancelPermissionRequest(int request_id) {
       case PermissionType::WAKE_LOCK_SCREEN:
       case PermissionType::WAKE_LOCK_SYSTEM:
       case PermissionType::LOCAL_NETWORK_ACCESS:
+      case PermissionType::LOCAL_NETWORK:
+      case PermissionType::LOOPBACK_NETWORK:
         // There is nothing to cancel so this is simply ignored.
         break;
       case PermissionType::NUM:

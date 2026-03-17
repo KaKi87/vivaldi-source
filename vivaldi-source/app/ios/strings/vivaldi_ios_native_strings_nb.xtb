@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Håndter regelkilder for reklameblokkering</translation>
 <translation id="1577761519530347814">Synkroniser lagrede nettsidepassord</translation>
 <translation id="1620921465699122417">Skriv inn tekst for å oversette</translation>
+<translation id="1624621765073396937">Sveip for å lukke fanen</translation>
 <translation id="1631998297781042533">Populære nettsteder</translation>
 <translation id="1644574205037202324">Historikk</translation>
 <translation id="1655816024544228768">Sport</translation>
@@ -106,6 +107,7 @@
 <translation id="2330644510603114741">Faneatferd</translation>
 <translation id="233493642829799329">Å endre dette kan laste noen av fanene dine på nytt</translation>
 <translation id="2336309953058658733">Tøm papirkurv</translation>
+<translation id="2336679896177818431">Åpner fanevelgeren ved sveip opp eller ned på adresselinjen</translation>
 <translation id="2359808026110333948">Fortsett</translation>
 <translation id="2386793615875593361">1 objekt valgt</translation>
 <translation id="2387049655823108978">Synkroniser åpne faner fra andre enheter</translation>
@@ -172,6 +174,7 @@ blokkert</translation>
 <translation id="3142562627629111859">Ny gruppe</translation>
 <translation id="3157931365184549694">Gjenopprett</translation>
 <translation id="3159285901314605198">Bakgrunnsbilde</translation>
+<translation id="317084213044777332">Sett som standardsøk</translation>
 <translation id="3177673846235066154">Tjeneren godkjente ikke innloggingsdetaljene dine.</translation>
 <translation id="3180057018690062250">Strømmetjenester</translation>
 <translation id="3180358318770512945">Oppdragelse</translation>
@@ -226,6 +229,7 @@ blokkert</translation>
 <translation id="383723620494271391">Noe annet du vil legge til?</translation>
 <translation id="3842727926262967527">Velg hvor du foretrekker å ha fanelinjen og adressefeltet.</translation>
 <translation id="3845564230651302310">Bruker nye blokkeringsinnstillinger...</translation>
+<translation id="385051799172605136">Tilbake</translation>
 <translation id="3858860766373142691">Navn</translation>
 <translation id="3861379244432690245">Aktiver Direct Match</translation>
 <translation id="3866249974567520381">Beskrivelse</translation>
@@ -495,6 +499,7 @@ blokkert</translation>
 <translation id="6946395294519639514">Med paneler kan du holde dine favorittverktøy innenfor rekkevidde i nettleserens sidelinje.</translation>
 <translation id="6951435330868954105">Håndter standardinnstillinger</translation>
 <translation id="6951948201878750661">Trykk for å velge denne fargen</translation>
+<translation id="6954630860045222581">Vis panel</translation>
 <translation id="6967884871145366229">Håndter personverninnstillinger</translation>
 <translation id="6973630695168034713">Mapper</translation>
 <translation id="7000227144065890583">Forslagsnettadresse</translation>
@@ -592,6 +597,7 @@ blokkert</translation>
 <translation id="8066170816074394954">Tjenerfeil.</translation>
 <translation id="8076492880354921740">Faner</translation>
 <translation id="8077675488769462025">Inaktive faner</translation>
+<translation id="8079925180539182073">Standard søkemotor kan ikke fjernes.</translation>
 <translation id="8112996065264879835">Denne koden stemmer ikke med den vi sendte deg.
 Du har nådd maksgrensen for antall forsøk. Be om en ny kode ved å velge Send på nytt under.</translation>
 <translation id="8131740175452115882">Bekreft</translation>
@@ -637,6 +643,7 @@ Du har nådd maksgrensen for antall forsøk. Be om en ny kode ved å velge Send 
 <translation id="856439694359429369">Trykk for flere valg eller dobbeltrykk for å åpne.</translation>
 <translation id="8591818185775466306">Slett <ph name="ITEM_TYPE" /></translation>
 <translation id="8605953154325672921">Brukernavn kreves</translation>
+<translation id="861259508026988871">Legg til som søkemotor</translation>
 <translation id="8675578805254882416">Henter</translation>
 <translation id="8677007239430848917">Legg til ditt første notat ved å trykke på pluss-ikonet under</translation>
 <translation id="8684294196284714094">Klar til å sette Vivaldi som din standardnettleser?</translation>

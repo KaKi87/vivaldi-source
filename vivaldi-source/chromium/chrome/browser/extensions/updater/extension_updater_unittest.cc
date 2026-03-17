@@ -19,7 +19,6 @@
 #include <vector>
 
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
@@ -102,13 +101,13 @@
 #include "base/files/scoped_temp_dir.h"
 #include "chrome/browser/ash/login/users/user_manager_delegate_impl.h"
 #include "chrome/browser/ash/settings/scoped_cros_settings_test_helper.h"
-#include "chrome/browser/extensions/load_error_reporter.h"
 #include "chrome/browser/extensions/updater/chromeos_extension_cache_delegate.h"
 #include "chrome/browser/extensions/updater/extension_cache_impl.h"
 #include "chrome/browser/extensions/updater/local_extension_cache.h"
 #include "chromeos/ash/components/settings/cros_settings.h"
 #include "components/user_manager/scoped_user_manager.h"
 #include "components/user_manager/user_manager_impl.h"
+#include "extensions/browser/load_error_reporter.h"
 #endif
 
 static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
@@ -227,7 +226,7 @@ class StubExtensionRegistrarDelegate : public ExtensionRegistrar::Delegate {
   void OnExtensionInstalled(const Extension* extension,
                             const syncer::StringOrdinal& page_ordinal,
                             int install_flags,
-                            base::Value::Dict ruleset_install_prefs) override {}
+                            base::DictValue ruleset_install_prefs) override {}
 };
 
 class MockUpdateService : public UpdateService {
@@ -280,7 +279,7 @@ class TestCrxInstallerFactory
     crx_extension_id_ = file.extension_id;
     crx_install_path_ = file.path;
 
-    if (base::Contains(fake_crx_installers_, crx_extension_id_)) {
+    if (fake_crx_installers_.contains(crx_extension_id_)) {
       return fake_crx_installers_[crx_extension_id_];
     }
 
@@ -349,7 +348,7 @@ class TestDownloaderFactory {
       ExtensionDownloaderDelegate* delegate) {
     identity_test_env_ = std::make_unique<signin::IdentityTestEnvironment>();
     account_info_ = identity_test_env_->MakePrimaryAccountAvailable(
-        "bobloblaw@lawblog.example.com", signin::ConsentLevel::kSync);
+        "bobloblaw@lawblog.example.com", signin::ConsentLevel::kSignin);
 
     std::unique_ptr<ExtensionDownloader> downloader(
         CreateExtensionDownloader(delegate));
@@ -445,7 +444,7 @@ static std::map<std::string, ParamsMap> GetPingDataFromURL(
     base::SplitStringIntoKeyValuePairs(unescaped, '=', '&', &extension_params);
     std::multimap<std::string, std::string> param_map;
     param_map.insert(extension_params.begin(), extension_params.end());
-    if (base::Contains(param_map, "id") && base::Contains(param_map, "ping")) {
+    if (param_map.contains("id") && param_map.contains("ping")) {
       std::string id = param_map.find("id")->second;
       result[id] = ParamsMap();
 
@@ -456,8 +455,9 @@ static std::map<std::string, ParamsMap> GetPingDataFromURL(
       base::StringPairs ping_params;
       base::SplitStringIntoKeyValuePairs(ping, '=', '&', &ping_params);
       for (const auto& ping_param : ping_params) {
-        if (!base::Contains(result[id], ping_param.first))
+        if (!result[id].contains(ping_param.first)) {
           result[id][ping_param.first] = std::set<std::string>();
+        }
         result[id][ping_param.first].insert(ping_param.second);
       }
     }
@@ -541,7 +541,7 @@ class ExtensionUpdaterTest : public testing::Test {
       CHECK_EQ(count, 1) << "Can't create two extensions with the same key";
     }
     for (int i = 1; i <= count; i++) {
-      base::Value::Dict manifest;
+      base::DictValue manifest;
       manifest.Set(manifest_keys::kVersion, base::StringPrintf("%d.0.0.0", i));
       manifest.Set(manifest_keys::kName,
                    base::StringPrintf("Extension %d.%d", id, i));
@@ -2231,8 +2231,9 @@ class ExtensionUpdaterTest : public testing::Test {
     std::map<std::string, ParamsMap> url1_ping_data =
         GetPingDataFromURL(url1_fetch_url);
     ParamsMap url1_params = ParamsMap();
-    if (!url1_ping_data.empty() && base::Contains(url1_ping_data, id))
+    if (!url1_ping_data.empty() && url1_ping_data.contains(id)) {
       url1_params = url1_ping_data[id];
+    }
 
     // First make sure the non-google query had no ping parameter.
     EXPECT_TRUE(GetPingDataFromURL(url2_fetch_url).empty());
@@ -2240,14 +2241,14 @@ class ExtensionUpdaterTest : public testing::Test {
     // Now make sure the google query had the correct ping parameter.
     bool did_rollcall = false;
     if (rollcall_ping_days != 0) {
-      ASSERT_TRUE(base::Contains(url1_params, "r"));
+      ASSERT_TRUE(url1_params.contains("r"));
       ASSERT_EQ(1u, url1_params["r"].size());
       EXPECT_EQ(base::NumberToString(rollcall_ping_days),
                 *url1_params["r"].begin());
       did_rollcall = true;
     }
     if (active_bit && active_ping_days != 0 && did_rollcall) {
-      ASSERT_TRUE(base::Contains(url1_params, "a"));
+      ASSERT_TRUE(url1_params.contains("a"));
       ASSERT_EQ(1u, url1_params["a"].size());
       EXPECT_EQ(base::NumberToString(active_ping_days),
                 *url1_params["a"].begin());
@@ -2643,12 +2644,11 @@ TEST_F(ExtensionUpdaterTest, TestUpdatingRemotelyDisabledExtensions) {
 
 TEST_F(ExtensionUpdaterTest, TestPendingInstall) {
   // Add an extension as a pending update with a higher version number.
-  base::Value::Dict manifest;
+  base::DictValue manifest;
   manifest.Set(manifest_keys::kKey, kExtensionManifestKey);
   manifest.Set(manifest_keys::kName, "Fake extension");
   manifest.Set(manifest_keys::kVersion, "1.0.0.1");
   manifest.Set(manifest_keys::kManifestVersion, 2);
-  manifest.Set(manifest_keys::kDifferentialFingerprint, "fingerprint");
   scoped_refptr<Extension> pending_update =
       prefs_->AddExtensionWithManifest(manifest, ManifestLocation::kInternal);
   DelayedInstallManager::Get(profile())->Insert(pending_update);
@@ -2671,17 +2671,16 @@ TEST_F(ExtensionUpdaterTest, TestPendingInstall) {
   ASSERT_EQ(enabled_extensions[0]->VersionString(), "1.0.0.0");
 
   // When StartUpdateCheck is called, we expect the pending version is used.
-  EXPECT_CALL(
-      update_service,
-      StartUpdateCheck(
-          ::testing::Field(
-              &ExtensionUpdateCheckParams::update_info,
-              ::testing::ElementsAre(::testing::Pair(
-                  enabled_extensions[0]->id(),
-                  ::testing::FieldsAre(
-                      "", false, ::testing::Optional(std::string("1.0.0.1")),
-                      ::testing::Optional(std::string("fingerprint")))))),
-          _, _));
+  EXPECT_CALL(update_service,
+              StartUpdateCheck(
+                  ::testing::Field(
+                      &ExtensionUpdateCheckParams::update_info,
+                      ::testing::ElementsAre(::testing::Pair(
+                          enabled_extensions[0]->id(),
+                          ::testing::FieldsAre(
+                              "", false,
+                              ::testing::Optional(std::string("1.0.0.1")))))),
+                  _, _));
 
   SetExtensions(enabled_extensions, ExtensionList());
   updater.Start();
@@ -2925,6 +2924,7 @@ TEST_F(ExtensionUpdaterTest, TestExtensionPriority) {
   TestSingleExtensionDownloadingPriority(DownloadFetchPriority::kForeground);
 }
 
+#if !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID)
 TEST_F(ExtensionUpdaterTest, TestProfileDestruction) {
   ExtensionUpdater updater(profile());
   // Create an active ProfileManager, and do NOT make it the owner of profile().
@@ -2944,6 +2944,7 @@ TEST_F(ExtensionUpdaterTest, TestProfileDestruction) {
   updater.CheckNow(ExtensionUpdater::CheckParams());
   base::RunLoop().RunUntilIdle();
 }
+#endif  // !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID)
 
 class CanUseUpdateServiceTest : public ExtensionUpdaterTest {
  public:

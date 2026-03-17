@@ -29,7 +29,6 @@
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_icon_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_info_button_item.h"
-#import "ios/chrome/browser/shared/ui/table_view/cells/table_view_info_button_item_delegate.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/welcome_back/model/features.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
@@ -59,8 +58,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 }  // namespace
 
-@interface PrivacySafeBrowsingMediator () <BooleanObserver,
-                                           TableViewInfoButtonItemDelegate>
+@interface PrivacySafeBrowsingMediator () <BooleanObserver>
 
 // Preference value for the enhanced safe browsing feature.
 @property(nonatomic, strong, readonly)
@@ -181,7 +179,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
     if (base::FeatureList::IsEnabled(
             safe_browsing::kMovePasswordLeakDetectionToggleIos) &&
         base::FeatureList::IsEnabled(
-            safe_browsing::kExtendedReportingRemovePrefDependencyIos)) {
+            safe_browsing::kExtendedReportingRemovePrefDependency)) {
       TableViewItem* safeBrowsingStandardProtectionItem = [self
                detailIconItemType:ItemTypeSafeBrowsingStandardProtection
                           titleId:
@@ -270,7 +268,6 @@ typedef NS_ENUM(NSInteger, ItemType) {
       DefaultSymbolWithConfiguration(kCheckmarkSymbol, configuration);
   infoButtonItem.iconTintColor = [self iconTintColorForItemType:type];
   infoButtonItem.accessibilityIdentifier = accessibilityIdentifier;
-  infoButtonItem.accessibilityDelegate = self;
   infoButtonItem.target = self;
   infoButtonItem.selector = @selector(didTapInfoButton:);
   infoButtonItem.tag = type;
@@ -377,12 +374,6 @@ typedef NS_ENUM(NSInteger, ItemType) {
     return;
   }
 
-  [self showAdditionalInfoForItemType:itemType];
-}
-
-// Displays the screens with additional infos for `itemType`.
-- (void)showAdditionalInfoForItemType:(ItemType)itemType {
-  // Info button tap logic when not in enterprise mode.
   switch (itemType) {
     case ItemTypeSafeBrowsingEnhancedProtection:
       base::RecordAction(base::UserMetricsAction(
@@ -453,14 +444,6 @@ typedef NS_ENUM(NSInteger, ItemType) {
       break;
     }
   }
-}
-
-#pragma mark - TableViewInfoButtonItemDelegate
-
-- (void)handleTappedInfoButtonForItem:(TableViewItem*)item {
-  ItemType itemType = static_cast<ItemType>(item.type);
-  CHECK(![self shouldEnterprisePopOverDisplay:itemType]);
-  [self showAdditionalInfoForItemType:itemType];
 }
 
 #pragma mark - BooleanObserver

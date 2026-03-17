@@ -105,7 +105,7 @@ base::FilePath GetDefaultInstallTopDir(InstallType install_type) {
       break;
     case InstallType::kStandalone:
       NOTREACHED();
-      //return base::FilePath();
+      // return base::FilePath();
   }
 
   wchar_t szPath[MAX_PATH];
@@ -261,7 +261,8 @@ installer::AppCommand GetNewUpdateFinalizeCommand() {
       vivaldi_cmd_line->HasSwitch(installer::switches::kVerboseLogging)) {
     rename_cmd.AppendSwitch(installer::switches::kVerboseLogging);
   }
-  return installer::AppCommand(installer::kSetupExe, rename_cmd.GetCommandLineString());
+  return installer::AppCommand(installer::kSetupExe,
+                               rename_cmd.GetCommandLineString());
 }
 
 void SendQuitUpdateNotifier(const base::FilePath& install_binary_dir,
@@ -419,7 +420,7 @@ std::wstring ReadRegistryString(const wchar_t* name,
 }
 
 std::optional<uint32_t> ReadRegistryUint32(const wchar_t* name,
-                                            const base::win::RegKey& key) {
+                                           const base::win::RegKey& key) {
   if (!key.Valid())
     return std::nullopt;
   DWORD value = 0;
@@ -435,7 +436,7 @@ std::optional<uint32_t> ReadRegistryUint32(const wchar_t* name,
 }
 
 std::optional<bool> ReadRegistryBool(const wchar_t* name,
-                                      const base::win::RegKey& key) {
+                                     const base::win::RegKey& key) {
   std::optional<uint32_t> value_word = ReadRegistryUint32(name, key);
   if (!value_word)
     return std::nullopt;

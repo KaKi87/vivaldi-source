@@ -8,6 +8,7 @@
 #import "ios/chrome/browser/shared/coordinator/chrome_coordinator/chrome_coordinator.h"
 #import "ios/chrome/browser/shared/public/commands/composebox_tab_picker_commands.h"
 
+@protocol ComposeboxDebuggerLogger;
 @class ComposeboxInputPlateViewController;
 enum class ComposeboxEntrypoint;
 @class ComposeboxModeHolder;
@@ -28,6 +29,9 @@ class Browser;
 @property(nonatomic, weak) id<OmniboxPopupPresenterDelegate>
     omniboxPopupPresenterDelegate;
 
+// Delegate for logging events.
+@property(nonatomic, weak) id<ComposeboxDebuggerLogger> debugLogger;
+
 /// Init the composebox opened from `entrypoint` with an optional `query` in
 /// the omnibox.
 - (instancetype)initWithBaseViewController:(UIViewController*)baseViewController
@@ -41,6 +45,9 @@ class Browser;
 
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                                    browser:(Browser*)browser NS_UNAVAILABLE;
+
+/// Shows the debug UI.
+- (void)showOmniboxDebugUI;
 
 @end
 

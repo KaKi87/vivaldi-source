@@ -4,21 +4,18 @@
 
 #include "chrome/browser/actor/ui/dom_node_geometry.h"
 
-#include "base/metrics/histogram_functions.h"
 #include "base/trace_event/trace_event.h"
+#include "base/types/pass_key.h"
+#include "chrome/browser/actor/ui/actor_ui_metrics.h"
 #include "components/optimization_guide/proto/features/common_quality_data.pb.h"
-
+#include "ui/gfx/geometry/rect.h"
 namespace actor::ui {
 namespace {
-using base::UmaHistogramEnumeration;
 using optimization_guide::proto::AnnotatedPageContent;
 using optimization_guide::proto::ContentAttributes;
 using optimization_guide::proto::ContentNode;
 using optimization_guide::proto::DocumentIdentifier;
 using NodeGeomMap = DomNodeGeometry::NodeGeomMap;
-
-constexpr std::string_view kDomNodeResultHistogram =
-    "Actor.DomNodeGeometry.GetDomNodeResult";
 
 void BuildNodeMapInternal(const DocumentIdentifier& doc_id,
                           const ContentNode& root,
@@ -55,20 +52,21 @@ std::unique_ptr<DomNodeGeometry> DomNodeGeometry::InitFromApc(
   TRACE_EVENT("actor", "DomNodeGeometry::InitFromApc");
   if (!apc.has_main_frame_data() ||
       !apc.main_frame_data().has_document_identifier()) {
-    return base::WrapUnique(
-        new DomNodeGeometry(GetDomNodeResult::kNoApcMainFrameData));
+    return std::make_unique<DomNodeGeometry>(
+        base::PassKey<DomNodeGeometry>(),
+        GetDomNodeResult::kNoApcMainFrameData);
   }
   auto map = BuildNodeMap(apc.main_frame_data().document_identifier(),
                           apc.root_node());
-  return base::WrapUnique(new DomNodeGeometry(std::move(map)));
+  return std::make_unique<DomNodeGeometry>(base::PassKey<DomNodeGeometry>(),
+                                           std::move(map));
 }
 
 base::expected<gfx::Point, GetDomNodeResult> DomNodeGeometry::GetDomNode(
     const DomNode& node) const {
   TRACE_EVENT("actor", "DomNodeGeometry::GetDomNode");
   auto result = InternalGetDomNode(node);
-  UmaHistogramEnumeration(kDomNodeResultHistogram,
-                          result.error_or(GetDomNodeResult::kSuccess));
+  RecordGetDomNodeResult(result.error_or(GetDomNodeResult::kSuccess));
   return result;
 }
 
@@ -89,16 +87,21 @@ DomNodeGeometry::InternalGetDomNode(const DomNode& node) const {
   if (!geom.has_visible_bounding_box()) {
     return base::unexpected(GetDomNodeResult::kOffScreen);
   }
-  const auto& rect = geom.visible_bounding_box();
-  const int x = rect.x() + rect.width() / 2;
-  const int y = rect.y() + rect.height() / 2;
-  return gfx::Point(x, y);
+  const auto& bounding_box = geom.visible_bounding_box();
+  gfx::Rect rect(bounding_box.x(), bounding_box.y(), bounding_box.width(),
+                 bounding_box.height());
+  if (rect.IsEmpty()) {
+    return base::unexpected(GetDomNodeResult::kEmptyBoundingBox);
+  }
+  return rect.CenterPoint();
 }
 
-DomNodeGeometry::DomNodeGeometry(GetDomNodeResult init_error)
+DomNodeGeometry::DomNodeGeometry(base::PassKey<DomNodeGeometry>,
+                                 GetDomNodeResult init_error)
     : init_error_(init_error), node_map_() {}
 
-DomNodeGeometry::DomNodeGeometry(NodeGeomMap node_map)
+DomNodeGeometry::DomNodeGeometry(base::PassKey<DomNodeGeometry>,
+                                 NodeGeomMap node_map)
     : init_error_(std::nullopt), node_map_(std::move(node_map)) {}
 
 DomNodeGeometry::~DomNodeGeometry() = default;

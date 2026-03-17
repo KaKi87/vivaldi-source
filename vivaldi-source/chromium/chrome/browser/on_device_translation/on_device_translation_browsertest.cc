@@ -21,16 +21,10 @@
 #include "base/threading/thread_restrictions.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
-#include "chrome/browser/ai/ai_test_utils.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/browsing_data/chrome_browsing_data_remover_constants.h"
 #include "chrome/browser/component_updater/translate_kit_component_installer.h"
-#include "chrome/browser/on_device_translation/component_manager.h"
-#include "chrome/browser/on_device_translation/constants.h"
-#include "chrome/browser/on_device_translation/language_pack_util.h"
-#include "chrome/browser/on_device_translation/pref_names.h"
-#include "chrome/browser/on_device_translation/service_controller.h"
-#include "chrome/browser/on_device_translation/service_controller_manager.h"
+#include "chrome/browser/on_device_translation/service_controller_manager_factory.h"
 #include "chrome/browser/on_device_translation/test/test_util.h"
 #include "chrome/browser/on_device_translation/translation_manager_impl.h"
 #include "chrome/browser/profiles/profile.h"
@@ -43,9 +37,16 @@
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/crx_file/id_util.h"
 #include "components/language/core/browser/pref_names.h"
+#include "components/on_device_translation/component_manager.h"
+#include "components/on_device_translation/constants.h"
+#include "components/on_device_translation/features.h"
+#include "components/on_device_translation/public/language_pack.h"
+#include "components/on_device_translation/public/pref_names.h"
+#include "components/on_device_translation/service/test/test_util.h"
+#include "components/on_device_translation/service_controller.h"
+#include "components/on_device_translation/service_controller_manager.h"
+#include "components/optimization_guide/core/model_execution/test/fake_component_update_service.h"
 #include "components/prefs/pref_service.h"
-#include "components/services/on_device_translation/public/cpp/features.h"
-#include "components/services/on_device_translation/test/test_util.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/test/browser_test.h"
@@ -61,6 +62,8 @@
 using ::blink::mojom::CanCreateTranslatorResult;
 using ::blink::mojom::TranslatorLanguageCode;
 using ::content::JsReplace;
+using ::optimization_guide::FakeComponent;
+using ::optimization_guide::FakeComponentUpdateService;
 using ::testing::_;
 
 namespace on_device_translation {
@@ -272,6 +275,7 @@ class OnDeviceTranslationBrowserTest : public InProcessBrowserTest {
     TestSupportsUserData fake_user_data;
     TranslationManagerImpl::Bind(render_process_host, GetBrowserContext(),
                                  &fake_user_data, GetLastCommittedOrigin(),
+                                 g_browser_process->component_updater(),
                                  remote.BindNewPipeAndPassReceiver());
     base::RunLoop run_loop;
     remote->TranslationAvailable(
@@ -976,19 +980,18 @@ class OnDeviceTranslationProgressMonitorBrowserTest
     OnDeviceTranslationBrowserTest::SetUpOnMainThread();
     NavigateToEmptyPage();
     translation_manager_ = std::make_unique<MockTranslationManagerImpl>(
-        GetRenderProcessHost(), GetBrowserContext(), GetLastCommittedOrigin());
-
-    // Setup a ComponentUpdateService to be used by the TranslationManager.
-    EXPECT_CALL(*translation_manager_, GetComponentUpdateService())
-        .WillOnce([&]() { return &component_update_service_; });
+        GetRenderProcessHost(), GetBrowserContext(), GetLastCommittedOrigin(),
+        &component_update_service_);
 
     // `GetComponentDetails` should be called by the
-    // `AIModelDownloadProgressManager` to filter out existing downloads.
+    // `OnDeviceModelDownloadProgressManager` to filter out existing
+    // downloads.
     EXPECT_CALL(component_update_service_, GetComponentDetails(_, _))
         .WillRepeatedly(
             [&](const std::string& id, component_updater::CrxUpdateItem* item) {
               // The `total_bytes` doesn't matter since
-              // `AIModelDownloadProgressManager` doesn't check it for now.
+              // `OnDeviceModelDownloadProgressManager` doesn't check it for
+              // now.
               *item = GetComponentForTranslateKit(100).CreateUpdateItem(
                   update_client::ComponentState::kNew, 0);
               return true;
@@ -1042,15 +1045,14 @@ class OnDeviceTranslationProgressMonitorBrowserTest
     run_loop_language_pack.Run();
   }
 
-  AITestUtils::FakeComponent GetComponentForTranslateKit(uint64_t total_bytes) {
+  FakeComponent GetComponentForTranslateKit(uint64_t total_bytes) {
     return {component_updater::TranslateKitComponentInstallerPolicy::
                 GetExtensionId(),
             total_bytes};
   }
 
-  AITestUtils::FakeComponent GetComponentForLanguagePack(
-      LanguagePackKey language_pack_key,
-      uint64_t total_bytes) {
+  FakeComponent GetComponentForLanguagePack(LanguagePackKey language_pack_key,
+                                            uint64_t total_bytes) {
     const LanguagePackComponentConfig& config =
         GetLanguagePackComponentConfig(language_pack_key);
     std::string id =
@@ -1058,18 +1060,17 @@ class OnDeviceTranslationProgressMonitorBrowserTest
     return {id, total_bytes};
   }
 
-  void SendUpdate(AITestUtils::FakeComponent component,
-                  uint64_t downloaded_bytes) {
+  void SendUpdate(FakeComponent component, uint64_t downloaded_bytes) {
     component_update_service_.SendUpdate(component.CreateUpdateItem(
         update_client::ComponentState::kDownloading, downloaded_bytes));
   }
 
   double NormalizedProgress(uint64_t downloaded_bytes, uint64_t total_bytes) {
-    // `AIUtils::NormalizeModelDownloadProgress` normalizes to 0 - 0x10000
-    // range. We divide it by 0x10000 (65536) again to get it in the 0.0 - 1.0
-    // range.
-    return AIUtils::NormalizeModelDownloadProgress(downloaded_bytes,
-                                                   total_bytes) /
+    // `optimization_guide::NormalizeModelDownloadProgress` normalizes to 0 -
+    // 0x10000 range. We divide it by 0x10000 (65536) again to get it in the 0.0
+    // - 1.0 range.
+    return optimization_guide::NormalizeModelDownloadProgress(downloaded_bytes,
+                                                              total_bytes) /
            65536.0;
   }
 
@@ -1085,12 +1086,12 @@ class OnDeviceTranslationProgressMonitorBrowserTest
   }
 
   void ExpectUpdatesAre(const std::vector<double>& expected_updates) {
-    base::Value::List actual_updates = EvalJs(R"((async () => {
+    base::ListValue actual_updates = EvalJs(R"((async () => {
                             await self.createTranslatorPromise;
                             return self.progressEvents;
                           })())")
-                                           .TakeValue()
-                                           .TakeList();
+                                         .TakeValue()
+                                         .TakeList();
 
     ASSERT_EQ(actual_updates.size(), expected_updates.size());
     for (size_t i = 0; i < actual_updates.size(); i++) {
@@ -1108,7 +1109,7 @@ class OnDeviceTranslationProgressMonitorBrowserTest
 
  private:
   MockComponentManager component_manager_{GetTempDir()};
-  AITestUtils::MockComponentUpdateService component_update_service_;
+  FakeComponentUpdateService component_update_service_;
   std::unique_ptr<MockTranslationManagerImpl> translation_manager_;
 
   base::test::ScopedFeatureList scoped_feature_list_;
@@ -1127,9 +1128,8 @@ IN_PROC_BROWSER_TEST_F(OnDeviceTranslationProgressMonitorBrowserTest,
   TranslateAndMonitorProgress(source_language, target_language);
 
   // Components we expect to receive updates for.
-  AITestUtils::FakeComponent translation_kit =
-      GetComponentForTranslateKit(4321);
-  AITestUtils::FakeComponent en_ja_language_pack =
+  FakeComponent translation_kit = GetComponentForTranslateKit(4321);
+  FakeComponent en_ja_language_pack =
       GetComponentForLanguagePack(LanguagePackKey::kEn_Ja, 1234);
 
   // The downloaded bytes and total bytes for all components.
@@ -1239,78 +1239,6 @@ IN_PROC_BROWSER_TEST_F(OnDeviceTranslationBrowserTest,
   TestTranslationAvailable(browser(), "en", "ja", "downloadable");
 }
 
-// A delay is triggered for a "downloadable" translation containing a language
-// outside of English + preferred languages.
-IN_PROC_BROWSER_TEST_F(
-    OnDeviceTranslationBrowserTest,
-    CreateTranslator_Delay_ForMaskedDownloadableTranslation) {
-  // Setup Translate Kit Component and select Spanish as the preferred language.
-  SetSelectedLanguages("en,es");
-  MockComponentManager mock_component_manager(GetTempDir());
-  mock_component_manager.InstallMockTranslateKitComponent();
-  NavigateToEmptyPage();
-
-  auto manager = MockTranslationManagerImpl(
-      GetRenderProcessHost(), GetBrowserContext(), GetLastCommittedOrigin());
-
-  // Simulate the download of an additional language pack (Japanese) by another
-  // site.
-  mock_component_manager.InstallMockLanguagePack(LanguagePackKey::kEn_Ja);
-
-  // The delay is triggered upon the initial translator creation for Japanese,
-  // given that it is not a preferred language.
-  EXPECT_CALL(manager, GetTranslatorDownloadDelay()).Times(1);
-  TestSimpleTranslationWorks(browser(), "en", "ja");
-
-  // The delay does not occur on subsequent uses of the same language pair.
-  EXPECT_CALL(manager, GetTranslatorDownloadDelay()).Times(0);
-  TestSimpleTranslationWorks(browser(), "en", "ja");
-}
-
-// TODO(crbug.com/421947718): Disabled because there's a race between triggering
-// user activation and consuming it when calling `create` multiple times.
-//
-// A delay is triggered when a second translator for a given translation is
-// created during the delay time window of an initial translator's creation
-// (which is also expected to trigger a delay).
-IN_PROC_BROWSER_TEST_F(
-    OnDeviceTranslationBrowserTest,
-    DISABLED_CreateTranslator_Delay_ForTranslatorCreatedDuringInitialTranslatorCreationWithDelay) {
-  SetSelectedLanguages("es");
-  MockComponentManager mock_component_manager(GetTempDir());
-  mock_component_manager.InstallMockTranslateKitComponent();
-  NavigateToEmptyPage();
-
-  auto manager = MockTranslationManagerImpl(
-      GetRenderProcessHost(), GetBrowserContext(), GetLastCommittedOrigin());
-
-  // Simulate the download of an additional language pack (Japanese) by another
-  // site.
-  mock_component_manager.InstallMockLanguagePack(LanguagePackKey::kEn_Ja);
-
-  EXPECT_TRUE(ExecJs("self.createPromises = [];"));
-
-  std::string create_translator_script = R"(
-    self.createPromises.push(
-        Translator.create({sourceLanguage: 'en', targetLanguage: 'ja'}));
-  )";
-
-  // The added delay should be triggered twice, once for each translator
-  // creation.
-  EXPECT_CALL(manager, GetTranslatorDownloadDelay()).Times(2);
-
-  // Each call to `Translator.create` must be in a separate `ExecJs` call.
-  // `Translator.create` consumes user activation if not english or preferred,
-  // and `ExecJs` provides an initial user activation on each call.
-  EXPECT_TRUE(ExecJs(create_translator_script));
-  EXPECT_TRUE(ExecJs(create_translator_script));
-  ASSERT_EQ(EvalJsCatchingError(R"(
-    await Promise.all(self.createPromises);
-    return 'OK';
-  )"),
-            "OK");
-}
-
 // `Translator.create` should still require user activation if the language pair
 // is readily available but the site hasn't created a Translator for the
 // language pair yet.
@@ -1333,50 +1261,6 @@ IN_PROC_BROWSER_TEST_F(OnDeviceTranslationBrowserTest,
                           browser(), content::EXECUTE_SCRIPT_NO_USER_GESTURE),
       "NotAllowedError: Requires a user gesture when availability is "
       "\"downloading\" or \"downloadable\".");
-}
-
-// No delay is triggered for a "downloadable" translation between English +
-// preferred languages.
-IN_PROC_BROWSER_TEST_F(OnDeviceTranslationBrowserTest,
-                       CreateTranslator_NoDelay_DownloadableTranslation) {
-  SetSelectedLanguages("en,es");
-  MockComponentManager mock_component_manager(GetTempDir());
-  mock_component_manager.InstallMockTranslateKitComponent();
-  NavigateToEmptyPage();
-
-  auto manager = MockTranslationManagerImpl(
-      GetRenderProcessHost(), GetBrowserContext(), GetLastCommittedOrigin());
-  mock_component_manager.ExpectCallRegisterLanguagePackComponentAndInstall(
-      {LanguagePackKey::kEn_Es});
-  EXPECT_CALL(manager, GetTranslatorDownloadDelay()).Times(0);
-  TestSimpleTranslationWorks(browser(), "en", "es");
-
-  // No delay is triggered now that the translation is "available".
-  EXPECT_CALL(manager, GetTranslatorDownloadDelay()).Times(0);
-  TestSimpleTranslationWorks(browser(), "en", "es");
-}
-
-// No delay is triggered in attempt to create a translator for an unsupported
-// language.
-IN_PROC_BROWSER_TEST_F(OnDeviceTranslationBrowserTest,
-                       CreateTranslator_NoDelay_UnsupportedLanguage) {
-  SetSelectedLanguages("en,xx");
-  MockComponentManager mock_component_manager(GetTempDir());
-  mock_component_manager.InstallMockTranslateKitComponent();
-  NavigateToEmptyPage();
-
-  auto manager = MockTranslationManagerImpl(
-      GetRenderProcessHost(), GetBrowserContext(), GetLastCommittedOrigin());
-
-  EXPECT_CALL(manager, GetTranslatorDownloadDelay()).Times(0);
-  EXPECT_NE(EvalJsCatchingError(R"(
-      const translator = await Translator.create({
-        sourceLanguage: 'en',
-        targetLanguage: 'xx',
-      });
-      return await translator.translate('hello');
-    )"),
-            "en to xx: hello");
 }
 
 // Tests the behavior of the crash of calling create() and availability().
@@ -1414,7 +1298,8 @@ IN_PROC_BROWSER_TEST_F(OnDeviceTranslationCrashingLangBrowserTest,
   NavigateToEmptyPage();
 
   MockTranslationManagerImpl manager(
-      GetRenderProcessHost(), GetBrowserContext(), GetLastCommittedOrigin());
+      GetRenderProcessHost(), GetBrowserContext(), GetLastCommittedOrigin(),
+      g_browser_process->component_updater());
   manager.SetCrashesAllowed(true);
 
   auto console_observer =
@@ -1446,7 +1331,8 @@ IN_PROC_BROWSER_TEST_F(OnDeviceTranslationCrashingLangBrowserTest,
   NavigateToEmptyPage();
 
   MockTranslationManagerImpl manager(
-      GetRenderProcessHost(), GetBrowserContext(), GetLastCommittedOrigin());
+      GetRenderProcessHost(), GetBrowserContext(), GetLastCommittedOrigin(),
+      g_browser_process->component_updater());
   manager.SetCrashesAllowed(true);
 
   // Tries to call availability() for the fake language code `crash`. This
@@ -1558,10 +1444,10 @@ IN_PROC_BROWSER_TEST_F(
 
   NavigateToEmptyPage();
 
-  auto service_controller =
-      ServiceControllerManager::GetForBrowserContext(browser()->profile())
-          ->GetServiceControllerForOrigin(
-              embedded_https_test_server().GetOrigin());
+  auto service_controller = ServiceControllerManagerFactory::GetInstance()
+                                ->Get(browser()->profile())
+                                ->GetServiceControllerForOrigin(
+                                    embedded_https_test_server().GetOrigin());
 
   // Set the idle timeout to be 100 microseconds.
   service_controller->SetServiceIdleTimeoutForTesting(base::Microseconds(100));
@@ -1611,10 +1497,10 @@ IN_PROC_BROWSER_TEST_F(
 
   NavigateToEmptyPage();
 
-  auto service_controller =
-      ServiceControllerManager::GetForBrowserContext(browser()->profile())
-          ->GetServiceControllerForOrigin(
-              embedded_https_test_server().GetOrigin());
+  auto service_controller = ServiceControllerManagerFactory::GetInstance()
+                                ->Get(browser()->profile())
+                                ->GetServiceControllerForOrigin(
+                                    embedded_https_test_server().GetOrigin());
   // Set the idle timeout to be 100 microseconds.
   service_controller->SetServiceIdleTimeoutForTesting(base::Microseconds(100));
 
@@ -1746,6 +1632,7 @@ IN_PROC_BROWSER_TEST_F(OnDeviceTranslationBrowserTest,
 
   TranslationManagerImpl::Bind(process_host, GetBrowserContext(),
                                &fake_user_data, last_committed_origin,
+                               g_browser_process->component_updater(),
                                remote.BindNewPipeAndPassReceiver());
 
   // Check the availability result.
@@ -2039,7 +1926,8 @@ class OnDeviceTranslationCrossOriginBrowserTest
   void RemoveIframeAndWaitForServiceDeletion(size_t index,
                                              Browser* target_browser) {
     base::RunLoop run_loop;
-    ServiceControllerManager::GetForBrowserContext(target_browser->profile())
+    ServiceControllerManagerFactory::GetInstance()
+        ->Get(target_browser->profile())
         ->set_service_controller_deleted_observer_for_testing(
             run_loop.QuitClosure());
     EXPECT_EQ(EvalJsCatchingError(JsReplace("return removeIframe($1);",

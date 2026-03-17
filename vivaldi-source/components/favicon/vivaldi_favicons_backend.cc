@@ -1,13 +1,14 @@
 #include "components/favicon/core/favicon_backend.h"
 
+#include <ranges>
+
+#include "app/vivaldi_apptools.h"
 #include "base/base64.h"
-#include "base/containers/contains.h"
 #include "components/favicon/core/favicon_database.h"
 #include "components/favicon_base/favicon_util.h"
 #include "ui/gfx/image/image.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/image/image_skia_rep.h"
-#include "app/vivaldi_apptools.h"
 
 namespace favicon {
 
@@ -20,7 +21,7 @@ struct VivaldiPreloadedFavicon {
 };
 
 #include "components/favicon/vivaldi_preloaded_favicons.inc"
-}
+}  // namespace
 
 void FaviconBackend::SetVivaldiPreloadedFavicons() {
   if (!vivaldi::IsVivaldiRunning())
@@ -39,15 +40,13 @@ void FaviconBackend::SetVivaldiPreloadedFavicons() {
     const std::vector<float> favicon_scales = favicon_base::GetFaviconScales();
     for (const gfx::ImageSkiaRep& rep : image_skia.image_reps()) {
       // Only save images with a supported sale.
-      if (base::Contains(favicon_scales, rep.scale()))
+      if (std::ranges::contains(favicon_scales, rep.scale()))
         bitmaps.push_back(rep.GetBitmap());
     }
-    SetFavicons(
-      { GURL(kPreloadedFavicons[i].page_url) },
-      favicon_base::IconType::kFavicon,
-      GURL(kPreloadedFavicons[i].favicon_url),
-      bitmaps,
-      FaviconBitmapType::VIVALDI_PRELOADED);
+    SetFavicons({GURL(kPreloadedFavicons[i].page_url)},
+                favicon_base::IconType::kFavicon,
+                GURL(kPreloadedFavicons[i].favicon_url), bitmaps,
+                FaviconBitmapType::VIVALDI_PRELOADED);
   }
 }
 
@@ -74,4 +73,4 @@ void FaviconDatabase::DeleteVivaldiPreloadedFavicons() {
   }
 }
 
-} // namespace favicon
+}  // namespace favicon

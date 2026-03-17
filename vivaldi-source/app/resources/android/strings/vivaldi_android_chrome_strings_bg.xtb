@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">Отвори в нов куп</translation>
 <translation id="1925021887439448749">Въведете собствен адрес</translation>
 <translation id="2038563949887743358">Включване на настолната версия</translation>
+<translation id="2072027001582274150">Неползвани или дублирани раздели</translation>
 <translation id="208033313373016095">Режим на четене на страницата</translation>
 <translation id="2149973817440762519">Редактирай отметката</translation>
 <translation id="2306442503286132111">Записана отметка в папка <ph name="FOLDER_NAME" /></translation>
@@ -46,18 +47,20 @@
 <translation id="385051799172605136">Назад</translation>
 <translation id="3987993985790029246">Копирай препратката</translation>
 <translation id="399014816462153200">Прочетени статии:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> раздел}
+          other {<ph name="TAB_COUNT_MANY" /> раздела, <ph name="TAB_COUNT_INCOGNITO" /> частен}}</translation>
+<translation id="408336132633586393">Частен прозорец</translation>
 <translation id="4121750346708795461">С ползване на приложението, приемате <ph name="BEGIN_LINK1" />Лицензионно споразумение с крайния потребител<ph name="END_LINK1" /> и <ph name="BEGIN_LINK2" />Политика на поверителност<ph name="END_LINK2" /> на Vivaldi.</translation>
 <translation id="4137746084635924146">Текущ език на устройство</translation>
-<translation id="4167670741834902166">Създай частен раздел</translation>
+<translation id="4167670741834902166">Нов частен раздел</translation>
 <translation id="4195643157523330669">Отвори в нов раздел</translation>
 <translation id="4225895483398857530">Пряк път към лентата</translation>
 <translation id="4243710787042215766">Отвори в частен раздел</translation>
 <translation id="4269820728363426813">Копирай адреса на препратката</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Включване на заключването на екрана в настройките на Android<ph name="END_LINK" />.</translation>
 <translation id="4304713468139749426">Диспечер на пароли</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {неползван раздел и каталог от 1 или повече дни}
-          other {неползвани раздели и каталози от # ли повече дни}}</translation>
+<translation id="441100617989818073">Неползвани или дублирани раздели и каталози</translation>
 <translation id="451872707440238414">Търси в отметките</translation>
 <translation id="4526803704855831732">Частни раздели</translation>
 <translation id="4532845899244822526">Посочи папка</translation>
@@ -71,6 +74,9 @@
 <translation id="4883379392681899581">Излизане от частен режим</translation>
 <translation id="4943872375798546930">Няма резултати</translation>
 <translation id="49576331685473090">Блокер на съдържание</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> частен раздел}
+          other {<ph name="TAB_COUNT_NORMAL" /> частни раздела}}</translation>
 <translation id="5079259810715830221">Когато сайт на Google поиска поверително да предзареди препратки в тяхна страница, Vivaldi шифрова и презарежда страниците чрез сървърите на Google, но без бисквитките. Това скрива вашата самоличност от предварително заредения сайт.</translation>
 <translation id="5118676864324397542">Хранилище на <ph name="APP_NAME" /></translation>
 <translation id="5144385790872094440">Някои посещавани страници са предзаредени. Те се презареждат чрез сървъри на Google, когато препращат към сайт или приложение на Google.</translation>
@@ -86,7 +92,7 @@
 <translation id="5833984609253377421">Сподели препратката</translation>
 <translation id="6150320133806434356">Записана отметка</translation>
 <translation id="6193448654517602979">Избери раздели</translation>
-<translation id="6336451774241870485">Създаване на частен раздел</translation>
+<translation id="6336451774241870485">Създаване на частен раздел</translation>
 <translation id="6337323516034698937">За да изпратите раздела към друго устройство, впишете се в Свер на Vivaldi и на двете устройства. Уверете се, че сте въвели шифроващата парола, ако се изисква.</translation>
 <translation id="6341580099087024258">Питай къде да бъдат записани файловете</translation>
 <translation id="6364438453358674297">Премахване на предложението от историята?</translation>
@@ -125,14 +131,11 @@
 <translation id="8348430946834215779">Ползване винаги на HTTPS с предупреждение преди зареждане на сайтове, които не поддържат протокола.</translation>
 <translation id="8560602726703398413">Списъкът за четене е в Отметки</translation>
 <translation id="85991616550051997">Преход към началната страница</translation>
-<translation id="8693232767599693749">Преглед в режим на четене?</translation>
+<translation id="8738163682604285902">Преглед в режим на четене?</translation>
 <translation id="8820817407110198400">Отметки</translation>
 <translation id="9042893549633094279">Поверителност и защита</translation>
 <translation id="9063523880881406963">Изключване на настолната версия</translation>
 <translation id="9080642952018487277">Влизане в частен режим</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {не се ползва от 1 или повече дни}
-          other {не се ползват от # или повече дни}}</translation>
 <translation id="930124987204876019">Изтриване на история, бисквитки, данни на сайта и кеш…</translation>
 <translation id="961856697154696964">Изчистване на данните на сърфиране</translation>
 </translationbundle>

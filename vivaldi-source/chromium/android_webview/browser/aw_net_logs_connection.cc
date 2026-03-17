@@ -20,7 +20,7 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "android_webview/browser_jni_headers/AwNetLogsConnection_jni.h"
 
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 
 namespace android_webview {
 
@@ -59,7 +59,8 @@ AwNetLogsConnection* GetInstance() {
   return instance;
 }
 
-static void JNI_AwNetLogsConnection_StartNetLogs(JNIEnv* env, const jint j_fd) {
+static void JNI_AwNetLogsConnection_StartNetLogs(JNIEnv* env,
+                                                 const int32_t j_fd) {
   GetInstance()->startNetLogBounded(j_fd);
 }
 

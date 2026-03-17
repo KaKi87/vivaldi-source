@@ -27,7 +27,7 @@ class AdBlockerContentRuleListProvider {
   virtual ~AdBlockerContentRuleListProvider();
 
   virtual void SetIncognitoBrowserState(web::BrowserState* browser_state) = 0;
-  virtual void InstallContentRuleLists(const base::Value::List& lists) = 0;
+  virtual void InstallContentRuleLists(const base::ListValue& lists) = 0;
   virtual void ApplyLoadedRules() = 0;
   virtual bool IsApplyingRules() = 0;
 };

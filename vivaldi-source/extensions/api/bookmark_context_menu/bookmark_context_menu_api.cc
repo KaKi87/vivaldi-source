@@ -59,7 +59,8 @@ void BookmarkContextMenuAPI::SendClose(
 
 // static
 void BookmarkContextMenuAPI::SendStartDrag(
-    content::BrowserContext* browser_context,int64_t id) {
+    content::BrowserContext* browser_context,
+    int64_t id) {
   ::vivaldi::BroadcastEvent(
       vivaldi::bookmark_context_menu::OnDragStart::kEventName,
       vivaldi::bookmark_context_menu::OnDragStart::Create(std::to_string(id)),
@@ -77,9 +78,8 @@ ExtensionFunction::ResponseAction BookmarkContextMenuShowFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params_);
 
   VivaldiBrowserWindow* window =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          VivaldiBrowserWindowFromId(
-            params_->properties.window_id);
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params_->properties.window_id);
   if (!window) {
     return RespondNow(Error("No such window"));
   }
@@ -142,8 +142,8 @@ ExtensionFunction::ResponseAction BookmarkContextMenuShowFunction::Run() {
     }
     bookmark_menu_container_->dragged_ids.push_back(val);
   }
-  Profile* profile = Profile::FromBrowserContext(
-      window->web_contents()->GetBrowserContext());
+  Profile* profile =
+      Profile::FromBrowserContext(window->web_contents()->GetBrowserContext());
   bookmark_menu_container_->dragged_path = profile->GetPath();
   bookmark_menu_container_->sort_field = sortField;
   bookmark_menu_container_->sort_order = sortOrder;
@@ -200,9 +200,9 @@ std::string BookmarkContextMenuShowFunction::Open(
   VivaldiBrowserComponentWrapper* wrapper =
       VivaldiBrowserComponentWrapper::GetInstance();
   bookmarks::BookmarkModel* model = wrapper->GetBookmarkModelForBrowserContext(
-       web_contents->GetBrowserContext());
-  const bookmarks::BookmarkNode* node = wrapper->GetBookmarkNodeByID(
-      model, node_id);
+      web_contents->GetBrowserContext());
+  const bookmarks::BookmarkNode* node =
+      wrapper->GetBookmarkNodeByID(model, node_id);
   if (!node) {
     return "Node with id " + id + " does not exist";
   }
@@ -235,19 +235,20 @@ std::string BookmarkContextMenuShowFunction::Open(
 
 void BookmarkContextMenuShowFunction::OnHover(const std::string& url) {
   MenubarMenuAPI::SendHover(browser_context(), params_->properties.window_id,
-      url);
+                            url);
 }
 
 void BookmarkContextMenuShowFunction::OnOpenBookmark(int64_t bookmark_id,
                                                      int event_state) {
   MenubarMenuAPI::SendOpenBookmark(browser_context(),
-    params_->properties.window_id, bookmark_id, event_state);
+                                   params_->properties.window_id, bookmark_id,
+                                   event_state);
 }
 
 void BookmarkContextMenuShowFunction::OnBookmarkAction(int64_t bookmark_id,
                                                        int command) {
-  MenubarMenuAPI::SendBookmarkAction(browser_context(),
-      params_->properties.window_id, bookmark_id, command);
+  MenubarMenuAPI::SendBookmarkAction(
+      browser_context(), params_->properties.window_id, bookmark_id, command);
 }
 
 void BookmarkContextMenuShowFunction::OnOpenMenu(int64_t bookmark_id) {

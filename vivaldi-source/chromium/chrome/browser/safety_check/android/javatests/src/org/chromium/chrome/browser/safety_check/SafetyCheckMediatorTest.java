@@ -43,7 +43,8 @@ import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRule;
 import org.chromium.chrome.browser.loading_modal.LoadingModalDialogCoordinator;
 import org.chromium.chrome.browser.password_manager.CredentialManagerLauncher;
@@ -134,8 +135,8 @@ public class SafetyCheckMediatorTest {
 
     private ModalDialogManager mModalDialogManager;
 
-    private final ObservableSupplierImpl<ModalDialogManager> mModalDialogManagerSupplier =
-            new ObservableSupplierImpl<>();
+    private final SettableMonotonicObservableSupplier<ModalDialogManager>
+            mModalDialogManagerSupplier = ObservableSuppliers.createMonotonic();
 
     private LoadingModalDialogCoordinator.Observer mLoadingDialogCoordinatorObserver;
 
@@ -176,9 +177,7 @@ public class SafetyCheckMediatorTest {
     private void configureMockSyncService() {
         // SyncService is injected in the mediator, but dependencies still access the factory.
         SyncServiceFactory.setInstanceForTesting(mSyncService);
-        when(mSyncService.isSyncFeatureEnabled()).thenReturn(true);
         when(mSyncService.isEngineInitialized()).thenReturn(true);
-        when(mSyncService.hasSyncConsent()).thenReturn(true);
         when(mSyncService.getAccountInfo())
                 .thenReturn(
                         CoreAccountInfo.createFromEmailAndGaiaId(
@@ -186,8 +185,6 @@ public class SafetyCheckMediatorTest {
         when(mPasswordManagerHelperNativeMock.hasChosenToSyncPasswords(mSyncService))
                 .thenReturn(true);
 
-        // TODO(crbug.com/41483841): Parametrize the tests in SafetyCheckMediatorTest for local and
-        // account storage.
         // This will no longer be true once the local and account store split happens.
         if (mUseGmsApi) {
             when(mSyncService.getSelectedTypes()).thenReturn(Set.of(UserSelectableType.PASSWORDS));

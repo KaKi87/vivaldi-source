@@ -84,6 +84,28 @@ enum ResourceType : uint32 (bit_flags) {
   POPUNDER,
 }
 
+enum DomainConstraintNodeType : ubyte {
+  NONE,
+  INCLUDED,
+  EXCLUDED
+}
+
+table DomainConstraintsNode {
+  first_child_node_index: uint16 = null;
+  type: DomainConstraintNodeType;
+  subdomains: [string];
+}
+
+table DomainConstraintsTree {
+  type: DomainConstraintNodeType;
+  hostnames_node_index: uint16;
+  entities_node_index: uint16;
+  nodes: [DomainConstraintsNode];
+  included_regexes: [string];
+  excluded_regexes: [string];
+  has_exclusions: bool;
+}
+
 table RequestFilterRule {
   // The decision associated with the pattern.
   decision : Decision = MODIFY;
@@ -114,12 +136,8 @@ table RequestFilterRule {
 
   ad_domains_and_query_triggers: [string];
 
-  // The list of origin domains to be included/excluded from the filter's
-  // affected set. Should either be null or have at least a single element. The
-  // domains should be in lower-case and must consist of only ascii
-  // characters. Punycode encoding is used for internationalized domains.
-  domains_included : [string];
-  domains_excluded : [string];
+  // DomainConstraints used to decide on which domains the filter is effective.
+  from_domain_constraints : DomainConstraintsTree;
 
   // Redirect or CSP rules
   modifier : Modifier = NO_MODIFIER;
@@ -146,10 +164,8 @@ table RequestFilterRule {
 }
 
 table ContentInjectionRuleCore {
-  is_allow_rule: bool = false;
-
-  domains_included: [string];
-  domains_excluded: [string];
+  domain_constraints : DomainConstraintsTree
+  ;
 }
 
 table CosmeticRule {
@@ -157,12 +173,16 @@ table CosmeticRule {
   selector: string;
 }
 
-table ScriptletInjectionRule {
-  core: ContentInjectionRuleCore;
-  scriptlet_name: string;
+table Scriptlet {
+  name: string;
   // abp snippets only requires one "argument". uBO scriptlets can have
   // multiple
   arguments: [string];
+}
+
+table ScriptletInjectionRule {
+  core: ContentInjectionRuleCore;
+  scriptlets: [Scriptlet];
 }
 
 table RulesList {

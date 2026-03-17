@@ -8,7 +8,6 @@
 #import "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/promos_manager/model/promos_manager.h"
 
-
 namespace {
 
 // Helper for version testing. It is assumed that each array hold at least two
@@ -32,7 +31,7 @@ bool HasVersionChanged(std::vector<std::string> version,
 
 NSString* vLastSeenVersionKey = @"vivaldiLastSeenVersion";
 
-bool ShouldShowVivaldiWhatsNewPage () {
+bool ShouldShowVivaldiWhatsNewPage() {
   if (::vivaldi::ReleaseKind() < ::vivaldi::Release::kBeta) {
     // Only show for Stable channel
     return false;
@@ -46,15 +45,13 @@ bool ShouldShowVivaldiWhatsNewPage () {
   std::vector<std::string> version_array = base::SplitString(
       version, ".", base::KEEP_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
 
-  std::vector<std::string> last_seen_array =
-      base::SplitString(last_seen_version, ".", base::KEEP_WHITESPACE,
-                        base::SPLIT_WANT_NONEMPTY);
+  std::vector<std::string> last_seen_array = base::SplitString(
+      last_seen_version, ".", base::KEEP_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
 
-  if (version_array.size() != 4 || last_seen_array.size() != 4 ) {
+  if (version_array.size() != 4 || last_seen_array.size() != 4) {
     version_changed = true;
   } else {
-    version_changed =
-        HasVersionChanged(version_array, last_seen_array);
+    version_changed = HasVersionChanged(version_array, last_seen_array);
   }
 
   if (version_changed) {

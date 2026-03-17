@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_observer.h"
@@ -112,6 +113,8 @@ class FedCmAccountSelectionView : public AccountSelectionView,
                            const IdentityRequestAccountPtr& account,
                            Account::SignInMode sign_in_mode,
                            blink::mojom::RpMode rp_mode) override;
+
+  void SetCanShowWidget(bool can_show_widget) override;
 
   void ShowUrl(LinkType link_type, const GURL& url) override;
   std::string GetTitle() const override;
@@ -541,6 +544,9 @@ class FedCmAccountSelectionView : public AccountSelectionView,
   // Whether the widget is occluded by PIP (and therefore we should ignore
   // inputs).
   bool is_occluded_by_pip_{false};
+
+  // Whether the widget can be shown.
+  bool can_show_widget_{true};
 
   // Observer for widget occlusion.
   std::unique_ptr<ScopedPictureInPictureOcclusionObservation>

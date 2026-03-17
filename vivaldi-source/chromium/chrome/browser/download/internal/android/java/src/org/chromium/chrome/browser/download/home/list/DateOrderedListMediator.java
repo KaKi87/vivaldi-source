@@ -15,8 +15,9 @@ import androidx.core.util.Pair;
 import org.chromium.base.Callback;
 import org.chromium.base.CallbackUtils;
 import org.chromium.base.DiscardableReferencePool;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.download.home.DownloadManagerUiConfig;
@@ -137,9 +138,8 @@ class DateOrderedListMediator implements BackPressHandler {
     private final DeleteUndoOfflineItemFilter mDeleteUndoFilter;
     private final TypeOfflineItemFilter mTypeFilter;
     private final SearchOfflineItemFilter mSearchFilter;
-
-    private final ObservableSupplierImpl<Boolean> mBackPressStateSupplier =
-            new ObservableSupplierImpl<>();
+    private final SettableNonNullObservableSupplier<Boolean> mBackPressStateSupplier =
+            ObservableSuppliers.createNonNull(false);
 
     /**
      * A selection observer that correctly updates the selection state for each item in the list.
@@ -228,7 +228,7 @@ class DateOrderedListMediator implements BackPressHandler {
         mOffTheRecordFilter =
                 new OffTheRecordOfflineItemFilter(
                         OtrProfileId.isOffTheRecord(config.otrProfileId), mDangerousFilter);
-        mInvalidStateFilter = new InvalidStateOfflineItemFilter(mOffTheRecordFilter);
+        mInvalidStateFilter = new InvalidStateOfflineItemFilter(config, mOffTheRecordFilter);
         mDeleteUndoFilter = new DeleteUndoOfflineItemFilter(mInvalidStateFilter);
         mSearchFilter = new SearchOfflineItemFilter(mDeleteUndoFilter);
         mTypeFilter = new TypeOfflineItemFilter(mSearchFilter);
@@ -244,7 +244,7 @@ class DateOrderedListMediator implements BackPressHandler {
                         discardableReferencePool,
                         config.inMemoryThumbnailCacheSizeBytes,
                         ThumbnailProviderImpl.ClientType.DOWNLOAD_HOME,
-                        true /* useMultipleRequests */);
+                        /* useMultipleRequests */ true);
         new MediatorSelectionObserver(selectionDelegate);
 
         mModel.getProperties().set(ListProperties.ENABLE_ITEM_ANIMATIONS, true);
@@ -294,9 +294,13 @@ class DateOrderedListMediator implements BackPressHandler {
 
     /**
      * To be called when this mediator should filter its content based on {@code filter}.
+     *
      * @see SearchOfflineItemFilter#onQueryChanged(String)
      */
     public void onFilterStringChanged(@Nullable String filter) {
+        if (filter != null && mSelectionDelegate.isSelectionEnabled()) {
+            mSelectionDelegate.clearSelection();
+        }
         try (AnimationDisableClosable closeable = new AnimationDisableClosable()) {
             mSearchFilter.onQueryChanged(filter);
         }
@@ -332,7 +336,7 @@ class DateOrderedListMediator implements BackPressHandler {
     }
 
     @Override
-    public ObservableSupplier<Boolean> getHandleBackPressChangedSupplier() {
+    public NonNullObservableSupplier<Boolean> getHandleBackPressChangedSupplier() {
         return mBackPressStateSupplier;
     }
 

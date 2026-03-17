@@ -4,7 +4,9 @@
 
 #include "chrome/browser/ui/tab_helpers.h"
 
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "base/command_line.h"
@@ -40,13 +42,13 @@
 #include "chrome/browser/media/media_engagement_service.h"
 #include "chrome/browser/metrics/desktop_session_duration/desktop_session_duration_observer.h"
 #include "chrome/browser/navigation_predictor/navigation_predictor_preconnect_client.h"
-#include "chrome/browser/net/http_auth_cache_status.h"
 #include "chrome/browser/net/net_error_tab_helper.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/optimization_guide/optimization_guide_web_contents_observer.h"
+#include "chrome/browser/page_content_annotations/multi_source_page_context_fetcher.h"
 #include "chrome/browser/page_content_annotations/page_content_annotations_service_factory.h"
-#include "chrome/browser/page_content_annotations/page_content_annotations_web_contents_observer.h"
+#include "chrome/browser/page_content_annotations/page_content_extraction_service_factory.h"
 #include "chrome/browser/page_info/about_this_site_tab_helper.h"
 #include "chrome/browser/page_info/page_info_features.h"
 #include "chrome/browser/page_load_metrics/page_load_metrics_initialize.h"
@@ -76,8 +78,6 @@
 #include "chrome/browser/sync/sessions/sync_sessions_web_contents_router_factory.h"
 #include "chrome/browser/tab_contents/navigation_metrics_recorder.h"
 #include "chrome/browser/task_manager/web_contents_tags.h"
-#include "chrome/browser/tpcd/heuristics/opener_heuristic_service.h"
-#include "chrome/browser/tpcd/http_error_observer/http_error_tab_helper.h"
 #include "chrome/browser/tpcd/metadata/devtools_observer.h"
 #include "chrome/browser/translate/chrome_translate_client.h"
 #include "chrome/browser/trusted_vault/trusted_vault_encryption_keys_tab_helper.h"
@@ -87,7 +87,6 @@
 #include "chrome/browser/ui/focus_tab_after_navigation_helper.h"
 #include "chrome/browser/ui/passwords/manage_passwords_ui_controller.h"
 #include "chrome/browser/ui/prefs/prefs_tab_helper.h"
-#include "chrome/browser/ui/privacy_sandbox/privacy_sandbox_prompt_helper.h"
 #include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/safety_hub/revoked_permissions_service.h"
 #include "chrome/browser/ui/safety_hub/revoked_permissions_service_factory.h"
@@ -103,9 +102,6 @@
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_isolated_world_ids.h"
 #include "chrome/common/chrome_switches.h"
-#include "components/autofill/content/browser/content_autofill_client.h"
-#include "components/autofill/content/browser/content_autofill_driver_factory.h"
-#include "components/autofill/core/browser/foundations/browser_autofill_manager.h"
 #include "components/blocked_content/popup_blocker_tab_helper.h"
 #include "components/blocked_content/popup_opener_tab_helper.h"
 #include "components/breadcrumbs/core/breadcrumbs_status.h"
@@ -126,10 +122,11 @@
 #include "components/javascript_dialogs/tab_modal_dialog_manager.h"
 #include "components/metrics/content/metrics_services_web_contents_observer.h"
 #include "components/metrics_services_manager/metrics_services_manager.h"
-#include "components/no_state_prefetch/browser/no_state_prefetch_manager.h"
 #include "components/offline_pages/buildflags/buildflags.h"
 #include "components/omnibox/common/omnibox_feature_configs.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
+#include "components/page_content_annotations/content/page_content_annotations_web_contents_observer.h"
+#include "components/page_content_annotations/core/page_content_extraction_types.h"
 #include "components/page_info/core/features.h"
 #include "components/password_manager/core/browser/password_manager.h"
 #include "components/performance_manager/embedder/performance_manager_registry.h"
@@ -139,6 +136,7 @@
 #include "components/permissions/permission_request_manager.h"
 #include "components/safe_browsing/content/browser/async_check_tracker.h"
 #include "components/safe_browsing/content/browser/safe_browsing_navigation_observer.h"
+#include "components/safe_browsing/content/browser/ui_manager.h"
 #include "components/safe_browsing/core/common/features.h"
 #include "components/search/ntp_features.h"
 #include "components/site_engagement/content/site_engagement_helper.h"
@@ -152,7 +150,6 @@
 #include "content/public/common/buildflags.h"
 #include "extensions/buildflags/buildflags.h"
 #include "media/base/media_switches.h"
-#include "net/base/features.h"
 #include "pdf/buildflags.h"
 #include "printing/buildflags/buildflags.h"
 #include "rlz/buildflags/buildflags.h"
@@ -166,12 +163,13 @@
 #include "chrome/browser/android/persisted_tab_data/language_persisted_tab_data_android.h"
 #include "chrome/browser/android/persisted_tab_data/sensitivity_persisted_tab_data_android.h"
 #include "chrome/browser/android/policy/policy_auditor_bridge.h"
+#include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/banners/android/chrome_app_banner_manager_android.h"
 #include "chrome/browser/content_settings/request_desktop_site_web_contents_observer_android.h"
 #include "chrome/browser/facilitated_payments/ui/chrome_facilitated_payments_client.h"
-#include "chrome/browser/fast_checkout/fast_checkout_tab_helper.h"
 #include "chrome/browser/flags/android/chrome_feature_list.h"
 #include "chrome/browser/loader/from_gws_navigation_and_keep_alive_request_tab_helper.h"
+#include "chrome/browser/net/http_auth_cache_status.h"
 #include "chrome/browser/plugins/plugin_observer_android.h"
 #include "chrome/browser/ui/android/context_menu_helper.h"
 #include "chrome/browser/ui/javascript_dialogs/javascript_tab_modal_dialog_manager_delegate_android.h"
@@ -234,7 +232,6 @@
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/extensions/app_tab_helper.h"
-#include "chrome/browser/extensions/navigation_extension_enabler.h"
 #include "chrome/browser/ui/extensions/extension_side_panel_utils.h"
 #include "chrome/browser/web_applications/isolated_web_apps/window_management/window_management_content_setting_observer.h"
 #include "chrome/browser/web_applications/policy/pre_redirection_url_observer.h"
@@ -245,6 +242,7 @@
 
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 #include "chrome/browser/extensions/api/web_navigation/web_navigation_tab_observer.h"
+#include "chrome/browser/extensions/navigation_extension_enabler.h"
 #include "chrome/browser/extensions/tab_helper.h"
 #include "extensions/browser/view_type_utils.h"
 #endif
@@ -265,17 +263,10 @@
 
 #if BUILDFLAG(ENABLE_COMPOSE)
 #include "chrome/browser/compose/chrome_compose_client.h"
-#include "chrome/browser/compose/compose_enabling.h"
-#include "components/compose/buildflags.h"
-#include "components/compose/core/browser/compose_features.h"
 #endif
 
 #if BUILDFLAG(ENABLE_RLZ)
 #include "chrome/browser/rlz/chrome_rlz_tracker_web_contents_observer.h"
-#endif
-
-#if BUILDFLAG(ENABLE_REPORTING)
-#include "components/tpcd/enterprise_reporting/enterprise_reporting_tab_helper.h"
 #endif
 
 #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
@@ -304,6 +295,17 @@ namespace {
 
 const char kTabContentsAttachedTabHelpersUserDataKey[] =
     "TabContentsAttachedTabHelpers";
+
+std::optional<int64_t> GetPageContentAnnotationsTabId(
+    content::WebContents* web_contents) {
+#if BUILDFLAG(IS_ANDROID)
+  if (TabAndroid* tab = TabAndroid::FromWebContents(web_contents)) {
+    return tab->GetAndroidId();
+  }
+#endif
+  // TODO(crbug.com/440643544): Implement a usable tab ID for other platforms.
+  return std::nullopt;
+}
 
 }  // namespace
 
@@ -444,13 +446,6 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
       web_contents,
       std::make_unique<PageSpecificContentSettingsDelegate>(web_contents));
   CoreTabHelper::CreateForWebContents(web_contents);
-#if BUILDFLAG(ENABLE_REPORTING)
-  if (base::FeatureList::IsEnabled(
-          net::features::kReportingApiEnableEnterpriseCookieIssues)) {
-    tpcd::enterprise_reporting::EnterpriseReportingTabHelper::
-        CreateForWebContents(web_contents);
-  }
-#endif
   ExternalProtocolObserver::CreateForWebContents(web_contents);
   favicon::CreateContentFaviconDriverForWebContents(web_contents);
   FileSystemAccessPermissionRequestManager::CreateForWebContents(web_contents);
@@ -481,7 +476,6 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
   MixedContentSettingsTabHelper::CreateForWebContents(web_contents);
   NavigationMetricsRecorder::CreateForWebContents(web_contents);
   NavigationPredictorPreconnectClient::CreateForWebContents(web_contents);
-  OpenerHeuristicService::Get(web_contents->GetBrowserContext());
   if (optimization_guide::features::IsOptimizationHintsEnabled()) {
     OptimizationGuideWebContentsObserver::CreateForWebContents(web_contents);
   }
@@ -490,7 +484,12 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
           PageContentAnnotationsServiceFactory::GetForProfile(profile);
   if (page_content_annotations_service) {
     page_content_annotations::PageContentAnnotationsWebContentsObserver::
-        CreateForWebContents(web_contents);
+        CreateForWebContents(
+            web_contents, *page_content_annotations_service,
+            page_content_annotations::PageContentExtractionServiceFactory::
+                GetForProfile(profile),
+            base::BindRepeating(&page_content_annotations::FetchPageContext),
+            base::BindRepeating(&GetPageContentAnnotationsTabId));
 
 #if BUILDFLAG(IS_ANDROID)
     // If enabled, save sensitivity data for each non-incognito android tab.
@@ -526,17 +525,7 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
           performance_manager::PerformanceManagerRegistry::GetInstance()) {
     pm_registry->SetPageType(web_contents, performance_manager::PageType::kTab);
   }
-  // The tab interface is only needed on Desktop to support Split View.
-  tabs::TabInterface* desktop_tab_interface =
-#if BUILDFLAG(IS_ANDROID)
-      nullptr;
-#else
-      base::FeatureList::IsEnabled(features::kSideBySide)
-          ? tabs::TabInterface::MaybeGetFromContents(web_contents)
-          : nullptr;
-#endif  // BUILDFLAG(IS_ANDROID)
-  permissions::PermissionRequestManager::CreateForWebContents(
-      web_contents, desktop_tab_interface);
+  permissions::PermissionRequestManager::CreateForWebContents(web_contents);
   permissions::PermissionRecoverySuccessRateTracker::CreateForWebContents(
       web_contents);
   // The PopupBlockerTabHelper has an implicit dependency on
@@ -618,7 +607,6 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
     SupervisedUserNavigationObserver::CreateForWebContents(web_contents);
   }
 #endif
-  HttpErrorTabHelper::CreateForWebContents(web_contents);
   tasks::TaskTabHelper::CreateForWebContents(web_contents);
   tpcd::metadata::TpcdMetadataDevtoolsObserver::CreateForWebContents(
       web_contents);
@@ -654,7 +642,6 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
                           *web_contents));
   }
   ContextMenuHelper::CreateForWebContents(web_contents);
-  FastCheckoutTabHelper::CreateForWebContents(web_contents);
 
   if (base::FeatureList::IsEnabled(
           page_load_metrics::features::kBeaconLeakageLogging)) {
@@ -699,9 +686,6 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
       std::make_unique<JavaScriptTabModalDialogManagerDelegateDesktop>(
           web_contents));
   ManagePasswordsUIController::CreateForWebContents(web_contents);
-  if (PrivacySandboxPromptHelper::ProfileRequiresPrompt(profile)) {
-    PrivacySandboxPromptHelper::CreateForWebContents(web_contents);
-  }
 
   if (SearchEngineChoiceTabHelper::IsHelperNeeded()) {
     SearchEngineChoiceTabHelper::CreateForWebContents(web_contents);
@@ -718,11 +702,7 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
   }
   UMABrowsingActivityObserver::TabHelper::CreateForWebContents(web_contents);
   web_modal::WebContentsModalDialogManager::CreateForWebContents(web_contents);
-  if (OmniboxFieldTrial::IsZeroSuggestPrefetchingEnabled() ||
-      omnibox_feature_configs::ContextualSearch::Get()
-          .IsEnabledWithPrefetch()) {
-    ZeroSuggestPrefetchTabHelper::CreateForWebContents(web_contents);
-  }
+  ZeroSuggestPrefetchTabHelper::CreateForWebContents(web_contents);
 #endif  // BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(ENABLE_COMPOSE)
@@ -763,11 +743,7 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
           features::kHappinessTrackingSurveysForDesktopDemo) ||
       base::FeatureList::IsEnabled(features::kTrustSafetySentimentSurvey) ||
       base::FeatureList::IsEnabled(features::kTrustSafetySentimentSurveyV2) ||
-      PerformanceControlsHatsServiceFactory::IsAnySurveyFeatureEnabled() ||
-      base::FeatureList::IsEnabled(
-          page_info::kMerchantTrustEvaluationControlSurvey) ||
-      base::FeatureList::IsEnabled(
-          page_info::kMerchantTrustEvaluationExperimentSurvey)) {
+      PerformanceControlsHatsServiceFactory::IsAnySurveyFeatureEnabled()) {
     HatsHelper::CreateForWebContents(web_contents);
   }
   SharedHighlightingPromo::CreateForWebContents(web_contents);
@@ -802,13 +778,13 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   extensions::AppTabHelper::CreateForWebContents(web_contents);
-  extensions::NavigationExtensionEnabler::CreateForWebContents(web_contents);
   web_app::WindowManagementContentSettingObserver::CreateForWebContents(
       web_contents);
 #endif
 
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
   // These helpers are used on Win/Mac/Linux and also desktop Android.
+  extensions::NavigationExtensionEnabler::CreateForWebContents(web_contents);
   extensions::WebNavigationTabObserver::CreateForWebContents(web_contents);
   extensions::TabHelper::CreateForWebContents(web_contents);
 #endif

@@ -259,7 +259,7 @@ std::unique_ptr<CaptureData> SaveBitmapOnWorkerThread(
     }
     path = ConstructCaptureFilename(std::move(path), data->save_file_pattern,
                                     data->url, data->title, ext);
-    if(!base::WriteFile(path, image_bytes)) {
+    if (!base::WriteFile(path, image_bytes)) {
       LOG(ERROR) << "Failed to write to " << path;
       break;
     }
@@ -333,8 +333,8 @@ ExtensionFunction::ResponseAction ThumbnailsCaptureUIFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   VivaldiBrowserWindow* window =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          VivaldiBrowserWindowFromId(params->params.window_id);
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->params.window_id);
   if (!window) {
     return RespondNow(Error("No such window"));
   }
@@ -532,13 +532,14 @@ ThumbnailsCaptureBookmarkFunction::ThumbnailsCaptureBookmarkFunction() =
     default;
 
 ThumbnailsCaptureBookmarkFunction::~ThumbnailsCaptureBookmarkFunction() {
-  auto *profile = Profile::FromBrowserContext(browser_context());
+  auto* profile = Profile::FromBrowserContext(browser_context());
   if (profile) {
     profile->RemoveObserver(this);
   }
 }
 
-void ThumbnailsCaptureBookmarkFunction::OnProfileWillBeDestroyed(Profile* profile) {
+void ThumbnailsCaptureBookmarkFunction::OnProfileWillBeDestroyed(
+    Profile* profile) {
   content::BrowserContext* browser_context =
       tcc_->GetWebContents()->GetBrowserContext();
 

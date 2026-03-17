@@ -7,7 +7,7 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chromecast/base/jni_headers/SystemTimeChangeNotifierAndroid_jni.h"
 
-using jni_zero::JavaParamRef;
+using jni_zero::JavaRef;
 
 namespace chromecast {
 
@@ -15,7 +15,7 @@ SystemTimeChangeNotifierAndroid::SystemTimeChangeNotifierAndroid() {
   JNIEnv* env = jni_zero::AttachCurrentThread();
   java_notifier_.Reset(Java_SystemTimeChangeNotifierAndroid_create(env));
   Java_SystemTimeChangeNotifierAndroid_initializeFromNative(
-      env, java_notifier_, reinterpret_cast<jlong>(this));
+      env, java_notifier_, reinterpret_cast<int64_t>(this));
 }
 
 SystemTimeChangeNotifierAndroid::~SystemTimeChangeNotifierAndroid() {

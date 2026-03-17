@@ -16,7 +16,7 @@ ExtensionFunction::ResponseAction AutoUpdateStartUpdateFunction::Run() {
       vivaldi::auto_update::StartUpdate::Params::Create(args()));
 
   AppController* controller =
-    base::apple::ObjCCastStrict<AppController>([NSApp delegate]);
+      base::apple::ObjCCastStrict<AppController>([NSApp delegate]);
   if (params->should_start_update) {
     [controller checkForUpdatesInBackground];
   } else {
@@ -33,7 +33,7 @@ ExtensionFunction::ResponseAction AutoUpdateCheckForUpdatesFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   AppController* controller =
-    base::apple::ObjCCastStrict<AppController>([NSApp delegate]);
+      base::apple::ObjCCastStrict<AppController>([NSApp delegate]);
 
   if (params->with_ui) {
     [controller checkForUpdates:nil];
@@ -81,8 +81,8 @@ AutoUpdateGetAutoInstallUpdatesFunction::Run() {
 
 ExtensionFunction::ResponseAction
 AutoUpdateSetAutoInstallUpdatesFunction::Run() {
-  using vivaldi::auto_update::SetAutoInstallUpdates::Params;
   using ::vivaldi::kSparkleAutoInstallSettingName;
+  using vivaldi::auto_update::SetAutoInstallUpdates::Params;
 
   std::optional<Params> params = Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
@@ -94,8 +94,7 @@ AutoUpdateSetAutoInstallUpdatesFunction::Run() {
   return RespondNow(NoArguments());
 }
 
-ExtensionFunction::ResponseAction
-AutoUpdateGetLastCheckTimeFunction::Run() {
+ExtensionFunction::ResponseAction AutoUpdateGetLastCheckTimeFunction::Run() {
   namespace Results = vivaldi::auto_update::GetLastCheckTime::Results;
   using ::vivaldi::kSparkleLastCheckTimeSettingName;
 
@@ -111,7 +110,7 @@ AutoUpdateGetLastCheckTimeFunction::Run() {
 
 ExtensionFunction::ResponseAction AutoUpdateGetUpdateStatusFunction::Run() {
   AppController* controller =
-    base::apple::ObjCCastStrict<AppController>([NSApp delegate]);
+      base::apple::ObjCCastStrict<AppController>([NSApp delegate]);
   std::optional<AutoUpdateStatus> status = [controller getUpdateStatus];
   std::string version_string = [controller getUpdateVersion];
   std::string release_notes_url = [controller getUpdateReleaseNotesUrl];
@@ -133,7 +132,6 @@ ExtensionFunction::ResponseAction AutoUpdateNeedsCodecRestartFunction::Run() {
 ExtensionFunction::ResponseAction AutoUpdateRunStartupChecksFunction::Run() {
   return RespondNow(NoArguments());
 }
-
 
 std::string AutoUpdateGetAboutPathsInfoFunction::GetPlatformOSVersion() {
   return base::mac::GetOSDisplayName();

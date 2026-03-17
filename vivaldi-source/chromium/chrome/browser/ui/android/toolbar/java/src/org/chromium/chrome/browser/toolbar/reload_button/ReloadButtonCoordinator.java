@@ -12,7 +12,9 @@ import android.widget.ImageButton;
 
 import androidx.core.graphics.Insets;
 
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.tab.Tab;
@@ -57,10 +59,10 @@ public class ReloadButtonCoordinator extends ToolbarChildButton {
      */
     public ReloadButtonCoordinator(
             ImageButton view,
-            ReloadButtonCoordinator.Delegate delegate,
-            ObservableSupplier<@Nullable Tab> tabSupplier,
-            ObservableSupplier<Boolean> ntpLoadingSupplier,
-            ObservableSupplier<Boolean> enabledSupplier,
+            Delegate delegate,
+            NullableObservableSupplier<Tab> tabSupplier,
+            MonotonicObservableSupplier<Boolean> ntpLoadingSupplier,
+            NonNullObservableSupplier<Boolean> enabledSupplier,
             ThemeColorProvider themeColorProvider,
             IncognitoStateProvider incognitoStateProvider,
             boolean isWebApp) {

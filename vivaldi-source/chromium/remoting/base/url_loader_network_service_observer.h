@@ -58,6 +58,8 @@ class UrlLoaderNetworkServiceObserver
       mojo::PendingRemote<network::mojom::AuthChallengeResponder>
           auth_challenge_responder) override;
   void OnLocalNetworkAccessPermissionRequired(
+      network::mojom::TransportType type,
+      network::mojom::IPAddressSpace ip_address_space,
       OnLocalNetworkAccessPermissionRequiredCallback callback) override;
   void OnClearSiteData(
       const GURL& url,
@@ -69,8 +71,8 @@ class UrlLoaderNetworkServiceObserver
   void OnLoadingStateUpdate(network::mojom::LoadInfoPtr info,
                             OnLoadingStateUpdateCallback callback) override;
   void OnDataUseUpdate(int32_t network_traffic_annotation_id_hash,
-                       int64_t recv_bytes,
-                       int64_t sent_bytes) override;
+                       base::ByteSize recv_bytes,
+                       base::ByteSize sent_bytes) override;
   void OnSharedStorageHeaderReceived(
       const url::Origin& request_origin,
       std::vector<network::mojom::SharedStorageModifierMethodWithOptionsPtr>
@@ -83,10 +85,10 @@ class UrlLoaderNetworkServiceObserver
   void Clone(
       mojo::PendingReceiver<network::mojom::URLLoaderNetworkServiceObserver>
           listener) override;
-  void OnWebSocketConnectedToPrivateNetwork(
+  void OnWebSocketConnectedToLocalNetwork(
       const GURL& request_url,
       network::mojom::IPAddressSpace ip_address_space) override;
-  void OnUrlLoaderConnectedToPrivateNetwork(
+  void OnUrlLoaderConnectedToLocalNetwork(
       const GURL& request_url,
       network::mojom::IPAddressSpace response_address_space,
       network::mojom::IPAddressSpace client_address_space,

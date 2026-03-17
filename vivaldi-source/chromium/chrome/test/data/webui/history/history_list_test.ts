@@ -10,7 +10,6 @@ import {isMac} from 'chrome://resources/js/platform.js';
 import {PromiseResolver} from 'chrome://resources/js/promise_resolver.js';
 import {assertDeepEquals, assertEquals, assertFalse, assertGT, assertNotEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {pressAndReleaseKeyOn} from 'chrome://webui-test/keyboard_mock_interactions.js';
-import {flushTasks} from 'chrome://webui-test/polymer_test_util.js';
 import {eventToPromise, microtasksFinished} from 'chrome://webui-test/test_util.js';
 
 import {TestBrowserService} from './test_browser_service.js';
@@ -25,14 +24,22 @@ suite('HistoryListTest', function() {
   const TEST_HISTORY_RESULTS = [
     createHistoryEntry('2016-03-15', 'https://www.google.com'),
     createHistoryEntry('2016-03-14 10:00', 'https://www.example.com'),
-    createHistoryEntry('2016-03-14 9:00', 'https://www.google.com'),
+    createHistoryEntry('2016-03-14 9:00', 'https://www.google.com', {
+      'https://www.google.com': [
+        new Date('2016-03-14 9:59 UTC').getTime(),
+        new Date('2016-03-14 10:59 UTC').getTime(),
+      ],
+    }),
     createHistoryEntry('2016-03-13', 'https://en.wikipedia.org'),
   ];
   TEST_HISTORY_RESULTS[2]!.starred = true;
 
   const ADDITIONAL_RESULTS = [
     createHistoryEntry('2016-03-13 10:00', 'https://en.wikipedia.org'),
-    createHistoryEntry('2016-03-13 9:50', 'https://www.youtube.com'),
+    createHistoryEntry('2016-03-13 9:50', 'https://www.youtube.com', {
+      'https://www.youtube.com/search?q=foo':
+          [new Date('2016-03-16 10:00 UTC').getTime()],
+    }),
     createHistoryEntry('2016-03-11', 'https://www.google.com'),
     createHistoryEntry('2016-03-10', 'https://www.example.com'),
   ];
@@ -94,7 +101,7 @@ suite('HistoryListTest', function() {
     element.dispatchEvent(new CustomEvent(
         'query-history', {detail: true, bubbles: true, composed: true}));
     await testService.handler.whenCalled('queryHistoryContinuation');
-    await flushTasks();
+    await microtasksFinished();
 
     assertFalse(element.isEmpty);
   });
@@ -110,7 +117,7 @@ suite('HistoryListTest', function() {
     await microtasksFinished();
     assertDeepEquals([true], getHistoryData().map(i => i.selected));
     toolbar.deleteSelectedItems();
-    await flushTasks();
+    await microtasksFinished();
     const dialog = element.$.dialog.get();
     assertTrue(dialog.open);
     testService.handler.resetResolver('queryHistory');
@@ -314,7 +321,7 @@ suite('HistoryListTest', function() {
     element.dispatchEvent(new CustomEvent(
         'query-history', {bubbles: true, composed: true, detail: false}));
     await testService.handler.whenCalled('queryHistory');
-    await flushTasks();
+    await microtasksFinished();
     assertTrue(element.$.noResults.hidden);
     assertFalse(element.$.infiniteList.hidden);
   });
@@ -381,6 +388,7 @@ suite('HistoryListTest', function() {
 
   test('DeleteItemsEndToEnd', async function() {
     await loadWithAdditionalResults();
+
     const dialog = element.$.dialog.get();
     let items = element.shadowRoot.querySelectorAll('history-item');
 
@@ -392,24 +400,52 @@ suite('HistoryListTest', function() {
     toolbar.deleteSelectedItems();
     await microtasksFinished();
     testService.handler.resetResolver('removeVisits');
-    const results = [...TEST_HISTORY_RESULTS, ...ADDITIONAL_RESULTS];
-    testService.handler.setResultFor(
-        'removeVisits', Promise.resolve([results[2], results[5], results[7]]));
+    testService.handler.setResultFor('removeVisits', Promise.resolve());
+
     // Confirmation dialog should appear.
     assertTrue(dialog.open);
     element.shadowRoot.querySelector<HTMLElement>('.action-button')!.click();
     await microtasksFinished();
+
     const visits = await testService.handler.whenCalled('removeVisits');
-    assertEquals(3, visits.length);
-    assertEquals(TEST_HISTORY_RESULTS[2]!.url, visits[0]!.url);
+    assertEquals(4, visits.length);
+
+    const expectedResult1 = TEST_HISTORY_RESULTS[2]!;
+    // The multiple timestamps for entry1 should be included in the deletion.
+    assertEquals(expectedResult1.url, visits[0]!.url);
+    assertEquals(3, visits[0]!.timestamps.length);
     assertEquals(
-        TEST_HISTORY_RESULTS[2]!.allTimestamps[0], visits[0]!.timestamps[0]);
-    assertEquals(ADDITIONAL_RESULTS[1]!.url, visits[1]!.url);
+        expectedResult1.allTimestamps[expectedResult1.url]![0],
+        visits[0]!.timestamps[0]);
     assertEquals(
-        ADDITIONAL_RESULTS[1]!.allTimestamps[0], visits[1]!.timestamps[0]);
-    assertEquals(ADDITIONAL_RESULTS[3]!.url, visits[2]!.url);
+        expectedResult1.allTimestamps[expectedResult1.url]![1],
+        visits[0]!.timestamps[1]);
     assertEquals(
-        ADDITIONAL_RESULTS[3]!.allTimestamps[0], visits[2]!.timestamps[0]);
+        expectedResult1.allTimestamps[expectedResult1.url]![2],
+        visits[0]!.timestamps[2]);
+
+    const expectedResult2 = ADDITIONAL_RESULTS[1]!;
+    assertEquals(expectedResult2.url, visits[1]!.url);
+    assertEquals(1, visits[1]!.timestamps.length);
+    assertEquals(
+        expectedResult2.allTimestamps[expectedResult2.url]![0],
+        visits[1]!.timestamps[0]);
+
+    // The other url from entry2 should be added as a separate url for deletion.
+    const expectedUrl2 = 'https://www.youtube.com/search?q=foo';
+    assertEquals(expectedUrl2, visits[2]!.url);
+    assertEquals(1, visits[2]!.timestamps.length);
+    assertEquals(
+        expectedResult2.allTimestamps[expectedUrl2]![0],
+        visits[2]!.timestamps[0]);
+
+    const expectedResult3 = ADDITIONAL_RESULTS[3]!;
+    assertEquals(expectedResult3.url, visits[3]!.url);
+    assertEquals(1, visits[3]!.timestamps.length);
+    assertEquals(
+        expectedResult3.allTimestamps[expectedResult3.url]![0],
+        visits[3]!.timestamps[0]);
+
     const historyData = getHistoryData();
     assertEquals(5, historyData.length);
     assertEquals(historyData[0]!.dateRelativeDay, '2016-03-15');
@@ -448,7 +484,9 @@ suite('HistoryListTest', function() {
     assertEquals(1, visits.length);
     assertEquals(TEST_HISTORY_RESULTS[1]!.url, visits[0]!.url);
     assertEquals(
-        TEST_HISTORY_RESULTS[1]!.allTimestamps[0], visits[0]!.timestamps[0]);
+        TEST_HISTORY_RESULTS[1]!
+            .allTimestamps[TEST_HISTORY_RESULTS[1]!.url]![0],
+        visits[0]!.timestamps[0]);
     assertDeepEquals(
         [
           'https://www.google.com',
@@ -491,7 +529,9 @@ suite('HistoryListTest', function() {
     assertEquals(1, visits.length);
     assertEquals(TEST_HISTORY_RESULTS[1]!.url, visits[0]!.url);
     assertEquals(
-        TEST_HISTORY_RESULTS[1]!.allTimestamps[0], visits[0]!.timestamps[0]);
+        TEST_HISTORY_RESULTS[1]!
+            .allTimestamps[TEST_HISTORY_RESULTS[1]!.url]![0],
+        visits[0]!.timestamps[0]);
 
     // Deletion is still happening. Verify that menu button and toolbar
     // are disabled.
@@ -645,7 +685,7 @@ suite('HistoryListTest', function() {
 
     testService.handler.resetResolver('queryHistory');
     webUIListenerCallback('history-deleted');
-    await flushTasks();
+    await microtasksFinished();
     assertEquals(0, testService.handler.getCallCount('queryHistory'));
   });
 

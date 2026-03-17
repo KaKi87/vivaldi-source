@@ -84,6 +84,9 @@ const DeviceInfo* LocalDeviceInfoProviderImpl::GetLocalDeviceInfo() const {
     local_device_info_->set_full_hardware_class(full_hardware_class_);
   }
 
+  local_device_info_->set_desktop_to_ios_promo_receiving_enabled(
+      sync_client_->GetDesktopToIOSPromoReceivingEnabled());
+
   // Vivaldi
   local_device_info_->set_vivaldi_total_synced_files_size(
       sync_client_->VivaldiGetSyncedFileStorageSize());
@@ -157,7 +160,8 @@ void LocalDeviceInfoProviderImpl::Initialize(
       sync_client_->GetLocalSharingInfo(), paask_info,
       last_fcm_registration_token, last_interested_data_types,
       /*auto_sign_out_last_signin_timestamp=*/
-      auto_sign_out_last_signin_timestamp);
+      auto_sign_out_last_signin_timestamp,
+      sync_client_->GetDesktopToIOSPromoReceivingEnabled());
 
   full_hardware_class_ = full_hardware_class;
 

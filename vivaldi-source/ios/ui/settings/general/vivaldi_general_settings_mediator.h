@@ -11,10 +11,10 @@ class PrefService;
 
 // The Mediator for address bar preference setting.
 @interface VivaldiGeneralSettingsMediator
-  : NSObject <VivaldiGeneralSettingsConsumer>
+    : NSObject <VivaldiGeneralSettingsConsumer>
 
 - (instancetype)initWithOriginalPrefService:(PrefService*)originalPrefService
-  NS_DESIGNATED_INITIALIZER;
+    NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;
 

@@ -31,6 +31,9 @@ import org.chromium.url.GURL;
 
 import java.util.function.Supplier;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+
 /** Controls showing IPH for Custom Tabs history. */
 @NullMarked
 public class CustomTabHistoryIphController {
@@ -62,6 +65,8 @@ public class CustomTabHistoryIphController {
                 new ActivityTabTabObserver(mTabProvider) {
                     @Override
                     public void onPageLoadFinished(Tab tab, GURL url) {
+                        if (BuildConfig.IS_VIVALDI // Vivaldi VAB-12568
+                                && !tab.getUrl().getSpec().contains("privacy-report"))
                         maybeShowIph();
                     }
                 };

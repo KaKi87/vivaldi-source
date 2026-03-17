@@ -24,7 +24,9 @@ import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.UserDataHost;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.bookmarks.BookmarkModel;
@@ -45,8 +47,8 @@ import java.util.function.Supplier;
 @EnableFeatures({ChromeFeatureList.CONTEXTUAL_PAGE_ACTIONS})
 public class ContextualPageActionControllerUnitTest {
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
-    private ObservableSupplierImpl<Profile> mProfileSupplier;
-    private ObservableSupplierImpl<Tab> mTabSupplier;
+    private SettableMonotonicObservableSupplier<Profile> mProfileSupplier;
+    private SettableNullableObservableSupplier<Tab> mTabSupplier;
     private UserDataHost mTabUserDataHost;
 
     @Mock private Profile mMockProfile;
@@ -57,8 +59,8 @@ public class ContextualPageActionControllerUnitTest {
     @Before
     public void setUp() {
 
-        mProfileSupplier = new ObservableSupplierImpl<>();
-        mTabSupplier = new ObservableSupplierImpl<>();
+        mProfileSupplier = ObservableSuppliers.createMonotonic();
+        mTabSupplier = ObservableSuppliers.createNullable();
         mTabUserDataHost = new UserDataHost();
 
         ContextualPageActionControllerJni.setInstanceForTesting(mMockControllerJni);

@@ -22,7 +22,7 @@ import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.Log;
 import org.chromium.base.ResettersForTesting;
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.build.annotations.RequiresNonNull;
@@ -51,8 +51,6 @@ import org.chromium.components.browser_ui.share.ShareHelper;
 import org.chromium.ui.base.ActivityWindowAndroid;
 import org.chromium.ui.util.TokenHolder;
 import org.chromium.url.GURL;
-
-import java.util.function.Supplier;
 
 // Vivaldi
 import org.chromium.build.BuildConfig;
@@ -241,7 +239,7 @@ public class CustomTabToolbarCoordinator {
         // The share button from CCT should have custom actions, however if the
         // ShareDelegateSupplier is null, we should fallback to the default share action without
         // custom buttons.
-        Supplier<ShareDelegate> supplier = ShareDelegateSupplier.from(mWindowAndroid);
+        var supplier = ShareDelegateSupplier.from(mWindowAndroid);
         if (ChromeFeatureList.isEnabled(ChromeFeatureList.SHARE_CUSTOM_ACTIONS_IN_CCT)
                 && params.getType() == CustomButtonParams.ButtonType.CCT_SHARE_BUTTON
                 && supplier != null
@@ -313,7 +311,7 @@ public class CustomTabToolbarCoordinator {
                         /* bookmarkClickHandler= */ null,
                         /* customTabsBackClickHandler= */ v -> onCloseButtonClick(),
                         /* archivedTabCountSupplier= */ null,
-                        /* tabModelNotificationDotSupplier= */ new ObservableSupplierImpl<>(
+                        /* tabModelNotificationDotSupplier= */ ObservableSuppliers.createNonNull(
                                 TabModelDotInfo.HIDE),
                         /* undoBarThrottle= */ null);
         mInitializedToolbarWithNative = true;

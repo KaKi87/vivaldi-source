@@ -2,6 +2,7 @@
 
 namespace extensions {
 
-void VivaldiHandlePermissionInjections(PermissionsParser* parser, Extension* extension);
+void VivaldiHandlePermissionInjections(PermissionsParser* parser,
+                                       Extension* extension);
 
-} // namespace extensions
+}  // namespace extensions

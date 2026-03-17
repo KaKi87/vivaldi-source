@@ -41,6 +41,7 @@ class HomeBackgroundCustomizationService;
 @protocol NewTabPageConsumer;
 @protocol NewTabPageContentDelegate;
 @protocol NewTabPageHeaderConsumer;
+class NTPBackgroundImageCacheService;
 class PlaceholderService;
 class PrefService;
 class TemplateURLService;
@@ -69,6 +70,8 @@ class UserUploadedImageManager;
                    regionalCapabilitiesService
         backgroundCustomizationService:
             (HomeBackgroundCustomizationService*)backgroundCustomizationService
+           backgroundImageCacheService:
+               (NTPBackgroundImageCacheService*)backgroundImageCacheService
                    imageFetcherService:
                        (image_fetcher::ImageFetcherService*)imageFetcherService
               userUploadedImageManager:
@@ -102,6 +105,8 @@ class UserUploadedImageManager;
 @property(nonatomic, weak) id<NewTabPageContentDelegate> NTPContentDelegate;
 // Indicates that the new tab page is visible.
 @property(nonatomic, assign) BOOL NTPVisible;
+// The WebState currently associated with this mediator.
+@property(nonatomic, assign) web::WebState* webState;
 // A pointer to the collection view that currently embeds all the contents on
 // the new tab page.
 @property(nonatomic, weak) UICollectionView* contentCollectionView;
@@ -123,6 +128,9 @@ class UserUploadedImageManager;
 
 // Update the background of the NTP.
 - (void)updateBackground;
+
+// Marks the Safari Data Import item in the setup list as completed.
+- (void)markSafariDataImportSetupListItemAsComplete;
 
 @end
 

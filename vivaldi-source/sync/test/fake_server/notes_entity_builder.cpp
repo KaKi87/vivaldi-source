@@ -70,12 +70,11 @@ std::unique_ptr<LoopbackServerEntity> NotesEntityBuilder::Build() {
   sync_pb::UniquePosition unique_position;
   // TODO(pvalenzuela): Allow caller customization of the position integer.
   syncer::UniquePosition::Suffix suffix = GenerateSyncableNotesHash(
-      originator_cache_guid_,
-                                            originator_client_item_id_);
+      originator_cache_guid_, originator_client_item_id_);
   unique_position = syncer::UniquePosition::FromInt64(0, suffix).ToProto();
 
-  const string id =
-      LoopbackServerEntity::CreateId(syncer::NOTES, base::Uuid::GenerateRandomV4().AsLowercaseString());
+  const string id = LoopbackServerEntity::CreateId(
+      syncer::NOTES, base::Uuid::GenerateRandomV4().AsLowercaseString());
 
   return base::WrapUnique<LoopbackServerEntity>(
       new syncer::PersistentNotesEntity(
@@ -88,7 +87,8 @@ NotesEntityBuilder EntityBuilderFactory::NewNotesEntityBuilder(
     const string& title,
     const GURL& url,
     const string& content) {
-  std::string originator_client_item_id = base::Uuid::GenerateRandomV4().AsLowercaseString();
+  std::string originator_client_item_id =
+      base::Uuid::GenerateRandomV4().AsLowercaseString();
   NotesEntityBuilder builder(title, url, content, cache_guid_,
                              originator_client_item_id);
   return builder;

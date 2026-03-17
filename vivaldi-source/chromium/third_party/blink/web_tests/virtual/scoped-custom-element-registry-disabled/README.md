@@ -1,4 +1,4 @@
-This suite runs tests with `--disable-blink-features=ScopedCustomElementRegistry`.
+# scoped-custom-element-registry
 
-It verifies that the experimental feature is not leaked to the web as the flag
-is disabled.
+This directory contains tests that run with scoped custom element registry disabled.
+All tests in this directory run without the flag ScopedCustomElementRegistry.

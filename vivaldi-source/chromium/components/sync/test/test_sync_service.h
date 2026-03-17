@@ -165,7 +165,7 @@ class TestSyncService : public SyncService {
   void AddProtocolEventObserver(ProtocolEventObserver* observer) override;
   void RemoveProtocolEventObserver(ProtocolEventObserver* observer) override;
   void GetAllNodesForDebugging(
-      base::OnceCallback<void(base::Value::List)> callback) override;
+      base::OnceCallback<void(base::ListValue)> callback) override;
   DataTypeDownloadStatus GetDownloadStatusFor(DataType type) const override;
   void SetInvalidationsForSessionsEnabled(bool enabled) override;
   void SendExplicitPassphraseToPlatformClient() override;
@@ -184,7 +184,8 @@ class TestSyncService : public SyncService {
   void SelectTypeAndMigrateLocalDataItemsWhenActive(
       DataType data_type,
       std::vector<LocalDataItemModel::DataId> items) override;
-  void AcknowledgeBookmarksLimitExceededError() override;
+  void AcknowledgeBookmarksLimitExceededError(
+      BookmarksLimitExceededHelpClickedSource source) override;
 
   // KeyedService implementation.
   void Shutdown() override;
@@ -212,8 +213,7 @@ class TestSyncService : public SyncService {
 
   SyncCycleSnapshot last_cycle_snapshot_;
 
-  base::ObserverList<SyncServiceObserver>::UncheckedAndDanglingUntriaged
-      observers_;
+  base::ObserverList<SyncServiceObserver> observers_;
 
   GURL sync_service_url_;
 

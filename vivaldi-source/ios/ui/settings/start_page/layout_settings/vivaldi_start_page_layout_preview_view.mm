@@ -16,8 +16,8 @@
 #import "ios/ui/settings/start_page/layout_settings/vivaldi_start_page_layout_style.h"
 #import "ui/base/device_form_factor.h"
 
-using ui::GetDeviceFormFactor;
 using ui::DEVICE_FORM_FACTOR_TABLET;
+using ui::GetDeviceFormFactor;
 
 // NAMESPACE
 namespace {
@@ -31,18 +31,19 @@ NSString* cellIdList = @"cellIdList";
 // However, preview will always show rows depending on numberOfRows value passed
 // on init regardless of numberOfItems rendered.
 const CGFloat numberOfItems = 30;
-}
+}  // namespace
 
-@interface VivaldiStartPageLayoutPreviewView()<UICollectionViewDataSource>
-@property(weak,nonatomic) UICollectionView *collectionView;
+@interface VivaldiStartPageLayoutPreviewView () <UICollectionViewDataSource>
+@property(weak, nonatomic) UICollectionView* collectionView;
 // Collection view layout for selected column and layout rendering
-@property(nonatomic,strong) VivaldiSpeedDialViewContainerViewFlowLayout *layout;
+@property(nonatomic, strong)
+    VivaldiSpeedDialViewContainerViewFlowLayout* layout;
 // Currently selected layout
-@property(nonatomic,assign) VivaldiStartPageLayoutStyle selectedLayout;
+@property(nonatomic, assign) VivaldiStartPageLayoutStyle selectedLayout;
 // Currently selected layout state
-@property(nonatomic,assign) VivaldiStartPageLayoutState selectedLayoutState;
+@property(nonatomic, assign) VivaldiStartPageLayoutState selectedLayoutState;
 // Currently selected maximum columns
-@property(nonatomic,assign) VivaldiStartPageLayoutColumn selectedColumn;
+@property(nonatomic, assign) VivaldiStartPageLayoutColumn selectedColumn;
 // Collection view height constraint
 @property(nonatomic, strong) NSLayoutConstraint* cvHeightConstraint;
 @end
@@ -67,8 +68,7 @@ const CGFloat numberOfItems = 30;
 
 #pragma mark - SET UP UI COMPONENTS
 - (void)setUpUI {
-
-  VivaldiSpeedDialViewContainerViewFlowLayout *layout =
+  VivaldiSpeedDialViewContainerViewFlowLayout* layout =
       [VivaldiSpeedDialViewContainerViewFlowLayout new];
   layout.shouldShowTabletLayout = [self showTabletLayout];
   self.layout = layout;
@@ -80,7 +80,7 @@ const CGFloat numberOfItems = 30;
   collectionView.showsHorizontalScrollIndicator = NO;
   collectionView.showsVerticalScrollIndicator = NO;
   collectionView.contentInsetAdjustmentBehavior =
-    UIScrollViewContentInsetAdjustmentNever;
+      UIScrollViewContentInsetAdjustmentNever;
 
   [collectionView registerClass:[VivaldiSpeedDialRegularCell class]
       forCellWithReuseIdentifier:cellIdRegular];
@@ -141,45 +141,44 @@ const CGFloat numberOfItems = 30;
 
 #pragma mark - COLLECTIONVIEW DATA SOURCE
 
-- (NSInteger)collectionView:(UICollectionView *)collectionView
+- (NSInteger)collectionView:(UICollectionView*)collectionView
      numberOfItemsInSection:(NSInteger)section {
   return numberOfItems;
 }
 
 - (UICollectionViewCell*)collectionView:(UICollectionView*)collectionView
                  cellForItemAtIndexPath:(NSIndexPath*)indexPath {
-
   switch (_selectedLayout) {
     case VivaldiStartPageLayoutStyleLarge:
     case VivaldiStartPageLayoutStyleMedium: {
-      VivaldiSpeedDialRegularCell *largeCell =
-        [collectionView dequeueReusableCellWithReuseIdentifier:cellIdRegular
-                                                  forIndexPath:indexPath];
+      VivaldiSpeedDialRegularCell* largeCell =
+          [collectionView dequeueReusableCellWithReuseIdentifier:cellIdRegular
+                                                    forIndexPath:indexPath];
       [largeCell configurePreview];
       return largeCell;
     }
     case VivaldiStartPageLayoutStyleSmall: {
-      VivaldiSpeedDialSmallCell *smallCell =
-        [collectionView dequeueReusableCellWithReuseIdentifier:cellIdSmall
-                                                  forIndexPath:indexPath];
-      [smallCell configurePreviewForDevice: self.showTabletLayout];
+      VivaldiSpeedDialSmallCell* smallCell =
+          [collectionView dequeueReusableCellWithReuseIdentifier:cellIdSmall
+                                                    forIndexPath:indexPath];
+      [smallCell configurePreviewForDevice:self.showTabletLayout];
       return smallCell;
     }
-#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2 // Not final
+#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2  // Not final
     case VivaldiStartPageLayoutStyleIcon: {
-      VivaldiSpeedDialIconCell *iconCell =
-        [collectionView dequeueReusableCellWithReuseIdentifier:cellIdIcon
-                                                  forIndexPath:indexPath];
-      [iconCell configurePreviewForDevice: self.showTabletLayout];
+      VivaldiSpeedDialIconCell* iconCell =
+          [collectionView dequeueReusableCellWithReuseIdentifier:cellIdIcon
+                                                    forIndexPath:indexPath];
+      [iconCell configurePreviewForDevice:self.showTabletLayout];
       return iconCell;
     }
 #endif
     case VivaldiStartPageLayoutStyleList: {
-        VivaldiSpeedDialListCell *listCell =
+      VivaldiSpeedDialListCell* listCell =
           [collectionView dequeueReusableCellWithReuseIdentifier:cellIdList
                                                     forIndexPath:indexPath];
-        [listCell configurePreview];
-        return listCell;
+      [listCell configurePreview];
+      return listCell;
     }
   }
 }

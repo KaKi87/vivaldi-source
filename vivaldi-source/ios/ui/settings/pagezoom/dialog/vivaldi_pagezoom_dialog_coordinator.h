@@ -10,8 +10,8 @@ class Browser;
 @class VivaldiPageZoomViewController;
 
 // This class is the coordinator for the pagezoom setting.
-@interface VivaldiPageZoomDialogCoordinator :
-    ChromeCoordinator <VivaldiPageZoomSettingsDelegate>
+@interface VivaldiPageZoomDialogCoordinator
+    : ChromeCoordinator <VivaldiPageZoomSettingsDelegate>
 
 // Stops the page zoom UI with optional animation.
 - (void)stopAnimated:(BOOL)animated completion:(void (^)(void))completion;

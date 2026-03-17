@@ -11,7 +11,6 @@
 #include "base/check.h"
 #include "base/check_op.h"
 #include "base/memory/raw_ptr.h"
-#include "base/types/cxx23_to_underlying.h"
 #include "build/build_config.h"
 
 namespace base {
@@ -42,7 +41,7 @@ class EnumArray {
   static const E kMinValue = MinEnumValue;
   static const E kMaxValue = MaxEnumValue;
   static const size_t kValueCount =
-      to_underlying(kMaxValue) - to_underlying(kMinValue) + 1;
+      std::to_underlying(kMaxValue) - std::to_underlying(kMinValue) + 1;
 
   static_assert(kMinValue <= kMaxValue,
                 "min value must be no greater than max value");
@@ -217,13 +216,13 @@ class EnumArray {
   // Converts a value to/from an index into |enums_|.
   static constexpr size_t ToIndex(E value) {
     CHECK(InRange(value));
-    return static_cast<size_t>(to_underlying(value)) -
-           static_cast<size_t>(to_underlying(MinEnumValue));
+    return static_cast<size_t>(std::to_underlying(value)) -
+           static_cast<size_t>(std::to_underlying(MinEnumValue));
   }
 
   static E FromIndex(size_t i) {
     DCHECK_LT(i, kValueCount);
-    return static_cast<E>(to_underlying(MinEnumValue) + i);
+    return static_cast<E>(std::to_underlying(MinEnumValue) + i);
   }
 
   ArrayType array_;

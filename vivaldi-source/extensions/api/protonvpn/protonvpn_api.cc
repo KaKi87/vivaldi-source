@@ -3,9 +3,9 @@
 #include "extensions/api/protonvpn/protonvpn_api.h"
 #include "extensions/schema/protonvpn.h"
 
+#include "chrome/browser/profiles/profile.h"
 #include "vivaldi_account/vivaldi_account_manager.h"
 #include "vivaldi_account/vivaldi_account_manager_factory.h"
-#include "chrome/browser/profiles/profile.h"
 
 namespace extensions {
 
@@ -25,5 +25,4 @@ ExtensionFunction::ResponseAction ProtonvpnGetStatusFunction::Run() {
   return RespondNow(ArgumentList(Results::Create(result)));
 }
 
-
-} // namespace extensions
+}  // namespace extensions

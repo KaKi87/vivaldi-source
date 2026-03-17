@@ -114,7 +114,7 @@ class WebViewAutofillClientIOS : public AutofillClientIOS {
   const signin::IdentityManager* GetIdentityManager() const override;
   FormDataImporter* GetFormDataImporter() override;
   payments::PaymentsAutofillClient* GetPaymentsAutofillClient() override;
-  strike_database::StrikeDatabase* GetStrikeDatabase() override;
+  strike_database::StrikeDatabase* GetStrikeDatabase() final;
   ukm::UkmRecorder* GetUkmRecorder() override;
   AddressNormalizer* GetAddressNormalizer() override;
   const GURL& GetLastCommittedPrimaryMainFrameURL() const override;
@@ -139,11 +139,8 @@ class WebViewAutofillClientIOS : public AutofillClientIOS {
   bool IsWalletStorageEnabled() const override;
   bool IsAutocompleteEnabled() const override;
   bool IsPasswordManagerEnabled() const override;
-  void DidFillForm(AutofillTriggerSource trigger_source,
-                   bool is_refill) override;
   bool IsContextSecure() const override;
   bool IsCvcSavingSupported() const override;
-  autofill::FormInteractionsFlowId GetCurrentFormInteractionsFlowId() override;
   autofill_metrics::FormInteractionsUkmLogger& GetFormInteractionsUkmLogger()
       override;
   bool IsLastQueriedField(FieldGlobalId field_id) override;
@@ -158,8 +155,8 @@ class WebViewAutofillClientIOS : public AutofillClientIOS {
   PersonalDataManager* personal_data_manager_;
   AutocompleteHistoryManager* autocomplete_history_manager_;
   raw_ptr<signin::IdentityManager> identity_manager_;
-  std::unique_ptr<FormDataImporter> form_data_importer_;
   strike_database::StrikeDatabase* strike_database_;
+  std::unique_ptr<FormDataImporter> form_data_importer_;
   syncer::SyncService* sync_service_ = nullptr;
   raw_ptr<LogRouter> log_router_;
   std::unique_ptr<LogManager> log_manager_;

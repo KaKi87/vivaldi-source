@@ -63,22 +63,22 @@ REPOSITORY_PROPERTY_MAP = {
         'commit_number': True,
         'revision_param': 'revision',
     },
-    # 'widevine-cdm': {
-    #     'masters': ['WidevineCdmPerf'],
-    #     'public_buckets': [],
-    #     'internal_buckets': ['widevine-cdm-perf'],
-    #     'ingest_folder': 'ingest',
-    #     'commit_number': False,
-    #     'revision_param': 'r_cdm_git',
-    # },
-    # 'widevine-whitebox': {
-    #     'masters': ['WidevineWhiteboxPerf_master'],
-    #     'public_buckets': [],
-    #     'internal_buckets': ['widevine-whitebox-perf'],
-    #     'ingest_folder': 'ingest',
-    #     'commit_number': False,
-    #     'revision_param': 'r_cdm_git',
-    # },
+    'widevine-cdm': {
+        'masters': ['WidevineCdmPerf'],
+        'public_buckets': [],
+        'internal_buckets': ['widevine-cdm-perf'],
+        'ingest_folder': 'ingest',
+        'commit_number': False,
+        'revision_param': 'r_cdm_git',
+    },
+    'widevine-whitebox': {
+        'masters': ['WidevineWhiteboxPerf_master'],
+        'public_buckets': [],
+        'internal_buckets': ['widevine-whitebox-perf'],
+        'ingest_folder': 'ingest',
+        'commit_number': False,
+        'revision_param': 'r_cdm_git',
+    },
     'v8': {
         'masters': [
             'internal.client.v8',
@@ -104,6 +104,8 @@ REPOSITORY_PROPERTY_MAP = {
             'fuchsia.global.ci',
             'turquoise-internal.integration.global.ci',
             'turquoise-internal.integration.smart.ci',
+            'fuchsia.try',
+            'turquoise-internal.integration.global.try',
         ],
         'public_buckets': [],
         'internal_buckets': [

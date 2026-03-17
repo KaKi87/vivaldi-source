@@ -148,13 +148,13 @@ class PrivacyReportHandler final : public content::WebUIMessageHandler {
   void OnJavascriptAllowed() override;
   void OnJavascriptDisallowed() override;
   void RegisterMessages() override;
-  void HandleIsAdBlockEnabled(const base::Value::List& args);
-  void HandleIsTrackerBlockEnabled(const base::Value::List& args);
-  void HandleGetBlockingData(const base::Value::List& args);
-  void OpenLinkInNewTab(const base::Value::List& args);
+  void HandleIsAdBlockEnabled(const base::ListValue& args);
+  void HandleIsTrackerBlockEnabled(const base::ListValue& args);
+  void HandleGetBlockingData(const base::ListValue& args);
+  void OpenLinkInNewTab(const base::ListValue& args);
   void OnStatsDataLoaded(std::string callback_id,
                          std::unique_ptr<adblock_filter::StatsData> data);
-  void CloseActivityFromJS(const base::Value::List& args);
+  void CloseActivityFromJS(const base::ListValue& args);
   void CloseActivity(content::WebContents* webContents);
 
  private:
@@ -198,8 +198,7 @@ void PrivacyReportHandler::RegisterMessages() {
 }
 
 // Send down boolean for if Adblocker is enabled.
-void PrivacyReportHandler::HandleIsAdBlockEnabled(
-    const base::Value::List& args) {
+void PrivacyReportHandler::HandleIsAdBlockEnabled(const base::ListValue& args) {
   AllowJavascript();
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   const base::Value& callback_id = args[0];
@@ -214,7 +213,7 @@ void PrivacyReportHandler::HandleIsAdBlockEnabled(
 
 // Send down boolean for if Tracker Blocker is enabled.
 void PrivacyReportHandler::HandleIsTrackerBlockEnabled(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   AllowJavascript();
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   const base::Value& callback_id = args[0];
@@ -229,8 +228,7 @@ void PrivacyReportHandler::HandleIsTrackerBlockEnabled(
 
 // Gets all the trackers that have been blocked and returns it as a list
 // of tracker names and how many times it has been blocked.
-void PrivacyReportHandler::HandleGetBlockingData(
-    const base::Value::List& args) {
+void PrivacyReportHandler::HandleGetBlockingData(const base::ListValue& args) {
   AllowJavascript();
 
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
@@ -265,7 +263,7 @@ void PrivacyReportHandler::HandleGetBlockingData(
                             std::move(callback));
 }
 
-void PrivacyReportHandler::OpenLinkInNewTab(const base::Value::List& args) {
+void PrivacyReportHandler::OpenLinkInNewTab(const base::ListValue& args) {
   AllowJavascript();
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   const std::string url = args[1].GetString();
@@ -274,7 +272,7 @@ void PrivacyReportHandler::OpenLinkInNewTab(const base::Value::List& args) {
   PrivacyReportHandler::CloseActivity(web_ui()->GetWebContents());
 #endif
 }
-void PrivacyReportHandler::CloseActivityFromJS(const base::Value::List& args) {
+void PrivacyReportHandler::CloseActivityFromJS(const base::ListValue& args) {
   AllowJavascript();
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   PrivacyReportHandler::CloseActivity(web_ui()->GetWebContents());
@@ -282,11 +280,11 @@ void PrivacyReportHandler::CloseActivityFromJS(const base::Value::List& args) {
 void PrivacyReportHandler::OnJavascriptAllowed() {}
 void PrivacyReportHandler::OnJavascriptDisallowed() {}
 
-base::Value::List ToVivaldiBlockedCounter(
+base::ListValue ToVivaldiBlockedCounter(
     const adblock_filter::StatsData::Entries& entries) {
-  base::Value::List res;
+  base::ListValue res;
   for (const auto& entry : entries) {
-    base::Value::List inner_list;
+    base::ListValue inner_list;
     inner_list.Append(entry.host);
     inner_list.Append(CastOutputNumberForJS(entry.ad_count));
     inner_list.Append(CastOutputNumberForJS(entry.tracker_count));
@@ -304,7 +302,7 @@ void PrivacyReportHandler::OnStatsDataLoaded(
       data->TrackerEntries();
   const base::Time reporting_start = data->ReportingStart();
 
-  base::Value::List results;
+  base::ListValue results;
   results.Append(
       CastOutputNumberForJS(reporting_start.InMillisecondsFSinceUnixEpoch()));
   results.Append(CastOutputNumberForJS(data->TotalAdsBlocked()));

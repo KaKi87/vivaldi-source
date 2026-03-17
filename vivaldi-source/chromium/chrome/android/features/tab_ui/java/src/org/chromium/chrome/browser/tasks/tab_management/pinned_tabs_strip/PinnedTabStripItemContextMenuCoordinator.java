@@ -71,7 +71,7 @@ public class PinnedTabStripItemContextMenuCoordinator
     PinnedTabStripItemContextMenuCoordinator(
             Activity activity,
             Profile profile,
-            Supplier<TabBookmarker> tabBookmarkerSupplier,
+            Supplier<@Nullable TabBookmarker> tabBookmarkerSupplier,
             TabGroupModelFilter tabGroupModelFilter,
             TabGroupListBottomSheetCoordinator tabGroupListBottomSheetCoordinator,
             TabGroupCreationDialogManager tabGroupCreationDialogManager,
@@ -163,14 +163,14 @@ public class PinnedTabStripItemContextMenuCoordinator
             return new ListItemBuilder()
                     .withTitleRes(R.string.edit_bookmark)
                     .withMenuId(R.id.edit_bookmark)
-                    .withStartIconRes(R.drawable.btn_star_filled)
+                    .withStartIconRes(R.drawable.ic_star_filled_24dp)
                     .withIsIncognito(isIncognito)
                     .build();
         } else {
             return new ListItemBuilder()
                     .withTitleRes(R.string.add_to_bookmarks)
                     .withMenuId(R.id.add_to_bookmarks)
-                    .withStartIconRes(R.drawable.star_outline_24dp)
+                    .withStartIconRes(R.drawable.ic_star_24dp)
                     .withIsIncognito(isIncognito)
                     .build();
         }
@@ -205,14 +205,14 @@ public class PinnedTabStripItemContextMenuCoordinator
 
     @VisibleForTesting
     static OnItemClickedCallback<Integer> getMenuItemClickedCallback(
-            Supplier<TabBookmarker> tabBookmarkerSupplier,
+            Supplier<@Nullable TabBookmarker> tabBookmarkerSupplier,
             TabGroupModelFilter tabGroupModelFilter,
             TabGroupListBottomSheetCoordinator coordinator,
             TabGroupCreationDialogManager dialogManager) {
         return (menuId, tabId, collaborationId, listViewTouchTracker) -> {
             if (tabId == Tab.INVALID_TAB_ID) return;
             TabModel tabModel = tabGroupModelFilter.getTabModel();
-            TabBookmarker tabBookmarker = tabBookmarkerSupplier.get();
+            TabBookmarker tabBookmarker = assumeNonNull(tabBookmarkerSupplier.get());
             @Nullable Tab tab = getTabById(() -> tabModel, tabId);
             if (tab == null) return;
 
@@ -247,7 +247,7 @@ public class PinnedTabStripItemContextMenuCoordinator
 
     public static PinnedTabStripItemContextMenuCoordinator createContextMenuCoordinator(
             Activity activity,
-            Supplier<TabBookmarker> tabBookmarkerSupplier,
+            Supplier<@Nullable TabBookmarker> tabBookmarkerSupplier,
             TabGroupModelFilter tabGroupModelFilter,
             TabGroupListBottomSheetCoordinator tabGroupListBottomSheetCoordinator,
             TabGroupCreationDialogManager tabGroupCreationDialogManager) {

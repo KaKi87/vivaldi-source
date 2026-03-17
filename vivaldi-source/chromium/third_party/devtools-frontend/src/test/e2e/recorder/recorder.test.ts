@@ -813,10 +813,8 @@ describe('Recorder', function() {
     await startRecording('recorder/input.html', undefined, devToolsPage, inspectedPage);
 
     await inspectedPage.bringToFront();
-    await inspectedPage.page.keyboard.press('Tab');
-    await inspectedPage.page.keyboard.down('Shift');
-    await inspectedPage.page.keyboard.press('Tab');
-    await inspectedPage.page.keyboard.up('Shift');
+    await inspectedPage.pressKey('Tab');
+    await inspectedPage.pressKey('Tab', {shift: true});
 
     const recording = await stopRecording(devToolsPage);
     assert.deepEqual(
@@ -863,16 +861,18 @@ describe('Recorder', function() {
   it('should capture a change that causes navigation without blur or change', async ({inspectedPage, devToolsPage}) => {
     await startRecording('recorder/programmatic-navigation-on-keydown.html', undefined, devToolsPage, inspectedPage);
     await inspectedPage.bringToFront();
-    await inspectedPage.waitForSelector('input');
+    await inspectedPage.waitForSelector('input:focus');
     await inspectedPage.page.keyboard.press('1');
     await inspectedPage.page.keyboard.press('Enter', {delay: 50});
 
-    await devToolsPage.waitForFunction(async () => {
+    await devToolsPage.waitForFunction(async logger => {
       const controller = await getRecordingController(devToolsPage);
-      return await controller.evaluate(
-          c => c.getCurrentRecordingForTesting()?.flow.steps.length === 5,
+      const steps = await controller.evaluate(
+          c => c.getCurrentRecordingForTesting()?.flow.steps.length,
       );
-    });
+      logger.log(`Recorded ${steps} steps`);
+      return steps === 5;
+    }, undefined, 'Waiting for 5 steps to be recorded');
 
     const recording = await stopRecording(devToolsPage);
     assert.deepEqual(
@@ -1292,7 +1292,7 @@ describe('Recorder', function() {
     await startRecording('recorder/recorder.html', undefined, devToolsPage, inspectedPage);
 
     const steps = await devToolsPage.waitForFunction(async () => {
-      const steps = await devToolsPage.$$('devtools-step-view');
+      const steps = await devToolsPage.$$('.step-view-widget');
       return steps.length === 3 ? steps : undefined;
     });
     const lastStep = steps.pop();
@@ -1350,7 +1350,7 @@ describe('Recorder', function() {
 
     await devToolsPage.bringToFront();
     const steps = await devToolsPage.waitForFunction(async () => {
-      const steps = await devToolsPage.$$('devtools-step-view');
+      const steps = await devToolsPage.$$('.step-view-widget');
       return steps.length === 5 ? steps : undefined;
     });
     const step = steps.pop();
@@ -1360,7 +1360,7 @@ describe('Recorder', function() {
 
     const input = await step.waitForSelector(
         ':scope >>>> devtools-recorder-step-editor >>>> div:nth-of-type(1) > devtools-suggestion-input');
-    await input!.focus();
+    await input!.click();
 
     const eventPromise = step.evaluate(element => {
       return new Promise(resolve => {
@@ -1405,7 +1405,7 @@ describe('Recorder', function() {
     await devToolsPage.renderCoordinatorQueueEmpty();
 
     // Get the latest step.
-    const step = await devToolsPage.waitFor('.section:last-child devtools-step-view:last-of-type');
+    const step = await devToolsPage.waitFor('.section:last-child .step-view-widget:last-of-type');
 
     // Check that it's expanded.
     if (!(await step.waitForSelector('pierce/.step.expanded'))) {

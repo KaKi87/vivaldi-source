@@ -16,13 +16,13 @@ NSString* cellId = @"cellId";
 NSInteger numberOfPages = 5;
 
 CGFloat iconSize = 56.0;
-}
+}  // namespace
 
-@interface PanelButtonView() <UICollectionViewDelegate,
-                              UICollectionViewDataSource> {
-    NSInteger activeIndex;
+@interface PanelButtonView () <UICollectionViewDelegate,
+                               UICollectionViewDataSource> {
+  NSInteger activeIndex;
 }
-@property (weak,nonatomic) UICollectionView *collectionView;
+@property(weak, nonatomic) UICollectionView* collectionView;
 @end
 
 @implementation PanelButtonView
@@ -44,24 +44,25 @@ CGFloat iconSize = 56.0;
   activeIndex = 0;
 
   // COLLECTION VIEW FLOW LAYOUT
-  UICollectionViewFlowLayout *layout= [[UICollectionViewFlowLayout alloc] init];
+  UICollectionViewFlowLayout* layout =
+      [[UICollectionViewFlowLayout alloc] init];
   UICollectionView* collectionView =
-  [[UICollectionView alloc] initWithFrame: self.frame
-                     collectionViewLayout:layout];
+      [[UICollectionView alloc] initWithFrame:self.frame
+                         collectionViewLayout:layout];
   _collectionView = collectionView;
   layout.scrollDirection = UICollectionViewScrollDirectionVertical;
   layout.minimumLineSpacing = 0;
   layout.minimumInteritemSpacing = 0;
 
-  [self.collectionView setDataSource: self];
-  [self.collectionView setDelegate: self];
+  [self.collectionView setDataSource:self];
+  [self.collectionView setDelegate:self];
   self.collectionView.showsHorizontalScrollIndicator = false;
   self.collectionView.showsVerticalScrollIndicator = false;
   self.collectionView.contentInsetAdjustmentBehavior =
       UIScrollViewContentInsetAdjustmentNever;
 
   [self.collectionView registerClass:[PanelButtonCell class]
-      forCellWithReuseIdentifier:cellId];
+          forCellWithReuseIdentifier:cellId];
   [self.collectionView setBackgroundColor:[UIColor clearColor]];
 
   [self addSubview:self.collectionView];
@@ -71,14 +72,13 @@ CGFloat iconSize = 56.0;
 #pragma mark - SETTERS
 
 - (void)selectItemWithIndex:(NSInteger)index {
-    activeIndex = index;
-    [self scrollToItemWithIndex:index];
+  activeIndex = index;
+  [self scrollToItemWithIndex:index];
 }
 
 #pragma mark - PRIVATE METHODS
 - (void)scrollToItemWithIndex:(NSInteger)index {
-  NSIndexPath *indexPath = [NSIndexPath indexPathForRow:index
-                                              inSection:0];
+  NSIndexPath* indexPath = [NSIndexPath indexPathForRow:index inSection:0];
   [self.collectionView
       selectItemAtIndexPath:indexPath
                    animated:true
@@ -87,23 +87,23 @@ CGFloat iconSize = 56.0;
 
 #pragma mark - COLLECTIONVIEW DELEGATE, DATA SOURCE & FLOW LAYOUT
 
-- (NSInteger)collectionView:(UICollectionView *)collectionView
+- (NSInteger)collectionView:(UICollectionView*)collectionView
      numberOfItemsInSection:(NSInteger)section {
-    return numberOfPages;
+  return numberOfPages;
 }
 
-- (UICollectionViewCell*)collectionView:(UICollectionView *)collectionView
-                           cellForItemAtIndexPath:(NSIndexPath *)indexPath {
-  PanelButtonCell *cell =
-    [collectionView dequeueReusableCellWithReuseIdentifier:cellId
-                                              forIndexPath:indexPath];
+- (UICollectionViewCell*)collectionView:(UICollectionView*)collectionView
+                 cellForItemAtIndexPath:(NSIndexPath*)indexPath {
+  PanelButtonCell* cell =
+      [collectionView dequeueReusableCellWithReuseIdentifier:cellId
+                                                forIndexPath:indexPath];
   [cell configureCellWithIndex:indexPath.row
                    highlighted:indexPath.row == activeIndex];
   return cell;
 }
 
-- (void)collectionView:(UICollectionView *)collectionView
-didSelectItemAtIndexPath:(NSIndexPath *)indexPath {
+- (void)collectionView:(UICollectionView*)collectionView
+    didSelectItemAtIndexPath:(NSIndexPath*)indexPath {
   activeIndex = indexPath.row;
   if (self.delegate) {
     [self.delegate didSelectIndex:indexPath.row];
@@ -112,9 +112,9 @@ didSelectItemAtIndexPath:(NSIndexPath *)indexPath {
   [self scrollToItemWithIndex:indexPath.row];
 }
 
-- (CGSize)collectionView:(UICollectionView *)collectionView
-                  layout:(UICollectionViewLayout *)collectionViewLayout
-  sizeForItemAtIndexPath:(NSIndexPath *)indexPath {
+- (CGSize)collectionView:(UICollectionView*)collectionView
+                    layout:(UICollectionViewLayout*)collectionViewLayout
+    sizeForItemAtIndexPath:(NSIndexPath*)indexPath {
   return CGSizeMake(iconSize, iconSize);
 }
 

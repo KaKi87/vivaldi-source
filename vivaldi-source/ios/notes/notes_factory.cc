@@ -24,8 +24,8 @@ NotesModelFactory::~NotesModelFactory() {}
 
 // static
 NotesModel* NotesModelFactory::GetForProfile(ProfileIOS* profile) {
-  return GetInstance()->GetServiceForProfileAs<NotesModel>(
-      profile, /*create=*/true);
+  return GetInstance()->GetServiceForProfileAs<NotesModel>(profile,
+                                                           /*create=*/true);
 }
 
 // static
@@ -36,8 +36,8 @@ NotesModel* NotesModelFactory::GetForProfileIfExists(ProfileIOS* profile) {
   if (!GetInstance()->IsServiceCreated(profile)) {
     return nullptr;
   }
-  return GetInstance()->GetServiceForProfileAs<NotesModel>(
-      profile, /*create=*/false);
+  return GetInstance()->GetServiceForProfileAs<NotesModel>(profile,
+                                                           /*create=*/false);
 }
 
 // static

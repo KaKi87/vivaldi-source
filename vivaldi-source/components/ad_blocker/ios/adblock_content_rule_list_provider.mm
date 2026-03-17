@@ -45,7 +45,7 @@ class AdBlockerContentRuleListProviderImpl
 
   // Implementing AdBlockerContentRuleListProvider
   void SetIncognitoBrowserState(web::BrowserState* browser_state) override;
-  void InstallContentRuleLists(const base::Value::List& lists) override;
+  void InstallContentRuleLists(const base::ListValue& lists) override;
   void ApplyLoadedRules() override;
   bool IsApplyingRules() override {
     return !list_application_in_progress_stamps_.empty();
@@ -175,7 +175,7 @@ void AdBlockerContentRuleListProviderImpl::SetIncognitoBrowserState(
 }
 
 void AdBlockerContentRuleListProviderImpl::InstallContentRuleLists(
-    const base::Value::List& lists) {
+    const base::ListValue& lists) {
   if (lists.empty()) {
     RemoveInstalledLists();
     list_application_in_progress_stamps_.clear();

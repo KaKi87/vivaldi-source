@@ -23,6 +23,7 @@
 <translation id="2565593432251168402">Búðu til flipabunka og hafðu reglu á hlutunum</translation>
 <translation id="2783161812871838616">Nota borðtölvuútlit</translation>
 <translation id="2806957659107692459">Búa til bunka</translation>
+<translation id="2830375794722738493">Fela einkaflipa</translation>
 <translation id="2899836479226240291">Þú getur opnað hlekki í Vivaldi sjálfvirkt með því að stilla það sem sjálfgefið vafraforrit.</translation>
 <translation id="3365529507898144230">Vista í myndum</translation>
 <translation id="3434473769478814796">Líma og heimsækja</translation>
@@ -34,7 +35,7 @@
 <translation id="3692650606013198282">Opna í einkaham</translation>
 <translation id="3873885181515160073">Búðu til nýjan flipabunka og gefðu honum nafn og lit</translation>
 <translation id="3922395466317605522">Sérsníða valmynd</translation>
-<translation id="3981599532037327317">Opna ${veffang} í einkaham</translation>
+<translation id="3981599532037327317">Opna ${url} í einkaham</translation>
 <translation id="398477389655464998">Afrita tengil í merktan texta</translation>
 <translation id="3993429087389909418">Fliparnir verða áfram opnir á þessu tæki en bunkanum verður eytt af öllum tækjum sem þú hefur skráð þig inn á sem <ph name="USER_EMAIL" />.</translation>
 <translation id="4216644171369573466">Flipabunki, <ph name="GROUP_TITLE" />, Valmynd.</translation>
@@ -76,9 +77,11 @@ Tækjavarpið þarf líka að vera virkjað í almennum stillingum og tækin þ�
 <translation id="6233792867654386826">Opna innslegin vefföng í Vivaldi.</translation>
 <translation id="6271462272606946663">Fela boð um farsímaútgáfu</translation>
 <translation id="6309282378909663947">Lykilorð frá lykilorðastýringu Vivaldi</translation>
+<translation id="6464648082977038075">Loka einkaflipum</translation>
 <translation id="6478587527114893588">Loka bunka.</translation>
 <translation id="6527405730445064713">Flipabunki. Stækkaður.</translation>
 <translation id="6532106788206463496">Vista breytingar</translation>
+<translation id="6575010608310776688">Halda áfram í einkaham</translation>
 <translation id="6636411080833380839">Fjarlæga úr bunka</translation>
 <translation id="6644512095122093795">Bjóða upp á að vista lykilorð</translation>
 <translation id="6666425778700353369">Þessi aðgerð mun eyða bunkanum af öllum tækjum sem þú hefur skráð þig inn á <ph name="USER_EMAIL" />.</translation>

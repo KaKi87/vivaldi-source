@@ -1,6 +1,6 @@
 import("//chrome/common/features.gni")
 
-assert(enable_glic)
+assert(enable_glic) # Vivaldi keep disabled
 
 source_set("shared") {
   sources = [

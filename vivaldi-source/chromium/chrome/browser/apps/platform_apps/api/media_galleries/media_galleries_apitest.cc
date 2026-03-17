@@ -4,8 +4,6 @@
 
 #include <stdint.h>
 
-#include <memory>
-
 #include "base/auto_reset.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
@@ -21,7 +19,6 @@
 #include "base/threading/thread_restrictions.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "chrome/browser/apps/app_service/app_launch_params.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/app_service/browser_app_launcher.h"
@@ -30,10 +27,10 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/media_galleries/media_file_system_registry.h"
 #include "chrome/browser/media_galleries/media_galleries_preferences.h"
-#include "chrome/browser/media_galleries/media_galleries_test_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/common/chrome_paths.h"
+#include "components/services/app_service/public/cpp/app_launch_params.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "components/storage_monitor/storage_info.h"
 #include "components/storage_monitor/storage_monitor.h"
@@ -47,11 +44,6 @@
 #include "extensions/test/result_catcher.h"
 #include "media/base/test_data_util.h"
 #include "media/media_buildflags.h"
-
-#if BUILDFLAG(IS_MAC)
-#include "base/apple/foundation_util.h"
-#include "base/strings/sys_string_conversions.h"
-#endif  // BUILDFLAG(IS_MAC)
 
 using extensions::PlatformAppBrowserTest;
 using storage_monitor::StorageInfo;
@@ -77,8 +69,6 @@ class MediaGalleriesPlatformAppBrowserTest : public PlatformAppBrowserTest {
 
   void SetUpOnMainThread() override {
     PlatformAppBrowserTest::SetUpOnMainThread();
-    ensure_media_directories_exists_ =
-        std::make_unique<EnsureMediaDirectoriesExists>();
     // Prevent the ProcessManager from suspending the chrome-test app. Needed
     // because the writer.onerror and writer.onwriteend events do not qualify as
     // pending callbacks, so the app looks dormant.
@@ -91,18 +81,13 @@ class MediaGalleriesPlatformAppBrowserTest : public PlatformAppBrowserTest {
     test_jpg_size_ = base::checked_cast<int>(file_size.value());
   }
 
-  void TearDownOnMainThread() override {
-    ensure_media_directories_exists_.reset();
-    PlatformAppBrowserTest::TearDownOnMainThread();
-  }
-
   bool RunMediaGalleriesTest(const std::string& extension_name) {
-    base::Value::List empty_list_value;
+    base::ListValue empty_list_value;
     return RunMediaGalleriesTestWithArg(extension_name, empty_list_value);
   }
 
   bool RunMediaGalleriesTestWithArg(const std::string& extension_name,
-                                    const base::Value::List& custom_arg_value) {
+                                    const base::ListValue& custom_arg_value) {
     // Copy the test data for this test into a temporary directory. Then add
     // a common_injected.js to the temporary copy and run it.
     const char kTestDir[] = "api_test/media_galleries/";
@@ -213,15 +198,7 @@ class MediaGalleriesPlatformAppBrowserTest : public PlatformAppBrowserTest {
         .AppendASCII("common");
   }
 
-  int num_galleries() const {
-    return ensure_media_directories_exists_->num_galleries();
-  }
-
   int test_jpg_size() const { return test_jpg_size_; }
-
-  EnsureMediaDirectoriesExists* ensure_media_directories_exists() const {
-    return ensure_media_directories_exists_.get();
-  }
 
  private:
   MediaGalleriesPreferences* GetAndInitializePreferences() {
@@ -237,23 +214,15 @@ class MediaGalleriesPlatformAppBrowserTest : public PlatformAppBrowserTest {
   std::string device_id_;
   base::ScopedTempDir fake_gallery_temp_dir_;
   int test_jpg_size_;
-  std::unique_ptr<EnsureMediaDirectoriesExists>
-      ensure_media_directories_exists_;
 };
 
-// Test is flaky, it fails on certain bots, namely WinXP Tests(1) and Linux
-// (dbg)(1)(32).  See crbug.com/354425.
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_MediaGalleriesNoAccess DISABLED_MediaGalleriesNoAccess
-#else
-#define MAYBE_MediaGalleriesNoAccess MediaGalleriesNoAccess
-#endif
+// Test is flaky. See crbug.com/41095977.
 IN_PROC_BROWSER_TEST_F(MediaGalleriesPlatformAppBrowserTest,
-                       MAYBE_MediaGalleriesNoAccess) {
+                       DISABLED_MediaGalleriesNoAccess) {
   MakeSingleFakeGallery(nullptr);
 
-  base::Value::List custom_args;
-  custom_args.Append(num_galleries() + 1);
+  base::ListValue custom_args;
+  custom_args.Append(1);
 
   ASSERT_TRUE(RunMediaGalleriesTestWithArg("no_access", custom_args))
       << message_;
@@ -272,22 +241,16 @@ IN_PROC_BROWSER_TEST_F(MediaGalleriesPlatformAppBrowserTest,
                        MediaGalleriesRead) {
   RemoveAllGalleries();
   MakeSingleFakeGallery(nullptr);
-  base::Value::List custom_args;
+  base::ListValue custom_args;
   custom_args.Append(test_jpg_size());
 
   ASSERT_TRUE(RunMediaGalleriesTestWithArg("read_access", custom_args))
       << message_;
 }
 
-// Test is flaky, it fails on certain bots, namely WinXP Tests(1) and Linux
-// (dbg)(1)(32).  See crbug.com/354425.
-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-#define MAYBE_MediaGalleriesCopyTo DISABLED_MediaGalleriesCopyTo
-#else
-#define MAYBE_MediaGalleriesCopyTo MediaGalleriesCopyTo
-#endif
+// Test is flaky. See crbug.com/41095977.
 IN_PROC_BROWSER_TEST_F(MediaGalleriesPlatformAppBrowserTest,
-                       MAYBE_MediaGalleriesCopyTo) {
+                       DISABLED_MediaGalleriesCopyTo) {
   RemoveAllGalleries();
   MakeSingleFakeGallery(nullptr);
   ASSERT_TRUE(RunMediaGalleriesTest("copy_to_access")) << message_;
@@ -296,8 +259,8 @@ IN_PROC_BROWSER_TEST_F(MediaGalleriesPlatformAppBrowserTest,
 IN_PROC_BROWSER_TEST_F(MediaGalleriesPlatformAppBrowserTest,
                        MediaGalleriesDelete) {
   MakeSingleFakeGallery(nullptr);
-  base::Value::List custom_args;
-  custom_args.Append(num_galleries() + 1);
+  base::ListValue custom_args;
+  custom_args.Append(1);
   ASSERT_TRUE(RunMediaGalleriesTestWithArg("delete_access", custom_args))
       << message_;
 }
@@ -306,8 +269,8 @@ IN_PROC_BROWSER_TEST_F(MediaGalleriesPlatformAppBrowserTest,
                        MediaGalleriesAccessAttached) {
   AttachFakeDevice();
 
-  base::Value::List custom_args;
-  custom_args.Append(num_galleries() + 1);
+  base::ListValue custom_args;
+  custom_args.Append(1);
   custom_args.Append(kDeviceName);
 
   ASSERT_TRUE(RunMediaGalleriesTestWithArg("access_attached", custom_args))
@@ -321,7 +284,7 @@ IN_PROC_BROWSER_TEST_F(MediaGalleriesPlatformAppBrowserTest, ToURL) {
   MediaGalleryPrefId pref_id;
   MakeSingleFakeGallery(&pref_id);
 
-  base::Value::List custom_args;
+  base::ListValue custom_args;
   custom_args.Append(base::checked_cast<int>(pref_id));
   custom_args.Append(browser()->profile()->GetBaseName().MaybeAsASCII());
 
@@ -335,7 +298,7 @@ IN_PROC_BROWSER_TEST_F(MediaGalleriesPlatformAppBrowserTest, GetMetadata) {
   AddFileToSingleFakeGallery(media::GetTestDataFilePath("90rotation.mp4"));
   AddFileToSingleFakeGallery(media::GetTestDataFilePath("id3_png_test.mp3"));
 
-  base::Value::List custom_args;
+  base::ListValue custom_args;
 #if BUILDFLAG(USE_PROPRIETARY_CODECS)
   custom_args.Append(true);
 #else

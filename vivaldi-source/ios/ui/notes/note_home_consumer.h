@@ -21,7 +21,7 @@ typedef NS_ENUM(NSInteger, NoteHomeBackgroundStyle) {
 };
 
 // NoteHomeConsumer provides methods that allow mediators to update the UI.
-@protocol NoteHomeConsumer<LegacyChromeTableViewConsumer>
+@protocol NoteHomeConsumer <LegacyChromeTableViewConsumer>
 
 // Refreshes the UI.
 - (void)refreshContents;

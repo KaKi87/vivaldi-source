@@ -28,8 +28,8 @@
 #include "installer/mini_installer/util/install_util.h"
 #include "installer/mini_installer/util/installation_state.h"
 
-#include "installer/util/vivaldi_install_util.h"
 #include "app/vivaldi_apptools.h"
+#include "installer/util/vivaldi_install_util.h"
 
 using base::win::RegKey;
 using installer::InstallationState;
@@ -285,11 +285,10 @@ bool GoogleUpdateSettings::GetLanguage(std::wstring* language) {
   if (vivaldi::IsVivaldiRunning()) {
     RegKey vivaldi_key;
     std::wstring lang;
-    if (vivaldi_key.Open(HKEY_CURRENT_USER,
-        vivaldi::constants::kVivaldiKey,
-        KEY_QUERY_VALUE) == ERROR_SUCCESS &&
-      vivaldi_key.ReadValue(google_update::kRegLangField, &lang) ==
-          ERROR_SUCCESS) {
+    if (vivaldi_key.Open(HKEY_CURRENT_USER, vivaldi::constants::kVivaldiKey,
+                         KEY_QUERY_VALUE) == ERROR_SUCCESS &&
+        vivaldi_key.ReadValue(google_update::kRegLangField, &lang) ==
+            ERROR_SUCCESS) {
       *language = lang;
       return true;
     }
@@ -299,11 +298,11 @@ bool GoogleUpdateSettings::GetLanguage(std::wstring* language) {
 }
 
 bool GoogleUpdateSettings::GetBrand(std::wstring* brand) {
-  return false; // Not used by Vivaldi
+  return false;  // Not used by Vivaldi
 }
 
 bool GoogleUpdateSettings::GetReactivationBrand(std::wstring* brand) {
-  return false; // Not used by Vivaldi
+  return false;  // Not used by Vivaldi
 }
 
 bool GoogleUpdateSettings::GetReferral(std::wstring* referral) {
@@ -311,7 +310,7 @@ bool GoogleUpdateSettings::GetReferral(std::wstring* referral) {
 }
 
 bool GoogleUpdateSettings::ClearReferral() {
-    return false;  // Not used by Vivaldi
+  return false;  // Not used by Vivaldi
 }
 
 void GoogleUpdateSettings::SetProgress(bool system_install,

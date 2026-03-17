@@ -13,8 +13,8 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+#include "components/split_tabs/split_tab_id.h"
 #include "components/tab_groups/tab_group_id.h"
-#include "components/tabs/public/split_tab_id.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
@@ -56,7 +56,6 @@ class TabModel final : public TabInterface,
   bool reset_opener_on_active_tab_change() const {
     return reset_opener_on_active_tab_change_;
   }
-  bool blocked() const { return blocked_; }
   std::optional<tab_groups::TabGroupId> group() const { return group_; }
 
   void set_opener(tabs::TabInterface* opener) { opener_ = opener; }
@@ -160,6 +159,7 @@ class TabModel final : public TabInterface,
   tabs::TabFeatures* GetTabFeatures() override;
   const tabs::TabFeatures* GetTabFeatures() const override;
   bool IsPinned() const override;
+  bool IsBlocked() const override;
   bool IsSplit() const override;
   std::optional<tab_groups::TabGroupId> GetGroup() const override;
   std::optional<split_tabs::SplitTabId> GetSplit() const override;

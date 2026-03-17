@@ -8,11 +8,12 @@
 #include "chrome/browser/chrome_browser_interface_binders_webui_parts.h"
 #include "chrome/browser/media/media_engagement_score_details.mojom.h"
 #include "chrome/browser/optimization_guide/optimization_guide_internals_ui.h"
+#include "chrome/browser/ui/webui/actor_internals/actor_internals.mojom.h"
+#include "chrome/browser/ui/webui/actor_internals/actor_internals_ui.h"
 #include "chrome/browser/ui/webui/bluetooth_internals/bluetooth_internals.mojom.h"
 #include "chrome/browser/ui/webui/bluetooth_internals/bluetooth_internals_ui.h"
 #include "chrome/browser/ui/webui/browsing_topics/browsing_topics_internals_ui.h"
 #include "chrome/browser/ui/webui/chrome_urls/chrome_urls_ui.h"
-#include "chrome/browser/ui/webui/connectors_internals/connectors_internals.mojom.h"
 #include "chrome/browser/ui/webui/connectors_internals/connectors_internals_ui.h"
 #include "chrome/browser/ui/webui/data_sharing_internals/data_sharing_internals_ui.h"
 #include "chrome/browser/ui/webui/engagement/site_engagement_ui.h"
@@ -22,7 +23,9 @@
 #include "chrome/browser/ui/webui/omnibox/aim_eligibility/aim_eligibility.mojom.h"
 #include "chrome/browser/ui/webui/omnibox/omnibox_internals.mojom.h"
 #include "chrome/browser/ui/webui/omnibox/omnibox_ui.h"
+#include "components/enterprise/connectors/connectors_internals.mojom.h"
 #if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup.mojom.h"
 #include "chrome/browser/ui/webui/omnibox_popup/mojom/omnibox_popup_aim.mojom.h"
 #include "chrome/browser/ui/webui/omnibox_popup/omnibox_popup_ui.h"
 #endif
@@ -45,6 +48,12 @@
 #include "chrome/browser/ui/webui/discards/discards.mojom.h"
 #include "chrome/browser/ui/webui/discards/discards_ui.h"
 #include "chrome/browser/ui/webui/discards/site_data.mojom.h"
+#endif
+
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
+    BUILDFLAG(IS_CHROMEOS)
+#include "chrome/browser/ui/webui/skills/skills.mojom.h"
+#include "chrome/browser/ui/webui/skills/skills_ui.h"
 #endif
 
 namespace chrome::internal {
@@ -71,6 +80,8 @@ void PopulateChromeWebUIFrameBindersPartsAllPlatforms(
 #if !BUILDFLAG(IS_ANDROID)
   RegisterWebUIControllerInterfaceBinder<
       omnibox_popup_aim::mojom::PageHandlerFactory, OmniboxPopupUI>(map);
+  RegisterWebUIControllerInterfaceBinder<
+      omnibox_popup::mojom::PageHandlerFactory, OmniboxPopupUI>(map);
 #endif
   RegisterWebUIControllerInterfaceBinder<::mojom::OmniboxPageHandler,
                                          OmniboxUI>(map);
@@ -119,6 +130,9 @@ void PopulateChromeWebUIFrameBindersPartsAllPlatforms(
       privacy_sandbox_internals::mojom::PageHandler,
       privacy_sandbox_internals::PrivacySandboxInternalsUI>(map);
 
+  RegisterWebUIControllerInterfaceBinder<
+      actor_internals::mojom::PageHandlerFactory, ActorInternalsUI>(map);
+
   // End of PopulateChromeWebUIFrameBindersPartsAllPlatforms().
   // Please do not add platform-specific logic to this function.
 }
@@ -153,20 +167,34 @@ void PopulateChromeWebUIFrameBinders(
                                          DiscardsUI>(map);
 #endif
 
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
+    BUILDFLAG(IS_CHROMEOS)
+  RegisterWebUIControllerInterfaceBinder<skills::mojom::PageHandlerFactory,
+                                         skills::SkillsUI>(map);
+#endif
+
   // When possible, please one one of the Parts functions above and avoid making
   // this function longer.
 }
 
-void PopulateChromeWebUIFrameInterfaceBrokers(
+void PopulateTrustedChromeWebUIFrameInterfaceBrokers(
     content::WebUIBrowserInterfaceBrokerRegistry& registry) {
   // This function is broken up into sections based on WebUI types.
 
-  // --- Section 1: chrome:// WebUIs:
 #if BUILDFLAG(IS_CHROMEOS)
   PopulateChromeWebUIFrameInterfaceBrokersTrustedPartsCros(registry);
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
-  // --- Section 2: chrome-untrusted:// WebUIs:
+#if !BUILDFLAG(IS_ANDROID)
+  PopulateChromeWebUIFrameInterfaceBrokersTrustedPartsDesktop(registry);
+#endif  // !BUILDFLAG(IS_ANDROID)
+
+  // When possible, please use one of the Parts functions above and avoid making
+  // this function longer.
+}
+
+void PopulateUntrustedChromeWebUIFrameInterfaceBrokers(
+    content::WebUIBrowserInterfaceBrokerRegistry& registry) {
   PopulateChromeWebUIFrameInterfaceBrokersUntrustedPartsFeatures(registry);
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -174,11 +202,10 @@ void PopulateChromeWebUIFrameInterfaceBrokers(
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if !BUILDFLAG(IS_ANDROID)
-  PopulateChromeWebUIFrameInterfaceBrokersTrustedPartsDesktop(registry);
   PopulateChromeWebUIFrameInterfaceBrokersUntrustedPartsDesktop(registry);
 #endif  // !BUILDFLAG(IS_ANDROID)
 
-  // When possible, please one one of the Parts functions above and avoid making
+  // When possible, please use one of the Parts functions above and avoid making
   // this function longer.
 }
 

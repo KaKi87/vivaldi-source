@@ -16,7 +16,7 @@ class Browser;
 namespace vivaldi {
 class NotesModel;
 class NoteNode;
-}  // namespace notes
+}  // namespace vivaldi
 
 @protocol NoteFolderChooserViewControllerDelegate
 // Called when a note folder is selected. |folder| is the newly selected
@@ -53,13 +53,13 @@ class NoteNode;
 // to move a node into its subnode.
 // |allowsCancel| puts a cancel and done button in the navigation bar instead of
 // a back button, which is needed if this view controller is presented modally.
-- (instancetype)
-    initWithNotesModel:(vivaldi::NotesModel*)noteModel
-         allowsNewFolders:(BOOL)allowsNewFolders
-              editedNodes:(const std::set<const vivaldi::NoteNode*>&)nodes
-             allowsCancel:(BOOL)allowsCancel
-           selectedFolder:(const vivaldi::NoteNode*)selectedFolder
-                  browser:(Browser*)browser;
+- (instancetype)initWithNotesModel:(vivaldi::NotesModel*)noteModel
+                  allowsNewFolders:(BOOL)allowsNewFolders
+                       editedNodes:
+                           (const std::set<const vivaldi::NoteNode*>&)nodes
+                      allowsCancel:(BOOL)allowsCancel
+                    selectedFolder:(const vivaldi::NoteNode*)selectedFolder
+                           browser:(Browser*)browser;
 
 // This method changes the currently selected folder and updates the UI. The
 // delegate is not notified of the change.

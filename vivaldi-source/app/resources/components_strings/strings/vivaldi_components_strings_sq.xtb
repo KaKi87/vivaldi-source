@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Linja me uebsajtin është pjesërisht e sigurt</translation>
 <translation id="4265872034478892965">Lejohet nga administratori</translation>
 <translation id="4305666528087210886">Nuk hapet skedari</translation>
-<translation id="4408413947728134509">Cookies <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> nuk e pranoi certifikatën e identifikimit ose nuk iu lëshua një e tillë.</translation>
 <translation id="4506599922270137252">Të kontaktoni administratorin e sistemit</translation>
 <translation id="4522570452068850558">Detajet</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Nuk rezulton</translation>
 <translation id="5017554619425969104">Teksti i kopjuar</translation>
 <translation id="5023310440958281426">Kontrolloni rregullat e administratorit</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 në përdorim)} other {(# në përdorim)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Të kontrolloni adresën proxy<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bit)</translation>
 <translation id="5216942107514965959">Vizitat e sotme</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Mos vendosni informacione konfidenciale në uebsajt (për shembull, fjalëkalimet ose kartat e kreditit), sepse mund të vidhen nga piratët e internetit.</translation>
 <translation id="5863515189965725638">Përpunoj IBAN</translation>
 <translation id="5869405914158311789">Uebsajt i paarritshëm</translation>
-<translation id="5920262536204764679">{NUM_COOKIES, plural, =1 {po përdoret 1} other {po përdoren #}}</translation>
 <translation id="5932224571077948991">Uebsajti tregon reklama të padëshirueshme ose evazive</translation>
 <translation id="6051221802930200923">Uebsajti <ph name="SITE" /> nuk mund të vizitohet për momentin, sepse përdor një certifikatë të lëshuar gabim. Gabimet dhe sulmet në rrjetin kompjuterik zakonisht janë të përkohshme, ndaj faqja mund të hapet më vonë.</translation>
 <translation id="6146055958333702838">Kontrolloni kabllot dhe ndizni prapë ruterin, modemin apo çdo aparat tjetër

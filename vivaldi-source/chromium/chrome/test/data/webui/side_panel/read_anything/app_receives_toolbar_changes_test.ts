@@ -5,8 +5,8 @@
 import 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
 
 import type {AppElement} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
-import {BrowserProxy, setInstance, SpeechBrowserProxyImpl, SpeechController, ToolbarEvent, VoiceLanguageController} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
-import {assertArrayEquals, assertEquals, assertFalse, assertNotEquals, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
+import {BrowserProxy, LineFocusController, LineFocusMovement, LineFocusStyle, setInstance, SpeechBrowserProxyImpl, SpeechController, ToolbarEvent, VoiceLanguageController} from 'chrome-untrusted://read-anything-side-panel.top-chrome/read_anything.js';
+import {assertArrayEquals, assertEquals, assertFalse, assertLT, assertNotEquals, assertTrue} from 'chrome-untrusted://webui-test/chai_assert.js';
 import {hasStyle, microtasksFinished} from 'chrome-untrusted://webui-test/test_util.js';
 
 import {createApp, createSpeechSynthesisVoice, emitEvent, mockMetrics, setContent, setupBasicSpeech} from './common.js';
@@ -22,6 +22,7 @@ suite('AppReceivesToolbarChanges', () => {
   let metrics: TestMetricsBrowserProxy;
   let voiceLanguageController: VoiceLanguageController;
   let speechController: SpeechController;
+  let lineFocusController: LineFocusController;
   let readAloudModel: TestReadAloudModelBrowserProxy;
 
   function containerLetterSpacing(): number {
@@ -97,6 +98,8 @@ suite('AppReceivesToolbarChanges', () => {
     VoiceLanguageController.setInstance(voiceLanguageController);
     speechController = new SpeechController();
     SpeechController.setInstance(speechController);
+    lineFocusController = new LineFocusController();
+    LineFocusController.setInstance(lineFocusController);
     app = await createApp();
   });
 
@@ -197,6 +200,115 @@ suite('AppReceivesToolbarChanges', () => {
     assertFontsEqual(containerFont(), font2);
   });
 
+  test('line focus style change updates line focus', async () => {
+    chrome.readingMode.isLineFocusEnabled = true;
+    const lineFocus =
+        app.$.containerParent.querySelector<HTMLElement>('#lineFocus');
+    assertTrue(!!lineFocus);
+
+    let expectedData = LineFocusStyle.UNDERLINE;
+    emitEvent(
+        app, ToolbarEvent.LINE_FOCUS_STYLE, {detail: {data: expectedData}});
+    await microtasksFinished();
+    assertEquals('block', window.getComputedStyle(lineFocus).display);
+    assertEquals(expectedData, lineFocusController.getCurrentLineFocusStyle());
+
+    expectedData = LineFocusStyle.OFF;
+    emitEvent(
+        app, ToolbarEvent.LINE_FOCUS_STYLE, {detail: {data: expectedData}});
+    await microtasksFinished();
+    assertEquals('none', window.getComputedStyle(lineFocus).display);
+    assertEquals(expectedData, lineFocusController.getCurrentLineFocusStyle());
+  });
+
+  test('line focus movement change updates line focus', () => {
+    chrome.readingMode.isLineFocusEnabled = true;
+
+    emitEvent(
+        app, ToolbarEvent.LINE_FOCUS_MOVEMENT,
+        {detail: {data: LineFocusMovement.CURSOR}});
+    assertFalse(lineFocusController.isStatic());
+
+    emitEvent(
+        app, ToolbarEvent.LINE_FOCUS_MOVEMENT,
+        {detail: {data: LineFocusMovement.STATIC}});
+    assertTrue(lineFocusController.isStatic());
+  });
+
+  test('line focus movement change updates padding', async () => {
+    chrome.readingMode.isLineFocusEnabled = true;
+    emitEvent(
+        app, ToolbarEvent.LINE_FOCUS_STYLE,
+        {detail: {data: LineFocusStyle.UNDERLINE}});
+    // The app needs content so it has a non-zero height.
+    app.updateContent();
+
+    let expectedData = LineFocusMovement.CURSOR;
+    emitEvent(
+        app, ToolbarEvent.LINE_FOCUS_MOVEMENT, {detail: {data: expectedData}});
+    await microtasksFinished();
+    assertEquals('', app.$.container.style.paddingTop);
+
+    expectedData = LineFocusMovement.STATIC;
+    emitEvent(
+        app, ToolbarEvent.LINE_FOCUS_MOVEMENT, {detail: {data: expectedData}});
+    await microtasksFinished();
+    const padding =
+        +window.getComputedStyle(app.$.container).paddingTop.replace('px', '');
+    assertLT(0, padding);
+  });
+
+  test('line focus change does nothing with flag disabled', async () => {
+    chrome.readingMode.isLineFocusEnabled = false;
+    const lineFocus =
+        app.$.containerParent.querySelector<HTMLElement>('#lineFocus');
+    assertTrue(!!lineFocus);
+
+    emitEvent(
+        app, ToolbarEvent.LINE_FOCUS_STYLE,
+        {detail: {data: LineFocusStyle.UNDERLINE}});
+    await microtasksFinished();
+    assertEquals(
+        '',
+        window.getComputedStyle(lineFocus).getPropertyValue(
+            '--line-focus-display'));
+  });
+
+  test('font size change updates line focus line height', async () => {
+    chrome.readingMode.isLineFocusEnabled = true;
+    emitEvent(
+        app, ToolbarEvent.LINE_FOCUS_STYLE,
+        {detail: {data: LineFocusStyle.UNDERLINE}});
+    await microtasksFinished();
+    const startingHeight = app.style.getPropertyValue('--line-focus-height');
+
+    chrome.readingMode.fontSize = 4;
+    emitEvent(app, ToolbarEvent.FONT_SIZE);
+    await microtasksFinished();
+
+    const newHeight = app.style.getPropertyValue('--line-focus-height');
+    assertEquals('8px', newHeight);
+    assertNotEquals(startingHeight, newHeight);
+  });
+
+  test(
+      'font size change does not change line focus window height', async () => {
+        chrome.readingMode.isLineFocusEnabled = true;
+        emitEvent(
+            app, ToolbarEvent.LINE_FOCUS_STYLE,
+            {detail: {data: LineFocusStyle.SMALL_WINDOW}});
+        await microtasksFinished();
+        const startingHeight =
+            app.style.getPropertyValue('--line-focus-height');
+
+        chrome.readingMode.fontSize = 4;
+        emitEvent(app, ToolbarEvent.FONT_SIZE);
+        await microtasksFinished();
+
+        const newHeight = app.style.getPropertyValue('--line-focus-height');
+        assertEquals(startingHeight, newHeight);
+      });
+
   suite('on language toggle', () => {
     function emitLanguageToggle(lang: string) {
       emitEvent(app, ToolbarEvent.LANGUAGE_TOGGLE, {detail: {language: lang}});
@@ -254,7 +366,16 @@ suite('AppReceivesToolbarChanges', () => {
 
     const speechRates =
         speech.getArgs('speak').map(utterance => utterance.rate);
+
+    // The 4x speech rate is capped on non-ChromeOS
+
+    // <if expr="not is_chromeos">
+    assertArrayEquals([1, 2, 0.5, 2], speechRates);
+    // </if>
+
+    // <if expr="is_chromeos">
     assertArrayEquals([1, 2, 0.5, 4], speechRates);
+    // </if>
   });
 
   test('on voice selected, current voice updated', () => {
@@ -293,7 +414,7 @@ suite('AppReceivesToolbarChanges', () => {
       });
 
       test('first press plays', async () => {
-        app.$.appFlexParent.dispatchEvent(kPress);
+        document.dispatchEvent(kPress);
         await microtasksFinished();
 
         assertTrue(speechController.isSpeechActive());
@@ -301,8 +422,8 @@ suite('AppReceivesToolbarChanges', () => {
       });
 
       test('second press pauses', async () => {
-        app.$.appFlexParent.dispatchEvent(kPress);
-        app.$.appFlexParent.dispatchEvent(kPress);
+        document.dispatchEvent(kPress);
+        document.dispatchEvent(kPress);
         await microtasksFinished();
 
         assertFalse(speechController.isSpeechActive());
@@ -313,7 +434,7 @@ suite('AppReceivesToolbarChanges', () => {
 
       test('other key presses do not play', async () => {
         const fPress = new KeyboardEvent('keydown', {key: 'f'});
-        app.$.appFlexParent.dispatchEvent(fPress);
+        document.dispatchEvent(fPress);
         await microtasksFinished();
 
         assertFalse(speechController.isSpeechActive());

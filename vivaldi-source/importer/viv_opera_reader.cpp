@@ -35,7 +35,7 @@ bool OperaAdrFileReader::LoadFile(const base::FilePath& file) {
   base::StringTokenizer tokenizer(bookmark_data, "\r\n");
 
   std::string category;
-  base::Value::Dict entries;
+  base::DictValue entries;
   while (tokenizer.GetNext()) {
     std::string line = tokenizer.token();
 

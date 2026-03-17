@@ -26,6 +26,12 @@ use std::rc::Rc;
 use test_case::test_case;
 use test_case::test_matrix;
 
+macro_rules! pixel_eq {
+    ($a:expr, $b:expr) => {
+        assert!((i32::from($a) - i32::from($b)).abs() <= 3);
+    };
+}
+
 // From avifalphanoispetest.cc
 #[test]
 fn alpha_no_ispe() {
@@ -229,6 +235,32 @@ fn keyframes() {
     // Not an existing frame.
     assert!(!decoder.is_keyframe(15));
     assert_eq!(decoder.nearest_keyframe(15), 3);
+}
+
+#[test]
+fn animated_image_with_unsupported_hdlr() {
+    // The handler in meta box is valid. So this should parse successfully when source is set to
+    // primary item.
+    let mut decoder = get_decoder("colors-animated-8bpc-unsupported-hdlr-moov.avif");
+    decoder.settings.source = decoder::Source::PrimaryItem;
+    let res = decoder.parse();
+    assert!(res.is_ok());
+
+    // The handler in moov box is invalid. So this should fail to parse when source is set to
+    // tracks.
+    let mut decoder = get_decoder("colors-animated-8bpc-unsupported-hdlr-moov.avif");
+    decoder.settings.source = decoder::Source::Tracks;
+    let res = decoder.parse();
+    assert!(res.is_err());
+
+    // The handler in meta box is invalid. So this should fail to parse irrespective of which
+    // source is requested.
+    for source in [decoder::Source::PrimaryItem, decoder::Source::Tracks] {
+        let mut decoder = get_decoder("colors-animated-8bpc-unsupported-hdlr-meta.avif");
+        decoder.settings.source = source;
+        let res = decoder.parse();
+        assert!(res.is_err());
+    }
 }
 
 // From avifdecodetest.cc
@@ -526,6 +558,32 @@ fn gainmap_oriented() {
     assert!(decoder.gainmap_present());
     assert_eq!(decoder.gainmap().image.irot_angle, None);
     assert_eq!(decoder.gainmap().image.imir_axis, None);
+}
+
+#[test_matrix(
+    [
+        ("gainmap_oriented.avif", 34),
+        ("color_grid_gainmap_different_grid.avif", 600)
+    ],
+    [ImageContentType::ColorAndAlpha, ImageContentType::GainMap, ImageContentType::All]
+)]
+fn decoded_row_count(
+    filename_and_row_count: (&str, u32),
+    image_content_to_decode: ImageContentType,
+) {
+    let filename = filename_and_row_count.0;
+    let expected_row_count = filename_and_row_count.1;
+    let mut decoder = get_decoder(filename);
+    decoder.settings.image_content_to_decode = image_content_to_decode;
+    let res = decoder.parse();
+    assert!(res.is_ok());
+    assert!(decoder.gainmap_present());
+    if !HAS_DECODER {
+        return;
+    }
+    let res = decoder.next_image();
+    assert!(res.is_ok());
+    assert_eq!(decoder.decoded_row_count(), expected_row_count);
 }
 
 // From avifgainmaptest.cc
@@ -1068,18 +1126,43 @@ fn white_1x1() -> AvifResult<()> {
     assert_eq!(rgb.width * rgb.height, 1);
     let format = rgb.format;
     for i in [format.r_offset(), format.g_offset(), format.b_offset()] {
-        assert_eq!(rgb.row(0)?[i], 253); // Compressed with loss, not pure white.
+        pixel_eq!(rgb.row(0)?[i], 255); // Compressed with loss, not pure white.
     }
     if rgb.has_alpha() {
-        assert_eq!(rgb.row(0)?[rgb.format.alpha_offset()], 255);
+        pixel_eq!(rgb.row(0)?[rgb.format.alpha_offset()], 255);
     }
     Ok(())
 }
 
 #[test]
-fn white_1x1_mdat_size0() -> AvifResult<()> {
+fn white_2x2() -> AvifResult<()> {
+    let mut decoder = get_decoder("white_2x2.avif");
+    assert_eq!(decoder.parse(), Ok(()));
+    assert_eq!(decoder.compression_format(), CompressionFormat::Avif);
+    if !HAS_DECODER {
+        return Ok(());
+    }
+    assert_eq!(decoder.next_image(), Ok(()));
+
+    let image = decoder.image().expect("image was none");
+    let mut rgb = rgb::Image::create_from_yuv(image);
+    rgb.allocate()?;
+    assert!(rgb.convert_from_yuv(image).is_ok());
+    assert_eq!(rgb.width * rgb.height, 4);
+    let format = rgb.format;
+    for i in [format.r_offset(), format.g_offset(), format.b_offset()] {
+        pixel_eq!(rgb.row(0)?[i], 255); // Compressed with loss, not pure white.
+    }
+    if rgb.has_alpha() {
+        pixel_eq!(rgb.row(0)?[rgb.format.alpha_offset()], 255);
+    }
+    Ok(())
+}
+
+#[test]
+fn white_2x2_mdat_size0() -> AvifResult<()> {
     // Edit the file to simulate an 'mdat' box with size 0 (meaning it ends at EOF).
-    let mut file_bytes = std::fs::read(get_test_file("white_1x1.avif")).unwrap();
+    let mut file_bytes = std::fs::read(get_test_file("white_2x2.avif")).unwrap();
     let mdat = [b'm', b'd', b'a', b't'];
     let mdat_size_pos = file_bytes.windows(4).position(|w| w == mdat).unwrap() - 4;
     file_bytes[mdat_size_pos + 3] = b'\0';
@@ -1092,9 +1175,9 @@ fn white_1x1_mdat_size0() -> AvifResult<()> {
 }
 
 #[test]
-fn white_1x1_meta_size0() -> AvifResult<()> {
+fn white_2x2_meta_size0() -> AvifResult<()> {
     // Edit the file to simulate a 'meta' box with size 0 (invalid).
-    let mut file_bytes = std::fs::read(get_test_file("white_1x1.avif")).unwrap();
+    let mut file_bytes = std::fs::read(get_test_file("white_2x2.avif")).unwrap();
     let meta = [b'm', b'e', b't', b'a'];
     let meta_size_pos = file_bytes.windows(4).position(|w| w == meta).unwrap() - 4;
     file_bytes[meta_size_pos + 3] = b'\0';
@@ -1108,8 +1191,7 @@ fn white_1x1_meta_size0() -> AvifResult<()> {
     // Maybe another section or specification enforces that.
     assert_eq!(decoder.parse(), Ok(()));
     assert_eq!(decoder.compression_format(), CompressionFormat::Avif);
-    // Android MediaCodec does not support decoding 1x1 images.
-    if !HAS_NON_ANDROID_DECODER {
+    if !HAS_DECODER {
         return Ok(());
     }
     assert_eq!(decoder.next_image(), Ok(()));
@@ -1117,9 +1199,9 @@ fn white_1x1_meta_size0() -> AvifResult<()> {
 }
 
 #[test]
-fn white_1x1_ftyp_size0() -> AvifResult<()> {
+fn white_2x2_ftyp_size0() -> AvifResult<()> {
     // Edit the file to simulate a 'ftyp' box with size 0 (invalid).
-    let mut file_bytes = std::fs::read(get_test_file("white_1x1.avif")).unwrap();
+    let mut file_bytes = std::fs::read(get_test_file("white_2x2.avif")).unwrap();
     file_bytes[3] = b'\0';
 
     let mut decoder = decoder::Decoder::default();
@@ -1132,9 +1214,9 @@ fn white_1x1_ftyp_size0() -> AvifResult<()> {
 }
 
 #[test]
-fn white_1x1_unknown_top_level_box_size0() -> AvifResult<()> {
+fn white_2x2_unknown_top_level_box_size0() -> AvifResult<()> {
     // Edit the file to insert an unknown top level box with size 0 after ftyp (invalid).
-    let mut file_bytes = std::fs::read(get_test_file("white_1x1.avif")).unwrap();
+    let mut file_bytes = std::fs::read(get_test_file("white_2x2.avif")).unwrap();
     // Insert a top level box after ftyp (box type and size all 0s).
     for _ in 0..8 {
         file_bytes.insert(32, 0);
@@ -1447,12 +1529,6 @@ const EXPECTED_OVERLAY_IMAGE_INFOS: [ExpectedOverlayImageInfo; 4] = [
         ],
     },
 ];
-
-macro_rules! pixel_eq {
-    ($a:expr, $b:expr) => {
-        assert!((i32::from($a) - i32::from($b)).abs() <= 3);
-    };
-}
 
 #[allow(clippy::zero_prefixed_literal)]
 #[test_matrix(0usize..4)]

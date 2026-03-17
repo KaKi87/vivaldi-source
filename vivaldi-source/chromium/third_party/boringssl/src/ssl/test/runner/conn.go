@@ -1278,7 +1278,7 @@ func (c *Conn) writeRecord(typ recordType, data []byte) (n int, err error) {
 		if c.config.Bugs.TrailingDataWithFinished && msgType == typeFinished {
 			// Add a 0 to the record. Note unused bytes in |data| may be owned by the
 			// caller, so we force a new allocation.
-			data = append(data[:len(data):len(data)], 0)
+			data = append(slices.Clip(data), 0)
 		}
 	}
 
@@ -1741,6 +1741,16 @@ func (c *Conn) ReadKeyUpdate() error {
 }
 
 func (c *Conn) Renegotiate() error {
+	if c.vers >= VersionTLS13 {
+		return errors.New("tls: renegotiation requires (D)TLS 1.2 or earlier")
+	}
+
+	// In DTLS, renegotiation resets the message sequence numbers.
+	if c.isDTLS {
+		c.sendHandshakeSeq = 0
+		c.recvHandshakeSeq = 0
+	}
+
 	if !c.isClient {
 		helloReq := new(helloRequestMsg).marshal()
 		if c.config.Bugs.BadHelloRequest != nil {

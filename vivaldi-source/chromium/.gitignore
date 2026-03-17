@@ -7,6 +7,7 @@
 *.opensdf
 *.orig
 *.pdb
+*.profraw
 *.props
 *.pyc
 *.pyproj
@@ -35,8 +36,10 @@
 !Android.mk
 .*.sw?
 .DS_Store
+/.agent
 .android
 .ccls-cache
+.checkstyle
 .cipd
 .classpath
 .code-coverage
@@ -55,15 +58,10 @@
 .project
 .projectile
 .pydevproject
-.checkstyle
+.siso_failed_targets
 *.class
 compile_commands.json
 cscope.*
-child_pool-0.profraw
-child_pool-1.profraw
-child_pool-2.profraw
-child_pool-3.profraw
-default.profraw
 GPATH
 GRTAGS
 GSYMS
@@ -77,6 +75,7 @@ v8.log
 vs-chromium-project.txt
 # Store android emulator artifacts, used by //tools/android/avd/avd.py
 /.android_emulator/
+/.android_emulator_cipd_cache/
 /.clangd/
 /.clangd-index/
 # Settings directories for eclipse

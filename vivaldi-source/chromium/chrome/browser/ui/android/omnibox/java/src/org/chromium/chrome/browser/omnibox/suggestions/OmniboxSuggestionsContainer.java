@@ -55,6 +55,8 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
 
     private int mListViewMaxHeight;
     private int mLastBroadcastedListViewMaxHeight;
+    private int mTopPaddingForEdgeToEdge;
+    private boolean mShouldRoundTopCorners = true;
     private final Callback<OmniboxAlignment> mOmniboxAlignmentObserver =
             this::onOmniboxAlignmentChanged;
 
@@ -96,10 +98,7 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
                             isTablet ? MeasureSpec.AT_MOST : heightParam /* Vivaldi */);
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
             if (isTablet) {
-                setRoundBottomCorners(
-                        getMeasuredHeight() < availableViewportHeight
-                                || !KeyboardVisibilityDelegate.getInstance()
-                                        .isKeyboardShowing(this));
+                setRoundingCorners(mShouldRoundTopCorners, shouldRoundBottomCorners());
             }
 
             // Note(nagamani@vivaldi.com):  Return the calculated margin value to properly anchor
@@ -157,6 +156,36 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
         return true;
     }
 
+    /**
+     * Set whether the dropdown should be clipped to its outline.
+     *
+     * @param clip whether to clip the outline
+     */
+    public void setShouldClipToOutline(boolean clip) {
+        if (clip) {
+            var radius =
+                    getResources()
+                            .getDimensionPixelSize(
+                                    R.dimen.omnibox_suggestion_dropdown_round_corner_radius);
+            var outlineProvider = new RoundedCornerOutlineProvider(radius);
+            setOutlineProvider(outlineProvider);
+            setClipToOutline(true);
+        } else {
+            setOutlineProvider(null);
+            setClipToOutline(false);
+        }
+    }
+
+    public void setShouldRoundTopCorners(boolean shouldRoundTopCorners) {
+        mShouldRoundTopCorners = shouldRoundTopCorners;
+        setRoundingCorners(mShouldRoundTopCorners, shouldRoundBottomCorners());
+    }
+
+    private boolean shouldRoundBottomCorners() {
+        return getMeasuredHeight() < mOmniboxAlignment.height
+                || !KeyboardVisibilityDelegate.getInstance().isKeyboardShowing(this);
+    }
+
     private void maybeUpdateLayoutParams(int topMargin) {
         // Update the layout params to ensure the parent correctly positions the suggestions
         // under the anchor view.
@@ -205,10 +234,11 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
         setTranslationX(mOmniboxAlignment.left);
     }
 
-    private void setRoundBottomCorners(boolean roundBottomCorners) {
+    private void setRoundingCorners(boolean roundTopCorners, boolean roundBottomCorners) {
         ViewOutlineProvider outlineProvider = getOutlineProvider();
         if (outlineProvider instanceof RoundedCornerOutlineProvider roundedCornerOutlineProvider) {
-            roundedCornerOutlineProvider.setRoundingEdges(true, true, true, roundBottomCorners);
+            roundedCornerOutlineProvider.setRoundingEdges(
+                    true, roundTopCorners, true, roundBottomCorners);
         }
     }
 
@@ -314,6 +344,23 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
         mHeightChangeListener = null;
     }
 
+    /**
+     * Called when the toolbar's embedder surface layout changes between edge-to-edge and standard.
+     * When the toolbar is positioned at the bottom and edge-to-edge mode is active, the omnibox
+     * suggestions container needs top padding to avoid content entering the status bar area.
+     *
+     * @param topPadding The top padding to apply for edge-to-edge mode. This equals the status bar
+     *     height when edge-to-edge is active and the toolbar is at the bottom, otherwise 0.
+     */
+    void onToEdgeChange(int topPadding) {
+        if (mTopPaddingForEdgeToEdge == topPadding) {
+            return;
+        }
+        mTopPaddingForEdgeToEdge = topPadding;
+        setPaddingRelative(
+                getPaddingStart(), mTopPaddingForEdgeToEdge, getPaddingEnd(), getPaddingBottom());
+    }
+
     @VisibleForTesting
     void setSuggestionsDropdownForTest(OmniboxSuggestionsDropdown dropdown) {
         mDropdown = dropdown;
@@ -331,12 +378,6 @@ public class OmniboxSuggestionsContainer extends FrameLayout {
                         mOmniboxAlignment.height - mDropdown.getMeasuredHeight();
                 ((ViewGroup.MarginLayoutParams) layoutParams).bottomMargin = margin;
                 mLastRecordedDropdownHeight = mDropdown.getMeasuredHeight();
-                if (mEmbedder.isTablet()) {
-                    if (mDropdown.getAdapter() != null
-                            && mDropdown.getAdapter().getItemCount() > 1) // ref. VAB-8487
-                        margin = 0;
-                    ((ViewGroup.MarginLayoutParams) layoutParams).topMargin = margin;
-                }
             } else
                 ((ViewGroup.MarginLayoutParams) layoutParams).topMargin = topMargin
                         + OmniboxSuggestionsDropdownEmbedderImpl.calculateControlsHeight(

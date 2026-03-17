@@ -13,7 +13,7 @@ struct LaunchOptions;
 
 namespace vivaldi {
 
-base::Process LaunchFlatpakZygote(const base::CommandLine &cmd_line,
+base::Process LaunchFlatpakZygote(const base::CommandLine& cmd_line,
                                   base::LaunchOptions* options);
 
 }  // namespace vivaldi

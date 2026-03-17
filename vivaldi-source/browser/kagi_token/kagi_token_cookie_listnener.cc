@@ -2,6 +2,7 @@
 
 #include "browser/kagi_token/kagi_token_cookie_listener.h"
 
+#include "app/vivaldi_constants.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/storage_partition.h"
 #include "prefs/vivaldi_pref_names.h"
@@ -10,7 +11,6 @@ namespace vivaldi {
 
 namespace {
 constexpr char kKagiCookieName[] = "kagi_session";
-constexpr char kKagiUrl[] = "https://kagi.com";
 }  // namespace
 
 void KagiTokenCookieListener::Create(Profile& profile) {
@@ -20,7 +20,7 @@ void KagiTokenCookieListener::Create(Profile& profile) {
 
 KagiTokenCookieListener::KagiTokenCookieListener(Profile& profile)
     : profile_(profile) {
-  const GURL kagi_url(kKagiUrl);
+  const GURL kagi_url(vivaldi::kVivaldiKagiURL);
 
   profile.AddObserver(this);
 

@@ -14,21 +14,20 @@ namespace vivaldi {
 
 bool PathProvider(int key, base::FilePath* result) {
   switch (key) {
-    case DIR_VIVALDI_TEST_DATA:
-      {
-        // PathExists() triggers IO restriction.
-        base::VivaldiScopedAllowBlocking allow_blocking;
+    case DIR_VIVALDI_TEST_DATA: {
+      // PathExists() triggers IO restriction.
+      base::VivaldiScopedAllowBlocking allow_blocking;
 
-        if (!PathService::Get(base::DIR_SRC_TEST_DATA_ROOT, result))
-          return false;
-        // Src dir is in the vivaldi chromium folder
-        *result = result->DirName();
-        *result = result->Append(FILE_PATH_LITERAL("testdata"));
-        *result = result->Append(FILE_PATH_LITERAL("data"));
-        if (!PathExists(*result))  // We don't want to create this.
-          return false;
-        return true;
-      }
+      if (!PathService::Get(base::DIR_SRC_TEST_DATA_ROOT, result))
+        return false;
+      // Src dir is in the vivaldi chromium folder
+      *result = result->DirName();
+      *result = result->Append(FILE_PATH_LITERAL("testdata"));
+      *result = result->Append(FILE_PATH_LITERAL("data"));
+      if (!PathExists(*result))  // We don't want to create this.
+        return false;
+      return true;
+    }
     default:
       return false;
   }

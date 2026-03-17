@@ -8,8 +8,8 @@
 namespace direct_match_ios {
 
 DirectMatchServiceBridge::DirectMatchServiceBridge(
-      id<DirectMatchServiceBridgeObserver> observer,
-      direct_match::DirectMatchService* directMatchServie)
+    id<DirectMatchServiceBridgeObserver> observer,
+    direct_match::DirectMatchService* directMatchServie)
     : observer_(observer), direct_match_service_(directMatchServie) {
   DCHECK(observer_);
   DCHECK(direct_match_service_);
@@ -36,4 +36,4 @@ void DirectMatchServiceBridge::OnFinishedDownloadingDirectMatchUnitsIcon() {
   }
 }
 
-} // namespace direct_match_ios
+}  // namespace direct_match_ios

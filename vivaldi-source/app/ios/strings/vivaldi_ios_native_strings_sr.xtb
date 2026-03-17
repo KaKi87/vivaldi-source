@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Управљање изворима блокирања реклама</translation>
 <translation id="1577761519530347814">Синхронизација сачуваних лозинки за веб сајтове</translation>
 <translation id="1620921465699122417">Унесите текст за превод</translation>
+<translation id="1624621765073396937">Затвори картицу превлачењем у управљачу картицама</translation>
 <translation id="1631998297781042533">Популарни сајтови</translation>
 <translation id="1644574205037202324">Историја</translation>
 <translation id="1655816024544228768">Спорт</translation>
@@ -106,6 +107,7 @@
 <translation id="2330644510603114741">Понашање картица</translation>
 <translation id="233493642829799329">Може довести до поновног учитавања неких картица</translation>
 <translation id="2336309953058658733">Испразни отпад</translation>
+<translation id="2336679896177818431">Отвара управљач картицама превлачењем нагоре или надоле од адресне траке</translation>
 <translation id="2359808026110333948">Настави</translation>
 <translation id="2386793615875593361">1 изабрана</translation>
 <translation id="2387049655823108978">Синхронизација отворених картица са других уређаја</translation>
@@ -127,6 +129,7 @@
 <translation id="261264557609353020">Почетна страница</translation>
 <translation id="2619628557366098325">Португалски (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">Систем</translation>
+<translation id="2638305832232696831">Омогући покрет превлачења од адресне траке</translation>
 <translation id="2653659639078652383">Проследи</translation>
 <translation id="2666092431469916601">Врх</translation>
 <translation id="2677862276555105603">блокирана
@@ -153,6 +156,7 @@
 <translation id="2862504765180635001">Жао нам је што то чујемо!</translation>
 <translation id="2878511608894704031">Итбриши све</translation>
 <translation id="2884735088411646852">Сортирање</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (блокира разна ометања)</translation>
 <translation id="2898963176829412617">Нова фасцикла…</translation>
 <translation id="2918704853620385162">Отвори нову картицу при затварању последње картице</translation>
 <translation id="2924890236896835588">Име групе</translation>
@@ -172,6 +176,7 @@
 <translation id="3142562627629111859">Нова група</translation>
 <translation id="3157931365184549694">Врати</translation>
 <translation id="3159285901314605198">Слика позадине</translation>
+<translation id="317084213044777332">Постави као подразумевану претрагу</translation>
 <translation id="3177673846235066154">Сервер је одбио ваше податке за пријављивање.</translation>
 <translation id="3180057018690062250">Стримовање</translation>
 <translation id="3180358318770512945">Родитељство</translation>
@@ -594,6 +599,7 @@
 <translation id="8066170816074394954">Грешка сервера.</translation>
 <translation id="8076492880354921740">Картице</translation>
 <translation id="8077675488769462025">Неактивне картице</translation>
+<translation id="8079925180539182073">Подразумевани претраживач не може бити уклоњен.</translation>
 <translation id="8112996065264879835">Овај код се не подудара са оним који смо вам послали.
         Достигли сте максимално ограничење погрешних покушаја. Затражите нови код користећи опцију за поновно слање испод.</translation>
 <translation id="8131740175452115882">Потврди</translation>
@@ -639,6 +645,7 @@
 <translation id="856439694359429369">Додирните за више опција или два пута додирните за отварање.</translation>
 <translation id="8591818185775466306">Избриши <ph name="ITEM_TYPE" /></translation>
 <translation id="8605953154325672921">Потребно је корисничко име</translation>
+<translation id="861259508026988871">Додај као претраживач</translation>
 <translation id="8675578805254882416">Добављање</translation>
 <translation id="8677007239430848917">Додајте своју прву белешку додиром на иконицу плус испод</translation>
 <translation id="8684294196284714094">Спремни да поставите Vivaldi као подразумевани претраживач?</translation>

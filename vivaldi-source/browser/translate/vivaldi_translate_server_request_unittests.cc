@@ -45,8 +45,7 @@ TEST_F(VivaldiTranslateServerRequestTest, GenerateJSON) {
   strings.push_back("This is a test.");
   strings.push_back("Hello world!");
 
-  std::string data =
-      request->GenerateJSON(strings, "en", "ru");
+  std::string data = request->GenerateJSON(strings, "en", "ru");
   EXPECT_EQ(data, kGenerateJSONResult);
 }
 
@@ -54,8 +53,7 @@ TEST_F(VivaldiTranslateServerRequestTest, OnRequestResponse) {
   std::unique_ptr<VivaldiTranslateServerRequest> request =
       std::make_unique<VivaldiTranslateServerRequest>();
 
-  std::unique_ptr<std::string> response =
-      std::make_unique<std::string>(kServerResponseJSON);
+  std::optional<std::string> response = kServerResponseJSON;
 
   request->SetCallbackForTesting(
       base::BindOnce(&VivaldiTranslateServerRequestTest::CheckRequestResponse,

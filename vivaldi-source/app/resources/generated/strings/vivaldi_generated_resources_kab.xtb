@@ -128,6 +128,7 @@
 <translation id="3838085852053358637">Asali n usiɣzef ur yeddi ara</translation>
 <translation id="383891835335927981">Ula d asebter ur yettwasemɣer neɣ yettwasemẓi</translation>
 <translation id="385051799172605136">Ɣer deffir</translation>
+<translation id="3861977424605124250">Sken deg usekker</translation>
 <translation id="3905761538810670789">Seggem asnas</translation>
 <translation id="3908501907586732282">Rmed asiɣzef</translation>
 <translation id="3927932062596804919">Agi</translation>
@@ -154,6 +155,7 @@
 <translation id="4409697491990005945">Timiwa</translation>
 <translation id="4423376891418188461">Err-d iɣewwaren n tazwara</translation>
 <translation id="4478664379124702289">Sekles aseɣ&amp;wen am...</translation>
+<translation id="4536111748245793305">Amaɣnu <ph name="VALUE" /></translation>
 <translation id="4595560905247879544">Isnasen d yiseɣzaf zemren ad ttwabeddlen s umsefrak kan (<ph name="CUSTODIAN_NAME" />).</translation>
 <translation id="4613271546271159013">Yiwen n usiɣzef ibeddel asebter i d-yettbinen mi teldiḍ iccer amaynut.</translation>
 <translation id="4643612240819915418">&amp;Ldi tavidyut deg yiccer amaynut</translation>
@@ -201,7 +203,6 @@
 <translation id="5614553682702429503">Sekles awal uffir?</translation>
 <translation id="5623842676595125836">Aɣmis</translation>
 <translation id="5677928146339483299">Yewḥel</translation>
-<translation id="5707185214361380026">Yecceḍ usali n usiɣzef seg:</translation>
 <translation id="5746169159649715125">Sekles s umasal PDF</translation>
 <translation id="5747809636523347288">Sen&amp;teḍ syen ddu ɣer <ph name="URL" /></translation>
 <translation id="5759728514498647443">Isemliyen i tuzneḍ i usiggez s <ph name="APP_NAME" /> zemren ad ttwaɣren s <ph name="APP_NAME" />.</translation>
@@ -303,7 +304,7 @@ Afaylu n tsarut: <ph name="KEY_FILE" />
 <translation id="8071432093239591881">Siggez am tugna</translation>
 <translation id="8135557862853121765"><ph name="NUM_KILOBYTES" />K</translation>
 <translation id="8212008074015601248">{NUM_DOWNLOAD, plural,
-        =1 {Asader iteddu} wayeḍ {Isadaren teddun}}</translation>
+        =1 {Asader iteddu} other {Isadaren teddun}}</translation>
 <translation id="8230134520748321204">Ad yettwasekles wawal uffir i <ph name="ORIGIN" />?</translation>
 <translation id="8261378640211443080">Asiɣzef-a ur d-yettwabder ara deg <ph name="IDS_EXTENSION_WEB_STORE_TITLE" />, yezmer ad yettwarnu mebla ma teẓriḍ.</translation>
 <translation id="8351419472474436977">Asiɣzef-a yettεassa iɣewwaren-inek·inem n upṛuksi, aya yebɣa ad d-yini yezmer ad ibeddel, ad yerreẓ neɣ ad iεass ayen i txeddmeḍ srid. Ma yella ur teẓriḍ ayɣer i d-yeḍra ubeddel-a, yezmer ahat ur t-tebɣiḍ ara.</translation>

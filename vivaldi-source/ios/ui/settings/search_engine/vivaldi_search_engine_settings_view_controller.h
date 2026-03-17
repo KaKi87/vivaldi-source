@@ -21,7 +21,7 @@ class Browser;
 
 // Called when the view controller is removed from its parent.
 - (void)searchEngineSettingsViewControllerWasRemoved:
-      (VivaldiSearchEngineSettingsViewController*)controller;
+    (VivaldiSearchEngineSettingsViewController*)controller;
 
 @end
 
@@ -31,12 +31,11 @@ class Browser;
                                        VivaldiSearchEngineSettingsConsumer>
 
 // The designated initializer. `browser` must not be nil.
-- (instancetype)initWithBrowser:(Browser*)browser
-    NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithBrowser:(Browser*)browser NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithStyle:(UITableViewStyle)style NS_UNAVAILABLE;
 
-@property(nonatomic, weak)
-    id<VivaldiSearchEngineSettingsViewControllerDelegate> delegate;
+@property(nonatomic, weak) id<VivaldiSearchEngineSettingsViewControllerDelegate>
+    delegate;
 
 @property(nonatomic, weak)
     id<VivaldiSearchEngineSettingsViewControllerPresentationDelegate>

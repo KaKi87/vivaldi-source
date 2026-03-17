@@ -21,3 +21,10 @@ update_target("//base:base_static") {
     defines += [ "VIVALDI_V8_CONTEXT_SNAPSHOT" ]
   }
 }
+
+update_target("//crypto:crypto") {
+  sources += [
+    "//vivaldi/base/vivaldi_md5_friends.inc",
+    "//vivaldi/base/vivaldi_md5_friends_decl.inc",
+  ]
+}

@@ -14,8 +14,8 @@
 
 #include "base/compiler_specific.h"
 #include "base/gtest_prod_util.h"
+#include "base/memory/advanced_memory_safety_checks.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/safety_checks.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list_types.h"
 #include "base/time/time.h"
@@ -93,6 +93,9 @@ class OmniboxEditModel {
     // The keyword state has changed.
     virtual void OnKeywordStateChanged(bool is_keyword_selected) = 0;
 
+    // Time when a character is inserted into the model.
+    virtual void OnCharTyped(base::TimeTicks timestamp) = 0;
+
     ~Observer() override = default;
   };
 
@@ -141,7 +144,12 @@ class OmniboxEditModel {
 
   // Adjusts the copied text before writing it to the clipboard. If the copied
   // text is a URL with the scheme elided, this method reattaches the scheme.
+  //
   // Copied text that looks like a search query will not be modified.
+  //
+  // Copied text that looks like a "contextual tasks" URL will have
+  // "origin-swapping" logic applied to it, in order to ensure that users copy a
+  // valid, shareable URL.
   //
   // |sel_min| gives the minimum of the selection, e.g. min(sel_start, sel_end).
   // |text| is the currently selected text, and may be modified by this method.
@@ -278,7 +286,7 @@ class OmniboxEditModel {
 
   // A simplified version of `OpenSelection()` that opens the model's current
   // selection.
-  void OpenSelectionForTesting(
+  void OpenCurrentSelection(
       base::TimeTicks timestamp = base::TimeTicks(),
       WindowOpenDisposition disposition = WindowOpenDisposition::CURRENT_TAB,
       bool via_keyboard = false);
@@ -482,9 +490,11 @@ class OmniboxEditModel {
   // as well as updating the textfield with the new temporary text.
   // |reset_to_default| restores the original inline autocompletion.
   // |force_update_ui| updates the UI even if the selection has not changed.
+  // |native_update| cancels autocomplete query and notifies observers.
   void SetPopupSelection(OmniboxPopupSelection new_selection,
                          bool reset_to_default = false,
-                         bool force_update_ui = false);
+                         bool force_update_ui = false,
+                         bool native_update = true);
 
   // Returns true if popup selection is on the initial line, which is usually
   // the default match (except in the no-default-match case).
@@ -549,6 +559,9 @@ class OmniboxEditModel {
   void OnNavigationLikely(
       size_t line,
       omnibox::mojom::NavigationPredictor navigation_predictor);
+
+  // Notify listening observers of the timestamp of character insertion.
+  void NotifyObserversCharTyped(base::TimeTicks timestamp);
 
  protected:
   // Utility method to get current PrefService; protected instead of private

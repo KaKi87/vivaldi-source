@@ -10,8 +10,9 @@
 #include <vector>
 
 #include "base/command_line.h"
-#include "base/compiler_specific.h"
+#include "base/containers/span.h"
 #include "base/files/file_path.h"
+#include "base/strings/strcat.h"
 #include "base/strings/strcat_win.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/win/registry.h"
@@ -208,8 +209,8 @@ TEST_F(InstallServiceWorkItemTest, Do_MultiSzToVector) {
   constexpr wchar_t kZeroMultiSz[] = L"";
   std::vector<wchar_t> vec =
       InstallServiceWorkItemImpl::MultiSzToVector(kZeroMultiSz);
-  EXPECT_TRUE(
-      !UNSAFE_TODO(memcmp(vec.data(), &kZeroMultiSz, sizeof(kZeroMultiSz))));
+
+  EXPECT_TRUE(base::span(vec) == kZeroMultiSz);
   EXPECT_EQ(vec.size(), std::size(kZeroMultiSz));
 
   vec = InstallServiceWorkItemImpl::MultiSzToVector(nullptr);
@@ -217,13 +218,12 @@ TEST_F(InstallServiceWorkItemTest, Do_MultiSzToVector) {
 
   constexpr wchar_t kRpcMultiSz[] = L"RPCSS\0";
   vec = InstallServiceWorkItemImpl::MultiSzToVector(kRpcMultiSz);
-  EXPECT_TRUE(
-      !UNSAFE_TODO(memcmp(vec.data(), &kRpcMultiSz, sizeof(kRpcMultiSz))));
+  EXPECT_TRUE(base::span(vec) == kRpcMultiSz);
   EXPECT_EQ(vec.size(), std::size(kRpcMultiSz));
 
   constexpr wchar_t kMultiSz[] = L"RPCSS\0LSASS\0";
   vec = InstallServiceWorkItemImpl::MultiSzToVector(kMultiSz);
-  EXPECT_TRUE(!UNSAFE_TODO(memcmp(vec.data(), &kMultiSz, sizeof(kMultiSz))));
+  EXPECT_TRUE(base::span(vec) == kMultiSz);
   EXPECT_EQ(vec.size(), std::size(kMultiSz));
 }
 

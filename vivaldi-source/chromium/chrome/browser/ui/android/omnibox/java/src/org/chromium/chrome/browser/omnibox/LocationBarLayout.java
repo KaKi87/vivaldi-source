@@ -20,11 +20,13 @@ import androidx.annotation.VisibleForTesting;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.widget.ImageViewCompat;
 
+import org.chromium.base.CallbackUtils;
 import org.chromium.base.MathUtils;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.lens.LensEntryPoint;
+import org.chromium.chrome.browser.omnibox.fusebox.FuseboxCoordinator.FuseboxState;
 import org.chromium.chrome.browser.omnibox.status.StatusCoordinator;
 import org.chromium.chrome.browser.omnibox.status.StatusView;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
@@ -33,6 +35,7 @@ import org.chromium.chrome.browser.omnibox.voice.VoiceRecognitionHandler;
 import org.chromium.components.browser_ui.widget.CompositeTouchDelegate;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.ui.base.DeviceFormFactor;
+import org.chromium.ui.base.WindowAndroid;
 
 // Vivaldi
 import org.chromium.build.BuildConfig;
@@ -74,6 +77,8 @@ public class LocationBarLayout extends ConstraintLayout {
     private boolean mShowLensButton;
     private boolean mShowDeleteButton;
     private boolean mShowNavigateButton;
+
+    private Runnable mOnSizeChangedRunnable = CallbackUtils.emptyRunnable();
 
     /** Vivaldi */
     protected ImageButton mQrCodeButton;
@@ -142,6 +147,16 @@ public class LocationBarLayout extends ConstraintLayout {
         checkUrlContainerWidth();
     }
 
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        mOnSizeChangedRunnable.run();
+    }
+
+    protected void setOnSizeChangedRunnable(Runnable onSizeChangedRunnable) {
+        mOnSizeChangedRunnable = onSizeChangedRunnable;
+    }
+
     /**
      * Initializes LocationBarLayout with dependencies that aren't immediately available at
      * construction time.
@@ -151,6 +166,8 @@ public class LocationBarLayout extends ConstraintLayout {
      * @param urlCoordinator The coordinator for interacting with the url bar.
      * @param statusCoordinator The coordinator for interacting with the status icon.
      * @param locationBarDataProvider Provider of LocationBar data, e.g. url and title.
+     * @param windowAndroid WindowAndroid object for the window in which the LocationBarLayout is
+     *     rendered.
      */
     @Initializer
     @CallSuper
@@ -158,7 +175,8 @@ public class LocationBarLayout extends ConstraintLayout {
             AutocompleteCoordinator autocompleteCoordinator,
             UrlBarCoordinator urlCoordinator,
             StatusCoordinator statusCoordinator,
-            LocationBarDataProvider locationBarDataProvider) {
+            LocationBarDataProvider locationBarDataProvider,
+            WindowAndroid windowAndroid) {
         mAutocompleteCoordinator = autocompleteCoordinator;
         mUrlCoordinator = urlCoordinator;
         mStatusCoordinator = statusCoordinator;
@@ -558,6 +576,12 @@ public class LocationBarLayout extends ConstraintLayout {
         return mUrlActionContainerEndMargin;
     }
 
+    /**
+     * This should be called when the state of the fusebox shown in the LocationBar changes; it is
+     * assumed to start in the DISABLED state.
+     */
+    /* package */ void onFuseboxStateChanged(@FuseboxState int state) {}
+
     /** Vivaldi */
     /* package */ void setQrCodeButtonTint(ColorStateList colorStateList) {
         mQrCodeButton.setImageTintList(colorStateList);
@@ -580,4 +604,5 @@ public class LocationBarLayout extends ConstraintLayout {
         mShowReloadButton = shouldShow;
         setButtonVisibility(mReloadButton, shouldShow);
     }
+    // End Vivaldi
 }

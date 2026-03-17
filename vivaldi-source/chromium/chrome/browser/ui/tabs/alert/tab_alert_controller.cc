@@ -13,6 +13,7 @@
 #include "base/containers/flat_set.h"
 #include "base/containers/to_vector.h"
 #include "base/functional/bind.h"
+#include "base/notreached.h"
 #include "chrome/browser/actor/ui/actor_ui_tab_controller.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
@@ -25,11 +26,11 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/browser_ui/glic_tab_indicator_helper.h"
 #include "chrome/browser/glic/public/context/glic_sharing_manager.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
 namespace tabs {
 
@@ -51,11 +52,13 @@ bool CompareAlerts::operator()(TabAlert first, TabAlert second) const {
            {TabAlert::kSerialConnected, 8},
            {TabAlert::kActorWaitingOnUser, 7},
            {TabAlert::kActorAccessing, 6},
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
            {TabAlert::kGlicAccessing, 5},
            {TabAlert::kGlicSharing, 4},
-           // NOTE: VR must take priority over the audio alert ones
-           // because most VR content has audio and its usage is implied by the
-           // VR icon.
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+        // NOTE: VR must take priority over the audio alert ones
+        // because most VR content has audio and its usage is implied by the
+        // VR icon.
            {TabAlert::kVrPresentingInHeadset, 3},
            {TabAlert::kPipPlaying, 2},
            {TabAlert::kAudioMuting, 1},
@@ -88,7 +91,7 @@ TabAlertController::TabAlertController(TabInterface& tab)
                 base::Unretained(this)));
   }
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   glic::GlicTabIndicatorHelper* const glic_tab_indicator_helper =
       glic::GlicTabIndicatorHelper::From(&tab);
   if (glic_tab_indicator_helper) {
@@ -101,7 +104,7 @@ TabAlertController::TabAlertController(TabInterface& tab)
             base::BindRepeating(&TabAlertController::OnGlicAccessingStateChange,
                                 base::Unretained(this))));
   }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 }
 
 TabAlertController::~TabAlertController() = default;
@@ -116,71 +119,118 @@ TabAlertController* TabAlertController::From(TabInterface* tab) {
   return Get(tab->GetUnownedUserDataHost());
 }
 
+// static
+std::optional<TabAlert> TabAlertController::GetAlertStateToShow(
+    const std::vector<TabAlert>& alert_states) {
+  if (alert_states.empty()) {
+    return std::nullopt;
+  }
+
+  return alert_states[0];
+}
+
 // static:
 std::u16string TabAlertController::GetTabAlertStateText(
-    const tabs::TabAlert alert_state) {
+    const TabAlert alert_state) {
   switch (alert_state) {
-    case tabs::TabAlert::kAudioPlaying:
+    case TabAlert::kAudioPlaying:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_AUDIO_PLAYING);
-    case tabs::TabAlert::kAudioMuting:
+    case TabAlert::kAudioMuting:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_AUDIO_MUTING);
-    case tabs::TabAlert::kMediaRecording:
+    case TabAlert::kMediaRecording:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_MEDIA_RECORDING);
-    case tabs::TabAlert::kAudioRecording:
+    case TabAlert::kAudioRecording:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_AUDIO_RECORDING);
-    case tabs::TabAlert::kVideoRecording:
+    case TabAlert::kVideoRecording:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_VIDEO_RECORDING);
-    case tabs::TabAlert::kTabCapturing:
+    case TabAlert::kTabCapturing:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_TAB_CAPTURING);
-    case tabs::TabAlert::kBluetoothConnected:
+    case TabAlert::kBluetoothConnected:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_BLUETOOTH_CONNECTED);
-    case tabs::TabAlert::kBluetoothScanActive:
+    case TabAlert::kBluetoothScanActive:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_BLUETOOTH_SCAN_ACTIVE);
-    case tabs::TabAlert::kUsbConnected:
+    case TabAlert::kUsbConnected:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_USB_CONNECTED);
-    case tabs::TabAlert::kHidConnected:
+    case TabAlert::kHidConnected:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_HID_CONNECTED);
-    case tabs::TabAlert::kSerialConnected:
+    case TabAlert::kSerialConnected:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_SERIAL_CONNECTED);
-    case tabs::TabAlert::kPipPlaying:
+    case TabAlert::kPipPlaying:
       return l10n_util::GetStringUTF16(IDS_TOOLTIP_TAB_ALERT_STATE_PIP_PLAYING);
-    case tabs::TabAlert::kDesktopCapturing:
+    case TabAlert::kDesktopCapturing:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_DESKTOP_CAPTURING);
-    case tabs::TabAlert::kVrPresentingInHeadset:
+    case TabAlert::kVrPresentingInHeadset:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_VR_PRESENTING);
-    // TODO(crbug.com/461457730) Create new resources for ACTOR_ACCESSING of
-    // relying on GLIC_ACCESSING resources below.
-    case tabs::TabAlert::kActorAccessing:
-    case tabs::TabAlert::kActorWaitingOnUser:
-    case tabs::TabAlert::kGlicAccessing:
-#if BUILDFLAG(ENABLE_GLIC)
+    case TabAlert::kActorAccessing:
+    case TabAlert::kActorWaitingOnUser:
+      return l10n_util::GetStringUTF16(
+          IDS_TOOLTIP_TAB_ALERT_STATE_ACTOR_ACCESSING);
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+    case TabAlert::kGlicAccessing:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_GLIC_ACCESSING);
-#else
-      return u"";
-#endif
-    case tabs::TabAlert::kGlicSharing:
-#if BUILDFLAG(ENABLE_GLIC)
+    case TabAlert::kGlicSharing:
       return l10n_util::GetStringUTF16(
           IDS_TOOLTIP_TAB_ALERT_STATE_GLIC_SHARING);
-#else
-      return u"";
 #endif
   }
   NOTREACHED();
+}
+
+// static:
+int TabAlertController::GetAccessibleAlertStringId(const TabAlert alert_state) {
+  switch (alert_state) {
+    case TabAlert::kAudioPlaying:
+      return IDS_TAB_AX_LABEL_AUDIO_PLAYING_FORMAT;
+    case TabAlert::kUsbConnected:
+      return IDS_TAB_AX_LABEL_USB_CONNECTED_FORMAT;
+    case TabAlert::kBluetoothConnected:
+      return IDS_TAB_AX_LABEL_BLUETOOTH_CONNECTED_FORMAT;
+    case TabAlert::kBluetoothScanActive:
+      return IDS_TAB_AX_LABEL_BLUETOOTH_SCAN_ACTIVE_FORMAT;
+    case TabAlert::kHidConnected:
+      return IDS_TAB_AX_LABEL_HID_CONNECTED_FORMAT;
+    case TabAlert::kSerialConnected:
+      return IDS_TAB_AX_LABEL_SERIAL_CONNECTED_FORMAT;
+    case TabAlert::kMediaRecording:
+      return IDS_TAB_AX_LABEL_MEDIA_RECORDING_FORMAT;
+    case TabAlert::kAudioRecording:
+      return IDS_TAB_AX_LABEL_AUDIO_RECORDING_FORMAT;
+    case TabAlert::kVideoRecording:
+      return IDS_TAB_AX_LABEL_VIDEO_RECORDING_FORMAT;
+    case TabAlert::kAudioMuting:
+      return IDS_TAB_AX_LABEL_AUDIO_MUTING_FORMAT;
+    case TabAlert::kTabCapturing:
+      return IDS_TAB_AX_LABEL_TAB_CAPTURING_FORMAT;
+    case TabAlert::kPipPlaying:
+      return IDS_TAB_AX_LABEL_PIP_PLAYING_FORMAT;
+    case TabAlert::kDesktopCapturing:
+      return IDS_TAB_AX_LABEL_DESKTOP_CAPTURING_FORMAT;
+    case TabAlert::kVrPresentingInHeadset:
+      return IDS_TAB_AX_LABEL_VR_PRESENTING;
+    case TabAlert::kActorAccessing:
+    case TabAlert::kActorWaitingOnUser:
+      return IDS_TAB_AX_LABEL_ACTOR_ACCESSING;
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+    case TabAlert::kGlicAccessing:
+      return IDS_TAB_AX_LABEL_GLIC_ACCESSING;
+    case TabAlert::kGlicSharing:
+      return IDS_TAB_AX_LABEL_GLIC_SHARING;
+#endif
+  }
 }
 
 base::CallbackListSubscription
@@ -314,7 +364,7 @@ void TabAlertController::OnIsContentDisplayedInHeadsetChanged(bool state) {
   UpdateAlertState(TabAlert::kVrPresentingInHeadset, state);
 }
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 void TabAlertController::OnGlicSharingStateChange(bool is_sharing) {
   UpdateAlertState(TabAlert::kGlicSharing, is_sharing);
 }
@@ -322,7 +372,7 @@ void TabAlertController::OnGlicSharingStateChange(bool is_sharing) {
 void TabAlertController::OnGlicAccessingStateChange(bool is_accessing) {
   UpdateAlertState(TabAlert::kGlicAccessing, is_accessing);
 }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
 void TabAlertController::OnActorTabIndicatorStateChanged(
     actor::ui::TabIndicatorStatus tab_indicator_status) {

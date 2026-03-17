@@ -19,7 +19,7 @@ class PrefService;
 
 /// Returns the date when the sync error dialog was last shown
 + (NSDate*)getLastSyncErrorDialogShownDateWithPrefService:
-      (PrefService*)prefService;
+    (PrefService*)prefService;
 
 /// Sets the date when the sync error dialog was last shown
 + (void)setLastSyncErrorDialogShownDate:(NSDate*)date

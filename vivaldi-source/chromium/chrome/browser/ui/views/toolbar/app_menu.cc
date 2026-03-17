@@ -42,6 +42,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/global_error/global_error_service_factory.h"
@@ -111,6 +112,7 @@
 #include "ui/views/controls/menu/menu_scroll_view_container.h"
 #include "ui/views/controls/menu/submenu_view.h"
 #include "ui/views/layout/layout_provider.h"
+#include "ui/views/metadata/view_factory.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/style/typography_provider.h"
 #include "ui/views/view_class_properties.h"
@@ -286,8 +288,8 @@ std::u16string GetAccessibleNameForAppMenuItem(ButtonMenuItemModel* model,
                            .GetShortcutText();
   }
 
-  return MenuItemView::GetAccessibleNameForMenuItem(accessible_name,
-                                                    accelerator_text, false);
+  return MenuItemView::GetAccessibleNameForMenuItem(
+      accessible_name, accelerator_text, /*badge_type=*/std::nullopt);
 }
 
 // A button that lives inside a menu item.
@@ -448,7 +450,7 @@ void AddSignedInChipToProfileMenuItem(
   // account for the profile chip.
   item->GetViewAccessibility().SetName(
       views::MenuItemView::GetAccessibleNameForMenuItem(
-          item->title(), GetSigninStatusChipString(profile), false));
+          item->title(), GetSigninStatusChipString(profile), std::nullopt));
 }
 
 // AppMenuView is a view that can contain label buttons.

@@ -13,13 +13,13 @@
 
 #include "chrome/browser/ui/autofill/autofill_client_provider.h"
 #include "chrome/browser/ui/autofill/autofill_client_provider_factory.h"
+#include "extensions/browser/process_map.h"
 #define VIVALDI_CORE_DOCUMENT "main.html"
 
 VivaldiDocumentLoader::VivaldiDocumentLoader(
     Profile* profile,
     const extensions::Extension* vivaldi_extension)
     : vivaldi_extension_(vivaldi_extension) {
-
   scoped_refptr<content::SiteInstance> site_instance =
       content::SiteInstance::CreateForURL(profile, vivaldi_extension_->url());
 
@@ -28,8 +28,9 @@ VivaldiDocumentLoader::VivaldiDocumentLoader(
   create_params.is_never_composited = true;
   vivaldi_web_contents_ = content::WebContents::Create(create_params);
 
-  extensions::SetViewType(vivaldi_web_contents_.get(),
-                          extensions::mojom::ViewType::kExtensionBackgroundPage);
+  extensions::SetViewType(
+      vivaldi_web_contents_.get(),
+      extensions::mojom::ViewType::kExtensionBackgroundPage);
 
   vivaldi_web_contents_->SetDelegate(this);
 
@@ -42,17 +43,17 @@ VivaldiDocumentLoader::VivaldiDocumentLoader(
   // Needed for chrome.autofillPrivate API
   autofill::AutofillClientProvider& autofill_client_provider =
       autofill::AutofillClientProviderFactory::GetForProfile(profile);
-  autofill_client_provider.CreateClientForWebContents(vivaldi_web_contents_.get());
+  autofill_client_provider.CreateClientForWebContents(
+      vivaldi_web_contents_.get());
 
   content::WebContentsObserver::Observe(vivaldi_web_contents_.get());
-
 }
 
 void VivaldiDocumentLoader::Load() {
   GURL resource_url = vivaldi_extension_->GetResourceURL(VIVALDI_CORE_DOCUMENT);
   vivaldi_web_contents_->GetController().LoadURL(
-      resource_url, content::Referrer(),
-      ui::PAGE_TRANSITION_AUTO_TOPLEVEL, std::string());
+      resource_url, content::Referrer(), ui::PAGE_TRANSITION_AUTO_TOPLEVEL,
+      std::string());
 }
 
 VivaldiDocumentLoader::~VivaldiDocumentLoader() {}
@@ -64,6 +65,18 @@ void VivaldiDocumentLoader::DidStartNavigation(
 
 void VivaldiDocumentLoader::DidFinishNavigation(
     content::NavigationHandle* navigation_handle) {
+#if BUILDFLAG(IS_LINUX)
+  content::RenderProcessHost* rph =
+      vivaldi_web_contents_->GetPrimaryMainFrame()->GetProcess();
+  int process_id = rph->GetID().GetUnsafeValue();
+  Profile* profile = Profile::FromBrowserContext(rph->GetBrowserContext());
+  if (extensions::ProcessMap::Get(profile)->Contains(vivaldi::kVivaldiAppId,
+                                                     process_id)) {
+    const int score = (content::kZygoteOomScore + content::kMiscOomScore) / 2;
+    base::AdjustOOMScore(rph->GetProcess().Handle(), score);
+  }
+#endif  // BUILDFLAG(IS_LINUX)
+
   if (!navigation_handle->HasCommitted() ||
       (!navigation_handle->IsInMainFrame() &&
        !navigation_handle->HasSubframeNavigationEntryCommitted()))
@@ -71,7 +84,7 @@ void VivaldiDocumentLoader::DidFinishNavigation(
 
   end_time_ = base::TimeTicks::Now();
   LOG(INFO) << " VivaldiDocumentLoader::VivaldiDocumentLoader done loading "
-             << end_time_ - start_time_;
+            << end_time_ - start_time_;
 }
 
 bool VivaldiDocumentLoader::ShouldSuppressDialogs(

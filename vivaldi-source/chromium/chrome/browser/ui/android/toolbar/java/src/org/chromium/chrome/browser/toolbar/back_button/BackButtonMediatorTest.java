@@ -27,7 +27,9 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.LooperMode;
 
 import org.chromium.base.Callback;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.MockTab;
@@ -49,8 +51,8 @@ public class BackButtonMediatorTest {
     @Mock public Profile mProfile;
     @Mock public Resources mResources;
     @Mock public Context mContext;
-    private ObservableSupplierImpl<Tab> mTabSupplier;
-    private ObservableSupplierImpl<Boolean> mEnabledSupplier;
+    private SettableNullableObservableSupplier<Tab> mTabSupplier;
+    private SettableNonNullObservableSupplier<Boolean> mEnabledSupplier;
     private PropertyModel mModel;
     private BackButtonMediator mMediator;
 
@@ -60,8 +62,8 @@ public class BackButtonMediatorTest {
     @Before
     public void setup() {
         mTab = new MockTab(TAB_ID, mProfile);
-        mTabSupplier = new ObservableSupplierImpl<>();
-        mEnabledSupplier = new ObservableSupplierImpl<>(true);
+        mTabSupplier = ObservableSuppliers.createNullable();
+        mEnabledSupplier = ObservableSuppliers.createNonNull(true);
         mModel =
                 new PropertyModel.Builder(BackButtonProperties.ALL_KEYS)
                         .with(BackButtonProperties.CLICK_LISTENER, mOnBackPressed)

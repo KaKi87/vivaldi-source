@@ -11,15 +11,13 @@
 namespace vivaldi {
 
 VivaldiAppObserver::VivaldiAppObserver(content::BrowserContext* context)
-    : browser_context_(context) {
-}
+    : browser_context_(context) {}
 
-VivaldiAppObserver::~VivaldiAppObserver() {
-}
+VivaldiAppObserver::~VivaldiAppObserver() {}
 
-static base::LazyInstance<
-    extensions::BrowserContextKeyedAPIFactory<VivaldiAppObserver> >::
-        DestructorAtExit g_factory = LAZY_INSTANCE_INITIALIZER;
+static base::LazyInstance<extensions::BrowserContextKeyedAPIFactory<
+    VivaldiAppObserver>>::DestructorAtExit g_factory =
+    LAZY_INSTANCE_INITIALIZER;
 
 // static
 extensions::BrowserContextKeyedAPIFactory<VivaldiAppObserver>*

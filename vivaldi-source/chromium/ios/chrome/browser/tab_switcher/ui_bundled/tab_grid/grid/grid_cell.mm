@@ -15,6 +15,7 @@
 #import "ios/chrome/browser/shared/ui/elements/extended_touch_target_button.h"
 #import "ios/chrome/browser/shared/ui/elements/top_aligned_image_view.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
+#import "ios/chrome/browser/shared/ui/util/color_palette/tab_group_color_palette.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/shared/ui/util/util_swift.h"
@@ -129,6 +130,7 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 // Whether or not the cell is currently displaying is the selected or
 // highlighted.
 @property(nonatomic, assign) BOOL isItemSelected;
+@property(nonatomic, assign) BOOL isIncognito;
 // End Vivaldi
 
 @end
@@ -191,18 +193,23 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 
     // Vivaldi
     contentContainer.layer.borderWidth = vTabGridNotSelectedBorderWidth;
-    contentContainer.layer.borderColor =
-      [UIColor colorNamed:vTabGridNotSelectedColor].CGColor;
     contentContainer.clipsToBounds = YES;
     // End Vivaldi
 
     UIView* topBar = [self setupTopBar];
     TopAlignedImageView* snapshotView = [[TopAlignedImageView alloc] init];
     snapshotView.translatesAutoresizingMaskIntoConstraints = NO;
-    if (IsTabGridEmptyThumbnailUIEnabled()) {
-      snapshotView.layer.cornerRadius = kGridCellCornerRadius;
-      snapshotView.layer.masksToBounds = YES;
-    }
+
+    if (IsVivaldiRunning()) {
+      snapshotView.layer.cornerRadius =
+          GridInnerCornerRadius(kGridCellCornerRadius, kSnapshotInset);
+    } else {
+    // Make nested corner radius so that inset spacing is always consistent
+    // https://cloudfour.com/thinks/the-math-behind-nesting-rounded-corners.
+    snapshotView.layer.cornerRadius = kGridCellCornerRadius - kSnapshotInset;
+    } // End Vivaldi
+
+    snapshotView.layer.masksToBounds = YES;
 
     UIButton* closeTapTargetButton =
         [ExtendedTouchTargetButton buttonWithType:UIButtonTypeCustom];
@@ -214,14 +221,12 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
         kGridCellCloseButtonIdentifier;
     [contentContainer addSubview:topBar];
     [contentContainer addSubview:snapshotView];
-    if (IsTabGridEmptyThumbnailUIEnabled()) {
-      GridEmptyThumbnailView* emptyView = [[GridEmptyThumbnailView alloc]
-          initWithType:EmptyThumbnailTypeGridCell];
-      emptyView.translatesAutoresizingMaskIntoConstraints = NO;
-      [snapshotView addSubview:emptyView];
-      AddSameConstraints(snapshotView, emptyView);
-      _emptyView = emptyView;
-    }
+    GridEmptyThumbnailView* emptyView = [[GridEmptyThumbnailView alloc]
+        initWithType:EmptyThumbnailTypeGridCell];
+    emptyView.translatesAutoresizingMaskIntoConstraints = NO;
+    [snapshotView addSubview:emptyView];
+    AddSameConstraints(snapshotView, emptyView);
+    _emptyView = emptyView;
     PriceCardView* priceCardView = [[PriceCardView alloc] init];
     [snapshotView addSubview:priceCardView];
 
@@ -258,13 +263,12 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
     self.layer.masksToBounds = NO;
     } // End Vivaldi
 
-    CGFloat margin = IsTabGridEmptyThumbnailUIEnabled() ? kSnapshotInset : 0;
     self.containerLeadingConstraint = [snapshotView.leadingAnchor
         constraintEqualToAnchor:contentContainer.leadingAnchor
-                       constant:margin];
+                       constant:kSnapshotInset];
     self.containerTrailingConstraint = [snapshotView.trailingAnchor
         constraintEqualToAnchor:contentContainer.trailingAnchor
-                       constant:-margin];
+                       constant:-kSnapshotInset];
     NSArray* constraints = @[
       [topBar.topAnchor constraintEqualToAnchor:contentContainer.topAnchor],
       [topBar.leadingAnchor
@@ -276,7 +280,7 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
       self.containerTrailingConstraint,
       [snapshotView.bottomAnchor
           constraintEqualToAnchor:contentContainer.bottomAnchor
-                         constant:-margin],
+                         constant:-kSnapshotInset],
       [closeTapTargetButton.topAnchor
           constraintEqualToAnchor:contentContainer.topAnchor],
       [closeTapTargetButton.trailingAnchor
@@ -320,7 +324,8 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
       self.dimmingView.translatesAutoresizingMaskIntoConstraints = NO;
       self.dimmingView.backgroundColor =
           [[UIColor blackColor] colorWithAlphaComponent:0.5];
-      self.dimmingView.layer.cornerRadius = kGridCellCornerRadius;
+      self.dimmingView.layer.cornerRadius =
+          kGridCellCornerRadius - kSnapshotInset;
       self.dimmingView.hidden = YES;
       self.dimmingView.alpha = 0.0;
       [contentContainer addSubview:self.dimmingView];
@@ -354,8 +359,6 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 - (void)didMoveToWindow {
   [super didMoveToWindow];
 
-  // Note: (prio@vivaldi.com) - Do no override window since we only
-  // override it with browser theme settings.
   if (IsVivaldiRunning()) {
     [self setSelected:self.isItemSelected];
     return;
@@ -375,7 +378,6 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 - (void)prepareForReuse {
   [super prepareForReuse];
   self.title = nil;
-  self.titleHidden = NO;
   self.icon = nil;
   self.snapshot = nil;
   self.snapshotView.image = nil;
@@ -434,9 +436,9 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
     return;
   }
 
-  // Note: (prio@vivaldi.com) - Do no override theme since we only
-  // override it with browser theme settings.
   if (IsVivaldiRunning()) {
+    [self applyUserInterfaceStyleForTheme];
+    _theme = theme;
     [self setSelected:self.isItemSelected];
     return;
   } // End Vivaldi
@@ -462,6 +464,20 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 - (void)setIcon:(UIImage*)icon {
   self.iconView.image = icon;
   _icon = icon;
+}
+
+- (void)setTabGroupColorPalette:(TabGroupColorPalette*)tabGroupColorPalette {
+  if (_tabGroupColorPalette == tabGroupColorPalette) {
+    return;
+  }
+  CHECK(tabGroupColorPalette);
+  // Apply the tones to every surfaces.
+  _tabGroupColorPalette = tabGroupColorPalette;
+  self.border.layer.borderColor = tabGroupColorPalette.commonColor.CGColor;
+  self.topBar.backgroundColor = tabGroupColorPalette.backgroundColor;
+  self.emptyView.backgroundColor = tabGroupColorPalette.snapshotBackgroundColor;
+  self.containerView.backgroundColor = tabGroupColorPalette.backgroundColor;
+  self.emptyView.barColor = tabGroupColorPalette.barColor;
 }
 
 - (void)showFaviconActivityIndicator {
@@ -495,9 +511,7 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 - (void)setSnapshot:(UIImage*)snapshot {
   self.snapshotView.image = snapshot;
   _snapshot = snapshot;
-  if (IsTabGridEmptyThumbnailUIEnabled()) {
-    self.emptyView.hidden = snapshot != nil;
-  }
+  self.emptyView.hidden = snapshot != nil;
 }
 
 - (void)setPriceDrop:(NSString*)price previousPrice:(NSString*)previousPrice {
@@ -513,11 +527,6 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
   self.titleLabel.text = title;
   _title = title;
   [self updateAccessibilityLabel];
-}
-
-- (void)setTitleHidden:(BOOL)titleHidden {
-  self.titleLabel.hidden = titleHidden;
-  _titleHidden = titleHidden;
 }
 
 - (UIDragPreviewParameters*)dragPreviewParameters {
@@ -551,7 +560,6 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 }
 
 - (void)setLayoutType:(EmptyThumbnailLayoutType)layoutType {
-  CHECK(IsTabGridEmptyThumbnailUIEnabled());
   _layoutType = layoutType;
   _emptyView.layoutType = layoutType;
 }
@@ -640,9 +648,7 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
   UILabel* titleLabel = [[UILabel alloc] init];
   titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
   titleLabel.font =
-      [UIFont preferredFontForTextStyle:IsTabGridEmptyThumbnailUIEnabled()
-                                            ? UIFontTextStyleSubheadline
-                                            : UIFontTextStyleFootnote];
+      [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
   titleLabel.adjustsFontForContentSizeCategory = YES;
 
   UIImageView* closeIconView = [[UIImageView alloc] init];
@@ -896,11 +902,6 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
                        traitCollection:(UITraitCollection*)traitCollection {
   self.overrideUserInterfaceStyle =
       self.window.windowScene.traitCollection.userInterfaceStyle;
-
-  if (IsVivaldiRunning()) {
-    // Update border based on trait when interface style is updated
-    [self setSelected:self.isItemSelected];
-  } // End Vivaldi
 }
 
 // Updates the size of the 'top bar' UI when the view's UITraits change.
@@ -924,6 +925,8 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
   self.groupingBackgroundView.hidden = NO;
   self.dimmingView.hidden = NO;
   self.dimmingView.alpha = 1.0;
+  self.containerView.layer.cornerRadius =
+      kGridCellCornerRadius - kSnapshotInset;
   [self.containerView bringSubviewToFront:self.dimmingView];
   self.containerView.transform = CGAffineTransformMakeScale(
       kGridCellHighlightScaleTransform, kGridCellHighlightScaleTransform);
@@ -941,25 +944,69 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
   self.groupingBackgroundView.alpha = 0.0;
   self.dimmingView.alpha = 0.0;
   self.containerView.transform = CGAffineTransformIdentity;
+  self.containerView.layer.cornerRadius = kGridCellCornerRadius;
   if (!self.border.hidden) {
     self.border.layer.borderWidth = kGridCellSelectionRingTintWidth;
   }
 }
 
 #pragma mark - VIVALDI
+- (UIColor*)resolvedBorderColorForSelected:(BOOL)selected {
+  UIColor* borderColor = [UIColor
+      colorNamed:(selected ? vTabGridSelectedColor : vTabGridNotSelectedColor)];
+  UITraitCollection* traits =
+      self.isIncognito
+          ? [UITraitCollection
+                traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleDark]
+          : self.traitCollection;
+  return [borderColor resolvedColorWithTraitCollection:traits];
+}
+
+- (void)updateSelectionBorderForSelected:(BOOL)selected {
+  UIColor* borderColor = [self resolvedBorderColorForSelected:selected];
+  self.contentView.layer.borderColor = borderColor.CGColor;
+  self.contentView.layer.borderWidth =
+      selected ? vTabGridSelectedBorderWidth : vTabGridNotSelectedBorderWidth;
+}
+
 - (void)setSelected:(BOOL)selected {
   self.isItemSelected = selected;
-  self.contentView.layer.borderColor = selected ?
-    [UIColor colorNamed:vTabGridSelectedColor].CGColor :
-    [UIColor colorNamed:vTabGridNotSelectedColor].CGColor;
-  self.contentView.layer.borderWidth = selected ?
-    vTabGridSelectedBorderWidth : vTabGridNotSelectedBorderWidth;
+
+  if (self.isIncognito) {
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+  } else {
+    [self applyUserInterfaceStyleForTheme];
+  }
+
+  [self updateSelectionBorderForSelected:selected];
 }
 
 - (void)setTopHeaderColor:(BOOL)isIncognito {
-  self.topBar.backgroundColor = isIncognito ?
-    [UIColor colorNamed:vPrivateModeToolbarBackgroundColor] :
-    [UIColor colorNamed:vNTPBackgroundColor];
+  self.isIncognito = isIncognito;
+  self.overrideUserInterfaceStyle =
+      isIncognito ? UIUserInterfaceStyleDark : UIUserInterfaceStyleUnspecified;
+
+  UIColor* backgroundColor =
+      isIncognito ? [UIColor colorNamed:vPrivateModeToolbarBackgroundColor]
+                  : [UIColor colorNamed:vNTPBackgroundColor];
+
+  self.topBar.backgroundColor = backgroundColor;
+  self.groupingBackgroundView.backgroundColor = backgroundColor;
+  self.contentView.backgroundColor = backgroundColor;
+  self.snapshotView.backgroundColor = backgroundColor;
+
+  [self updateSelectionBorderForSelected:self.isItemSelected];
+}
+
+- (void)applyUserInterfaceStyleForTheme {
+  switch (_theme) {
+    case GridThemeLight:
+      self.overrideUserInterfaceStyle = UIUserInterfaceStyleUnspecified;
+      break;
+    case GridThemeDark:
+      self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+      break;
+  }
 }
 // End Vivaldi
 
@@ -982,7 +1029,6 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
   proxy.icon = cell.icon;
   proxy.snapshot = cell.snapshot;
   proxy.title = cell.title;
-  proxy.titleHidden = cell.titleHidden;
   proxy.priceCardView = cell.priceCardView;
   proxy.opacity = cell.opacity;
   return proxy;
@@ -1075,11 +1121,16 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 - (void)positionCellViews {
   if (!IsNewTabGridTransitionsEnabled()) {
     self.containerView.layer.cornerRadius = kGridCellCornerRadius;
-    self.containerLeadingConstraint.constant =
-        IsTabGridEmptyThumbnailUIEnabled() ? kSnapshotInset : 0;
-    self.containerTrailingConstraint.constant =
-        IsTabGridEmptyThumbnailUIEnabled() ? -kSnapshotInset : 0;
+    self.containerLeadingConstraint.constant = kSnapshotInset;
+    self.containerTrailingConstraint.constant = -kSnapshotInset;
+
+    if (IsVivaldiRunning()) {
+      self.snapshotView.layer.cornerRadius =
+          GridInnerCornerRadius(kGridCellCornerRadius, kSnapshotInset);
+    } else {
     self.snapshotView.layer.cornerRadius = kGridCellCornerRadius;
+    } // End Vivaldi
+
   }
   [self scaleTabViews];
   self.topBarHeightConstraint.constant = [self topBarHeight];
@@ -1131,9 +1182,12 @@ NSString* GridCellSnapshotAccessibilityIdentifier(NSUInteger index) {
 }
 
 - (void)setTopHeaderColor:(BOOL)isIncognito {
-  self.topBar.backgroundColor = isIncognito ?
+  UIColor* backgroundColor = isIncognito ?
       [UIColor colorNamed:vPrivateModeToolbarBackgroundColor] :
       [UIColor colorNamed:vNTPBackgroundColor];
+  self.topBar.backgroundColor = backgroundColor;
+  self.contentView.backgroundColor = backgroundColor;
+  self.snapshotView.backgroundColor = backgroundColor;
 }
 // End Vivaldi
 

@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Kelola Sumber Pemblokir Iklan</translation>
 <translation id="1577761519530347814">Sinkronkan sandi halaman web tersimpan</translation>
 <translation id="1620921465699122417">Masukkan teks ke terjemahan</translation>
+<translation id="1624621765073396937">Geser untuk menutup tab</translation>
 <translation id="1631998297781042533">Situs Populer</translation>
 <translation id="1644574205037202324">Riwayat</translation>
 <translation id="1655816024544228768">Olahraga</translation>
@@ -106,6 +107,7 @@
 <translation id="2330644510603114741">Perilaku Tab</translation>
 <translation id="233493642829799329">Jika mengubah ini, Anda mungkin perlu memuat ulang beberapa tab</translation>
 <translation id="2336309953058658733">Kosongkan sampah</translation>
+<translation id="2336679896177818431">Buka pengalih tab dengan geser atas atau bawah di bilah alamat</translation>
 <translation id="2359808026110333948">Lanjutkan</translation>
 <translation id="2386793615875593361">1 dipilih</translation>
 <translation id="2387049655823108978">Sinkronkan tab terbuka dari perangkat lain</translation>
@@ -127,6 +129,7 @@
 <translation id="261264557609353020">Halaman Awal</translation>
 <translation id="2619628557366098325">Portugis (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">Sistem</translation>
+<translation id="2638305832232696831">Aktifkan gestur geser bilah alamat</translation>
 <translation id="2653659639078652383">Kirim</translation>
 <translation id="2666092431469916601">Atas</translation>
 <translation id="2677862276555105603">Iklan
@@ -153,6 +156,7 @@ diblokir</translation>
 <translation id="2862504765180635001">Kami mohon maaf!</translation>
 <translation id="2878511608894704031">Hapus Semua</translation>
 <translation id="2884735088411646852">Pengurutan</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (Blokir ragam yang mengganggu)</translation>
 <translation id="2898963176829412617">Folder Baru…</translation>
 <translation id="2918704853620385162">Buka Tab Baru di Tab yang Terakhir Ditutup</translation>
 <translation id="2924890236896835588">Nama Grup</translation>
@@ -172,6 +176,7 @@ diblokir</translation>
 <translation id="3142562627629111859">Grup Baru</translation>
 <translation id="3157931365184549694">Pulihkan</translation>
 <translation id="3159285901314605198">Gambar Latar Belakang</translation>
+<translation id="317084213044777332">Atur sebagai telusuran bawaan</translation>
 <translation id="3177673846235066154">Server menolak kredensial Anda.</translation>
 <translation id="3180057018690062250">Pengaliran</translation>
 <translation id="3180358318770512945">Pengasuhan Anak</translation>
@@ -594,6 +599,7 @@ diblokir</translation>
 <translation id="8066170816074394954">Server galat.</translation>
 <translation id="8076492880354921740">Tab</translation>
 <translation id="8077675488769462025">Tab Tidak Aktif</translation>
+<translation id="8079925180539182073">Mesin telusur bawaan tidak dapat dihapus.</translation>
 <translation id="8112996065264879835">Kode ini tidak cocok dengan yang kami kirimkan.
         Anda telah mencapai batas kesempatan maksimum. Silakan minta kode baru menggunakan opsi Kirim Ulang di bawah ini.</translation>
 <translation id="8131740175452115882">Konfirmasi</translation>
@@ -639,6 +645,7 @@ diblokir</translation>
 <translation id="856439694359429369">Ketuk untuk opsi lebih banyak atau ketuk ganda untuk membuka.</translation>
 <translation id="8591818185775466306">Hapus <ph name="ITEM_TYPE" /></translation>
 <translation id="8605953154325672921">Nama Pengguna wajib diisi</translation>
+<translation id="861259508026988871">Tambahkan sebagai Mesin Telusur</translation>
 <translation id="8675578805254882416">Mengambil</translation>
 <translation id="8677007239430848917">Tambahkan catatan pertama Anda dengan mengetuk ikon plus di bawah</translation>
 <translation id="8684294196284714094">Siap mengatur Vivaldi sebagai peramban standar?</translation>

@@ -14,16 +14,16 @@ namespace {
 // If input text goes over this limit we open full sheet since
 // the text is too long for half sheet.
 NSUInteger halfSheetCharsThreshold = 300;
-}
+}  // namespace
 
-@interface VivaldiTranslateCoordinator()
-                              <UIAdaptivePresentationControllerDelegate,
-                              UIPopoverPresentationControllerDelegate> {
+@interface VivaldiTranslateCoordinator () <
+    UIAdaptivePresentationControllerDelegate,
+    UIPopoverPresentationControllerDelegate> {
 }
 // The parent view controller where this view is presented. This can be
 // different than the baseViewController. This aligns with the active window
 // from where currently active root modal view controller is presented.
-@property (nonatomic, strong) UIViewController* presentingViewController;
+@property(nonatomic, strong) UIViewController* presentingViewController;
 
 // View provider for the translate scene.
 @property(nonatomic, strong) VivaldiTranslateViewProvider* viewProvider;
@@ -55,21 +55,22 @@ NSUInteger halfSheetCharsThreshold = 300;
 // Text with which translate view is presented. NIL when opened from panel.
 @property(nonatomic, strong) NSString* selectedText;
 
+// Whether translate history is currently in edit mode.
+@property(nonatomic, assign) BOOL historyEditing;
+
 @end
 
 @implementation VivaldiTranslateCoordinator
 
-- (instancetype)initWithBaseViewController:(UIViewController*)viewController
-                  presentingViewController:
-        (UIViewController*)presentingViewController
-                                 browser:(Browser*)browser
-                              entryPoint:(VivaldiTranslateEntryPoint)entryPoint
-                            selectedText:(NSString*)selectedText
-                              originView:(UIView*)originView
-                              originRect:(CGRect)originRect {
-
-  self = [super initWithBaseViewController:viewController
-                                   browser:browser];
+- (instancetype)
+    initWithBaseViewController:(UIViewController*)viewController
+      presentingViewController:(UIViewController*)presentingViewController
+                       browser:(Browser*)browser
+                    entryPoint:(VivaldiTranslateEntryPoint)entryPoint
+                  selectedText:(NSString*)selectedText
+                    originView:(UIView*)originView
+                    originRect:(CGRect)originRect {
+  self = [super initWithBaseViewController:viewController browser:browser];
   if (self) {
     _presentingViewController = presentingViewController;
     _selectedText = selectedText;
@@ -80,13 +81,12 @@ NSUInteger halfSheetCharsThreshold = 300;
   return self;
 }
 
-- (instancetype)initWithBaseViewController:(UIViewController*)viewController
-                  presentingViewController:
-        (UIViewController*)presentingViewController
-                                   browser:(Browser*)browser
-                          entryPoint:(VivaldiTranslateEntryPoint)entryPoint
-                              selectedText:(NSString*)selectedText {
-
+- (instancetype)
+    initWithBaseViewController:(UIViewController*)viewController
+      presentingViewController:(UIViewController*)presentingViewController
+                       browser:(Browser*)browser
+                    entryPoint:(VivaldiTranslateEntryPoint)entryPoint
+                  selectedText:(NSString*)selectedText {
   return [self initWithBaseViewController:viewController
                  presentingViewController:presentingViewController
                                   browser:browser
@@ -129,13 +129,11 @@ NSUInteger halfSheetCharsThreshold = 300;
 
   [_selectedText
       enumerateSubstringsInRange:NSMakeRange(0, [_selectedText length])
-                        options:NSStringEnumerationByComposedCharacterSequences
-                     usingBlock:^(NSString *substring,
-                                  NSRange substringRange,
-                                  NSRange enclosingRange,
-                                  BOOL *stop) {
-      characterCount++;
-  }];
+                         options:NSStringEnumerationByComposedCharacterSequences
+                      usingBlock:^(NSString* substring, NSRange substringRange,
+                                   NSRange enclosingRange, BOOL* stop) {
+                        characterCount++;
+                      }];
 
   return characterCount > halfSheetCharsThreshold;
 }
@@ -150,8 +148,7 @@ NSUInteger halfSheetCharsThreshold = 300;
   [self stop];
 
   if (self.entryPoint == VivaldiTranslateEntryPointContextMenu) {
-    [self.baseViewController dismissViewControllerAnimated:YES
-                                                completion:nil];
+    [self.baseViewController dismissViewControllerAnimated:YES completion:nil];
   } else {
     [self.panelDelegate panelDismissed];
     self.panelDelegate = nil;
@@ -169,23 +166,21 @@ NSUInteger halfSheetCharsThreshold = 300;
 }
 
 - (void)handleTabletEditorFocusEvent {
-  UIViewController *controller =
-      [self.viewProvider
-          makeTabletEditorViewControllerWithPresentingViewControllerSize:
-              self.presentingViewController.view.frame.size];
+  UIViewController* controller = [self.viewProvider
+      makeTabletEditorViewControllerWithPresentingViewControllerSize:
+          self.presentingViewController.view.frame.size];
   controller.title = l10n_util::GetNSString(IDS_VIVALDI_TRANSLATE_TITLE);
   self.sidePanelEditorController = controller;
 
   UINavigationController* navigationController =
       [[UINavigationController alloc] initWithRootViewController:controller];
   self.sidePanelEditorNavController = navigationController;
-  UIBarButtonItem *doneItem =
-      [[UIBarButtonItem alloc]
-          initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                               target:self
-                               action:@selector(closeSidePanelEditor)];
-  navigationController.topViewController
-      .navigationItem.rightBarButtonItem = doneItem;
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemClose
+                           target:self
+                           action:@selector(closeSidePanelEditor)];
+  navigationController.topViewController.navigationItem.rightBarButtonItem =
+      doneItem;
 
   [self configureTransparentNavBarForController:navigationController];
 
@@ -195,20 +190,38 @@ NSUInteger halfSheetCharsThreshold = 300;
 }
 
 - (void)handleHistoryButtonTapEvent {
-  UIViewController *controller =
-      [self.viewProvider makeTranslateHistoryViewController];
+  UIViewController* controller = [self.viewProvider
+      makeTranslateHistoryViewControllerWithEntryPoint:self.entryPoint];
   controller.title =
       l10n_util::GetNSString(IDS_VIVALDI_TRANSLATE_HISTORY_TITLE);
   self.historyController = controller;
+  self.historyEditing = NO;
 
-  UIBarButtonItem *doneItem =
-      [[UIBarButtonItem alloc]
-          initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                               target:self
-                               action:@selector(handleCloseButtonTap)];
-  controller.navigationItem.rightBarButtonItem = doneItem;
+  [self updateHistoryNavigationButton];
 
   [self.navigationController pushViewController:controller animated:YES];
+}
+
+- (void)handleHistoryNavigationButtonTap {
+  if (self.historyEditing) {
+    [self.viewProvider requestExitHistoryEditMode];
+    return;
+  }
+  [self handleCloseButtonTap];
+}
+
+- (void)updateHistoryNavigationButton {
+  if (!self.historyController) {
+    return;
+  }
+  UIBarButtonSystemItem buttonItem = self.historyEditing
+                                         ? UIBarButtonSystemItemDone
+                                         : UIBarButtonSystemItemClose;
+  UIBarButtonItem* item = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:buttonItem
+                           target:self
+                           action:@selector(handleHistoryNavigationButtonTap)];
+  self.historyController.navigationItem.rightBarButtonItem = item;
 }
 
 - (void)handleHistoryItemTapEvent {
@@ -218,6 +231,7 @@ NSUInteger halfSheetCharsThreshold = 300;
     [self.navigationController popViewControllerAnimated:YES];
     if (self.historyController) {
       self.historyController = nil;
+      self.historyEditing = NO;
     }
   }
 }
@@ -227,6 +241,7 @@ NSUInteger halfSheetCharsThreshold = 300;
     [self.navigationController popViewControllerAnimated:YES];
     if (self.historyController) {
       self.historyController = nil;
+      self.historyEditing = NO;
     }
   }
 }
@@ -252,18 +267,23 @@ NSUInteger halfSheetCharsThreshold = 300;
     [weakSelf handleHistoryButtonTapEvent];
   }];
 
-  [self.viewProvider observeHistoryItemTapEvent:^
-      (VivaldiTranslateHistoryItem* historyItem){
-    [weakSelf handleHistoryItemTapEvent];
-  }];
+  [self.viewProvider
+      observeHistoryItemTapEvent:^(VivaldiTranslateHistoryItem* historyItem) {
+        [weakSelf handleHistoryItemTapEvent];
+      }];
 
   [self.viewProvider observeAllHistoryDeleteEvent:^{
     [weakSelf handleAllHistoryDeleteEvent];
   }];
+
+  [self.viewProvider observeHistoryEditModeChange:^(BOOL isEditing) {
+    weakSelf.historyEditing = isEditing;
+    [weakSelf updateHistoryNavigationButton];
+  }];
 }
 
 - (void)setupViewController {
-  UIViewController *controller =
+  UIViewController* controller =
       [self.viewProvider makeViewControllerWith:_entryPoint];
   self.controller = controller;
 
@@ -326,9 +346,10 @@ NSUInteger halfSheetCharsThreshold = 300;
     NSArray<UISheetPresentationControllerDetent*>* largeTextDetents =
         @[ [UISheetPresentationControllerDetent largeDetent] ];
 
-    BOOL hasLargeText = UIContentSizeCategoryIsAccessibilityCategory(
-         viewController.traitCollection.preferredContentSizeCategory) ||
-              [self shouldOpenFullSheet];
+    BOOL hasLargeText =
+        UIContentSizeCategoryIsAccessibilityCategory(
+            viewController.traitCollection.preferredContentSizeCategory) ||
+        [self shouldOpenFullSheet];
     sheetPresentationController.detents =
         hasLargeText ? largeTextDetents : regularDetents;
   };
@@ -338,14 +359,13 @@ NSUInteger halfSheetCharsThreshold = 300;
 
 - (void)configureNavigationBarItems {
   // When presented on panel with navigation controller show
-  // a Done button on the right.
-  UIBarButtonItem *doneItem =
-      [[UIBarButtonItem alloc]
-          initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                               target:self
-                               action:@selector(handleCloseButtonTap)];
-  _navigationController.topViewController
-      .navigationItem.rightBarButtonItem = doneItem;
+  // a Close button on the right.
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemClose
+                           target:self
+                           action:@selector(handleCloseButtonTap)];
+  _navigationController.topViewController.navigationItem.rightBarButtonItem =
+      doneItem;
 }
 
 - (void)configureTransparentNavBarForController:
@@ -353,17 +373,14 @@ NSUInteger halfSheetCharsThreshold = 300;
   UINavigationBarAppearance* transparentAppearance =
       [[UINavigationBarAppearance alloc] init];
   [transparentAppearance configureWithTransparentBackground];
-  navigationController.navigationBar.standardAppearance =
-      transparentAppearance;
-  navigationController.navigationBar.compactAppearance =
-      transparentAppearance;
+  navigationController.navigationBar.standardAppearance = transparentAppearance;
+  navigationController.navigationBar.compactAppearance = transparentAppearance;
   navigationController.navigationBar.scrollEdgeAppearance =
       transparentAppearance;
 }
 
 - (void)setupViewMediator {
-  ProfileIOS *profile =
-      self.browser->GetProfile()->GetOriginalProfile();
+  ProfileIOS* profile = self.browser->GetProfile()->GetOriginalProfile();
   self.mediator =
       [[VivaldiTranslateMediator alloc] initWithSelectedText:_selectedText
                                                      profile:profile];

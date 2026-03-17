@@ -54,7 +54,6 @@ import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.hub.HubLayout;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.NewWindowAppSource;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
-import org.chromium.chrome.browser.omnibox.OmniboxFocusReason;
 import org.chromium.chrome.browser.tabwindow.TabWindowManager;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiTestHelper;
 import org.chromium.chrome.browser.theme.ThemeUtils;
@@ -74,6 +73,7 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetControllerProvi
 import org.chromium.components.browser_ui.bottomsheet.ManagedBottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.TestBottomSheetContent;
 import org.chromium.components.browser_ui.desktop_windowing.AppHeaderState;
+import org.chromium.components.omnibox.OmniboxFocusReason;
 import org.chromium.content_public.browser.test.util.DOMUtils;
 import org.chromium.content_public.browser.test.util.JavaScriptUtils;
 import org.chromium.ui.base.DeviceFormFactor;
@@ -83,6 +83,7 @@ import org.chromium.ui.insets.InsetObserver;
 import org.chromium.ui.test.util.DeviceRestriction;
 
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 
 /** Browser test for {@link AppHeaderCoordinator} */
 @RequiresApi(Build.VERSION_CODES.R)
@@ -391,7 +392,7 @@ public class AppHeaderCoordinatorBrowserTest {
                     boolean isKeyboardShowing =
                             mActivityTestRule
                                     .getKeyboardDelegate()
-                                    .isKeyboardShowing(activity.getTabsView());
+                                    .isKeyboardShowing(activity.getTabsViewForTesting());
                     Criteria.checkThat(isKeyboardShowing, Matchers.is(true));
                 },
                 KEYBOARD_TIMEOUT,
@@ -462,7 +463,7 @@ public class AppHeaderCoordinatorBrowserTest {
                     boolean isKeyboardShowing =
                             mActivityTestRule
                                     .getKeyboardDelegate()
-                                    .isKeyboardShowing(activity.getTabsView());
+                                    .isKeyboardShowing(activity.getTabsViewForTesting());
                     Criteria.checkThat(isKeyboardShowing, Matchers.is(true));
                 },
                 KEYBOARD_TIMEOUT,
@@ -521,7 +522,7 @@ public class AppHeaderCoordinatorBrowserTest {
                     boolean isKeyboardShowing =
                             mActivityTestRule
                                     .getKeyboardDelegate()
-                                    .isKeyboardShowing(activity.getTabsView());
+                                    .isKeyboardShowing(activity.getTabsViewForTesting());
                     Criteria.checkThat(isKeyboardShowing, Matchers.is(true));
                 },
                 KEYBOARD_TIMEOUT,
@@ -548,15 +549,19 @@ public class AppHeaderCoordinatorBrowserTest {
 
         // Trigger a bottom sheet, verify that the sheet container's top margin is updated to
         // account for the app header height.
-        var bottomSheetContent = new TestBottomSheetContent(activity, ContentPriority.HIGH, false);
+
+        AtomicReference<TestBottomSheetContent> bottomSheetContentHolder = new AtomicReference<>();
         var bottomSheetController =
                 ThreadUtils.runOnUiThreadBlocking(
                         () -> {
+                            bottomSheetContentHolder.set(
+                                    new TestBottomSheetContent(
+                                            activity, ContentPriority.HIGH, false));
                             var controller =
                                     (ManagedBottomSheetController)
                                             BottomSheetControllerProvider.from(
                                                     activity.getWindowAndroid());
-                            controller.requestShowContent(bottomSheetContent, false);
+                            controller.requestShowContent(bottomSheetContentHolder.get(), false);
                             return controller;
                         });
 
@@ -590,7 +595,7 @@ public class AppHeaderCoordinatorBrowserTest {
 
         // Hide bottom sheet.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> bottomSheetController.hideContent(bottomSheetContent, false));
+                () -> bottomSheetController.hideContent(bottomSheetContentHolder.get(), false));
     }
 
     private void doTestOnTopResumedActivityChanged(

@@ -16,7 +16,7 @@ class ProfileIOS;
 @protocol VivaldiNSDConsumer;
 
 // Mediator for the new speed dial dialog
-@interface VivaldiNSDMediator: NSObject<VivaldiNSDViewDelegate>
+@interface VivaldiNSDMediator : NSObject <VivaldiNSDViewDelegate>
 
 // Consumer to reflect user’s change in the model.
 @property(nonatomic, weak) id<VivaldiNSDConsumer> consumer;
@@ -32,8 +32,7 @@ class ProfileIOS;
 - (void)disconnect;
 
 // Public
-- (void)saveItemWithTitle:(NSString*)title
-                      url:(NSString*)urlString;
+- (void)saveItemWithTitle:(NSString*)title url:(NSString*)urlString;
 
 // Changes `self.locationFolderItem`, updates the UI accordingly.
 - (void)manuallyChangeFolder:(VivaldiSpeedDialItem*)folder;

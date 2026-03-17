@@ -43,7 +43,9 @@ import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.MathUtils;
 import org.chromium.base.UserDataHost;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.R;
@@ -63,7 +65,6 @@ import org.chromium.chrome.browser.layouts.LayoutType;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayerJni;
 import org.chromium.chrome.browser.ntp.NewTabPage;
-import org.chromium.chrome.browser.ntp_customization.edge_to_edge.TopInsetCoordinator;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabId;
 import org.chromium.chrome.browser.tab.TabLaunchType;
@@ -74,6 +75,8 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.toolbar.CustomTabCount;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.chrome.browser.toolbar.top.ToggleTabStackButton;
+import org.chromium.chrome.browser.ui.edge_to_edge.TopInsetProvider;
+import org.chromium.chrome.browser.ui.edge_to_edge.TransitiveTopInsetProvider;
 import org.chromium.ui.base.TestActivity;
 import org.chromium.url.GURL;
 
@@ -118,18 +121,17 @@ public class NewTabAnimationLayoutUnitTest {
     @Mock private ToggleTabStackButton mTabSwitcherButton;
     @Mock private View mToolbar;
     @Mock private NewTabPage mNtp;
-    @Mock private TopInsetCoordinator mTopInsetCoordinator;
+    @Mock private TopInsetProvider mTopInsetProvider;
     private SceneLayer mSceneLayer;
 
-    private final ObservableSupplierImpl<Tab> mCurrentTabSupplier = new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<CompositorViewHolder> mCompositorViewHolderSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<Boolean> mScrimVisibilitySupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<TopInsetCoordinator> mTopInsetCoordinatorSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<Float> mNtpSearchBoxTransitionPercentageSupplier =
-            new ObservableSupplierImpl<>(0f);
+    private final SettableNullableObservableSupplier<Tab> mCurrentTabSupplier =
+            ObservableSuppliers.createNullable();
+    private final SettableNonNullObservableSupplier<Boolean> mScrimVisibilitySupplier =
+            ObservableSuppliers.createNonNull(false);
+    private final TransitiveTopInsetProvider mTransitiveTopInsetProvider =
+            new TransitiveTopInsetProvider();
+    private final SettableNonNullObservableSupplier<Float>
+            mNtpSearchBoxTransitionPercentageSupplier = ObservableSuppliers.createNonNull(0f);
     private NewTabAnimationLayout mNewTabAnimationLayout;
     private FrameLayout mContentContainer;
     private FrameLayout mAnimationHostView;
@@ -184,8 +186,7 @@ public class NewTabAnimationLayoutUnitTest {
         when(mToolbarManager.getCustomTabCount()).thenReturn(mCustomTabCount);
         when(mToolbarManager.getNtpSearchBoxTransitionPercentageSupplier())
                 .thenReturn(mNtpSearchBoxTransitionPercentageSupplier);
-        mCompositorViewHolderSupplier.set(mCompositorViewHolder);
-        mTopInsetCoordinatorSupplier.set(mTopInsetCoordinator);
+        mTransitiveTopInsetProvider.set(mTopInsetProvider);
         mScrimVisibilitySupplier.set(false);
         doAnswer(
                         invocation -> {
@@ -194,6 +195,17 @@ public class NewTabAnimationLayoutUnitTest {
                         })
                 .when(mUpdateHost)
                 .createLayoutTab(anyInt(), anyBoolean());
+        // Mock TopInsetProvider to trigger observer callback when addObserver is called
+        doAnswer(
+                        invocation -> {
+                            TopInsetProvider.Observer observer =
+                                    (TopInsetProvider.Observer) invocation.getArgument(0);
+                            // Trigger the callback immediately with systemTopInset=100
+                            observer.onToEdgeChange(100, true);
+                            return null;
+                        })
+                .when(mTopInsetProvider)
+                .addObserver(any(TopInsetProvider.Observer.class));
 
         mActivityScenarioRule.getScenario().onActivity(this::onActivity);
     }
@@ -210,12 +222,12 @@ public class NewTabAnimationLayoutUnitTest {
                                 mRenderHost,
                                 mLayoutStateProvider,
                                 mContentContainer,
-                                mCompositorViewHolderSupplier,
+                                mCompositorViewHolder,
                                 mAnimationHostView,
                                 mToolbarManager,
                                 mBrowserControlsManager,
                                 mScrimVisibilitySupplier,
-                                mTopInsetCoordinatorSupplier));
+                                mTransitiveTopInsetProvider));
         mNewTabAnimationLayout.setTabModelSelector(mTabModelSelector);
         mNewTabAnimationLayout.setTabContentManager(mTabContentManager);
         when(mAnimationHostView.findViewById(R.id.tab_switcher_button))
@@ -361,7 +373,6 @@ public class NewTabAnimationLayoutUnitTest {
         when(mNewTab.isNativePage()).thenReturn(true);
         when(mNewTab.getNativePage()).thenReturn(mNtp);
         when(mNtp.supportsEdgeToEdgeOnTop()).thenReturn(true);
-        when(mTopInsetCoordinator.getSystemTopInset()).thenReturn(100);
         when(mBrowserControlsManager.getContentOffset()).thenReturn(50);
 
         mNewTabAnimationLayout.onTabCreated(

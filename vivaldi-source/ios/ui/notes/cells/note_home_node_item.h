@@ -14,13 +14,12 @@ class NoteNode;
 @interface NoteHomeNodeItem : TableViewItem
 
 // The NoteNode that backs this item.
-@property(nonatomic, readwrite, assign)
-    const vivaldi::NoteNode* noteNode;
+@property(nonatomic, readwrite, assign) const vivaldi::NoteNode* noteNode;
 
 @property(nonatomic, assign) BOOL shouldShowTrashIcon;
 
 - (instancetype)initWithType:(NSInteger)type
-                noteNode:(const vivaldi::NoteNode*)node
+                    noteNode:(const vivaldi::NoteNode*)node
     NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithType:(NSInteger)type NS_UNAVAILABLE;
 

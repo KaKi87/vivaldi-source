@@ -12,7 +12,8 @@ class Profile;
 class VivaldiAccountManagerAndroid
     : public vivaldi::VivaldiAccountManager::Observer {
  public:
-  VivaldiAccountManagerAndroid(JNIEnv* env, const base::android::JavaRef<jobject>& obj);
+  VivaldiAccountManagerAndroid(JNIEnv* env,
+                               const base::android::JavaRef<jobject>& obj);
   ~VivaldiAccountManagerAndroid() override;
   VivaldiAccountManagerAndroid(const VivaldiAccountManagerAndroid&) = delete;
   VivaldiAccountManagerAndroid& operator=(const VivaldiAccountManagerAndroid&) =
@@ -21,27 +22,26 @@ class VivaldiAccountManagerAndroid
   static void CreateNow();
 
   void Login(JNIEnv* env,
-             const base::android::JavaParamRef<jobject>& obj,
-             const base::android::JavaParamRef<jstring>& username,
-             const base::android::JavaParamRef<jstring>& password,
+             const base::android::JavaRef<jobject>& obj,
+             const base::android::JavaRef<jstring>& username,
+             const base::android::JavaRef<jstring>& password,
              jboolean save_password);
-  void Logout(JNIEnv* env, const base::android::JavaParamRef<jobject>& obj);
+  void Logout(JNIEnv* env, const base::android::JavaRef<jobject>& obj);
   void SetSessionName(JNIEnv* env,
-                      const base::android::JavaParamRef<jobject>& obj,
-                      const base::android::JavaParamRef<jstring>& session_name);
+                      const base::android::JavaRef<jobject>& obj,
+                      const base::android::JavaRef<jstring>& session_name);
 
   base::android::ScopedJavaLocalRef<jobject> GetPendingRegistration(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj);
+      const base::android::JavaRef<jobject>& obj);
   jboolean SetPendingRegistration(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
-      const base::android::JavaParamRef<jstring>& username,
-      const base::android::JavaParamRef<jstring>& password,
-      const base::android::JavaParamRef<jstring>& recovery_email);
-  void ResetPendingRegistration(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj);
+      const base::android::JavaRef<jobject>& obj,
+      const base::android::JavaRef<jstring>& username,
+      const base::android::JavaRef<jstring>& password,
+      const base::android::JavaRef<jstring>& recovery_email);
+  void ResetPendingRegistration(JNIEnv* env,
+                                const base::android::JavaRef<jobject>& obj);
 
   // VivaldiAccountManager::Observer implementation
   void OnVivaldiAccountUpdated() override;

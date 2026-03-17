@@ -49,6 +49,7 @@ class FedCmCUJTest : public InteractiveBrowserTest {
       accounts_ = {base::MakeRefCounted<Account>(
           "id", "display_identifier", "display_name", "email", "name",
           "given_name", GURL(), "phone", "username",
+          /*potentially_approved_origin_hashes=*/std::vector<std::string>(),
           /*login_hints=*/std::vector<std::string>(),
           /*domain_hints=*/std::vector<std::string>(),
           /*labels=*/std::vector<std::string>())};
@@ -96,7 +97,7 @@ IN_PROC_BROWSER_TEST_F(FedCmCUJTest, SelectAccount) {
 }
 
 // TODO(https://crbug.com/441413537): Fix this on linux-wayland-mutter-rel
-#if BUILDFLAG(IS_OZONE_WAYLAND) && BUILDFLAG(USE_DBUS)
+#if BUILDFLAG(SUPPORTS_OZONE_WAYLAND) && BUILDFLAG(USE_DBUS)
 #define MAYBE_BubbleHidesWhenModalUIShown DISABLED_BubbleHidesWhenModalUIShown
 #else
 #define MAYBE_BubbleHidesWhenModalUIShown BubbleHidesWhenModalUIShown

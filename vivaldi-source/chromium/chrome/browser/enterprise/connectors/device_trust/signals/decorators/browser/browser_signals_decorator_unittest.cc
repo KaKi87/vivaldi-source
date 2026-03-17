@@ -53,8 +53,8 @@ constexpr char kFakeCustomerId[] = "some-cid";
 constexpr int32_t kDisabledSetting = 1;
 constexpr int32_t kEnabledSetting = 2;
 
-base::Value::List GetExpectedMacAddresses() {
-  base::Value::List mac_addresses;
+base::ListValue GetExpectedMacAddresses() {
+  base::ListValue mac_addresses;
   mac_addresses.Append("00:00:00:00:00:00");
   return mac_addresses;
 }
@@ -70,7 +70,7 @@ device_signals::SignalsAggregationRequest CreateExpectedRequest() {
   return request;
 }
 
-void ValidateStaticSignals(const base::Value::Dict& signals) {
+void ValidateStaticSignals(const base::DictValue& signals) {
   const auto* serial_number =
       signals.FindString(device_signals::names::kSerialNumber);
   ASSERT_TRUE(serial_number);
@@ -116,7 +116,7 @@ void ValidateStaticSignals(const base::Value::Dict& signals) {
             static_cast<int32_t>(device_signals::Trigger::kBrowserNavigation));
 }
 
-void ValidateCrowdStrikeSignals(const base::Value::Dict& signals) {
+void ValidateCrowdStrikeSignals(const base::DictValue& signals) {
   auto* cs_value = signals.Find(device_signals::names::kCrowdStrike);
   ASSERT_TRUE(cs_value);
   ASSERT_TRUE(cs_value->is_dict());
@@ -145,19 +145,42 @@ class BrowserSignalsDecoratorTest : public testing::Test {
             /*should_force=*/true);
 
     auto mock_browser_cloud_policy_store =
-        std::make_unique<policy::MockCloudPolicyStore>();
+        std::make_unique<policy::MockCloudPolicyStore>(
+            policy::dm_protocol::kChromeMachineLevelUserCloudPolicyType);
     mock_browser_cloud_policy_store_ = mock_browser_cloud_policy_store.get();
+    std::unique_ptr<policy::MockCloudPolicyStore>
+        mock_browser_cloud_policy_extension_install_store;
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+    mock_browser_cloud_policy_extension_install_store =
+        std::make_unique<policy::MockCloudPolicyStore>(
+            policy::dm_protocol::
+                kChromeExtensionInstallMachineLevelCloudPolicyType);
+#endif
+    mock_browser_cloud_policy_extension_install_store_ =
+        mock_browser_cloud_policy_extension_install_store.get();
     mock_browser_cloud_policy_manager_ =
         std::make_unique<policy::MockCloudPolicyManager>(
             std::move(mock_browser_cloud_policy_store),
+            std::move(mock_browser_cloud_policy_extension_install_store),
             task_environment_.GetMainThreadTaskRunner());
 
     auto mock_user_cloud_policy_store =
-        std::make_unique<policy::MockCloudPolicyStore>();
+        std::make_unique<policy::MockCloudPolicyStore>(
+            policy::dm_protocol::GetChromeUserPolicyType());
     mock_user_cloud_policy_store_ = mock_user_cloud_policy_store.get();
+    std::unique_ptr<policy::MockCloudPolicyStore>
+        mock_user_cloud_policy_extension_install_store;
+#if BUILDFLAG(ENABLE_EXTENSIONS)
+    mock_user_cloud_policy_extension_install_store =
+        std::make_unique<policy::MockCloudPolicyStore>(
+            policy::dm_protocol::kChromeExtensionInstallUserCloudPolicyType);
+#endif
+    mock_user_cloud_policy_extension_install_store_ =
+        mock_user_cloud_policy_extension_install_store.get();
     mock_user_cloud_policy_manager_ =
         std::make_unique<policy::MockCloudPolicyManager>(
             std::move(mock_user_cloud_policy_store),
+            std::move(mock_user_cloud_policy_extension_install_store),
             task_environment_.GetMainThreadTaskRunner());
   }
 
@@ -229,7 +252,11 @@ class BrowserSignalsDecoratorTest : public testing::Test {
   std::unique_ptr<policy::MockCloudPolicyManager>
       mock_user_cloud_policy_manager_;
   raw_ptr<policy::MockCloudPolicyStore> mock_browser_cloud_policy_store_;
+  raw_ptr<policy::MockCloudPolicyStore>
+      mock_browser_cloud_policy_extension_install_store_;
   raw_ptr<policy::MockCloudPolicyStore> mock_user_cloud_policy_store_;
+  raw_ptr<policy::MockCloudPolicyStore>
+      mock_user_cloud_policy_extension_install_store_;
   StrictMock<device_signals::MockSignalsAggregator> mock_aggregator_;
 };
 
@@ -240,7 +267,7 @@ TEST_F(BrowserSignalsDecoratorTest, Decorate_AllSignals) {
 
   auto decorator = CreateDecorator();
   base::RunLoop run_loop;
-  base::Value::Dict signals;
+  base::DictValue signals;
   decorator.Decorate(signals, run_loop.QuitClosure());
 
   run_loop.Run();
@@ -263,7 +290,7 @@ TEST_F(BrowserSignalsDecoratorTest, Decorate_NullAggregator) {
   BrowserSignalsDecorator decorator(mock_browser_cloud_policy_manager_.get(),
                                     CreateDependencyFactory(), nullptr);
   base::RunLoop run_loop;
-  base::Value::Dict signals;
+  base::DictValue signals;
   decorator.Decorate(signals, run_loop.QuitClosure());
 
   run_loop.Run();
@@ -285,7 +312,7 @@ TEST_F(BrowserSignalsDecoratorTest, Decorate_WithoutBrowserPolicyData) {
 
   auto decorator = CreateDecorator();
   base::RunLoop run_loop;
-  base::Value::Dict signals;
+  base::DictValue signals;
   decorator.Decorate(signals, run_loop.QuitClosure());
 
   run_loop.Run();
@@ -305,7 +332,7 @@ TEST_F(BrowserSignalsDecoratorTest, Decorate_NullBrowserPolicyStore) {
   BrowserSignalsDecorator decorator(nullptr, CreateDependencyFactory(),
                                     &mock_aggregator_);
   base::RunLoop run_loop;
-  base::Value::Dict signals;
+  base::DictValue signals;
   decorator.Decorate(signals, run_loop.QuitClosure());
 
   run_loop.Run();
@@ -324,7 +351,7 @@ TEST_F(BrowserSignalsDecoratorTest, Decorate_WithoutUserPolicyData) {
 
   auto decorator = CreateDecorator();
   base::RunLoop run_loop;
-  base::Value::Dict signals;
+  base::DictValue signals;
   decorator.Decorate(signals, run_loop.QuitClosure());
 
   run_loop.Run();
@@ -344,7 +371,7 @@ TEST_F(BrowserSignalsDecoratorTest, Decorate_NullUserPolicyStore) {
       mock_browser_cloud_policy_manager_.get(),
       CreateDependencyFactory(/*valid_manager=*/false), &mock_aggregator_);
   base::RunLoop run_loop;
-  base::Value::Dict signals;
+  base::DictValue signals;
   decorator.Decorate(signals, run_loop.QuitClosure());
 
   run_loop.Run();
@@ -370,7 +397,7 @@ TEST_F(BrowserSignalsDecoratorTest, Decorate_NoAgentSignals) {
 
   auto decorator = CreateDecorator();
   base::RunLoop run_loop;
-  base::Value::Dict signals;
+  base::DictValue signals;
   decorator.Decorate(signals, run_loop.QuitClosure());
 
   run_loop.Run();
@@ -414,7 +441,7 @@ TEST_P(AntiVirusBrowserSignalsDecoratorTest, NoAvResponse) {
 
   auto decorator = CreateDecorator();
   base::RunLoop run_loop;
-  base::Value::Dict signals;
+  base::DictValue signals;
   decorator.Decorate(signals, run_loop.QuitClosure());
 
   run_loop.Run();
@@ -440,7 +467,7 @@ TEST_P(AntiVirusBrowserSignalsDecoratorTest, AvResponse_None) {
 
   auto decorator = CreateDecorator();
   base::RunLoop run_loop;
-  base::Value::Dict signals;
+  base::DictValue signals;
   decorator.Decorate(signals, run_loop.QuitClosure());
 
   run_loop.Run();
@@ -462,7 +489,7 @@ TEST_P(AntiVirusBrowserSignalsDecoratorTest, AvResponse_Enabled) {
 
   auto decorator = CreateDecorator();
   base::RunLoop run_loop;
-  base::Value::Dict signals;
+  base::DictValue signals;
   decorator.Decorate(signals, run_loop.QuitClosure());
 
   run_loop.Run();
@@ -484,7 +511,7 @@ TEST_P(AntiVirusBrowserSignalsDecoratorTest, AvResponse_Disabled) {
 
   auto decorator = CreateDecorator();
   base::RunLoop run_loop;
-  base::Value::Dict signals;
+  base::DictValue signals;
   decorator.Decorate(signals, run_loop.QuitClosure());
 
   run_loop.Run();

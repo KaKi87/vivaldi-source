@@ -20,7 +20,6 @@
 #include "chromeos/ash/components/phonehub/mutable_phone_model.h"
 #include "chromeos/ash/components/phonehub/phone_model_test_util.h"
 #include "chromeos/ash/services/multidevice_setup/public/cpp/fake_multidevice_setup_client.h"
-#include "chromeos/crosapi/mojom/synced_session_client.mojom.h"
 #include "components/account_id/account_id.h"
 #include "components/policy/core/common/policy_map.h"
 #include "components/policy/policy_constants.h"
@@ -65,6 +64,8 @@ class OpenTabsUIDelegateMock : public sync_sessions::OpenTabsUIDelegate {
   MOCK_METHOD1(GetAllForeignSessions,
                bool(std::vector<raw_ptr<const sync_sessions::SyncedSession,
                                         VectorExperimental>>* sessions));
+  MOCK_CONST_METHOD0(GetAllForeignSessionLastModifiedTimes,
+                     base::flat_map<std::string, base::Time>());
   MOCK_METHOD3(GetForeignTab,
                bool(const std::string& tag,
                     const SessionID tab_id,
@@ -169,11 +170,6 @@ class BrowserTabsModelProviderImplTest
   }
 
   void NotifySubscription() { foreign_sessions_changed_callback_.Run(); }
-
-  void OnForeignSyncedPhoneSessionsUpdated(
-      std::vector<crosapi::mojom::SyncedSessionPtr> sessions) {
-    NOTREACHED();
-  }
 
   void OnSessionSyncEnabledChanged(bool enabled) { NOTREACHED(); }
 

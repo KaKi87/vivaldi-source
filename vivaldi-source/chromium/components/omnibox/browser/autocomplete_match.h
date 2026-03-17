@@ -340,7 +340,7 @@ struct AutocompleteMatch {
   // Update the clipboard match with the current clipboard data.
   void UpdateWithClipboardContent(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& j_callback);
+      const base::android::JavaRef<jobject>& j_callback);
 
   // Returns the direct match favicon local path. //Vivaldi
   std::u16string GetLocalIconPath(
@@ -560,6 +560,9 @@ struct AutocompleteMatch {
   // Checks if this match is a contextual search suggestion to be fulfilled
   // by lens in the side panel.
   bool IsContextualSearchSuggestion() const;
+
+  // Checks if this match is an  Aim threads history suggestion.
+  bool IsThreadsHistorySuggestion() const;
 
   // Checks if this match is a specialized toolbelt match with actions on
   // a button row.

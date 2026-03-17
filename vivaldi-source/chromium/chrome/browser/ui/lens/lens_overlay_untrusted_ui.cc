@@ -46,7 +46,9 @@ constexpr int kCopyTextTimeoutMs = 500;
 constexpr int kTranslateTextTimeoutMs = 500;
 
 LensOverlayUntrustedUI::LensOverlayUntrustedUI(content::WebUI* web_ui)
-    : UntrustedTopChromeWebUIController(web_ui) {
+    : UntrustedTopChromeWebUIController(web_ui,
+                                        /*enable_chrome_send=*/false,
+                                        /*enable_chrome_histograms=*/true) {
   // Set up the chrome-untrusted://lens-overlay source.
   content::WebUIDataSource* html_source =
       content::WebUIDataSource::CreateAndAdd(
@@ -348,7 +350,6 @@ LensOverlayUntrustedUI::LensOverlayUntrustedUI(content::WebUI* web_ui)
     lens::features::GetVisualSelectionUpdatesEnableThumbnailSizingTweaks());
   html_source->AddBoolean("steadyComposeboxShowVoiceSearch", false);
   html_source->AddBoolean("expandedComposeboxShowVoiceSearch", false);
-  html_source->AddBoolean("expandedSearchboxShowVoiceSearch", false);
   html_source->AddBoolean("composeboxContextDragAndDropEnabled", false);
   html_source->AddBoolean("composeboxShowRecentTabChip", false);
 

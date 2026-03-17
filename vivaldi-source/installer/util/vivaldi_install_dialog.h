@@ -61,6 +61,33 @@ VivaldiInstallUIOptions ReadRegistryPreferences();
 
 class VivaldiInstallDialog {
  public:
+  class SubclassedControl {
+   public:
+    SubclassedControl(int id, VivaldiInstallDialog* owner)
+        : id_(id), owner_(owner) {}
+    ~SubclassedControl() = default;
+
+    void SetLeftButtonIsDown(bool leftIsClicked) {
+      isLeftClicked_ = leftIsClicked;
+    }
+    void SetIsHovered(bool isHovered) { isHovered_ = isHovered; }
+    bool IsHovered() { return isHovered_; }
+    // This is only true for keyboard-focus.
+    void SetHasFocus(bool focus) { hasFocus_ = focus; }
+    bool HasFocus() { return hasFocus_; }
+
+    bool IsLeftButtonDown() { return isLeftClicked_; }
+    int id() { return id_; }
+    VivaldiInstallDialog* owner() { return owner_; }
+
+   private:
+    bool isHovered_ = false;
+    bool isLeftClicked_ = false;
+    bool hasFocus_ = false;
+    int id_;
+    VivaldiInstallDialog* owner_ = nullptr;
+  };
+
   enum DlgResult {
     INSTALL_DLG_ERROR = -1,   // Dialog could not be shown.
     INSTALL_DLG_CANCEL = 0,   // The user cancelled install.
@@ -97,6 +124,9 @@ class VivaldiInstallDialog {
   bool IsInstallPathValid(const base::FilePath& path);
   installer::InstallStatus ShowEULADialog();
   std::wstring GetInnerFrameEULAResource();
+
+  // Layout the directdraw slogan text-box.
+  void LayoutSlogan();
 
   Gdiplus::Bitmap* GetGDIBitmapFromResource(int bitmap_id);
 
@@ -176,6 +206,8 @@ class VivaldiInstallDialog {
 
   void DrawDDtext();
 
+  COLORREF GetWindowBorderColor();
+
  private:
   VivaldiInstallUIOptions options_;
   bool disable_standalone_autoupdates_ = false;
@@ -212,6 +244,8 @@ class VivaldiInstallDialog {
   float current_dpi_ = 96.0f;
 
   bool dark_mode_ = false;
+  // Use accent color on borders, otherwise we use regular border color.
+  bool use_accent_color_on_borders_ = false;
 
   gfx::Rect dialog_rect_;
 
@@ -219,6 +253,9 @@ class VivaldiInstallDialog {
 
   int slogan_width_ = 1;
   int slogan_height_ = 0;
+
+  // If we need to use these in the parent.
+  std::vector<SubclassedControl*> child_controls_;
 
   IdToSIZEMap control_sizes_;
 
@@ -229,7 +266,6 @@ class VivaldiInstallDialog {
   HPEN bottomLinePen_dark_;
 
   COLORREF accent_color_ = RGB(200, 200, 200);
-  COLORREF inactive_window_border_color_ = RGB(43, 43, 43);
 
   // DirectDraw2 members.
   ID2D1Factory* pD2DFactory_ = nullptr;
@@ -265,35 +301,6 @@ class VivaldiInstallDialog {
 
   base::win::ScopedGDIObject<HBRUSH> background_brush_;
   base::win::ScopedGDIObject<HBRUSH> buttondrop_brush_;
-
-  class SubclassedControl {
-   public:
-    SubclassedControl(int id, VivaldiInstallDialog* owner)
-        : id_(id), owner_(owner) {}
-    ~SubclassedControl() = default;
-
-    void SetLeftButtonIsDown(bool leftIsClicked) {
-      isLeftClicked_ = leftIsClicked;
-    }
-    void SetIsHovered(bool isHovered) { isHovered_ = isHovered; }
-    bool IsHovered() { return isHovered_; }
-    // This is only true for keyboard-focus.
-    void SetHasFocus(bool focus) { hasFocus_ = focus; }
-    bool HasFocus() { return hasFocus_; }
-
-    bool IsLeftButtonDown() { return isLeftClicked_; }
-    int id() { return id_; }
-    VivaldiInstallDialog* owner() { return owner_; }
-
-   private:
-    bool isHovered_ = false;
-    bool isLeftClicked_ = false;
-    bool hasFocus_ = false;
-    int id_;
-    VivaldiInstallDialog* owner_;
-  };
-
-  friend class SubclassedControl;
 
   // SubclassedButton ok_button_(IDOK);
   std::unique_ptr<SubclassedControl> ok_button_subclassed_;

@@ -11,7 +11,7 @@
 #import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_controller.h"
 #import "ios/panel/panel_interaction_controller.h"
 
-@protocol ApplicationCommands;
+@protocol SceneCommands;
 @class NoteHomeViewController;
 class Browser;
 namespace vivaldi {
@@ -23,18 +23,15 @@ class GURL;
 @protocol NoteHomeViewControllerDelegate
 // The view controller wants to be dismissed. If |urls| is not empty, then
 // the user has selected to navigate to those URLs in the current tab mode.
-- (void)noteHomeViewControllerWantsDismissal:
-            (NoteHomeViewController*)controller
-                                navigationToUrls:(const std::vector<GURL>&)urls;
+- (void)noteHomeViewControllerWantsDismissal:(NoteHomeViewController*)controller
+                            navigationToUrls:(const std::vector<GURL>&)urls;
 
 // The view controller wants to be dismissed. If |urls| is not empty, then
 // the user has selected to navigate to those URLs with specified tab mode.
-- (void)noteHomeViewControllerWantsDismissal:
-            (NoteHomeViewController*)controller
-                                navigationToUrls:(const std::vector<GURL>&)urls
-                                     inIncognito:(BOOL)inIncognito
-                                          newTab:(BOOL)newTab;
-
+- (void)noteHomeViewControllerWantsDismissal:(NoteHomeViewController*)controller
+                            navigationToUrls:(const std::vector<GURL>&)urls
+                                 inIncognito:(BOOL)inIncognito
+                                      newTab:(BOOL)newTab;
 
 @end
 
@@ -48,7 +45,7 @@ class GURL;
 @property(nonatomic, weak) id<NoteHomeViewControllerDelegate> homeDelegate;
 
 // Handler for Application Commands.
-@property(nonatomic, weak) id<ApplicationCommands> applicationCommandsHandler;
+@property(nonatomic, weak) id<SceneCommands> applicationCommandsHandler;
 
 // Handler for Snackbar Commands.
 @property(nonatomic, weak) id<SnackbarCommands> snackbarCommandsHandler;
@@ -56,7 +53,6 @@ class GURL;
 // Initializers.
 - (instancetype)initWithBrowser:(Browser*)browser NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithStyle:(UITableViewStyle)tableViewStyle NS_UNAVAILABLE;
-
 
 // Called before the instance is deallocated.
 - (void)shutdown;

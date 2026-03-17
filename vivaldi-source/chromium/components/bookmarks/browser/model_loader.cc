@@ -24,6 +24,7 @@
 #include "components/bookmarks/common/user_folder_load_stats.h"
 
 #include "app/vivaldi_apptools.h"
+#include "base/task/single_thread_task_runner.h"
 #include "components/bookmarks/vivaldi_partners.h"
 
 namespace bookmarks {
@@ -32,8 +33,7 @@ namespace {
 
 // Loads and deserializes a JSON file determined by `file_path` and returns it
 // in the form of a dictionary, or nullopt if something fails.
-std::optional<base::Value::Dict> LoadFileToDict(
-    const base::FilePath& file_path) {
+std::optional<base::DictValue> LoadFileToDict(const base::FilePath& file_path) {
   // Titles may end up containing invalid utf and we shouldn't throw away
   // all bookmarks if some titles have invalid utf.
   JSONFileValueDeserializer deserializer(file_path,
@@ -78,17 +78,19 @@ std::unique_ptr<BookmarkLoadDetails> LoadBookmarks(
         BookmarkPermanentNode::CreateMobileBookmarks(
             0, /*is_account_node=*/true);
 
+    // Vivaldi
     std::unique_ptr<BookmarkPermanentNode> account_trash_folder_node =
         BookmarkPermanentNode::CreateTrashFolder(0, /*is_account_node=*/true);
+    // End VIvaldi
 
-    std::optional<base::Value::Dict> root_dict =
+    std::optional<base::DictValue> root_dict =
         LoadFileToDict(account_file_path);
     BookmarkCodec codec;
     if (root_dict.has_value() &&
         codec.Decode(*root_dict, /*already_assigned_ids=*/{},
                      account_bb_node.get(), account_other_folder_node.get(),
                      account_mobile_folder_node.get(),
-                     account_trash_folder_node.get(),
+                     account_trash_folder_node.get(), // Vivaldi
                      &max_node_id,
                      &sync_metadata_str)) {
       ids_assigned_to_account_nodes = codec.release_assigned_ids();
@@ -104,7 +106,7 @@ std::unique_ptr<BookmarkLoadDetails> LoadBookmarks(
       details->AddAccountPermanentNodes(std::move(account_bb_node),
                                         std::move(account_other_folder_node),
                                         std::move(account_mobile_folder_node),
-                                        std::move(account_trash_folder_node));
+                                        std::move(account_trash_folder_node));// Vivaldi
 
       details->set_account_sync_metadata_str(std::move(sync_metadata_str));
       details->set_max_id(std::max(max_node_id, details->max_id()));
@@ -129,14 +131,14 @@ std::unique_ptr<BookmarkLoadDetails> LoadBookmarks(
   {
     std::string sync_metadata_str;
     int64_t max_node_id = 0;
-    std::optional<base::Value::Dict> root_dict =
+    std::optional<base::DictValue> root_dict =
         LoadFileToDict(local_or_syncable_file_path);
     BookmarkCodec codec;
     if (root_dict.has_value() &&
         codec.Decode(*root_dict, std::move(ids_assigned_to_account_nodes),
                      details->bb_node(), details->other_folder_node(),
                      details->mobile_folder_node(),
-                     details->trash_folder_node(),
+                     details->trash_folder_node(), // Vivaldi
                      &max_node_id,
                      &sync_metadata_str)) {
       details->set_local_or_syncable_sync_metadata_str(
@@ -231,7 +233,7 @@ scoped_refptr<ModelLoader> ModelLoader::Create(
     model_loader->backend_task_runner_->PostTask(
       FROM_HERE, base::BindOnce(&vivaldi_partners::LoadOnWorkerThread,
         base::SingleThreadTaskRunner::GetCurrentDefault()));
-  }
+  } // End Vivaldi
 
   model_loader->backend_task_runner_->PostTaskAndReplyWithResult(
       FROM_HERE,

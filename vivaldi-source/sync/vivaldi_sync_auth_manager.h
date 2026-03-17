@@ -20,10 +20,9 @@ class VivaldiSyncAuthManager : public syncer::SyncAuthManager,
  public:
   using NotifyTokenRequestedCallback = base::RepeatingClosure;
 
-  VivaldiSyncAuthManager(
-      signin::IdentityManager* identity_manager,
-      Delegate* delegate,
-      VivaldiAccountManager* account_manager);
+  VivaldiSyncAuthManager(signin::IdentityManager* identity_manager,
+                         Delegate* delegate,
+                         VivaldiAccountManager* account_manager);
 
   ~VivaldiSyncAuthManager() override;
   VivaldiSyncAuthManager(const VivaldiSyncAuthManager&) = delete;

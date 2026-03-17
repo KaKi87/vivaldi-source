@@ -5,13 +5,17 @@
 #ifndef IOS_CHROME_COMMON_CREDENTIAL_PROVIDER_PASSKEY_KEYCHAIN_PROVIDER_BRIDGE_H_
 #define IOS_CHROME_COMMON_CREDENTIAL_PROVIDER_PASSKEY_KEYCHAIN_PROVIDER_BRIDGE_H_
 
+#include <memory>
+
 #import "base/ios/block_types.h"
+#import "components/webauthn/ios/passkey_types.h"
 #import "ios/chrome/common/credential_provider/passkey_keychain_provider.h"
 
 @protocol Credential;
 
-typedef void (^FetchSecurityDomainSecretCompletionBlock)(
-    NSArray<NSData*>* security_domain_secrets);
+typedef void (^FetchTrustedVaultKeysCompletionBlock)(
+    NSArray<NSData*>* trustedVaultKeys,
+    NSError* error);
 
 // Delegate for the PasskeyKeychainProviderBridge.
 @protocol PasskeyKeychainProviderBridgeDelegate
@@ -19,15 +23,11 @@ typedef void (^FetchSecurityDomainSecretCompletionBlock)(
 // Asks the user to reauthenticate if needed and calls the the completion block.
 - (void)performUserVerificationIfNeeded:(ProceduralBlock)completion;
 
-// Presents the passkey enrollment welcome screen.
-- (void)showEnrollmentWelcomeScreen:(ProceduralBlock)enrollBlock;
-
-// Presents the passkey "fix degraded recoverability state" welcome screen.
-- (void)showFixDegradedRecoverabilityWelcomeScreen:
-    (ProceduralBlock)fixDegradedRecoverabilityBlock;
-
-// Presents the passkey reauthentication welcome screen.
-- (void)showReauthenticationWelcomeScreen:(ProceduralBlock)reauthenticateBlock;
+// Presents the passkey welcome screen for `purpose`.
+- (void)showWelcomeScreenWithPurpose:
+            (webauthn::PasskeyWelcomeScreenPurpose)purpose
+                          completion:
+                              (webauthn::PasskeyWelcomeScreenAction)completion;
 
 // Informs the delegate that the user completed a reauthentication facilitated
 // by the provider.
@@ -42,24 +42,26 @@ typedef void (^FetchSecurityDomainSecretCompletionBlock)(
 // Default initializer. `enableLogging` indicates whether metrics logging should
 // be enabled in the Credential Provider Extension.
 - (instancetype)initWithEnableLogging:(BOOL)enableLogging
-                 navigationController:
-                     (UINavigationController*)navigationController
               navigationItemTitleView:(UIView*)navigationItemTitleView
+    NS_DESIGNATED_INITIALIZER;
+
+// Initializer for testing that allows injecting a fake PasskeyKeychainProvider.
+- (instancetype)initWithPasskeyKeychainProvider:
+    (std::unique_ptr<PasskeyKeychainProvider>)passkeyKeychainProvider
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;
 
 @property(nonatomic, weak) id<PasskeyKeychainProviderBridgeDelegate> delegate;
 
-// Initiates the process to fetch the security domain secret and calls the
-// completion block with the security domain secret the input argument.
-// "credential" will be used to validate the security domain secret.
-- (void)
-    fetchSecurityDomainSecretForGaia:(NSString*)gaia
+// Initiates the process to fetch the trusted vault key and calls the completion
+// block with the trusted vault key the input argument. "credential" will be
+// used to validate the trusted vault key.
+- (void)fetchTrustedVaultKeysForGaia:(NSString*)gaia
                           credential:(id<Credential>)credential
                              purpose:(webauthn::ReauthenticatePurpose)purpose
-                          completion:(FetchSecurityDomainSecretCompletionBlock)
-                                         fetchSecurityDomainSecretCompletion;
+                          completion:(FetchTrustedVaultKeysCompletionBlock)
+                                         fetchTrustedVaultKeysCompletionBlock;
 
 @end
 

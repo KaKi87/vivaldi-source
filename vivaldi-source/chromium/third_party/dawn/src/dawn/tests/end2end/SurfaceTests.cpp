@@ -376,6 +376,9 @@ TEST_P(SurfaceTests, SwitchPresentMode) {
 
 // Test resizing the surface and without resizing the window.
 TEST_P(SurfaceTests, ResizingSurfaceOnly) {
+    // TODO(crbug.com/468228358): Flaky on Snapdragon X Elite SoCs w/ D3D12.
+    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm() && IsD3D12());
+
     wgpu::Surface surface = CreateTestSurface();
 
     for (int i = 0; i < 10; i++) {
@@ -418,6 +421,10 @@ TEST_P(SurfaceTests, ResizingWindowOnly) {
 TEST_P(SurfaceTests, ResizingWindowAndSurface) {
     // TODO(crbug.com/dawn/1205): Currently failing on new NVIDIA GTX 1660s on Linux/Vulkan.
     DAWN_SUPPRESS_TEST_IF(IsLinux() && IsVulkan() && IsNvidia());
+
+    // TODO(crbug.com/465497433): Flakily loses device on Snapdragon X Elite
+    // SoCs.
+    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm() && IsD3D12());
 
     wgpu::Surface surface = CreateTestSurface();
 
@@ -681,7 +688,7 @@ TEST_P(SurfaceTests, Storage) {
     ASSERT_EQ(wgpu::Status::Success, surface.Present());
 }
 
-// TODO(crbug.com/440123094): Implement swap chain for WebGPUBackend.
+// TODO(crbug.com/465183957): Implement swap chain for WebGPUBackend.
 DAWN_INSTANTIATE_TEST(SurfaceTests,
                       D3D11Backend(),
                       D3D11Backend({"d3d11_delay_flush_to_gpu"}),

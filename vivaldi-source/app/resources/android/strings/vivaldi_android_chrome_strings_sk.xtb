@@ -12,10 +12,13 @@
 <translation id="1910514478706885609">Otvoriť v novom zoskupení listov</translation>
 <translation id="1925021887439448749">Zadajte vlastnú webovú adresu</translation>
 <translation id="2038563949887743358">Zapnúť žiadosť o verziu stránok pre počítače</translation>
+<translation id="2072027001582274150">Nepoužité alebo duplicitné listy</translation>
+<translation id="208033313373016095">Režim čítačky pre webové stránky</translation>
 <translation id="2149973817440762519">Upraviť záložku</translation>
 <translation id="2306442503286132111">Záložka uložená v priečinku <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Vzhľad</translation>
 <translation id="2501278716633472235">Prejsť späť</translation>
+<translation id="2546283357679194313">Cookies a dáta webu</translation>
 <translation id="2633278372998075009">Súkromné listy</translation>
 <translation id="2650751991977523696">Stiahnuť súbor znova?</translation>
 <translation id="265156376773362237">Štandardné predbežné načítanie</translation>
@@ -29,10 +32,12 @@
           =1 {<ph name="BOOKMARKS_COUNT_ONE" /> záložka}
           other {<ph name="BOOKMARKS_COUNT_MANY" /> záložiek}}</translation>
 <translation id="3076631378407175873">© Copyright <ph name="YEAR" /> Vivaldi a.s. Všetky práva vyhradené.</translation>
+<translation id="3110967157686007724">Súkromný list</translation>
 <translation id="3232293466644486101">Odstrániť dáta prehliadania…</translation>
 <translation id="3234355010754616171">Nový súkromný list</translation>
 <translation id="3237087289225714896">Štandardné predbežné načítanie:</translation>
-<translation id="3504699618187058974">Zoskupenie kariet</translation>
+<translation id="3478414204555961127">Režim čítačky</translation>
+<translation id="3504699618187058974">Zoskupenie listov</translation>
 <translation id="3518985090088779359">Prijať a pokračovať</translation>
 <translation id="3571177741182643350">Neprečítané články - dostupné offline:</translation>
 <translation id="3602290021589620013">Náhľad</translation>
@@ -51,6 +56,7 @@
 <translation id="4269820728363426813">Kopírovať adresu odkazu</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Zapnite zámku obrazovky v nastaveniach Androidu<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Správca hesiel</translation>
+<translation id="441100617989818073">Nepoužívané alebo duplicitné listy a skupiny</translation>
 <translation id="451872707440238414">Prehľadávať záložky</translation>
 <translation id="4526803704855831732">Súkromné listy</translation>
 <translation id="4532845899244822526">Vybrať priečinok</translation>
@@ -59,6 +65,7 @@
 
 Touch to Search je funkcia, ktorá je dostupná len vtedy, keď je Google nastavený ako predvolený vyhľadávací nástroj vo Vivaldi.</translation>
 <translation id="4759238208242260848">Sťahovania</translation>
+<translation id="4777866634702576038">Vymazať skupinu listov ?</translation>
 <translation id="4850886885716139402">Zobraziť</translation>
 <translation id="4883379392681899581">Opustiť súkromný režim</translation>
 <translation id="4943872375798546930">Žiadne výsledky</translation>
@@ -82,6 +89,7 @@ Ak chcete upraviť hľadaný výraz, vyberte ho dlhým stlačením. Ak chcete sp
 <translation id="6336451774241870485">Nový súkromný list</translation>
 <translation id="6337323516034698937">Ak chcete túto kartu odoslať do iného zariadenia, prihláste sa do Vivaldi synchronizácie na oboch zariadeniach. V prípade potreby sa uistite, že ste zadali šifrovacie heslo.</translation>
 <translation id="6341580099087024258">Opýtať sa, kde uložiť súbory</translation>
+<translation id="6364438453358674297">Odobrať návrhy z histórie?</translation>
 <translation id="6404511346730675251">Upraviť záložku</translation>
 <translation id="650224091954855786">{FILE_COUNT,plural,
             =1 {Súbor bol stiahnutý}
@@ -97,6 +105,7 @@ Ak chcete upraviť hľadaný výraz, vyberte ho dlhým stlačením. Ak chcete sp
 <translation id="6909589135458168665">Predbežné načítanie stránok</translation>
 <translation id="7029995644714925509">Keď web požiada o súkromné predbežné načítanie odkazov na ich stránke, Vivaldi zašifruje a predbežné načíta stránky pomocou Google serverov bez súborov cookies. Tým je vaša identita skrytá pred predbežné načítanou stránkou.</translation>
 <translation id="706339621163631076">Zásady ochrany osobných údajov prehliadača</translation>
+<translation id="7100573672995171864">Prispôsobte si a ovládajte prehliadač Vivaldi</translation>
 <translation id="732145680195464316">Záložka uložená v <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Odoslanie žiadosti Do Not Track</translation>
 <translation id="7359002509206457351">Poskytnúť prístup k spôsobom platby</translation>
@@ -111,6 +120,9 @@ Ak chcete upraviť hľadaný výraz, vyberte ho dlhým stlačením. Ak chcete sp
 <translation id="8062594758852531064">Rozšírené predbežné načítanie:</translation>
 <translation id="8073388330009372546">Otvoriť obrázok na novom liste</translation>
 <translation id="8127542551745560481">Úprava domovskej stránky</translation>
+<translation id="8175940240143658258">{ARCHIVED_TAB_COUNT, plural,
+          =1 {(1) neaktívna(ne) položka(y)}
+          other {(#) neaktívnych položiek}}</translation>
 <translation id="8266862848225348053">Umiestnenie sťahovaných súborov</translation>
 <translation id="8348430946834215779">Používajte protokol HTTPS vždy, keď je to možné, a dostávajte upozornenia pred načítaním webov, ktoré ho nepodporujú</translation>
 <translation id="8560602726703398413">Zoznam čítania nájdete v záložkách</translation>

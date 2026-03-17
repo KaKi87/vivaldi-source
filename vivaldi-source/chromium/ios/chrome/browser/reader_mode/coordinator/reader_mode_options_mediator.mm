@@ -9,7 +9,6 @@
 #import "ios/chrome/browser/reader_mode/model/reader_mode_font_size_utils.h"
 #import "ios/chrome/browser/reader_mode/model/reader_mode_tab_helper.h"
 #import "ios/chrome/browser/reader_mode/ui/reader_mode_options_consumer.h"
-#import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 
 @interface ReaderModeOptionsMediator () <DistilledPagePrefsObserving>
 @end
@@ -17,19 +16,15 @@
 @implementation ReaderModeOptionsMediator {
   std::unique_ptr<DistilledPagePrefsObserverBridge> _prefsObserverBridge;
   raw_ptr<dom_distiller::DistilledPagePrefs> _distilledPagePrefs;
-  raw_ptr<WebStateList> _webStateList;
 }
 
 - (instancetype)initWithDistilledPagePrefs:
-                    (dom_distiller::DistilledPagePrefs*)distilledPagePrefs
-                              webStateList:(WebStateList*)webStateList {
+    (dom_distiller::DistilledPagePrefs*)distilledPagePrefs {
   self = [super init];
   if (self) {
     _distilledPagePrefs = distilledPagePrefs;
-    _webStateList = webStateList;
-    _prefsObserverBridge =
-        std::make_unique<DistilledPagePrefsObserverBridge>(self);
-    _distilledPagePrefs->AddObserver(_prefsObserverBridge.get());
+    _prefsObserverBridge = std::make_unique<DistilledPagePrefsObserverBridge>(
+        self, _distilledPagePrefs);
   }
   return self;
 }
@@ -39,7 +34,9 @@
   if (_consumer) {
     // Initialize consumer with current state of `_distilledPagePrefs`.
     [self.consumer setSelectedFontFamily:_distilledPagePrefs->GetFontFamily()];
-    [self.consumer setSelectedTheme:_distilledPagePrefs->GetTheme()];
+    [self.consumer
+        setSelectedTheme:_distilledPagePrefs->GetTheme()
+              fromSource:_distilledPagePrefs->GetThemeSettingsUpdateSource()];
     [self.consumer
         setDecreaseFontSizeButtonEnabled:CanDecreaseReaderModeFontSize(
                                              _distilledPagePrefs)];
@@ -64,7 +61,23 @@
 }
 
 - (void)setTheme:(dom_distiller::mojom::Theme)theme {
-  _distilledPagePrefs->SetUserPrefTheme(theme);
+  dom_distiller::ThemeSettingsUpdateSource currentSource =
+      _distilledPagePrefs->GetThemeSettingsUpdateSource();
+
+  switch (currentSource) {
+    case dom_distiller::ThemeSettingsUpdateSource::kSystem: {
+      _distilledPagePrefs->SetUserPrefTheme(theme);
+      break;
+    }
+    case dom_distiller::ThemeSettingsUpdateSource::kUserPreference: {
+      if (_distilledPagePrefs->GetTheme() == theme) {
+        _distilledPagePrefs->ClearUserPrefTheme();
+      } else {
+        _distilledPagePrefs->SetUserPrefTheme(theme);
+      }
+      break;
+    }
+  }
 }
 
 - (void)hideReaderMode {
@@ -74,12 +87,8 @@
 #pragma mark - Public
 
 - (void)disconnect {
-  if (_distilledPagePrefs) {
-    _distilledPagePrefs->RemoveObserver(_prefsObserverBridge.get());
-  }
   _prefsObserverBridge.reset();
   _distilledPagePrefs = nullptr;
-  _webStateList = nullptr;
 }
 
 #pragma mark - DistilledPagePrefsObserving
@@ -88,8 +97,9 @@
   [self.consumer setSelectedFontFamily:font];
 }
 
-- (void)onChangeTheme:(dom_distiller::mojom::Theme)theme {
-  [self.consumer setSelectedTheme:theme];
+- (void)onChangeTheme:(dom_distiller::mojom::Theme)theme
+           withSource:(dom_distiller::ThemeSettingsUpdateSource)source {
+  [self.consumer setSelectedTheme:theme fromSource:source];
 }
 
 - (void)onChangeFontScaling:(float)scaling {

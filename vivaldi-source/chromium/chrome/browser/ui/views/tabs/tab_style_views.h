@@ -9,7 +9,7 @@
 
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/tabs/tab_style.h"
-#include "chrome/browser/ui/views/tabs/glow_hover_controller.h"
+#include "chrome/browser/ui/views/tabs/tab/glow_hover_controller.h"
 #include "ui/base/metadata/base_type_conversion.h"
 #include "ui/gfx/geometry/rect_f.h"
 
@@ -23,6 +23,7 @@ struct ui::metadata::TypeConverter<TabStyle::TabColors>
   static ui::metadata::ValidStrings GetValidStrings();
 };
 
+class BrowserFrameView;
 class Tab;
 
 namespace gfx {
@@ -64,9 +65,9 @@ class TabStyleViews {
   // TabStyle::GetMaximumZValue()).
   virtual float GetZValue() const = 0;
 
-  // Returns whichever of (active, inactive) the tab appears more like given the
-  // active opacity.
-  virtual TabActive GetApparentActiveState() const = 0;
+  // Returns whether the tab appears more like the active opacity than the
+  // inactive opacity.
+  virtual bool IsApparentlyActive() const = 0;
 
   // Returns the current opacity of the "active" portion of the tab's state.
   virtual float GetCurrentActiveOpacity() const = 0;
@@ -88,6 +89,8 @@ class TabStyleViews {
   const TabStyle* tab_style() const { return tab_style_; }
 
  private:
+  BrowserFrameView* GetFrameView();
+
   const raw_ptr<const TabStyle> tab_style_;
 };
 

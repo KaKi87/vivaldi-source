@@ -4,12 +4,16 @@
 
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
 
+#include <optional>
+
+#include "chrome/browser/ui/browser_window/test/mock_browser_window_interface.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state.h"
 #include "chrome/common/pref_names.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/sync_preferences/testing_pref_service_syncable.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/base/unowned_user_data/unowned_user_data_host.h"
 
 namespace tabs {
 
@@ -31,10 +35,16 @@ class VerticalTabStripStateControllerTest : public testing::Test {
         user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
     SessionID test_session_id = SessionID::FromSerializedValue(kSessionIDValue);
 
+    EXPECT_CALL(mock_browser_window_interface_, GetUnownedUserDataHost)
+        .WillRepeatedly(testing::ReturnRef(unowned_user_data_host_));
+
     // Action items like CollapseActionItem are tested in interactive ui tests.
     controller_ = std::make_unique<VerticalTabStripStateController>(
-        &pref_service_, /*root_action_item=*/nullptr,
-        /*session_service*/ nullptr, test_session_id);
+        &mock_browser_window_interface_, &pref_service_,
+        /*root_action_item=*/nullptr,
+        /*session_service=*/nullptr, test_session_id,
+        /*restored_state_collapsed=*/std::nullopt,
+        /*restored_state_uncollapsed_width=*/std::nullopt);
   }
 
   void TearDown() override {
@@ -50,19 +60,37 @@ class VerticalTabStripStateControllerTest : public testing::Test {
  private:
   std::unique_ptr<VerticalTabStripStateController> controller_;
   sync_preferences::TestingPrefServiceSyncable pref_service_;
+  ui::UnownedUserDataHost unowned_user_data_host_;
+  MockBrowserWindowInterface mock_browser_window_interface_;
 };
 
 TEST_F(VerticalTabStripStateControllerTest, Initial) {
   EXPECT_FALSE(controller()->ShouldDisplayVerticalTabs());
   EXPECT_FALSE(controller()->IsCollapsed());
-  EXPECT_EQ(0, controller()->GetUncollapsedWidth());
+  EXPECT_EQ(kVerticalTabStripDefaultUncollapsedWidth,
+            controller()->GetUncollapsedWidth());
 }
 
 TEST_F(VerticalTabStripStateControllerTest, VerticalTabsEnabled) {
+  auto subscription = controller()->RegisterOnModeChanged(base::BindRepeating(
+      [](bool display_vertical_tabs,
+         VerticalTabStripStateController* controller) {
+        EXPECT_EQ(display_vertical_tabs,
+                  controller->ShouldDisplayVerticalTabs());
+      },
+      true));
+
   controller()->SetVerticalTabsEnabled(true);
   EXPECT_TRUE(controller()->ShouldDisplayVerticalTabs());
   EXPECT_TRUE(pref_service()->GetBoolean(prefs::kVerticalTabsEnabled));
 
+  subscription = controller()->RegisterOnModeChanged(base::BindRepeating(
+      [](bool display_vertical_tabs,
+         VerticalTabStripStateController* controller) {
+        EXPECT_EQ(display_vertical_tabs,
+                  controller->ShouldDisplayVerticalTabs());
+      },
+      false));
   controller()->SetVerticalTabsEnabled(false);
   EXPECT_FALSE(controller()->ShouldDisplayVerticalTabs());
   EXPECT_FALSE(pref_service()->GetBoolean(prefs::kVerticalTabsEnabled));
@@ -70,12 +98,13 @@ TEST_F(VerticalTabStripStateControllerTest, VerticalTabsEnabled) {
 
 TEST_F(VerticalTabStripStateControllerTest, Collapsed) {
   int call_count = 0;
-  auto subscription = controller()->RegisterOnStateChanged(base::BindRepeating(
-      [](int* call_count, VerticalTabStripStateController* controller) {
-        (*call_count)++;
-        EXPECT_TRUE(controller->IsCollapsed());
-      },
-      &call_count));
+  auto subscription =
+      controller()->RegisterOnCollapseChanged(base::BindRepeating(
+          [](int* call_count, VerticalTabStripStateController* controller) {
+            (*call_count)++;
+            EXPECT_TRUE(controller->IsCollapsed());
+          },
+          &call_count));
 
   controller()->SetCollapsed(true);
   EXPECT_TRUE(controller()->IsCollapsed());
@@ -88,12 +117,13 @@ TEST_F(VerticalTabStripStateControllerTest, Collapsed) {
 
 TEST_F(VerticalTabStripStateControllerTest, UncollapsedWidth) {
   int call_count = 0;
-  auto subscription = controller()->RegisterOnStateChanged(base::BindRepeating(
-      [](int* call_count, VerticalTabStripStateController* controller) {
-        (*call_count)++;
-        EXPECT_EQ(kUncollapsedWidth1, controller->GetUncollapsedWidth());
-      },
-      &call_count));
+  auto subscription =
+      controller()->RegisterOnCollapseChanged(base::BindRepeating(
+          [](int* call_count, VerticalTabStripStateController* controller) {
+            (*call_count)++;
+            EXPECT_EQ(kUncollapsedWidth1, controller->GetUncollapsedWidth());
+          },
+          &call_count));
 
   controller()->SetUncollapsedWidth(kUncollapsedWidth1);
   EXPECT_EQ(kUncollapsedWidth1, controller()->GetUncollapsedWidth());
@@ -106,13 +136,14 @@ TEST_F(VerticalTabStripStateControllerTest, UncollapsedWidth) {
 
 TEST_F(VerticalTabStripStateControllerTest, State) {
   int call_count = 0;
-  auto subscription = controller()->RegisterOnStateChanged(base::BindRepeating(
-      [](int* call_count, VerticalTabStripStateController* controller) {
-        (*call_count)++;
-        EXPECT_TRUE(controller->IsCollapsed());
-        EXPECT_EQ(kUncollapsedWidth2, controller->GetUncollapsedWidth());
-      },
-      &call_count));
+  auto subscription =
+      controller()->RegisterOnCollapseChanged(base::BindRepeating(
+          [](int* call_count, VerticalTabStripStateController* controller) {
+            (*call_count)++;
+            EXPECT_TRUE(controller->IsCollapsed());
+            EXPECT_EQ(kUncollapsedWidth2, controller->GetUncollapsedWidth());
+          },
+          &call_count));
 
   VerticalTabStripState state;
   state.collapsed = true;

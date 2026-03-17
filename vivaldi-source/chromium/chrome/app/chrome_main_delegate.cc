@@ -77,6 +77,8 @@
 #include "components/metrics/persistent_histograms.h"
 #include "components/sampling_profiler/thread_profiler.h"
 #include "components/startup_metric_utils/common/startup_metric_utils.h"
+#include "components/variations/service/variations_network_clock.h"
+#include "components/variations/variations_ids_provider.h"
 #include "components/version_info/channel.h"
 #include "components/version_info/version_info.h"
 #include "content/public/app/initialize_mojo_core.h"
@@ -163,6 +165,7 @@
 #include "base/android/java_exception_reporter.h"
 #include "base/android/library_loader/library_loader_hooks.h"
 #include "chrome/browser/android/flags/chrome_cached_flags.h"
+#include "chrome/browser/android/initialize_feature_list_android.h"
 #include "chrome/browser/android/metrics/uma_session_stats.h"
 #include "chrome/browser/flags/android/chrome_feature_list.h"
 #include "chrome/common/chrome_descriptors_android.h"
@@ -465,10 +468,10 @@ std::optional<int> HandlePackExtensionSwitches(
   ui::ScopedStartupResourceBundle ensure_startup_resource_bundle;
 
   extensions::StartupHelper extension_startup_helper;
-  std::string error_message;
+  std::u16string error_message;
   if (!extension_startup_helper.PackExtension(command_line, &error_message)) {
     if (!error_message.empty()) {
-      LOG(ERROR) << error_message.c_str();
+      LOG(ERROR) << error_message;
     }
     return CHROME_RESULT_CODE_PACK_EXTENSION_ERROR;
   }
@@ -833,12 +836,15 @@ std::optional<int> ChromeMainDelegate::PostEarlyInitialization(
   ash::InitializeDBus();
 #endif
 
-  // The DBus initialization above is needed for FeatureList creation here; and
-  // features are needed for Mojo initialization.
   ChromeFeatureListCreator* chrome_feature_list_creator =
       chrome_content_browser_client_->startup_data()
           ->chrome_feature_list_creator();
-  chrome_feature_list_creator->CreateFeatureList();
+
+  if (!IsInitFeatureListEarly()) {
+    // The DBus initialization above is needed for FeatureList creation here;
+    // and features are needed for Mojo initialization.
+    chrome_feature_list_creator->CreateFeatureList();
+  }
 
 #if BUILDFLAG(IS_OZONE)
   // Initialize Ozone platform and add required feature flags as per platform's
@@ -870,7 +876,6 @@ std::optional<int> ChromeMainDelegate::PostEarlyInitialization(
   std::string actual_locale = LoadLocalState(
       chrome_feature_list_creator, invoked_in_browser->is_running_test);
   chrome_feature_list_creator->SetApplicationLocale(actual_locale);
-  chrome_feature_list_creator->OverrideCachedUIStrings();
 
   // On Chrome OS, initialize D-Bus clients that depend on feature list.
 #if BUILDFLAG(IS_CHROMEOS)
@@ -925,11 +930,29 @@ bool ChromeMainDelegate::ShouldInitializeMojo(InvokedIn invoked_in) {
   return ShouldCreateFeatureList(invoked_in);
 }
 
+::variations::VariationsIdsProvider*
+ChromeMainDelegate::CreateVariationsIdsProvider() {
+  // At the time this method is called, the global browser instance is not yet
+  // created. This means the `NetworkTimeTracker` is still owned by the
+  // 'ChromeFeatureListCreator', which is within the `startup_data` held by the
+  // `ChromeContentBrowserClient`. Once the global browser instance is
+  // created, it will take over ownership of the NetworkTimeTracker.
+
+  return ::variations::VariationsIdsProvider::CreateInstance(
+      ::variations::VariationsIdsProvider::Mode::kUseSignedInState,
+      std::make_unique<::variations::VariationsNetworkClock>(
+          chrome_content_browser_client_->startup_data()
+              ->chrome_feature_list_creator()
+              ->network_time_tracker()));
+}
+
 void ChromeMainDelegate::CreateThreadPool(std::string_view name) {
-  // The ThreadGroupProfiler client must be set before thread pool is created.
-  base::ThreadGroupProfiler::SetClient(
-      std::make_unique<ChromeThreadGroupProfilerClient>());
-  base::ThreadPoolInstance::Create(name);
+  if (!IsInitFeatureListEarly()) {
+    // The ThreadGroupProfiler client must be set before thread pool is created.
+    base::ThreadGroupProfiler::SetClient(
+        std::make_unique<ChromeThreadGroupProfilerClient>());
+    base::ThreadPoolInstance::Create(name);
+  }
 
   // The ThreadProfiler client must be set before main thread profiling is
   // started (below).
@@ -951,17 +974,6 @@ void ChromeMainDelegate::CommonEarlyInitialization() {
   std::string process_type =
       command_line->GetSwitchValueASCII(switches::kProcessType);
   bool is_browser_process = process_type.empty();
-
-#if BUILDFLAG(IS_WIN)
-  if (base::FeatureList::IsEnabled(features::kDisableBoostPriority) &&
-      features::kDisableBoostPriorityMode.Get() ==
-          features::DisableBoostPriorityMode::kAtStartup) {
-    // The second argument to this function *disables* boosting if true. See
-    // https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setprocesspriorityboost
-    SetProcessPriorityBoost(/*hProcess=*/base::GetCurrentProcessHandle(),
-                            /*bDisablePriorityBoost=*/true);
-  }
-#endif
 
   // Enable Split cache by default here and not in content/ so as to not
   // impact non-Chrome embedders like WebView, Cronet etc. This only enables
@@ -1161,7 +1173,10 @@ std::optional<int> ChromeMainDelegate::BasicStartupComplete() {
 
 #endif  // BUILDFLAG(IS_WIN)
 
-  chrome::RegisterPathProvider();
+  if (!IsInitFeatureListEarly()) {
+    chrome::RegisterPathProvider();
+  }
+
 #if BUILDFLAG(IS_CHROMEOS)
   ash::RegisterPathProvider();
   chromeos::dbus_paths::RegisterPathProvider();
@@ -1361,7 +1376,7 @@ void ChromeMainDelegate::PreSandboxStartup() {
 #if BUILDFLAG(IS_WIN)
   // TODO(zturner): Throbber icons and cursors are still stored in chrome.dll,
   // this can be killed once those are merged into resources.pak. See
-  // BrowserFrameViewWin::InitThrobberIcons(), https://crbug.com/368327 and
+  // BrowserFrameViewWin::InitThrobberIcons(), https://crbug.com/41104393 and
   // https://crbug.com/1178117.
   ui::SetResourcesDataDLL(_AtlBaseModule.GetResourceInstance());
 #endif
@@ -1717,4 +1732,12 @@ void ChromeMainDelegate::InitializeMemorySystem() {
                                    PoissonAllocationSamplerInclusion::kEnforce,
                                allocation_recorder_inclusion, process_type)
       .Initialize(memory_system_);
+}
+
+bool ChromeMainDelegate::IsInitFeatureListEarly() {
+#if BUILDFLAG(IS_ANDROID)
+  return variations::android::DidInitFeatureListEarly();
+#else
+  return false;
+#endif
 }

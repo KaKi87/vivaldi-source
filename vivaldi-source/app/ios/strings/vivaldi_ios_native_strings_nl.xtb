@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Bronnen voor advertentieblokkering beheren</translation>
 <translation id="1577761519530347814">Opgeslagen wachtwoorden van webpagina's synchroniseren</translation>
 <translation id="1620921465699122417">Tekst invoeren om te vertalen</translation>
+<translation id="1624621765073396937">Veeg om tabblad te sluiten</translation>
 <translation id="1631998297781042533">Populaire websites</translation>
 <translation id="1644574205037202324">Geschiedenis</translation>
 <translation id="1655816024544228768">Sport</translation>
@@ -106,6 +107,7 @@
 <translation id="2330644510603114741">Tabblad-gedrag</translation>
 <translation id="233493642829799329">Als je dit wijzigt, worden sommige tabbladen opnieuw geladen</translation>
 <translation id="2336309953058658733">Prullenbak legen</translation>
+<translation id="2336679896177818431">Opent tabschakelaar bij omhoog of omlaag vegen op adresbalk</translation>
 <translation id="2359808026110333948">Doorgaan</translation>
 <translation id="2386793615875593361">1 geselecteerd</translation>
 <translation id="2387049655823108978">Synchroniseer open tabs van andere apparaten</translation>
@@ -127,6 +129,7 @@
 <translation id="261264557609353020">Startpagina</translation>
 <translation id="2619628557366098325">Portugees (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">Systeem</translation>
+<translation id="2638305832232696831">Schuifgebaar van de adresbalk inschakelen</translation>
 <translation id="2653659639078652383">Indienen</translation>
 <translation id="2666092431469916601">Bovenaan</translation>
 <translation id="2677862276555105603">Advertentie
@@ -153,6 +156,7 @@ geblokkeerd</translation>
 <translation id="2862504765180635001">Wat vervelend om dat te horen!</translation>
 <translation id="2878511608894704031">Alles verwijderen</translation>
 <translation id="2884735088411646852">Sortering</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (Blokkeert diverse ergernissen)</translation>
 <translation id="2898963176829412617">Nieuwe map…</translation>
 <translation id="2918704853620385162">Open een nieuw tabblad bij het sluiten van het laatste tabblad</translation>
 <translation id="2924890236896835588">Groepnaam</translation>
@@ -172,6 +176,7 @@ geblokkeerd</translation>
 <translation id="3142562627629111859">Nieuwe groep</translation>
 <translation id="3157931365184549694">Herstellen</translation>
 <translation id="3159285901314605198">Achtergrondafbeelding</translation>
+<translation id="317084213044777332">Instellen als standaard</translation>
 <translation id="3177673846235066154">Server heeft je aanmelding afgewezen.</translation>
 <translation id="3180057018690062250">Streaming</translation>
 <translation id="3180358318770512945">Ouderschap</translation>
@@ -594,6 +599,7 @@ geblokkeerd</translation>
 <translation id="8066170816074394954">Serverfout.</translation>
 <translation id="8076492880354921740">Tabs</translation>
 <translation id="8077675488769462025">Inactieve tabs</translation>
+<translation id="8079925180539182073">Standaard zoekmachine kan niet worden verwijderd.</translation>
 <translation id="8112996065264879835">Deze code komt niet overeen met hetgeen we je hebben gestuurd.
         Je hebt de maximale limiet voor verkeerde pogingen bereikt. Vraag hieronder een nieuwe code aan met de optie Opnieuw verzenden.</translation>
 <translation id="8131740175452115882">Bevestigen</translation>
@@ -639,6 +645,7 @@ geblokkeerd</translation>
 <translation id="856439694359429369">Tikken voor meer opties of dubbel tikken om te openen.</translation>
 <translation id="8591818185775466306"><ph name="ITEM_TYPE" /> verwijderen</translation>
 <translation id="8605953154325672921">Gebruikersnaam vereist</translation>
+<translation id="861259508026988871">Toevoegen als zoekmachine</translation>
 <translation id="8675578805254882416">Ophalen</translation>
 <translation id="8677007239430848917">Voeg je eerste notitie toe door op het onderstaande pluspictogram te tikken</translation>
 <translation id="8684294196284714094">Klaar om Vivaldi in te stellen als je standaardbrowser?</translation>

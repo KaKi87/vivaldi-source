@@ -17,6 +17,7 @@ import static org.hamcrest.CoreMatchers.allOf;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import static org.chromium.base.test.transit.ViewFinder.waitForView;
 import static org.chromium.base.test.util.Restriction.RESTRICTION_TYPE_NON_LOW_END_DEVICE;
 import static org.chromium.chrome.browser.tasks.tab_management.TabUiTestHelper.createTabs;
 import static org.chromium.chrome.browser.tasks.tab_management.TabUiTestHelper.enterTabSwitcher;
@@ -94,7 +95,7 @@ public class TabGridIncognitoReauthPromoTest {
 
         assertTrue(cta.getTabModelSelector().getCurrentModel().isIncognito());
         CriteriaHelper.pollUiThread(TabSwitcherMessageManager::hasAppendedMessagesForTesting);
-        onViewWaiting(withId(R.id.large_message_card_item)).check(matches(isDisplayed()));
+        waitForView(withId(R.id.large_message_card_item));
     }
 
     @Test
@@ -107,7 +108,7 @@ public class TabGridIncognitoReauthPromoTest {
 
         assertTrue(cta.getTabModelSelector().getCurrentModel().isIncognito());
         CriteriaHelper.pollUiThread(TabSwitcherMessageManager::hasAppendedMessagesForTesting);
-        onViewWaiting(withId(R.id.large_message_card_item)).check(matches(isDisplayed()));
+        waitForView(withId(R.id.large_message_card_item));
 
         onView(withText(R.string.incognito_reauth_lock_action_text)).perform(click());
         onView(withId(R.id.snackbar)).check(matches(isDisplayed()));
@@ -138,7 +139,7 @@ public class TabGridIncognitoReauthPromoTest {
 
         assertTrue(cta.getTabModelSelector().getCurrentModel().isIncognito());
         CriteriaHelper.pollUiThread(TabSwitcherMessageManager::hasAppendedMessagesForTesting);
-        onViewWaiting(withId(R.id.large_message_card_item)).check(matches(isDisplayed()));
+        waitForView(withId(R.id.large_message_card_item));
 
         switchTabModel(cta, false);
         assertFalse(cta.getTabModelSelector().getCurrentModel().isIncognito());
@@ -155,7 +156,7 @@ public class TabGridIncognitoReauthPromoTest {
 
         assertTrue(cta.getTabModelSelector().getCurrentModel().isIncognito());
         CriteriaHelper.pollUiThread(TabSwitcherMessageManager::hasAppendedMessagesForTesting);
-        onViewWaiting(withId(R.id.large_message_card_item)).check(matches(isDisplayed()));
+        waitForView(withId(R.id.large_message_card_item));
 
         // Scroll to the position of the promo so that it is completely showing for Espresso click.
         onViewWaiting(

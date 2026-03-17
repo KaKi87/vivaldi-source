@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Керування правилами блокування реклами</translation>
 <translation id="1577761519530347814">Синхронізуйте збережені паролі</translation>
 <translation id="1620921465699122417">Увести текст для перекладу</translation>
+<translation id="1624621765073396937">Закривати вкладки свайпом</translation>
 <translation id="1631998297781042533">Популярні сайти</translation>
 <translation id="1644574205037202324">Історія</translation>
 <translation id="1655816024544228768">Спорт</translation>
@@ -106,6 +107,7 @@
 <translation id="2330644510603114741">Поведінка вкладок</translation>
 <translation id="233493642829799329">Може призвести до перезавантаження деяких вкладок</translation>
 <translation id="2336309953058658733">Спорожнити кошик</translation>
+<translation id="2336679896177818431">Відкривати менеджер вкладок свайпом угору або вниз на панелі адреси</translation>
 <translation id="2359808026110333948">Далі</translation>
 <translation id="2386793615875593361">Вибрано 1 нотатку</translation>
 <translation id="2387049655823108978">Синхронізуйте відкриті вкладки з інших пристроїв</translation>
@@ -127,6 +129,7 @@
 <translation id="261264557609353020">Початкова сторінка</translation>
 <translation id="2619628557366098325">Португальська (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">Системна</translation>
+<translation id="2638305832232696831">Увімкнути свайп на панелі адреси</translation>
 <translation id="2653659639078652383">Надіслати</translation>
 <translation id="2666092431469916601">Вгорі</translation>
 <translation id="2677862276555105603">Реклама
@@ -153,6 +156,7 @@
 <translation id="2862504765180635001">Прикро це чути!</translation>
 <translation id="2878511608894704031">Видалити все</translation>
 <translation id="2884735088411646852">Сортування</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (Блокує різні елементи)</translation>
 <translation id="2898963176829412617">Нова тека…</translation>
 <translation id="2918704853620385162">Відкрити нову вкладку після закриття останньої вкладки</translation>
 <translation id="2924890236896835588">Назва групи</translation>
@@ -172,6 +176,7 @@
 <translation id="3142562627629111859">Нова група</translation>
 <translation id="3157931365184549694">Відновити</translation>
 <translation id="3159285901314605198">Фонове зображення</translation>
+<translation id="317084213044777332">Установити типовим пошуком</translation>
 <translation id="3177673846235066154">Сервер відхилив ваші дані.</translation>
 <translation id="3180057018690062250">Стримінг</translation>
 <translation id="3180358318770512945">Батьківство</translation>
@@ -226,6 +231,7 @@
 <translation id="383723620494271391">Хочете ще щось додати?</translation>
 <translation id="3842727926262967527">Виберіть, де краще розмістити панель вкладок та рядок адреси.</translation>
 <translation id="3845564230651302310">Застосовуємо нові налаштування блокувальника...</translation>
+<translation id="385051799172605136">Назад</translation>
 <translation id="3858860766373142691">Назва</translation>
 <translation id="3861379244432690245">Увімкнути Direct Match</translation>
 <translation id="3866249974567520381">Опис</translation>
@@ -495,6 +501,7 @@
 <translation id="6946395294519639514">За допомогою Панелей ви зможете тримати під рукою корисні інструменти.</translation>
 <translation id="6951435330868954105">Змінити типові налаштування</translation>
 <translation id="6951948201878750661">Торкніться, щоб вибрати колір</translation>
+<translation id="6954630860045222581">Показати панель</translation>
 <translation id="6967884871145366229">Налаштування приватності</translation>
 <translation id="6973630695168034713">Теки</translation>
 <translation id="7000227144065890583">Пропозиція URL</translation>
@@ -592,6 +599,7 @@
 <translation id="8066170816074394954">Помилка сервера.</translation>
 <translation id="8076492880354921740">Вкладки</translation>
 <translation id="8077675488769462025">Неактивні вкладки</translation>
+<translation id="8079925180539182073">Типову пошукову систему видалити неможливо.</translation>
 <translation id="8112996065264879835">Код не збігається з надісланим вам.
          Ви досягли максимуму невдалих спроб. Запитайте новий код за допомогою повторного надсилання.</translation>
 <translation id="8131740175452115882">Підтвердити</translation>
@@ -637,6 +645,7 @@
 <translation id="856439694359429369">Натисніть, щоб переглянути додаткові параметри, або двічі натисніть, щоб відкрити.</translation>
 <translation id="8591818185775466306">Видалити <ph name="ITEM_TYPE" /></translation>
 <translation id="8605953154325672921">Потрібно ім'я користувача</translation>
+<translation id="861259508026988871">Додати як пошукову систему</translation>
 <translation id="8675578805254882416">Отримання</translation>
 <translation id="8677007239430848917">Додайте свою першу нотатку, натиснувши нижче кнопку з плюсом</translation>
 <translation id="8684294196284714094">Готові призначити Vivaldi типовим браузером?</translation>

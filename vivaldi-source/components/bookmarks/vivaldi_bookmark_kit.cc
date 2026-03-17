@@ -549,8 +549,7 @@ bool IsChildOfTrashNode(BookmarkModel* model, const BookmarkNode* node) {
   return false;
 }
 
-std::vector<const BookmarkNode*> GetRootNodes(
-    BookmarkModel* model) {
+std::vector<const BookmarkNode*> GetRootNodes(BookmarkModel* model) {
   std::vector<const BookmarkNode*> root_nodes;
   if (!model)
     return root_nodes;
@@ -601,10 +600,10 @@ void SetNodeDescription(BookmarkModel* model,
 }
 
 void SetNodeDisplayURL(BookmarkModel* model,
-                        const BookmarkNode* node,
-                        const std::string& url) {
-    VivaldiBookmarkModelFriend::SetNodeMetaInfoWithIndexChange(
-            model, node, GetMetaNames().display_url, url);
+                       const BookmarkNode* node,
+                       const std::string& url) {
+  VivaldiBookmarkModelFriend::SetNodeMetaInfoWithIndexChange(
+      model, node, GetMetaNames().display_url, url);
 }
 
 void SetNodeSpeeddial(BookmarkModel* model,
@@ -634,14 +633,14 @@ void SetNodeThemeColor(BookmarkModel* model,
                          base::NumberToString(theme_color));
 }
 
-bool WriteBookmarkData(const base::Value::Dict& value,
+bool WriteBookmarkData(const base::DictValue& value,
                        BookmarkWriteFunc write_func,
                        BookmarkWriteFunc write_func_att) {
   static const char kNickLabel[] = "\" NICKNAME=\"";
   static const char kDescriptionLabel[] = "\" DESCRIPTION=\"";
   static const char kSpeedDialLabel[] = "\" SPEEDDIAL=\"";
 
-  const base::Value::Dict* meta_info =
+  const base::DictValue* meta_info =
       value.FindDict(bookmarks::BookmarkCodec::kMetaInfo);
   if (!meta_info)
     return true;
@@ -652,7 +651,8 @@ bool WriteBookmarkData(const base::Value::Dict& value,
   const std::string* speed_dial =
       meta_info->FindString(GetMetaNames().speeddial);
 
-  const auto escape_string_and_write = [&](const std::string* str, const auto label) {
+  const auto escape_string_and_write = [&](const std::string* str,
+                                           const auto label) {
     if (!str) {
       return false;
     }
@@ -689,7 +689,8 @@ void ReadBookmarkAttributes(BookmarkAttributeReadFunc GetAttribute,
   static const char kDescriptionAttrName[] = "DESCRIPTION";
   static const char kSpeedDialAttrName[] = "SPEEDDIAL";
 
-  const auto unescape_string_and_write = [&](std::u16string* str, const auto label) {
+  const auto unescape_string_and_write = [&](std::u16string* str,
+                                             const auto label) {
     if (!str) {
       return;
     }
@@ -699,7 +700,8 @@ void ReadBookmarkAttributes(BookmarkAttributeReadFunc GetAttribute,
       CodePagetoUTF16(*value, str);
       std::u16string multi_line_escaped = *str;
       // only 'true' <br> must be replaced
-      base::ReplaceSubstringsAfterOffset(&multi_line_escaped, 0, u"<br>", u"\n");
+      base::ReplaceSubstringsAfterOffset(&multi_line_escaped, 0, u"<br>",
+                                         u"\n");
       *str = base::UnescapeForHTML(multi_line_escaped);
     }
   };
@@ -707,7 +709,8 @@ void ReadBookmarkAttributes(BookmarkAttributeReadFunc GetAttribute,
   std::optional<std::string> value;
 
   unescape_string_and_write(nickname, std::string_view(kNickAttrName));
-  unescape_string_and_write(description, std::string_view(kDescriptionAttrName));
+  unescape_string_and_write(description,
+                            std::string_view(kDescriptionAttrName));
 
   if (is_speeddial_folder) {
     value = GetAttribute.Run(std::string_view(kSpeedDialAttrName));

@@ -49,7 +49,7 @@ source_set("whats_new") {
       "//ui/webui/resources/js/browser_command:mojo_bindings",
     ]
 
-    if (enable_glic) {
+    if (enable_glic) { # Vivaldi keep disabled
       public_deps += [ "//chrome/browser/glic" ]
     }
   }

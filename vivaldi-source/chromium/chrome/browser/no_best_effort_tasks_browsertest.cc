@@ -33,10 +33,10 @@
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "chrome/browser/extensions/scoped_test_mv2_enabler.h"
-#include "chrome/browser/extensions/unpacked_installer.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/test_extension_registry_observer.h"
+#include "extensions/browser/unpacked_installer.h"
 #include "extensions/common/extension.h"
 #endif
 
@@ -146,7 +146,7 @@ IN_PROC_BROWSER_TEST_F(NoBestEffortTasksTest,
 }
 
 // Verify that it is possible to load and paint a file:// URL without running
-// BEST_EFFORT tasks. Regression test for https://crbug.com/973244.
+// BEST_EFFORT tasks. Regression test for https://crbug.com/40631718.
 // TODO(crbug.com/40932711): Disabled due to excessive flakiness.
 IN_PROC_BROWSER_TEST_F(NoBestEffortTasksTest, DISABLED_LoadAndPaintFileScheme) {
   constexpr base::FilePath::CharType kFile[] = FILE_PATH_LITERAL("links.html");
@@ -167,10 +167,11 @@ IN_PROC_BROWSER_TEST_F(NoBestEffortTasksTest, DISABLED_LoadAndPaintFileScheme) {
 }
 
 // Verify that an extension can be loaded and perform basic messaging without
-// running BEST_EFFORT tasks. Regression test for http://crbug.com/177163#c112.
+// running BEST_EFFORT tasks. Regression test for
+// http://crbug.com/40302452#c112.
 //
 // NOTE: If this test times out, it might help to look at how
-// http://crbug.com/924416 was resolved.
+// http://crbug.com/41436919 was resolved.
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 IN_PROC_BROWSER_TEST_F(NoBestEffortTasksTest, LoadExtensionAndSendMessages) {
   // TODO(https://crbug.com/40804030): Remove this when updated to use MV3.
@@ -242,7 +243,7 @@ IN_PROC_BROWSER_TEST_F(NoBestEffortTasksTest, LoadExtensionAndSendMessages) {
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
 // Verify that Blob XMLHttpRequest finishes without running BEST_EFFORT tasks.
-// Regression test for https://crbug.com/989868.
+// Regression test for https://crbug.com/40638518.
 IN_PROC_BROWSER_TEST_F(NoBestEffortTasksTest, BlobXMLHttpRequest) {
   ASSERT_TRUE(embedded_test_server()->Start());
   ASSERT_TRUE(ui_test_utils::NavigateToURL(

@@ -914,7 +914,11 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     getter maxSampledTexturesPerShaderStage
 [Worker]     getter maxSamplersPerShaderStage
 [Worker]     getter maxStorageBufferBindingSize
+[Worker]     getter maxStorageBuffersInFragmentStage
+[Worker]     getter maxStorageBuffersInVertexStage
 [Worker]     getter maxStorageBuffersPerShaderStage
+[Worker]     getter maxStorageTexturesInFragmentStage
+[Worker]     getter maxStorageTexturesInVertexStage
 [Worker]     getter maxStorageTexturesPerShaderStage
 [Worker]     getter maxTextureArrayLayers
 [Worker]     getter maxTextureDimension1D
@@ -937,6 +941,7 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     getter label
 [Worker]     getter mipLevelCount
 [Worker]     getter sampleCount
+[Worker]     getter textureBindingViewDimension
 [Worker]     getter usage
 [Worker]     getter width
 [Worker]     method constructor
@@ -1457,6 +1462,13 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     setter textBaseline
 [Worker]     setter textRendering
 [Worker]     setter wordSpacing
+[Worker] interface Origin
+[Worker]     static method from
+[Worker]     attribute @@toStringTag
+[Worker]     getter opaque
+[Worker]     method constructor
+[Worker]     method isSameOrigin
+[Worker]     method isSameSite
 [Worker] interface Path2D
 [Worker]     attribute @@toStringTag
 [Worker]     method addPath
@@ -2274,6 +2286,7 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     method close
 [Worker]     method constructor
 [Worker]     method copyTo
+[Worker]     method metadata
 [Worker] interface WGSLLanguageFeatures
 [Worker]     attribute @@toStringTag
 [Worker]     getter size
@@ -3850,6 +3863,7 @@ Starting worker: resources/global-interface-listing-worker.js
 [Worker]     attribute RENDER_ATTACHMENT
 [Worker]     attribute STORAGE_BINDING
 [Worker]     attribute TEXTURE_BINDING
+[Worker]     attribute TRANSIENT_ATTACHMENT
 [Worker] namespace Temporal
 [Worker]     attribute @@toStringTag
 [Worker]     attribute Now

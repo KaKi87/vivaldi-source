@@ -11,8 +11,16 @@
 #include <type_traits>
 #include <vector>
 
+#include "base/base64.h"
+#include "base/strings/strcat.h"
 #include "base/test/test_future.h"
 #include "base/time/time.h"
+#include "base/types/expected.h"
+#include "chrome/browser/actor/actor_tab_data.h"
+#include "chrome/browser/actor/actor_task.h"
+#include "chrome/browser/actor/enterprise_policy_url_checker.h"
+#include "chrome/browser/actor/execution_engine.h"
+#include "chrome/browser/actor/shared_types.h"
 #include "chrome/browser/actor/tools/media_control_tool_request.h"
 #include "chrome/browser/actor/tools/tool_request.h"
 #include "chrome/browser/actor/ui/event_dispatcher.h"
@@ -21,7 +29,9 @@
 #include "chrome/common/actor/task_id.h"
 #include "components/optimization_guide/proto/features/actions_data.pb.h"
 #include "components/sessions/core/session_id.h"
+#include "components/tabs/public/mock_tab_interface.h"
 #include "components/tabs/public/tab_interface.h"
+#include "third_party/protobuf/src/google/protobuf/descriptor.h"
 #include "ui/gfx/geometry/point.h"
 
 namespace base {
@@ -123,7 +133,6 @@ optimization_guide::proto::Actions MakeDragAndRelease(
 optimization_guide::proto::Actions MakeWait(
     std::optional<base::TimeDelta> duration = std::nullopt,
     std::optional<tabs::TabHandle> observe_tab_handle = std::nullopt);
-optimization_guide::proto::Actions MakeAttemptLogin();
 optimization_guide::proto::Actions MakeScriptTool(
     content::RenderFrameHost& rfh,
     const std::string& name,
@@ -172,7 +181,12 @@ std::unique_ptr<ToolRequest> MakeWaitRequest(
     tabs::TabInterface* observe_tab = nullptr);
 std::unique_ptr<ToolRequest> MakeCreateTabRequest(SessionID window_id,
                                                   bool foreground);
-std::unique_ptr<ToolRequest> MakeAttemptLoginRequest(tabs::TabInterface& tab);
+std::unique_ptr<ToolRequest> MakeActivateTabRequest(tabs::TabHandle tab);
+std::unique_ptr<ToolRequest> MakeCloseTabRequest(tabs::TabHandle tab);
+std::unique_ptr<ToolRequest> MakeAttemptLoginRequest(
+    tabs::TabInterface& tab,
+    std::optional<PageTarget> password_button = std::nullopt,
+    std::optional<PageTarget> sign_in_with_google_button = std::nullopt);
 std::unique_ptr<ToolRequest> MakeScriptToolRequest(
     content::RenderFrameHost& rfh,
     const std::string& name,
@@ -197,12 +211,7 @@ std::vector<std::unique_ptr<ToolRequest>> ToRequestList(T&& first,
   std::vector<std::unique_ptr<ToolRequest>> items;
   items.reserve(1 + sizeof...(rest));
   items.push_back(std::move(first));
-
-  // This is a hack to push_back each item from the pack using pack expansion.
-  // Fold expressions would make this cleaner but aren't yet allowed in
-  // Chromium.
-  int dummy[] = {0, (items.push_back(std::move(rest)), 0)...};
-  (void)dummy;
+  (items.push_back(std::move(rest)), ...);
 
   return items;
 }
@@ -217,12 +226,91 @@ void ExpectErrorResult(PerformActionsFuture& future,
                        mojom::ActionResultCode expected_code);
 void PrintTo(const mojom::ActionResultCode& code, std::ostream* os);
 
-// Sets up GLIC_ACTION_PAGE_BLOCK to block the given host.
+// Sets up GLIC_ACTION_PAGE_BLOCK to block the given host via component updater.
+bool SetUpOptimizationGuideComponentBlocklist(const base::FilePath& path,
+                                              const std::string& blocked_host);
+
+// Sets up GLIC_ACTION_PAGE_BLOCK to block the given host via the command line.
 void SetUpBlocklist(base::CommandLine* command_line,
                     const std::string& blocked_host);
 
 // For tests with link pages whose destination is encoded in URL parameters.
 std::string EncodeURI(const std::string& component);
+
+// Helper to parse a Base64 string into a protobuf of type `ProtoType`.
+template <typename ProtoType>
+base::expected<ProtoType, std::string> ParseBase64Proto(
+    std::string_view base64_string) {
+  std::string decoded_result;
+  if (!base::Base64Decode(base64_string, &decoded_result)) {
+    return base::unexpected(
+        base::StrCat({"Failed to Base64-decode the result (", base64_string,
+                      ") from JavaScript."}));
+  }
+  ProtoType proto_result;
+  proto_result.ParseFromString(decoded_result);
+  return base::ok(proto_result);
+}
+
+// Helper used to wait on an ExecutionEngine state transition. The provided
+// callback is synchronously invoked when ExecutionEngine transitions to the
+// target state.
+class ExecutionEngineStateWaiter : public ExecutionEngine::StateObserver {
+ public:
+  ExecutionEngineStateWaiter(base::OnceClosure callback,
+                             ExecutionEngine& execution_engine,
+                             ExecutionEngine::State target_state);
+  ~ExecutionEngineStateWaiter() override;
+
+  // `ExecutionEngine::StateObserver`:
+  void OnStateChanged(ExecutionEngine::State old_state,
+                      ExecutionEngine::State new_state) override;
+
+ private:
+  base::OnceClosure callback_;
+  const base::WeakPtr<ExecutionEngine> execution_engine_;
+  ExecutionEngine::State target_state_;
+};
+
+// Use this RAII helper to provide a factory function for constructing
+// ExecutionEngine. This allows tests to provide a mock ExecutionEngine or one
+// constructed specially to be instrumented for testing.
+class ScopedExecutionEngineFactory {
+ public:
+  explicit ScopedExecutionEngineFactory(
+      ExecutionEngine::FactoryFunction factory);
+  ~ScopedExecutionEngineFactory();
+};
+
+class MockPolicyChecker : public EnterprisePolicyUrlChecker {
+ public:
+  explicit MockPolicyChecker(EnterprisePolicyBlockReason reason);
+  ~MockPolicyChecker();
+
+  EnterprisePolicyBlockReason Evaluate(const GURL& url) const override;
+ private:
+  EnterprisePolicyBlockReason reason_;
+};
+
+// Returns a passthrough EnterprisePolicyUrlChecker tests can use to avoid
+// policy checks.
+const EnterprisePolicyUrlChecker* NoEnterprisePolicyChecker();
+
+// Helper struct for unit tests that require a mock TabInterface and its
+// associated ActorTabData.
+struct TestTabState {
+  explicit TestTabState(content::WebContents* web_contents = nullptr);
+  ~TestTabState();
+
+  using WillDetachCallbackList =
+      base::RepeatingCallbackList<void(tabs::TabInterface*,
+                                       tabs::TabInterface::DetachReason)>;
+  WillDetachCallbackList will_detach_callback_list_;
+
+  tabs::MockTabInterface tab;
+  ::ui::UnownedUserDataHost user_data_host;
+  std::unique_ptr<ActorTabData> tab_data;
+};
 
 }  // namespace actor
 

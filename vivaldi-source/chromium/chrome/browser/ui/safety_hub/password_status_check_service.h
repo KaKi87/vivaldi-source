@@ -5,6 +5,7 @@
 #ifndef CHROME_BROWSER_UI_SAFETY_HUB_PASSWORD_STATUS_CHECK_SERVICE_H_
 #define CHROME_BROWSER_UI_SAFETY_HUB_PASSWORD_STATUS_CHECK_SERVICE_H_
 
+#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/timer/timer.h"
@@ -66,10 +67,10 @@ class PasswordStatusCheckService
   void UpdateInsecureCredentialCountAsync();
 
   // Helper function for displaying the status in UI given the sign-in state.
-  base::Value::Dict GetPasswordCardData(bool signed_in);
+  base::DictValue GetPasswordCardData(bool signed_in);
 
   // Helper function for displaying the current status in the UI.
-  base::Value::Dict GetPasswordCardData();
+  base::DictValue GetPasswordCardData();
 
   // Returns the latest PasswordStatusCheckResult that is available in memory.
   // TODO(crbug.com/40267370): This will be a SafetyHubResult implementation.

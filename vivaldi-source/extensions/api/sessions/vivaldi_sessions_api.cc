@@ -15,6 +15,7 @@
 #include "app/vivaldi_constants.h"
 #include "base/functional/bind.h"
 #include "base/i18n/time_formatting.h"
+#include "base/lazy_instance.h"
 #include "base/strings/string_util.h"
 #include "base/task/thread_pool.h"
 #include "browser/sessions/vivaldi_session_service.h"
@@ -25,16 +26,17 @@
 #include "chrome/browser/extensions/extension_tab_util.h"
 #include "chrome/browser/extensions/tab_helper.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/sessions/session_service_factory.h"
 #include "chrome/browser/sync/session_sync_service_factory.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/startup/startup_tab.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
-#include "chrome/browser/sessions/session_service_factory.h"
 #include "components/datasource/vivaldi_image_store.h"
-#include "components/sessions/content/content_serialized_navigation_builder.h"
 #include "components/prefs/pref_service.h"
+#include "components/sessions/content/content_serialized_navigation_builder.h"
 #include "components/sessions/core/session_service_commands.h"
 #include "components/sessions/vivaldi_session_service_commands.h"
 #include "components/sync_sessions/open_tabs_ui_delegate.h"
@@ -60,9 +62,9 @@ using sessions::Index_Node;
 using sessions::IndexServiceFactory;
 
 using extensions::vivaldi::sessions_private::ContentModel;
+using extensions::vivaldi::sessions_private::TabContent;
 using extensions::vivaldi::sessions_private::WindowContent;
 using extensions::vivaldi::sessions_private::WorkspaceContent;
-using extensions::vivaldi::sessions_private::TabContent;
 
 namespace {
 
@@ -73,7 +75,7 @@ NodeModel GetNodeAndModel(BrowserContext* browser_context, int id) {
   Index_Node* node;
 
   model = IndexServiceFactory::GetForBrowserContext(browser_context);
-  node = model->items_node() ?  model->items_node()->GetById(id) : nullptr;
+  node = model->items_node() ? model->items_node()->GetById(id) : nullptr;
   if (node) {
     return std::make_pair(node, model);
   } else {
@@ -89,7 +91,7 @@ NodeModel GetNodeAndModel(BrowserContext* browser_context, int id) {
 }
 
 Index_Node* FindNode(Index_Node* seed, const std::string& guid) {
-  for(; seed; seed = seed->parent()) {
+  for (; seed; seed = seed->parent()) {
     if (seed->id() == Index_Node::items_node_id()) {
       return seed->GetByGuid(guid);
     }
@@ -101,8 +103,8 @@ int MakeBackup(BrowserContext* browser_context) {
   sessions::WriteSessionOptions ctl;
   ctl.filename = "backup";
 
-  NodeModel pair = GetNodeAndModel(
-      browser_context, Index_Node::backup_node_id());
+  NodeModel pair =
+      GetNodeAndModel(browser_context, Index_Node::backup_node_id());
   if (pair.first) {
     // Node exists. Just update session file.
     // TODO: Perhaps rename old, write new, remove (or restore) old.
@@ -126,8 +128,8 @@ int MakeBackup(BrowserContext* browser_context) {
     // Write node for the first time.
     int error_code = sessions::WriteSessionFile(browser_context, ctl);
     if (error_code == sessions::kNoError) {
-      Index_Model* model = IndexServiceFactory::GetForBrowserContext(
-          browser_context);
+      Index_Model* model =
+          IndexServiceFactory::GetForBrowserContext(browser_context);
       std::unique_ptr<Index_Node> node = std::make_unique<Index_Node>(
           Index_Node::backup_node_guid(), Index_Node::backup_node_id());
       SetNodeState(browser_context, ctl.path, true, node.get());
@@ -141,10 +143,10 @@ int MakeBackup(BrowserContext* browser_context) {
 }  // namespace
 
 namespace extensions {
+using extensions::vivaldi::sessions_private::ContentModel;
+using extensions::vivaldi::sessions_private::GroupName;
 using extensions::vivaldi::sessions_private::SessionItem;
 using extensions::vivaldi::sessions_private::WorkspaceItem;
-using extensions::vivaldi::sessions_private::GroupName;
-using extensions::vivaldi::sessions_private::ContentModel;
 
 SessionItem MakeAPITreeNode(Index_Node* node, Index_Node* parent) {
   SessionItem api_node;
@@ -177,7 +179,7 @@ SessionItem MakeAPITreeNode(Index_Node* node, Index_Node* parent) {
   api_node.quarantined = node->quarantine_count();
   std::vector<WorkspaceItem> workspaces;
   for (const auto& elm : node->workspaces()) {
-    const base::Value::Dict* dict = elm.GetIfDict();
+    const base::DictValue* dict = elm.GetIfDict();
     if (dict) {
       std::optional<bool> active = dict->FindBool("active");
       // Test for has_value() as the flag was not present in the first version.
@@ -226,11 +228,9 @@ SessionItem MakeAPITreeNode(Index_Node* node, Index_Node* parent) {
 }
 
 void SortTabs(std::vector<TabContent>& tabs) {
-  std::sort(tabs.begin(), tabs.end(),
-            [](TabContent& tab1,
-               TabContent& tab2) {
-              return tab1.index < tab2.index;
-            });
+  std::sort(tabs.begin(), tabs.end(), [](TabContent& tab1, TabContent& tab2) {
+    return tab1.index < tab2.index;
+  });
 }
 
 void MakeAPIContentModel(content::BrowserContext* browser_context,
@@ -243,7 +243,7 @@ void MakeAPIContentModel(content::BrowserContext* browser_context,
   sessions::GetContent(path, content);
 
   for (const auto& elm : node->workspaces()) {
-    const base::Value::Dict* dict = elm.GetIfDict();
+    const base::DictValue* dict = elm.GetIfDict();
     if (dict) {
       std::optional<double> workspace_id = dict->FindDouble("id");
       if (workspace_id.has_value()) {
@@ -266,13 +266,12 @@ void MakeAPIContentModel(content::BrowserContext* browser_context,
     }
   }
 
-  for (auto wit = content.windows.begin();
-       wit != content.windows.end();
+  for (auto wit = content.windows.begin(); wit != content.windows.end();
        ++wit) {
     // Tab stack titles are no longer saved to window ext data with VB-23686.
     // We read them should the file be an older version and apply content to
     // the tab elements below.
-    std::unique_ptr<base::Value::Dict> tab_stacks(
+    std::unique_ptr<base::DictValue> tab_stacks(
         sessions::GetTabStackTitles(wit->second.get()));
 
     WindowContent window;
@@ -312,7 +311,7 @@ void MakeAPIContentModel(content::BrowserContext* browser_context,
         }
         // Read from title from tab ext data.
         sessions::GetFixedTabTitles(tit->second.get(), tab.fixed_name,
-            tab.fixed_group_name);
+                                    tab.fixed_group_name);
 
         std::optional<double> id =
             ::vivaldi::GetTabWorkspaceId(tit->second->viv_ext_data);
@@ -320,8 +319,7 @@ void MakeAPIContentModel(content::BrowserContext* browser_context,
           // Add tab to workspace.
           bool match = false;
           for (auto wsit = model.workspaces.begin();
-               !match && wsit != model.workspaces.end();
-               ++wsit) {
+               !match && wsit != model.workspaces.end(); ++wsit) {
             match = id.value() == wsit->id;
             if (match) {
               wsit->tabs.push_back(std::move(tab));
@@ -349,14 +347,13 @@ void MakeAPIContentModel(content::BrowserContext* browser_context,
   for (auto& workspace : model.workspaces) {
     SortTabs(workspace.tabs);
   }
-
 }
 
 static base::LazyInstance<BrowserContextKeyedAPIFactory<SessionsPrivateAPI>>::
     DestructorAtExit g_session_private = LAZY_INSTANCE_INITIALIZER;
 
 SessionsPrivateAPI::SessionsPrivateAPI(content::BrowserContext* context)
-  : browser_context_(context) {
+    : browser_context_(context) {
   model_ = sessions::IndexServiceFactory::GetForBrowserContext(context);
   model_->AddObserver(this);
 }
@@ -382,13 +379,17 @@ void SessionsPrivateAPI::IndexModelBeingDeleted(Index_Model* model) {
 
 void SessionsPrivateAPI::IndexModelNodeAdded(Index_Model* model,
                                              Index_Node* node,
-                                             int64_t parent_id, size_t index,
+                                             int64_t parent_id,
+                                             size_t index,
                                              const std::string& owner) {
-  SessionsPrivateAPI::SendAdded(browser_context_, node, parent_id, index, owner);
+  SessionsPrivateAPI::SendAdded(browser_context_, node, parent_id, index,
+                                owner);
 }
 
-void SessionsPrivateAPI::IndexModelNodeMoved(Index_Model* model, int64_t id,
-                                             int64_t parent_id, size_t index) {
+void SessionsPrivateAPI::IndexModelNodeMoved(Index_Model* model,
+                                             int64_t id,
+                                             int64_t parent_id,
+                                             size_t index) {
   SendMoved(browser_context_, id, parent_id, index);
 }
 
@@ -401,13 +402,12 @@ void SessionsPrivateAPI::IndexModelNodeRemoved(Index_Model* model, int64_t id) {
   SendDeleted(browser_context_, id);
 }
 
-//static
-void SessionsPrivateAPI::SendAdded(
-    content::BrowserContext* browser_context,
-    Index_Node* node,
-    int parent_id,
-    int index,
-    const std::string& owner) {
+// static
+void SessionsPrivateAPI::SendAdded(content::BrowserContext* browser_context,
+                                   Index_Node* node,
+                                   int parent_id,
+                                   int index,
+                                   const std::string& owner) {
   vivaldi::sessions_private::SessionChangeData data;
   data.owner = owner;
   data.parent_id = parent_id;
@@ -415,32 +415,30 @@ void SessionsPrivateAPI::SendAdded(
   if (node->parent()->id()) {
     data.item = MakeAPITreeNode(node, node->parent());
   }
-  ::vivaldi::BroadcastEvent(vivaldi::sessions_private::OnChanged::kEventName,
-                            vivaldi::sessions_private::OnChanged::Create(
-                              node->id(), vivaldi::sessions_private::SessionChange::kAdded,
-                              data),
-                            browser_context);
+  ::vivaldi::BroadcastEvent(
+      vivaldi::sessions_private::OnChanged::kEventName,
+      vivaldi::sessions_private::OnChanged::Create(
+          node->id(), vivaldi::sessions_private::SessionChange::kAdded, data),
+      browser_context);
 }
 
 // static
-void SessionsPrivateAPI::SendDeleted(
-  content::BrowserContext* browser_context, int id) {
+void SessionsPrivateAPI::SendDeleted(content::BrowserContext* browser_context,
+                                     int id) {
   vivaldi::sessions_private::SessionChangeData data;
   data.owner = "";
   data.parent_id = -1;
   data.index = -1;
-  ::vivaldi::BroadcastEvent(vivaldi::sessions_private::OnChanged::kEventName,
-                            vivaldi::sessions_private::OnChanged::Create(
-                              id, vivaldi::sessions_private::SessionChange::kDeleted,
-                              data),
-                            browser_context);
+  ::vivaldi::BroadcastEvent(
+      vivaldi::sessions_private::OnChanged::kEventName,
+      vivaldi::sessions_private::OnChanged::Create(
+          id, vivaldi::sessions_private::SessionChange::kDeleted, data),
+      browser_context);
 }
 
 // static
-void SessionsPrivateAPI::SendChanged(
-  content::BrowserContext* browser_context,
-  Index_Node* node
-) {
+void SessionsPrivateAPI::SendChanged(content::BrowserContext* browser_context,
+                                     Index_Node* node) {
   vivaldi::sessions_private::SessionChangeData data;
   data.owner = "";
   data.parent_id = -1;
@@ -448,20 +446,18 @@ void SessionsPrivateAPI::SendChanged(
   if (node->parent()->id()) {
     data.item = MakeAPITreeNode(node, node->parent());
   }
-  ::vivaldi::BroadcastEvent(vivaldi::sessions_private::OnChanged::kEventName,
-                            vivaldi::sessions_private::OnChanged::Create(
-                              node->id(), vivaldi::sessions_private::SessionChange::kChanged,
-                              data),
-                            browser_context);
+  ::vivaldi::BroadcastEvent(
+      vivaldi::sessions_private::OnChanged::kEventName,
+      vivaldi::sessions_private::OnChanged::Create(
+          node->id(), vivaldi::sessions_private::SessionChange::kChanged, data),
+      browser_context);
 }
 
 // static
-void SessionsPrivateAPI::SendMoved(
-  content::BrowserContext* browser_context,
-  int id,
-  int parent_id,
-  int index
-) {
+void SessionsPrivateAPI::SendMoved(content::BrowserContext* browser_context,
+                                   int id,
+                                   int parent_id,
+                                   int index) {
   vivaldi::sessions_private::SessionChangeData data;
   data.owner = "";
   data.parent_id = parent_id;
@@ -472,29 +468,28 @@ void SessionsPrivateAPI::SendMoved(
     data.item = MakeAPITreeNode(pair.first, pair.first->parent());
   }
 
-  ::vivaldi::BroadcastEvent(vivaldi::sessions_private::OnChanged::kEventName,
-                            vivaldi::sessions_private::OnChanged::Create(
-                              id, vivaldi::sessions_private::SessionChange::kMoved,
-                              data),
-                            browser_context);
+  ::vivaldi::BroadcastEvent(
+      vivaldi::sessions_private::OnChanged::kEventName,
+      vivaldi::sessions_private::OnChanged::Create(
+          id, vivaldi::sessions_private::SessionChange::kMoved, data),
+      browser_context);
 }
 
 // static
 void SessionsPrivateAPI::SendContentChanged(
-  content::BrowserContext* browser_context,
-  int id,
-  ContentModel& content) {
+    content::BrowserContext* browser_context,
+    int id,
+    ContentModel& content) {
   vivaldi::sessions_private::SessionChangeData data;
   data.owner = "";
   data.parent_id = -1;
   data.index = -1;
   data.content = std::move(content);
-  ::vivaldi::BroadcastEvent(vivaldi::sessions_private::OnChanged::kEventName,
-                            vivaldi::sessions_private::OnChanged::Create(
-                              id,
-                              vivaldi::sessions_private::SessionChange::kContent,
-                              data),
-                            browser_context);
+  ::vivaldi::BroadcastEvent(
+      vivaldi::sessions_private::OnChanged::kEventName,
+      vivaldi::sessions_private::OnChanged::Create(
+          id, vivaldi::sessions_private::SessionChange::kContent, data),
+      browser_context);
 }
 
 // static
@@ -540,50 +535,58 @@ ExtensionFunction::ResponseAction SessionsPrivateAddFunction::Run() {
 
   // Collects all the thumbnails URLs used by the session to be saved,
   // read their content into the Batch and store them in the session file.
-  VivaldiImageStore::BatchRead(browser_context(),
+  VivaldiImageStore::BatchRead(
+      browser_context(),
       sessions::CollectThumbnailUrls(browser_context(), ctl_),
-      base::BindOnce([](scoped_refptr<SessionsPrivateAddFunction> fn,
-        VivaldiImageStore::Batch batch) -> void
-  {
-    // called, when the batch is ready
-    const SessionAddOptions& options = fn->params->options;
-    NodeModel pair = GetNodeAndModel(fn->browser_context(), options.parent_id);
-    if (!pair.first) {
-      fn->Respond(fn->ArgumentList(Results::Create(sessions::kErrorUnknownId)));
-      return;
-    }
+      base::BindOnce(
+          [](scoped_refptr<SessionsPrivateAddFunction> fn,
+             VivaldiImageStore::Batch batch) -> void {
+            // called, when the batch is ready
+            const SessionAddOptions& options = fn->params->options;
+            NodeModel pair =
+                GetNodeAndModel(fn->browser_context(), options.parent_id);
+            if (!pair.first) {
+              fn->Respond(
+                  fn->ArgumentList(Results::Create(sessions::kErrorUnknownId)));
+              return;
+            }
 
-    fn->ctl_.thumbnails.swap(batch);
+            fn->ctl_.thumbnails.swap(batch);
 
-    Profile* profile = Profile::FromBrowserContext(fn->browser_context());
-    bool with_workspaces = profile->GetPrefs()->GetBoolean(
-          vivaldiprefs::kSessionsSaveAllWorkspaces);
+            Profile* profile =
+                Profile::FromBrowserContext(fn->browser_context());
+            bool with_workspaces = profile->GetPrefs()->GetBoolean(
+                vivaldiprefs::kSessionsSaveAllWorkspaces);
 
-    int error_code = sessions::WriteSessionFile(fn->browser_context(), fn->ctl_);
-    if (error_code == sessions::kNoError) {
-      int id = Index_Node::GetNewId();
-      std::unique_ptr<Index_Node> node = std::make_unique<Index_Node>(
-          base::Uuid::GenerateRandomV4().AsLowercaseString(), id);
-      SetNodeState(fn->browser_context(), fn->ctl_.path, true, node.get());
-      if (!with_workspaces) {
-        base::Value::List workspaces;
-        node->SetWorkspaces(std::move(workspaces));
-      }
-      node->SetTitle(base::UTF8ToUTF16(options.name));
-      node->SetFilename(fn->ctl_.filename);
-      // SetNodeState sets create time to now. Revert that when copying.
-      if (options.from_id.has_value()) {
-        Index_Node* from = pair.second->root_node()->GetById(
-            options.from_id.value());
-        if (from) {
-          node->SetCreateTime(from->create_time());
-        }
-      }
-      pair.second->Add(std::move(node), pair.first, options.index, options.owner);
-    }
+            int error_code =
+                sessions::WriteSessionFile(fn->browser_context(), fn->ctl_);
+            if (error_code == sessions::kNoError) {
+              int id = Index_Node::GetNewId();
+              std::unique_ptr<Index_Node> node = std::make_unique<Index_Node>(
+                  base::Uuid::GenerateRandomV4().AsLowercaseString(), id);
+              SetNodeState(fn->browser_context(), fn->ctl_.path, true,
+                           node.get());
+              if (!with_workspaces) {
+                base::ListValue workspaces;
+                node->SetWorkspaces(std::move(workspaces));
+              }
+              node->SetTitle(base::UTF8ToUTF16(options.name));
+              node->SetFilename(fn->ctl_.filename);
+              // SetNodeState sets create time to now. Revert that when copying.
+              if (options.from_id.has_value()) {
+                Index_Node* from =
+                    pair.second->root_node()->GetById(options.from_id.value());
+                if (from) {
+                  node->SetCreateTime(from->create_time());
+                }
+              }
+              pair.second->Add(std::move(node), pair.first, options.index,
+                               options.owner);
+            }
 
-    fn->Respond(fn->ArgumentList(Results::Create(error_code)));
-  }, scoped_refptr<SessionsPrivateAddFunction>(this)));
+            fn->Respond(fn->ArgumentList(Results::Create(error_code)));
+          },
+          scoped_refptr<SessionsPrivateAddFunction>(this)));
 
   return RespondLater();
 }
@@ -618,11 +621,16 @@ void SessionsPrivateGetAllFunction::IndexModelLoaded(Index_Model* model) {
 // moment but it may be expanded due to extensions that allow Vivaldi to run in
 // background with not windows for all Linux and Windows as well.
 void SessionsPrivateGetAllFunction::Piggyback() {
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    VivaldiBrowserWindow* window = VivaldiBrowserWindow::FromBrowser(browser);
-    if (window && window->type() == VivaldiBrowserWindow::NORMAL) {
+  std::vector<BrowserWindowInterface*> all_browsers =
+      GetAllBrowserWindowInterfaces();
+  for (auto* browser_window_interface : all_browsers) {
+    VivaldiBrowserWindow* window = static_cast<VivaldiBrowserWindow*>(
+        browser_window_interface->GetWindow());
+
+    if (window && window->window_type() == VivaldiBrowserWindow::NORMAL) {
       // Open in first browser with correct profile.
-      int error_code = sessions::OpenPersistentTabs(browser, true);
+      int error_code =
+          sessions::OpenPersistentTabs(browser_window_interface, true);
       if (error_code != sessions::kErrorWrongProfile) {
         break;
       }
@@ -637,8 +645,8 @@ void SessionsPrivateGetAllFunction::SendResponse(Index_Model* model) {
 
   SessionModel session_model;
   for (auto& child : model->items_node()->children()) {
-    session_model.items.push_back(MakeAPITreeNode(child.get(),
-                                                  model->items_node()));
+    session_model.items.push_back(
+        MakeAPITreeNode(child.get(), model->items_node()));
   }
   session_model.root_id = Index_Node::items_node_id();
   session_model.autosave_id = Index_Node::autosave_node_id();
@@ -654,9 +662,7 @@ ExtensionFunction::ResponseAction SessionsPrivateGetAutosaveIdsFunction::Run() {
   std::optional<Params> params = Params::Create(args());
 
   std::vector<Index_Node*> nodes;
-  sessions::GetExpiredAutoSaveNodes(browser_context(),
-                                    params->days,
-                                    false,
+  sessions::GetExpiredAutoSaveNodes(browser_context(), params->days, false,
                                     nodes);
   std::vector<double> list;
   for (const Index_Node* node : nodes) {
@@ -667,11 +673,11 @@ ExtensionFunction::ResponseAction SessionsPrivateGetAutosaveIdsFunction::Run() {
 
 ExtensionFunction::ResponseAction SessionsPrivateGetContentFunction::Run() {
   namespace Results = vivaldi::sessions_private::GetContent::Results;
-  using vivaldi::sessions_private::GetContent::Params;
   using extensions::vivaldi::sessions_private::ContentModel;
+  using extensions::vivaldi::sessions_private::TabContent;
   using extensions::vivaldi::sessions_private::WindowContent;
   using extensions::vivaldi::sessions_private::WorkspaceContent;
-  using extensions::vivaldi::sessions_private::TabContent;
+  using vivaldi::sessions_private::GetContent::Params;
 
   std::optional<Params> params = Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
@@ -706,15 +712,15 @@ ExtensionFunction::ResponseAction SessionsPrivateModifyContentFunction::Run() {
     ids.push_back(static_cast<int32_t>(id));
   }
 
-  base::FilePath path = sessions::GetPathFromNode(browser_context(),
-                                                  pair.first);
+  base::FilePath path =
+      sessions::GetPathFromNode(browser_context(), pair.first);
 
   bool changed = false;
   if (params->commands.quarantine.has_value() ||
       params->commands.remove.has_value()) {
     if (params->commands.quarantine.has_value()) {
       int error_code = sessions::QuarantineTabs(
-        browser_context(), path, params->commands.quarantine.value(), ids);
+          browser_context(), path, params->commands.quarantine.value(), ids);
       changed = error_code == sessions::kNoError;
     } else {
       int error_code = sessions::DeleteTabs(browser_context(), path, ids);
@@ -734,7 +740,7 @@ ExtensionFunction::ResponseAction SessionsPrivateModifyContentFunction::Run() {
     }
   } else if (params->commands.title.has_value() &&
              params->commands.ids.size() >= 1) {
-    switch(params->commands.type) {
+    switch (params->commands.type) {
       case vivaldi::sessions_private::ContentType::kWorkspace: {
         // Workspace titles are stored in the the session index file.
         // TODO: The primary storage should be the session file itself. We then
@@ -745,9 +751,9 @@ ExtensionFunction::ResponseAction SessionsPrivateModifyContentFunction::Run() {
         std::unique_ptr<Index_Node> node = std::make_unique<Index_Node>("", -1);
         node->Copy(pair.first);
 
-        base::Value::List workspaces(pair.first->workspaces().Clone());
+        base::ListValue workspaces(pair.first->workspaces().Clone());
         for (auto& elm : workspaces) {
-          base::Value::Dict* dict = elm.GetIfDict();
+          base::DictValue* dict = elm.GetIfDict();
           if (dict) {
             std::optional<double> workspace_id = dict->FindDouble("id");
             if (workspace_id.value() == id) {
@@ -763,15 +769,15 @@ ExtensionFunction::ResponseAction SessionsPrivateModifyContentFunction::Run() {
         }
         break;
       }
-      case vivaldi::sessions_private::ContentType::kGroup : {
-        int error_code = sessions::SetTabStackTitle(browser_context(),
-          path, ids, params->commands.title.value());
+      case vivaldi::sessions_private::ContentType::kGroup: {
+        int error_code = sessions::SetTabStackTitle(
+            browser_context(), path, ids, params->commands.title.value());
         changed = error_code == sessions::kNoError;
         break;
       }
-      case vivaldi::sessions_private::ContentType::kTab : {
-        int error_code = sessions::SetTabTitle(browser_context(),
-          path, ids[0], params->commands.title.value());
+      case vivaldi::sessions_private::ContentType::kTab: {
+        int error_code = sessions::SetTabTitle(browser_context(), path, ids[0],
+                                               params->commands.title.value());
         changed = error_code == sessions::kNoError;
         break;
       }
@@ -779,13 +785,13 @@ ExtensionFunction::ResponseAction SessionsPrivateModifyContentFunction::Run() {
         break;
     }
   } else if (params->commands.pin.has_value()) {
-    int error_code = sessions::PinTabs(browser_context(),
-      path, params->commands.pin.value(), ids);
+    int error_code = sessions::PinTabs(browser_context(), path,
+                                       params->commands.pin.value(), ids);
     changed = error_code == sessions::kNoError;
   } else if (params->commands.move.has_value()) {
     if (params->commands.target.has_value()) {
       int before_tab_id =
-        static_cast<int32_t>(params->commands.target.value().before_tab_id);
+          static_cast<int32_t>(params->commands.target.value().before_tab_id);
 
       std::optional<int32_t> window_id;
       if (params->commands.target.value().window_id.has_value()) {
@@ -793,17 +799,18 @@ ExtensionFunction::ResponseAction SessionsPrivateModifyContentFunction::Run() {
             params->commands.target.value().window_id.value());
       }
 
-      int error_code = sessions::MoveTabs(browser_context(),
-        path, ids, before_tab_id, window_id, params->commands.target->pinned,
-        params->commands.target->group, params->commands.target->workspace);
+      int error_code = sessions::MoveTabs(
+          browser_context(), path, ids, before_tab_id, window_id,
+          params->commands.target->pinned, params->commands.target->group,
+          params->commands.target->workspace);
       changed = error_code == sessions::kNoError;
     }
   } else if (params->commands.tabstack.has_value()) {
     if (params->commands.tabstack.value()) {
       if (params->commands.target.value().group.has_value()) {
-        std::string group =  params->commands.target.value().group.value();
-        int error_code = sessions::SetTabStack(browser_context(), path, ids,
-                                               group);
+        std::string group = params->commands.target.value().group.value();
+        int error_code =
+            sessions::SetTabStack(browser_context(), path, ids, group);
         changed = error_code == sessions::kNoError;
       }
     } else {
@@ -820,8 +827,8 @@ ExtensionFunction::ResponseAction SessionsPrivateModifyContentFunction::Run() {
           group_alias.alias = entry.alias;
           group_aliases.push_back(group_alias);
         }
-        int error_code = sessions::SetWindow(browser_context(), path, ids,
-          group_aliases);
+        int error_code =
+            sessions::SetWindow(browser_context(), path, ids, group_aliases);
         changed = error_code == sessions::kNoError;
       }
     }
@@ -834,7 +841,8 @@ ExtensionFunction::ResponseAction SessionsPrivateModifyContentFunction::Run() {
         group_alias.alias = entry.alias;
         group_aliases.push_back(group_alias);
       }
-      int error_code = sessions::SetWorkspace(browser_context(), path, ids,
+      int error_code = sessions::SetWorkspace(
+          browser_context(), path, ids,
           params->commands.workspace_state.value().item.id, group_aliases);
       changed = error_code == sessions::kNoError;
     }
@@ -852,9 +860,9 @@ ExtensionFunction::ResponseAction SessionsPrivateModifyContentFunction::Run() {
       const vivaldi::sessions_private::WorkspaceItem& item =
           params->commands.workspace_state.value().item;
 
-      base::Value::List workspaces(tmp->workspaces().Clone());
+      base::ListValue workspaces(tmp->workspaces().Clone());
       for (auto& elm : workspaces) {
-        base::Value::Dict* dict = elm.GetIfDict();
+        base::DictValue* dict = elm.GetIfDict();
         if (dict) {
           std::optional<double> id = dict->FindDouble("id");
           if (id.has_value() && id.value() == item.id) {
@@ -875,11 +883,8 @@ ExtensionFunction::ResponseAction SessionsPrivateModifyContentFunction::Run() {
     MakeAPIContentModel(browser_context(), pair.first, content_model);
 
     // Send data to UI
-    SessionsPrivateAPI::SendContentChanged(
-      browser_context(),
-      params->id,
-      content_model
-    );
+    SessionsPrivateAPI::SendContentChanged(browser_context(), params->id,
+                                           content_model);
   }
 
   return RespondNow(ArgumentList(Results::Create(sessions::kNoError)));
@@ -916,15 +921,14 @@ ExtensionFunction::ResponseAction SessionsPrivateUpdateFunction::Run() {
     child->SetContainerGuid(pair.first->guid());
 
     Profile* profile = Profile::FromBrowserContext(browser_context());
-    bool with_workspaces =
-      profile->GetPrefs()->GetBoolean(
-          vivaldiprefs::kSessionsSaveAllWorkspaces);
+    bool with_workspaces = profile->GetPrefs()->GetBoolean(
+        vivaldiprefs::kSessionsSaveAllWorkspaces);
 
     // Placeholder for transferring updated data to existing node.
     std::unique_ptr<Index_Node> tmp = std::make_unique<Index_Node>("", -1);
     SetNodeState(browser_context(), ctl.path, true, tmp.get());
     if (!with_workspaces) {
-      base::Value::List workspaces;
+      base::ListValue workspaces;
       tmp->SetWorkspaces(std::move(workspaces));
     }
     tmp->SetFilename(ctl.filename);
@@ -949,8 +953,8 @@ ExtensionFunction::ResponseAction SessionsPrivateOpenFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   VivaldiBrowserWindow* window =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          VivaldiBrowserWindowFromId(params->window_id);
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->window_id);
   if (!window) {
     return RespondNow(Error("No such window"));
   }
@@ -973,7 +977,6 @@ ExtensionFunction::ResponseAction SessionsPrivateOpenFunction::Run() {
   return RespondNow(ArgumentList(Results::Create(error_code)));
 }
 
-
 ExtensionFunction::ResponseAction SessionsPrivateRenameFunction::Run() {
   using vivaldi::sessions_private::Rename::Params;
   namespace Results = vivaldi::sessions_private::Rename::Results;
@@ -992,8 +995,8 @@ ExtensionFunction::ResponseAction SessionsPrivateRenameFunction::Run() {
         pair.second->SetTitle(child.get(), base::UTF8ToUTF16(params->name));
       }
       // And also any that may have been moved to trash
-      Index_Node* trash_folder = FindNode(pair.second->items_node(),
-                                          Index_Node::trash_node_guid());
+      Index_Node* trash_folder =
+          FindNode(pair.second->items_node(), Index_Node::trash_node_guid());
       if (trash_folder) {
         for (auto& child : trash_folder->children()) {
           if (child->container_guid() == pair.first->guid()) {
@@ -1006,7 +1009,6 @@ ExtensionFunction::ResponseAction SessionsPrivateRenameFunction::Run() {
 
   return RespondNow(ArgumentList(Results::Create(error_code)));
 }
-
 
 ExtensionFunction::ResponseAction SessionsPrivateMakeContainerFunction::Run() {
   using vivaldi::sessions_private::MakeContainer::Params;
@@ -1022,8 +1024,8 @@ ExtensionFunction::ResponseAction SessionsPrivateMakeContainerFunction::Run() {
   }
 
   // Old container.
-  Index_Node* container_node = FindNode(pair.second->items_node(),
-    pair.first->container_guid());
+  Index_Node* container_node =
+      FindNode(pair.second->items_node(), pair.first->container_guid());
   if (!container_node) {
     return RespondNow(ArgumentList(Results::Create(sessions::kErrorUnknownId)));
   }
@@ -1045,7 +1047,6 @@ ExtensionFunction::ResponseAction SessionsPrivateMakeContainerFunction::Run() {
 
   return RespondNow(ArgumentList(Results::Create(sessions::kNoError)));
 }
-
 
 ExtensionFunction::ResponseAction SessionsPrivateMoveFunction::Run() {
   using vivaldi::sessions_private::Move::Params;
@@ -1074,7 +1075,6 @@ ExtensionFunction::ResponseAction SessionsPrivateMoveFunction::Run() {
   return RespondNow(ArgumentList(Results::Create(error_code)));
 }
 
-
 ExtensionFunction::ResponseAction SessionsPrivateDeleteFunction::Run() {
   using vivaldi::sessions_private::Delete::Params;
   namespace Results = vivaldi::sessions_private::Delete::Results;
@@ -1095,8 +1095,8 @@ ExtensionFunction::ResponseAction SessionsPrivateDeleteFunction::Run() {
         pair.second->Remove(pair.first);
       }
     } else {
-      Index_Node* target = pair.second->root_node()->GetById(
-          Index_Node::trash_node_id());
+      Index_Node* target =
+          pair.second->root_node()->GetById(Index_Node::trash_node_id());
       pair.second->Move(pair.first, target, params->index);
     }
   }
@@ -1108,12 +1108,12 @@ ExtensionFunction::ResponseAction SessionsPrivateEmptyTrashFunction::Run() {
   namespace Results = vivaldi::sessions_private::EmptyTrash::Results;
   int error_code = sessions::kNoError;
 
-  NodeModel pair = GetNodeAndModel(browser_context(),
-                                   Index_Node::trash_node_id());
+  NodeModel pair =
+      GetNodeAndModel(browser_context(), Index_Node::trash_node_id());
 
   if (pair.first) {
     for (size_t count = pair.first->children().size(); count > 0; count--) {
-      auto& child =  pair.first->children().at(0);
+      auto& child = pair.first->children().at(0);
       error_code = sessions::DeleteSessionFile(browser_context(), child.get());
       // Allow a missing session file when we are deleting.
       if (error_code == sessions::kErrorFileMissing) {
@@ -1140,7 +1140,7 @@ SessionsPrivateRestoreLastClosedFunction::Run() {
           profile->GetOriginalProfile());
   if (session_service &&
       session_service->RestoreIfNecessary(StartupTabs(),
-                                           /* restore_apps */ false)) {
+                                          /* restore_apps */ false)) {
     did_open_session_window = true;
   }
 
@@ -1159,14 +1159,14 @@ SessionsPrivateRestoreSyncTabsFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   if (!ExtensionTabUtil::IsTabStripEditable()) {
-    return RespondNow(ArgumentList(
-        Results::Create(sessions::kErrorTabStripNotEditable)));
+    return RespondNow(
+        ArgumentList(Results::Create(sessions::kErrorTabStripNotEditable)));
   }
 
   Profile* profile = Profile::FromBrowserContext(browser_context());
   if (profile != profile->GetOriginalProfile()) {
-    return RespondNow(ArgumentList(
-        Results::Create(sessions::kErrorRestoreInIncognito)));
+    return RespondNow(
+        ArgumentList(Results::Create(sessions::kErrorRestoreInIncognito)));
   }
 
   Browser* browser = chrome::FindBrowserWithProfile(profile);
@@ -1178,12 +1178,12 @@ SessionsPrivateRestoreSyncTabsFunction::Run() {
   for (auto& id : params->ids) {
     std::unique_ptr<SessionId> session_id(SessionId::Parse(id));
     if (!session_id) {
-      return RespondNow(ArgumentList(
-          Results::Create(sessions::kErrorUnknownId)));
+      return RespondNow(
+          ArgumentList(Results::Create(sessions::kErrorUnknownId)));
     }
     if (!session_id->IsForeign()) {
-      return RespondNow(ArgumentList(
-          Results::Create(sessions::kErrorNoSyncId)));
+      return RespondNow(
+          ArgumentList(Results::Create(sessions::kErrorNoSyncId)));
     }
     ids.push_back(std::move(session_id));
   }
@@ -1218,11 +1218,11 @@ SessionsPrivateRestoreSyncTabsFunction::Run() {
   content::WebContents* contents = tab_strip->GetActiveWebContents();
   for (size_t i = 0; i < tabs.size(); i++) {
     bool load_content = i + 1 == ids.size();
-    WindowOpenDisposition disposition = load_content
-        ? WindowOpenDisposition::NEW_FOREGROUND_TAB
-        : WindowOpenDisposition::NEW_BACKGROUND_TAB;
-    SessionRestore::RestoreForeignSessionTab(
-        contents, *(tabs[i]), disposition, false, load_content);
+    WindowOpenDisposition disposition =
+        load_content ? WindowOpenDisposition::NEW_FOREGROUND_TAB
+                     : WindowOpenDisposition::NEW_BACKGROUND_TAB;
+    SessionRestore::RestoreForeignSessionTab(contents, *(tabs[i]), disposition,
+                                             false, load_content);
   }
 
   return RespondNow(ArgumentList(Results::Create(sessions::kNoError)));

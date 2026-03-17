@@ -13,6 +13,7 @@
 #import "base/feature_list.h"
 #import "base/metrics/field_trial.h"
 #import "base/strings/sys_string_conversions.h"
+#import "build/branding_buildflags.h"
 #import "components/autofill/core/common/autofill_switches.h"
 #import "components/password_manager/core/common/password_manager_features.h"
 #import "components/segmentation_platform/public/constants.h"
@@ -37,6 +38,7 @@ NSString* const kOriginServerHost = @"AlternateOriginServerHost";
 NSString* const kWhatsNewPromoStatus = @"WhatsNewPromoStatus";
 NSString* const kClearApplicationGroup = @"ClearApplicationGroup";
 NSString* const kNextPromoForDisplayOverride = @"NextPromoForDisplayOverride";
+NSString* const kHomeSurfaceDuration = @"HomeSurfaceDuration";
 NSString* const kFirstRunRecency = @"FirstRunRecency";
 NSString* const kIgnoreDeviceLocaleConditions = @"IgnoreDeviceLocaleConditions";
 NSString* const kForceExperienceForDeviceSwitcherExperimentalSettings =
@@ -72,8 +74,13 @@ NSString* const kLensResultPanelGwsURL = @"LensResultPanelGwsURL";
 NSString* const kForceDisableAIMEligibility = @"ForceDisableAIMEligibility";
 NSString* const kForceDisableCreateImagesEligibility =
     @"ForceDisableCreateImagesEligibility";
+NSString* const kForceDisableCanvasEligibility =
+    @"ForceDisableCanvasEligibility";
+NSString* const kForceDisableDeepSearchEligibility =
+    @"ForceDisableDeepSearchEligibility";
 NSString* const kForceDisablePdfUploadEligibility =
     @"ForceDisablePdfUploadEligibility";
+NSString* const kShowCatalogItems = @"ShowCatalogItems";
 }  // namespace
 
 namespace experimental_flags {
@@ -206,6 +213,19 @@ std::optional<int> GetSafetyCheckWeakPasswordsCount() {
   }
 
   return weakPasswordsCount;
+}
+
+base::TimeDelta GetReturnToHomeSurfaceDuration() {
+  int duration = [[NSUserDefaults standardUserDefaults]
+      integerForKey:kHomeSurfaceDuration];
+  if (duration == 0) {
+    return base::Hours(4);
+  }
+  if (duration == -1) {
+    // if set to -1 the duration will be instant.
+    return base::Seconds(0);
+  }
+  return base::Seconds(duration);
 }
 
 std::optional<int> GetFirstRunRecency() {
@@ -365,9 +385,28 @@ bool ShouldForceDisableComposeboxCreateImages() {
       boolForKey:kForceDisableCreateImagesEligibility];
 }
 
+bool ShouldForceDisableComposeboxCanvas() {
+  return [[NSUserDefaults standardUserDefaults]
+      boolForKey:kForceDisableCanvasEligibility];
+}
+
+bool ShouldForceDisableComposeboxDeepSearch() {
+  return [[NSUserDefaults standardUserDefaults]
+      boolForKey:kForceDisableDeepSearchEligibility];
+}
+
 bool ShouldForceDisableComposeboxPdfUpload() {
   return [[NSUserDefaults standardUserDefaults]
       boolForKey:kForceDisablePdfUploadEligibility];
+}
+
+bool ShouldShowCatalogItems() {
+#if BUILDFLAG(CHROMIUM_BRANDING) && !defined(NDEBUG)
+  // Always show catalog items in debug builds.
+  return true;
+#else
+  return [[NSUserDefaults standardUserDefaults] boolForKey:kShowCatalogItems];
+#endif
 }
 
 }  // namespace experimental_flags

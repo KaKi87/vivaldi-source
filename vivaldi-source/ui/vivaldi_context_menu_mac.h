@@ -30,10 +30,11 @@ namespace vivaldi {
 class VivaldiContextMenuMac : public vivaldi::VivaldiContextMenu {
  public:
   ~VivaldiContextMenuMac() override;
-  VivaldiContextMenuMac(content::WebContents* web_contents,
-              ui::SimpleMenuModel* menu_model,
-              const gfx::Rect& rect,
-              vivaldi::VivaldiRenderViewContextMenu* render_view_context_menu);
+  VivaldiContextMenuMac(
+      content::WebContents* web_contents,
+      ui::SimpleMenuModel* menu_model,
+      const gfx::Rect& rect,
+      vivaldi::VivaldiRenderViewContextMenu* render_view_context_menu);
   VivaldiContextMenuMac(const VivaldiContextMenuMac&) = delete;
   VivaldiContextMenuMac& operator=(const VivaldiContextMenuMac&) = delete;
 
@@ -47,6 +48,7 @@ class VivaldiContextMenuMac : public vivaldi::VivaldiContextMenu {
                   bool enabled,
                   bool hidden,
                   const std::u16string& title);
+
  private:
   NSView* GetActiveNativeView();
   // The Cocoa menu controller for this menu.

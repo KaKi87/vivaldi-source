@@ -19,6 +19,9 @@ class BookmarkNode;
 // not know about BookmarkNode.
 - (void)setSelectedFolderNode:(const bookmarks::BookmarkNode*)folderNode;
 
+// Whether the UI is disabled.
+@property(nonatomic, assign) BOOL UIDisabled;
+
 // Vivaldi
 - (void)setShowOnlySpeedDialFolder:(BOOL)showOnlySDFolders;
 // End Vivaldi

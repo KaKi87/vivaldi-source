@@ -19,7 +19,7 @@ bool TabStripCollection::AreMovable(const std::vector<int>& tab_indices) const {
   if (tab_indices.empty()) {
     return false;
   }
-  for (auto index: tab_indices) {
+  for (auto index : tab_indices) {
     if (!IsMovable(index)) {
       return false;
     }
@@ -36,4 +36,4 @@ size_t TabStripCollection::IndexOfFirstVivaldiTab() const {
          unpinned_collection_->TabCountRecursive();
 }
 
-} // namespace tabs
+}  // namespace tabs

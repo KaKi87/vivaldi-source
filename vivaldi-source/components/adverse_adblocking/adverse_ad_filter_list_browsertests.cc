@@ -34,8 +34,8 @@
 #include "components/adverse_adblocking/adverse_ad_filter_list_factory.h"
 #include "components/security_interstitials/core/unsafe_resource.h"
 #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
+#include "components/subresource_filter/content/browser/ruleset_service.h"
 #include "components/subresource_filter/content/browser/test_ruleset_publisher.h"
-#include "components/subresource_filter/content/shared/browser/ruleset_service.h"
 #include "components/subresource_filter/core/browser/async_document_subresource_filter.h"
 #include "components/subresource_filter/core/browser/async_document_subresource_filter_test_utils.h"
 #include "components/subresource_filter/core/browser/subresource_filter_constants.h"
@@ -465,8 +465,8 @@ IN_PROC_BROWSER_TEST_F(VivaldiSubresourceFilterBrowserTest,
   content::RenderProcessHostWatcher crash_observer(
       browser()->tab_strip_model()->GetActiveWebContents(),
       content::RenderProcessHostWatcher::WATCH_FOR_PROCESS_EXIT);
-  browser()->OpenURL(content::OpenURLParams(
-      GURL(blink::kChromeUICrashURL), content::Referrer(),
+  browser()->OpenURL(content::OpenURLParams(GURL(blink::kChromeUICrashURL),
+                                            content::Referrer(),
                                             WindowOpenDisposition::CURRENT_TAB,
                                             ui::PAGE_TRANSITION_TYPED, false),
                      /*navigation_handle_callback=*/{});

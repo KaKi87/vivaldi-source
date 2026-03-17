@@ -1,5 +1,8 @@
 include_rules = [
-  "+components/crash/core/common",
-  "+components/strings/grit",
-  "+ui/base/l10n",
+  "+components/dbus",
+  "+components/strings/grit/components_strings.h",
+  "+dbus",
+  "+ui/aura",
+  "+ui/base",
+  "+ui/linux",
 ]

@@ -312,8 +312,8 @@ void VivaldiFaviconService::TryDownloadFaviconFromUrls(
       base::BindOnce(
           [](base::WeakPtr<VivaldiFaviconService> weak_service,
              const GURL& page_url, std::vector<GURL> remaining_urls,
-             const GURL& icon_url,
-             VivaldiFaviconCallback callback, const gfx::Image& image,
+             const GURL& icon_url, VivaldiFaviconCallback callback,
+             const gfx::Image& image,
              const image_fetcher::RequestMetadata& metadata) {
             if (!weak_service) {
               if (!callback.is_null()) {
@@ -333,8 +333,7 @@ void VivaldiFaviconService::TryDownloadFaviconFromUrls(
 
             // Success! Process the downloaded favicon
             weak_service->OnFaviconDownloaded(
-                page_url, icon_url,
-                std::move(callback), image, metadata);
+                page_url, icon_url, std::move(callback), image, metadata);
           },
           weak_ptr_factory_.GetWeakPtr(), page_url, std::move(favicon_urls),
           icon_url, std::move(callback)),
@@ -373,8 +372,8 @@ void VivaldiFaviconService::DownloadFreshFaviconFromIconUrl(
       icon_url,
       base::BindOnce(
           [](base::WeakPtr<VivaldiFaviconService> weak_service,
-             const GURL& icon_url,
-             VivaldiFaviconCallback callback, const gfx::Image& image,
+             const GURL& icon_url, VivaldiFaviconCallback callback,
+             const gfx::Image& image,
              const image_fetcher::RequestMetadata& metadata) {
             if (!weak_service) {
               if (!callback.is_null()) {
@@ -393,8 +392,7 @@ void VivaldiFaviconService::DownloadFreshFaviconFromIconUrl(
 
             // Success! Process the downloaded favicon
             weak_service->OnFaviconDownloaded(
-                icon_url, icon_url,
-                std::move(callback), image, metadata);
+                icon_url, icon_url, std::move(callback), image, metadata);
           },
           weak_ptr_factory_.GetWeakPtr(), icon_url, std::move(callback)),
       image_fetcher::ImageFetcherParams(traffic_annotation,
@@ -436,7 +434,8 @@ void VivaldiFaviconService::DownloadFreshFavicon(
   std::reverse(favicon_urls.begin(), favicon_urls.end());
 
   // Try downloading from URLs, removing them as we go
-  TryDownloadFaviconFromUrls(page_url, std::move(favicon_urls), std::move(callback));
+  TryDownloadFaviconFromUrls(page_url, std::move(favicon_urls),
+                             std::move(callback));
 }
 
 void VivaldiFaviconService::GetFaviconFromCacheWithHostFallback(

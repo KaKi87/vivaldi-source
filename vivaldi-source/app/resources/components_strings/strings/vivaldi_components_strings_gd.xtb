@@ -12,6 +12,7 @@
 <translation id="1555191101192706055">Dh’fhaoidte gum feuch luchd-ionnsaigh air an làrach a dh’fheuch thu ri tadhal oirre air iarraidh ort bathar-bog cronail a stàladh air car meallta a dh’atharraicheas am brabhsadh a nì thu – mar eisimpleir le bhith a’ cur duilleag-dhachaigh eile an sàs no a’ sealltainn dhut sanasachd a bharrachd air làraichean air an tadhail thu.</translation>
 <translation id="1559528461873125649">Chan eil faidhle no pasgan de a leithid ann</translation>
 <translation id="1640244768702815859">Feuch <ph name="BEGIN_LINK" />is tadhail air duilleag-dhachaidh na làraich<ph name="END_LINK" />.</translation>
+<translation id="1644574205037202324">An eachdraidh</translation>
 <translation id="1645368109819982629">Pròtacal ris nach eil taic</translation>
 <translation id="1662550410081243962">Sàbhail is lìon dòighean pàighidh</translation>
 <translation id="1710259589646384581">OS</translation>
@@ -88,7 +89,6 @@
 <translation id="4250431568374086873">Chan eil an ceangal ris an làrach seo buileach tèarainte</translation>
 <translation id="4265872034478892965">Chaidh a cheadachadh leis an rianaire agad</translation>
 <translation id="4305666528087210886">Cha d’fhuair sinn cothrom air an fhaidhle agad</translation>
-<translation id="4408413947728134509">Briosgaidean <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544">Cha do ghabh <ph name="HOST_NAME" /> ris an teisteanas agad airson clàradh a-steach no dh’fhaoidte nach deach gin a thoirt seachad.</translation>
 <translation id="4506599922270137252">A’ cur fios gu rianaire an t-siostaim</translation>
 <translation id="4522570452068850558">Mion-fhiosrachadh</translation>
@@ -105,7 +105,6 @@
 <translation id="4943872375798546930">Chan eil toradh ann</translation>
 <translation id="5017554619425969104">Teacsa a rinn thu lethbhreac dheth</translation>
 <translation id="5023310440958281426">Thoir sùil air poileasaidhean an rianaire agad</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(# ga chleachdadh)} other {(# gan cleachdadh)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />A’ sgrùdadh seòladh a’ phrogsaidh<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bit)</translation>
 <translation id="5355557959165512791">Chan urrainn dhut tadhal air <ph name="SITE" /> an-dràsta fhèin a chionn ’s gun deach an teisteanas aige a ghairm air ais. Cha mhair mearachdan lìonraidh is ionnsaighean mar is trice agus tha deagh-theans gun obraich an duilleag seo an ceann greis.</translation>
@@ -124,8 +123,8 @@ Cuir fios gu rianaire an t-siostaim agad.</translation>
 <translation id="5799902971440853357">Chan urrainn dhut tadhal air <ph name="SITE" /> an-dràsta fhèin a chionn ’s gun do chuir an làrach-lìn teisteasan a bha ’nam bùrach is nach urrainn dha Vivaldi a làimhseachadh. Cha mhair mearachdan lìonraidh is ionnsaighean mar is trice agus tha deagh-theans gun obraich an duilleag seo an ceann greis.</translation>
 <translation id="5810442152076338065">Tha an ceangal agad ri <ph name="DOMAIN" /> air a chrioptachadh le sreath shifirean ro aosta.</translation>
 <translation id="5838278095973806738">Cha bu chòir dhut fiosrachadh dìomhair sam bith a chur a-steach air an làrach seo (mar eisimpleir, faclan-faire no cairtean-creideis) oir dh’fhaoidte gun goidear ort e.</translation>
+<translation id="5863515189965725638">Deasaich an IBAN</translation>
 <translation id="5869405914158311789">Cha ruig sinn an làrach ud</translation>
-<translation id="5920262536204764679">{NUM_COOKIES, plural, =1 {# ga chleachdadh} other {# gan cleachdadh}}</translation>
 <translation id="5932224571077948991">Tha an làrach a’ sealltainn sanasachd a bhriseas a-steach ort no a tha meallta</translation>
 <translation id="6051221802930200923">Chan urrainn dhut tadhal air <ph name="SITE" /> an-dràsta fhèin a chionn ’s gu bheil an làrach-lìn a’ cleachdadh prìneachadh theisteanasan. Cha mhair mearachdan lìonraidh is ionnsaighean mar is trice agus tha deagh-theans gun obraich an duilleag seo an ceann greis.</translation>
 <translation id="6146055958333702838">Thoir sùil air na càballan is ath-thòisich rùtar, mòdam no uidheam
@@ -212,4 +211,5 @@ Cuir fios gu rianaire an t-siostaim agad.</translation>
 <translation id="969892804517981540">Build oifigeach</translation>
 <translation id="984275831282074731">Dòighean pàighidh</translation>
 <translation id="988159990683914416">Build luchd-leasachaidh</translation>
+<translation id="995755448277384931">Cuir IBAN ris</translation>
 </translationbundle>

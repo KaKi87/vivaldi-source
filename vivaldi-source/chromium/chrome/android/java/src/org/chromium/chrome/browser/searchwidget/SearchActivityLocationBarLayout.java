@@ -22,7 +22,6 @@ import org.chromium.chrome.browser.omnibox.LocationBarDataProvider;
 import org.chromium.chrome.browser.omnibox.LocationBarLayout;
 import org.chromium.chrome.browser.omnibox.UrlBar;
 import org.chromium.chrome.browser.omnibox.UrlBarCoordinator;
-import org.chromium.chrome.browser.omnibox.UrlBarCoordinator.SelectionState;
 import org.chromium.chrome.browser.omnibox.UrlBarData;
 import org.chromium.chrome.browser.omnibox.status.StatusCoordinator;
 import org.chromium.chrome.browser.omnibox.styles.OmniboxResourceProvider;
@@ -61,19 +60,21 @@ public class SearchActivityLocationBarLayout extends LocationBarLayout {
             AutocompleteCoordinator autocompleteCoordinator,
             UrlBarCoordinator urlCoordinator,
             StatusCoordinator statusCoordinator,
-            LocationBarDataProvider locationBarDataProvider) {
+            LocationBarDataProvider locationBarDataProvider,
+            WindowAndroid windowAndroid) {
         super.initialize(
                 autocompleteCoordinator,
                 urlCoordinator,
                 statusCoordinator,
-                locationBarDataProvider);
+                locationBarDataProvider,
+                windowAndroid);
         mIsIncognito = locationBarDataProvider.isIncognitoBranded();
         mPendingSearchPromoDecision = LocaleManager.getInstance().needToCheckForSearchEnginePromo();
         mAutocompleteCoordinator.setShouldPreventOmniboxAutocomplete(mPendingSearchPromoDecision);
 
         var backgroundDrawable = ToolbarPhone.createModernLocationBarBackground(getContext());
         backgroundDrawable.setBackgroundColor(
-                ContextCompat.getColor(getContext(), R.color.omnibox_suggestion_bg));
+                ContextCompat.getColor(getContext(), R.color.search_suggestion_bg_color));
         backgroundDrawable.setCornerRadius(
                 getResources()
                         .getDimensionPixelSize(R.dimen.omnibox_suggestion_bg_round_corner_radius));
@@ -154,7 +155,7 @@ public class SearchActivityLocationBarLayout extends LocationBarLayout {
         mUrlCoordinator.setUrlBarData(
                 UrlBarData.forNonUrlText(optionalText == null ? "" : optionalText),
                 UrlBar.ScrollType.NO_SCROLL,
-                SelectionState.SELECT_END);
+                UrlBarData.SELECT_END);
 
         if (mPendingSearchPromoDecision || (searchType != SearchType.TEXT && !mNativeInitialized)) {
             mPendingBeginQuery = true;

@@ -128,8 +128,10 @@ Microsoft::WRL::ComPtr<IMFSample> PrepareInputSample(const DecoderBuffer& input,
 
 // Extract data from sample and reset its buffer to make it ready to receive
 // more data.
-bool ExtractSampleData(IMFSample* sample, std::vector<uint8_t>& buffer,
-                       LONG stride, LONG rows) {
+bool ExtractSampleData(IMFSample* sample,
+                       std::vector<uint8_t>& buffer,
+                       LONG stride,
+                       LONG rows) {
   Microsoft::WRL::ComPtr<IMFMediaBuffer> media_buffer;
   HRESULT hr = sample->ConvertToContiguousBuffer(media_buffer.GetAddressOf());
   RETURN_ON_HR_FAIL(hr, "IMFSample::ConvertToContiguousBuffer()", false);
@@ -170,8 +172,8 @@ bool ExtractSampleData(IMFSample* sample, std::vector<uint8_t>& buffer,
     memset(buffer.data(), 0, data_size);
     // Copy each plane of the frame
     memcpy(buffer.data(), data, real_rows * stride);
-    memcpy(buffer.data() + (rows * stride),
-           data + (real_rows * stride), real_rows * stride / 4);
+    memcpy(buffer.data() + (rows * stride), data + (real_rows * stride),
+           real_rows * stride / 4);
     memcpy(buffer.data() + (rows * stride) + rows * stride / 4,
            data + (real_rows * stride) + (real_rows * stride / 4),
            real_rows * stride / 4);

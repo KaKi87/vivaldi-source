@@ -21,9 +21,9 @@
 #import "ios/chrome/browser/shared/coordinator/alert/action_sheet_coordinator.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_header_footer_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_styler.h"
@@ -52,15 +52,15 @@
 #import "ios/ui/notes/note_parent_folder_view.h"
 #import "ios/ui/notes/note_ui_constants.h"
 #import "ios/ui/notes/note_utils_ios.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 #import "ui/base/l10n/l10n_util.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "ui/gfx/image/image.h"
 #import "url/gurl.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-using vivaldi::NotesModel;
 using vivaldi::NoteNode;
+using vivaldi::NotesModel;
 
 namespace {
 
@@ -75,13 +75,14 @@ NSString* vMarkdownToggleOn = @"markdown_toggle_on";
 NSString* vMarkdownToggleOff = @"markdown_toggle_off";
 }  // namespace
 
-@interface NoteAddEditViewController () <NoteFolderChooserViewControllerDelegate,
-                                        NoteModelBridgeObserver,
-                                        MarkdownCommandDelegate,
-                                        UITextViewDelegate,
-                                        WKNavigationDelegate,
-                                        WKScriptMessageHandler,
-                                        WKScriptMessageHandlerWithReply> {
+@interface NoteAddEditViewController () <
+    NoteFolderChooserViewControllerDelegate,
+    NoteModelBridgeObserver,
+    MarkdownCommandDelegate,
+    UITextViewDelegate,
+    WKNavigationDelegate,
+    WKScriptMessageHandler,
+    WKScriptMessageHandlerWithReply> {
   // Flag to ignore note model changes notifications.
   BOOL _ignoresNotesModelChanges;
 
@@ -103,8 +104,8 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
 
 // The folder picker view controller.
 // Redefined to be readwrite. // Not currently changeble from within
-@property(nonatomic, strong) NoteFolderChooserViewController*
-    folderViewController;
+@property(nonatomic, strong)
+    NoteFolderChooserViewController* folderViewController;
 
 @property(nonatomic, assign) Browser* browser;
 
@@ -133,7 +134,7 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
 @property(nonatomic, assign) BOOL editingExistingItem;
 
 // A view that holds the parent folder details
-@property(nonatomic,weak) NoteParentFolderView* parentFolderView;
+@property(nonatomic, weak) NoteParentFolderView* parentFolderView;
 
 // Should the controller setup Cancel and Done buttons instead of a back button.
 @property(nonatomic, assign) BOOL allowsCancel;
@@ -171,7 +172,7 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
 @property(nonatomic, strong) NSLayoutConstraint* noteTextViewBottomConstraint;
 @property(nonatomic, strong) NSLayoutConstraint* webViewBottomConstraint;
 
-@property(nonatomic, strong) id<ApplicationCommands> handler;
+@property(nonatomic, strong) id<SceneCommands> handler;
 
 @end
 
@@ -208,8 +209,8 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
                    allowsCancel:(BOOL)allowsCancel {
   DCHECK(note || parent);
   DCHECK(browser);
-  NoteAddEditViewController* controller = [[NoteAddEditViewController alloc]
-                                           initWithBrowser:browser];
+  NoteAddEditViewController* controller =
+      [[NoteAddEditViewController alloc] initWithBrowser:browser];
   controller.note = note;
   controller.folder = parent;
   controller.allowsCancel = allowsCancel;
@@ -234,8 +235,8 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
     // Set up the note model oberver.
     _modelBridge.reset(new notes::NoteModelBridge(self, _noteModel));
 
-    self.handler = HandlerForProtocol(self.browser->GetCommandDispatcher(),
-                                      ApplicationCommands);
+    self.handler =
+        HandlerForProtocol(self.browser->GetCommandDispatcher(), SceneCommands);
 
     self.markdownKeyboardInputView =
         [[MarkdownKeyboardView alloc] initWithFrame:CGRectZero
@@ -322,7 +323,7 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
 
 - (void)setUpUI {
   self.view.backgroundColor =
-    [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
+      [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
   // Disable interactive dismissal of the view controller.
   // This prevents accidental close by slide in gesture or any other reason.
   // Note editor should be closed only by button tap to make sure users
@@ -335,7 +336,7 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
   [self setupToolbar];
 }
 
--(void)setUpNavBarView {
+- (void)setUpNavBarView {
   // Set up navigation bar
   if (self.note)
     self.title = l10n_util::GetNSString(IDS_VIVALDI_NOTE_EDIT_SCREEN_TITLE);
@@ -346,83 +347,81 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
 
   if (self.allowsCancel) {
     UIBarButtonItem* cancelItem = [[UIBarButtonItem alloc]
-      initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
-                           target:self
-                           action:@selector(cancel)];
+        initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
+                             target:self
+                             action:@selector(cancel)];
     cancelItem.accessibilityIdentifier = @"Cancel";
     self.navigationItem.leftBarButtonItem = cancelItem;
     self.cancelItem = cancelItem;
   }
 
   UIBarButtonItem* spaceButton = [[UIBarButtonItem alloc]
-    initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
-    target:self
-    action:nil];
+      initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
+                           target:self
+                           action:nil];
 
   self.toggleButton = [[UIBarButtonItem alloc]
-    initWithImage:[UIImage imageNamed:vMarkdownToggleOff]
-    style:UIBarButtonItemStylePlain
-    target:self
-    action:@selector(toggleMarkdown)];
+      initWithImage:[UIImage imageNamed:vMarkdownToggleOff]
+              style:UIBarButtonItemStylePlain
+             target:self
+             action:@selector(toggleMarkdown)];
 
   UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
-    initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-    target:self
-    action:@selector(saveNote)];
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(saveNote)];
 
   doneItem.accessibilityIdentifier = kNoteEditNavigationBarDoneButtonIdentifier;
 
-  self.navigationItem.rightBarButtonItems = @[
-    doneItem, spaceButton,
-    spaceButton, self.toggleButton];
+  self.navigationItem.rightBarButtonItems =
+      @[ doneItem, spaceButton, spaceButton, self.toggleButton ];
   self.doneItem = doneItem;
   if (!vivaldi_features::IsViewMarkdownAsHTMLEnabled())
-    [self.toggleButton setHidden: YES];
+    [self.toggleButton setHidden:YES];
 }
 
-- (void)setupToolbar{
+- (void)setupToolbar {
   // Setup the bottom toolbar.
   NSString* moveTitleString = l10n_util::GetNSString(IDS_VIVALDI_NOTE_MOVE);
   UIBarButtonItem* moveButton =
-    [[UIBarButtonItem alloc] initWithTitle:moveTitleString
-                                    style:UIBarButtonItemStylePlain
-                                   target:self
-                                   action:@selector(moveNote)];
+      [[UIBarButtonItem alloc] initWithTitle:moveTitleString
+                                       style:UIBarButtonItemStylePlain
+                                      target:self
+                                      action:@selector(moveNote)];
   moveButton.accessibilityIdentifier = kNoteEditDeleteButtonIdentifier;
   UIBarButtonItem* spaceButton = [[UIBarButtonItem alloc]
-    initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
-                         target:nil
-                         action:nil];
+      initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
+                           target:nil
+                           action:nil];
   moveButton.tintColor = [UIColor colorNamed:kBlueColor];
 
   NSString* titleString = l10n_util::GetNSString(IDS_VIVALDI_NOTE_DELETE);
   UIBarButtonItem* deleteButton =
-  [[UIBarButtonItem alloc] initWithTitle:titleString
-                                   style:UIBarButtonItemStylePlain
-                                  target:self
-                                  action:@selector(deleteNote)];
+      [[UIBarButtonItem alloc] initWithTitle:titleString
+                                       style:UIBarButtonItemStylePlain
+                                      target:self
+                                      action:@selector(deleteNote)];
   deleteButton.accessibilityIdentifier = kNoteEditDeleteButtonIdentifier;
   deleteButton.tintColor = [UIColor colorNamed:kRedColor];
-  [self setToolbarItems:@[ moveButton, spaceButton, deleteButton ]
-               animated:NO];
+  [self setToolbarItems:@[ moveButton, spaceButton, deleteButton ] animated:NO];
 }
 
--(void)setupContentView {
+- (void)setupContentView {
   // Set up views
   self.bodyContainerView = [[UIView alloc] init];
   self.bodyContainerView.backgroundColor =
-    [UIColor colorNamed: kGroupedSecondaryBackgroundColor];
+      [UIColor colorNamed:kGroupedSecondaryBackgroundColor];
   self.bodyContainerView.layer.cornerRadius = bodyContainerCornerRadius;
   self.bodyContainerView.clipsToBounds = YES;
 
   [self.view addSubview:self.bodyContainerView];
   if (@available(iOS 26, *)) {
     [self.bodyContainerView
-      fillSuperviewToSafeAreaInsetWithPadding:bodyContainerViewPadding];
+        fillSuperviewToSafeAreaInsetWithPadding:bodyContainerViewPadding];
   } else {
     bodyContainerViewPadding.bottom = 0;
     [self.bodyContainerView
-      fillSuperviewToSafeAreaInsetWithPadding:bodyContainerViewPadding];
+        fillSuperviewToSafeAreaInsetWithPadding:bodyContainerViewPadding];
   }
 
   // Note text view
@@ -437,15 +436,14 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
                  trailing:self.bodyContainerView.trailingAnchor
                   padding:noteTextViewPadding];
 
-  self.noteTextViewBottomConstraint =
-    [noteTextView.bottomAnchor
-     constraintEqualToAnchor:self.bodyContainerView.bottomAnchor
-     constant:-noteTextViewBottomPadding];
+  self.noteTextViewBottomConstraint = [noteTextView.bottomAnchor
+      constraintEqualToAnchor:self.bodyContainerView.bottomAnchor
+                     constant:-noteTextViewBottomPadding];
   [self.noteTextViewBottomConstraint setActive:YES];
   [self setupMarkdownWebView];
 }
 
--(void)setupMarkdownWebView {
+- (void)setupMarkdownWebView {
   if (!vivaldi_features::IsViewMarkdownAsHTMLEnabled() || !self.webView) {
     return;
   }
@@ -459,10 +457,9 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
                  trailing:self.bodyContainerView.trailingAnchor
                   padding:noteTextViewPadding];
 
-  self.webViewBottomConstraint =
-    [self.webView.bottomAnchor
-     constraintEqualToAnchor:self.bodyContainerView.bottomAnchor
-     constant:-noteTextViewBottomPadding];
+  self.webViewBottomConstraint = [self.webView.bottomAnchor
+      constraintEqualToAnchor:self.bodyContainerView.bottomAnchor
+                     constant:-noteTextViewBottomPadding];
   [self.webViewBottomConstraint setActive:YES];
 
   [self setWebViewHidden:YES];
@@ -511,7 +508,7 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
         [self showImageUrlDialog:replyHandler];
       }
     } else {
-      //unknown msg type
+      // unknown msg type
     }
   }
 }
@@ -779,9 +776,10 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
   if (hidden) {
     self.webView.alpha = 0.0;
   } else {
-    [UIView animateWithDuration:0.3 animations:^{
-      self.webView.alpha = 1.0;
-    }];
+    [UIView animateWithDuration:0.3
+                     animations:^{
+                       self.webView.alpha = 1.0;
+                     }];
   }
 }
 
@@ -818,10 +816,10 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
   // Extract the keyboard frame from the notification's user info
   NSDictionary* userInfo = [notification userInfo];
   CGRect keyboardFrame =
-    [[userInfo objectForKey:UIKeyboardFrameEndUserInfoKey] CGRectValue];
+      [[userInfo objectForKey:UIKeyboardFrameEndUserInfoKey] CGRectValue];
   // Determine if the keyboard is showing based on the notification name
   BOOL isKeyboardShowing =
-    [notification.name isEqualToString:UIKeyboardWillShowNotification];
+      [notification.name isEqualToString:UIKeyboardWillShowNotification];
 
   // The constant we're changing when the keyboard state changes.
   // 1: If the keyboard is closed, the constant is noteTextViewBottomPadding.
@@ -840,12 +838,12 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
   UIWindow* window = self.view.window;
   if (window) {
     // Convert the view's bounds to window coordinates
-    CGRect viewFrameInWindow =
-      [self.view convertRect:self.view.bounds toView:window];
+    CGRect viewFrameInWindow = [self.view convertRect:self.view.bounds
+                                               toView:window];
     // Calculate the gap between the bottom of the window and the bottom of
     // the view
     CGFloat visibleGap =
-      CGRectGetHeight(window.bounds) - CGRectGetMaxY(viewFrameInWindow);
+        CGRectGetHeight(window.bounds) - CGRectGetMaxY(viewFrameInWindow);
     // If there is a gap (for modally presented views on iPad), add it to the
     // bottom padding
     if (visibleGap > 0) {
@@ -881,26 +879,27 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
   // If the keyboard is showing, the constant is negative to move the view up.
   // Otherwise, it's the negative of noteTextViewBottomPadding
   self.noteTextViewBottomConstraint.constant =
-    isKeyboardShowing ? -keyboardVisibleConstant : -noteTextViewBottomPadding;
+      isKeyboardShowing ? -keyboardVisibleConstant : -noteTextViewBottomPadding;
   self.webViewBottomConstraint.constant =
-    isKeyboardShowing ? -keyboardVisibleConstant : -noteTextViewBottomPadding;
+      isKeyboardShowing ? -keyboardVisibleConstant : -noteTextViewBottomPadding;
 
   // Animate the change in the view's frame
   [UIView animateWithDuration:0
-                        delay:0
-                      options:UIViewAnimationOptionCurveEaseOut
-                   animations:^{
-    [self.view layoutIfNeeded];
-  } completion: ^(BOOL finished){
-    [self.webView setNeedsLayout];
-    [self.webView layoutIfNeeded];
-    if (vivaldi_features::IsViewMarkdownAsHTMLEnabled() && self.webView &&
-        ![VivaldiGlobalHelpers isDeviceTablet]) {
-      // Adjust the height of the editor inside the webview (VIB-959)
-      CGFloat height = self.webView.bounds.size.height;
-      [self updateEditorHeight:height];
-    }
-  }];
+      delay:0
+      options:UIViewAnimationOptionCurveEaseOut
+      animations:^{
+        [self.view layoutIfNeeded];
+      }
+      completion:^(BOOL finished) {
+        [self.webView setNeedsLayout];
+        [self.webView layoutIfNeeded];
+        if (vivaldi_features::IsViewMarkdownAsHTMLEnabled() && self.webView &&
+            ![VivaldiGlobalHelpers isDeviceTablet]) {
+          // Adjust the height of the editor inside the webview (VIB-959)
+          CGFloat height = self.webView.bounds.size.height;
+          [self updateEditorHeight:height];
+        }
+      }];
 }
 
 #pragma mark - Presentation controller integration
@@ -930,34 +929,31 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
 
   if (self.editingExistingItem && self.note) {
     // Tell delegate if note name or title has been changed.
-    if (self.note &&
-        self.note->GetTitle() !=
-        base::SysNSStringToUTF16([self inputNoteName]) ) {
+    if (self.note && self.note->GetTitle() !=
+                         base::SysNSStringToUTF16([self inputNoteName])) {
       [self.delegate noteEditorWillCommitContentChange:self];
     }
     [self.snackbarCommandsHandler
-     showSnackbarMessage:
-       note_utils_ios::CreateOrUpdateNoteWithToast(
-         self.note, [self inputNoteName], GURL(),
-         self.folder, self.noteModel, self.profile)];
+        showSnackbarMessage:note_utils_ios::CreateOrUpdateNoteWithToast(
+                                self.note, [self inputNoteName], GURL(),
+                                self.folder, self.noteModel, self.profile)];
   } else {
-    NSString* inputString = [self.inputNoteName stringByTrimmingCharactersInSet:
-                            [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    NSString* inputString = [self.inputNoteName
+        stringByTrimmingCharactersInSet:[NSCharacterSet
+                                            whitespaceAndNewlineCharacterSet]];
     if ([inputString length] == 0) {
       return;
     }
     std::u16string folderTitle =
-      l10n_util::GetStringUTF16(IDS_VIVALDI_NOTE_CONTEXT_BAR_NEW_NOTE);
+        l10n_util::GetStringUTF16(IDS_VIVALDI_NOTE_CONTEXT_BAR_NEW_NOTE);
     std::u16string noteString = base::SysNSStringToUTF16(inputString);
 
-    if(!self.note) {
-      self.note = self.noteModel->AddNote(self.folder,
-                                          self.folder->children().size(),
-                                          // Passing empty string as title
-                                          // for new note
-                                          std::u16string(),
-                                          GURL(),
-                                          noteString);
+    if (!self.note) {
+      self.note =
+          self.noteModel->AddNote(self.folder, self.folder->children().size(),
+                                  // Passing empty string as title
+                                  // for new note
+                                  std::u16string(), GURL(), noteString);
       self.editingExistingItem = YES;
     }
   }
@@ -966,8 +962,7 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
 - (void)changeFolder:(const NoteNode*)folder {
   DCHECK(folder->is_folder());
   self.folder = folder;
-  [NoteMediator setFolderForNewNotes:self.folder
-                           inProfile:self.profile];
+  [NoteMediator setFolderForNewNotes:self.folder inProfile:self.profile];
 }
 
 /// Updates the parent folder view componets, i.e. title and icon.
@@ -1015,8 +1010,8 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
         std::set<const NoteNode*> nodes;
         nodes.insert(self.note);
         [self.snackbarCommandsHandler
-         showSnackbarMessage:note_utils_ios::DeleteNotesWithToast(
-           nodes, self.noteModel, self.profile)];
+            showSnackbarMessage:note_utils_ios::DeleteNotesWithToast(
+                                    nodes, self.noteModel, self.profile)];
         self.note = nil;
       }
     }
@@ -1031,9 +1026,9 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
 
   const NoteNode* trashFolder = self.noteModel->trash_node();
   [self.snackbarCommandsHandler
-   showSnackbarMessage:note_utils_ios::MoveNotesWithToast(
-     nodes, self.noteModel, trashFolder,
-     self.profile)];
+      showSnackbarMessage:note_utils_ios::MoveNotesWithToast(
+                              nodes, self.noteModel, trashFolder,
+                              self.profile)];
 }
 
 - (void)moveNote {
@@ -1043,18 +1038,17 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
   std::set<const NoteNode*> editedNodes;
   editedNodes.insert(self.note);
   NoteFolderChooserViewController* folderViewController =
-  [[NoteFolderChooserViewController alloc]
-    initWithNotesModel:self.noteModel
-    allowsNewFolders:YES
-    editedNodes:editedNodes
-    allowsCancel:NO
-    selectedFolder:self.folder
-    browser:_browser];
+      [[NoteFolderChooserViewController alloc] initWithNotesModel:self.noteModel
+                                                 allowsNewFolders:YES
+                                                      editedNodes:editedNodes
+                                                     allowsCancel:NO
+                                                   selectedFolder:self.folder
+                                                          browser:_browser];
   folderViewController.delegate = self;
   folderViewController.snackbarCommandsHandler = self.snackbarCommandsHandler;
   self.folderViewController = folderViewController;
   self.folderViewController.navigationItem.largeTitleDisplayMode =
-  UINavigationItemLargeTitleDisplayModeNever;
+      UINavigationItemLargeTitleDisplayModeNever;
   [self.navigationController pushViewController:self.folderViewController
                                        animated:YES];
 }
@@ -1093,7 +1087,7 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
 #pragma mark - NoteFolderChooserViewControllerDelegate
 
 - (void)folderPicker:(NoteFolderChooserViewController*)folderPicker
-   didFinishWithFolder:(const NoteNode*)folder {
+    didFinishWithFolder:(const NoteNode*)folder {
   [self changeFolder:folder];
   // This delegate method can be called on two occasions:
   // - the user selected a folder in the folder picker. In that case, the folder
@@ -1140,8 +1134,8 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
 }
 
 - (void)noteNode:(const NoteNode*)noteNode
-   movedFromParent:(const NoteNode*)oldParent
-          toParent:(const NoteNode*)newParent {
+    movedFromParent:(const NoteNode*)oldParent
+           toParent:(const NoteNode*)newParent {
   if (_ignoresNotesModelChanges)
     return;
 
@@ -1177,37 +1171,37 @@ NSString* vMarkdownToggleOff = @"markdown_toggle_off";
 #pragma mark - UIAdaptivePresentationControllerDelegate
 
 - (void)presentationControllerDidAttemptToDismiss:
-(UIPresentationController*)presentationController {
+    (UIPresentationController*)presentationController {
   self.actionSheetCoordinator = [[ActionSheetCoordinator alloc]
-                                 initWithBaseViewController:self
-                                 browser:_browser
-                                 title:nil
-                                 message:nil
-                                 barButtonItem:self.cancelItem];
+      initWithBaseViewController:self
+                         browser:_browser
+                           title:nil
+                         message:nil
+                   barButtonItem:self.cancelItem];
 
   __weak __typeof(self) weakSelf = self;
   [self.actionSheetCoordinator
-   addItemWithTitle:l10n_util::GetNSString(
-     IDS_IOS_VIEW_CONTROLLER_DISMISS_SAVE_CHANGES)
-   action:^{
-    [weakSelf saveNote];
-  }
-   style:UIAlertActionStyleDefault];
+      addItemWithTitle:l10n_util::GetNSString(
+                           IDS_IOS_VIEW_CONTROLLER_DISMISS_SAVE_CHANGES)
+                action:^{
+                  [weakSelf saveNote];
+                }
+                 style:UIAlertActionStyleDefault];
   [self.actionSheetCoordinator
-   addItemWithTitle:l10n_util::GetNSString(
-     IDS_IOS_VIEW_CONTROLLER_DISMISS_DISCARD_CHANGES)
-   action:^{
-    [weakSelf cancel];
-  }
-   style:UIAlertActionStyleDestructive];
+      addItemWithTitle:l10n_util::GetNSString(
+                           IDS_IOS_VIEW_CONTROLLER_DISMISS_DISCARD_CHANGES)
+                action:^{
+                  [weakSelf cancel];
+                }
+                 style:UIAlertActionStyleDestructive];
   [self.actionSheetCoordinator
-   addItemWithTitle:l10n_util::GetNSString(
-     IDS_IOS_VIEW_CONTROLLER_DISMISS_CANCEL_CHANGES)
-   action:^{
-    weakSelf.navigationItem.leftBarButtonItem.enabled = YES;
-    weakSelf.navigationItem.rightBarButtonItem.enabled = YES;
-  }
-   style:UIAlertActionStyleCancel];
+      addItemWithTitle:l10n_util::GetNSString(
+                           IDS_IOS_VIEW_CONTROLLER_DISMISS_CANCEL_CHANGES)
+                action:^{
+                  weakSelf.navigationItem.leftBarButtonItem.enabled = YES;
+                  weakSelf.navigationItem.rightBarButtonItem.enabled = YES;
+                }
+                 style:UIAlertActionStyleCancel];
 
   self.navigationItem.leftBarButtonItem.enabled = NO;
   self.navigationItem.rightBarButtonItem.enabled = NO;

@@ -64,7 +64,7 @@
 using base::WaitableEvent;
 using base::android::ConvertJavaStringToUTF16;
 using base::android::ConvertJavaStringToUTF8;
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 using base::android::ScopedJavaGlobalRef;
 using base::android::ScopedJavaLocalRef;
 using content::BrowserThread;
@@ -398,6 +398,9 @@ void CookieManager::SetMojoCookieManagerAsync(
     return;
   }
 
+  LOG(WARNING) << "Transferring cookies from provisional CookieManager to "
+                  "network service. For issues with the provisional "
+                  "CookieManager, see crbug.com/478873476.";
   GetCookieStore()->FlushStore(base::BindOnce(
       &CookieManager::SwapMojoCookieManagerAsync, base::Unretained(this),
       std::move(cookie_manager_remote), std::move(complete)));
@@ -427,9 +430,8 @@ CookieManager::GetJavaCookieManager() {
   return base::android::ScopedJavaLocalRef<jobject>(java_obj_);
 }
 
-void CookieManager::SetWorkaroundHttpSecureCookiesForTesting(
-    JNIEnv* env,
-    jboolean allow) {
+void CookieManager::SetWorkaroundHttpSecureCookiesForTesting(JNIEnv* env,
+                                                             bool allow) {
   ExecCookieTaskSync(
       base::BindOnce(&CookieManager::SetWorkaroundHttpSecureCookiesAsyncHelper,
                      base::Unretained(this), allow));
@@ -443,24 +445,19 @@ void CookieManager::SetWorkaroundHttpSecureCookiesAsyncHelper(
   std::move(complete).Run();
 }
 
-void CookieManager::SetShouldAcceptCookies(JNIEnv* env,
-                                           jboolean accept) {
+void CookieManager::SetShouldAcceptCookies(JNIEnv* env, bool accept) {
   cookie_access_policy_.SetShouldAcceptCookies(accept);
 }
 
-jboolean CookieManager::GetShouldAcceptCookies(JNIEnv* env) {
+bool CookieManager::GetShouldAcceptCookies(JNIEnv* env) {
   return cookie_access_policy_.GetShouldAcceptCookies();
 }
 
 void CookieManager::SetCookie(JNIEnv* env,
-                              const JavaParamRef<jstring>& url,
+                              const JavaRef<jstring>& url,
                               std::string& cookie_value,
-                              const JavaParamRef<jobject>& java_callback) {
-  DCHECK(java_callback) << "Unexpected null Java callback";
+                              base::OnceCallback<void(bool)> callback) {
   GURL host(ConvertJavaStringToUTF16(env, url));
-  base::OnceCallback<void(bool)> callback =
-      base::BindOnce(&base::android::RunBooleanCallbackAndroid,
-                     ScopedJavaGlobalRef<jobject>(java_callback));
 
   ExecCookieTask(base::BindOnce(&CookieManager::SetCookieHelper,
                                 base::Unretained(this), host, cookie_value,
@@ -468,7 +465,7 @@ void CookieManager::SetCookie(JNIEnv* env,
 }
 
 void CookieManager::SetCookieSync(JNIEnv* env,
-                                  const JavaParamRef<jstring>& url,
+                                  const JavaRef<jstring>& url,
                                   std::string& value) {
   GURL host(ConvertJavaStringToUTF16(env, url));
   std::string cookie_value(value);
@@ -522,8 +519,7 @@ void CookieManager::SetCookieHelper(const GURL& host,
   }
 }
 
-std::string CookieManager::GetCookie(JNIEnv* env,
-                                     const JavaParamRef<jstring>& url) {
+std::string CookieManager::GetCookie(JNIEnv* env, const JavaRef<jstring>& url) {
   GURL host(ConvertJavaStringToUTF16(env, url));
 
   net::CookieList cookie_list;
@@ -536,7 +532,7 @@ std::string CookieManager::GetCookie(JNIEnv* env,
 
 ScopedJavaLocalRef<jobjectArray> CookieManager::GetCookieInfo(
     JNIEnv* env,
-    const JavaParamRef<jstring>& url) {
+    const JavaRef<jstring>& url) {
   GURL host(ConvertJavaStringToUTF16(env, url));
 
   net::CookieList cookie_list;
@@ -590,12 +586,7 @@ void CookieManager::GetCookieListCompleted(
 
 void CookieManager::RemoveSessionCookies(
     JNIEnv* env,
-    const JavaParamRef<jobject>& java_callback) {
-  DCHECK(java_callback) << "Unexpected null Java callback";
-  base::OnceCallback<void(bool)> callback =
-      base::BindOnce(&base::android::RunBooleanCallbackAndroid,
-                     ScopedJavaGlobalRef<jobject>(java_callback));
-
+    base::OnceCallback<void(bool)> callback) {
   ExecCookieTask(base::BindOnce(&CookieManager::RemoveSessionCookiesHelper,
                                 base::Unretained(this), std::move(callback)));
 }
@@ -628,15 +619,8 @@ void CookieManager::RemoveCookiesCompleted(
   std::move(callback).Run(num_deleted > 0u);
 }
 
-void CookieManager::RemoveAllCookies(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& java_callback) {
-  DCHECK(java_callback) << "Unexpected null Java callback";
-
-  base::OnceCallback<void(bool)> callback =
-      base::BindOnce(&base::android::RunBooleanCallbackAndroid,
-                     ScopedJavaGlobalRef<jobject>(java_callback));
-
+void CookieManager::RemoveAllCookies(JNIEnv* env,
+                                     base::OnceCallback<void(bool)> callback) {
   ExecCookieTask(base::BindOnce(&CookieManager::RemoveAllCookiesHelper,
                                 base::Unretained(this), std::move(callback)));
 }
@@ -688,7 +672,7 @@ void CookieManager::FlushCookieStoreAsyncHelper(base::OnceClosure complete) {
   }
 }
 
-jboolean CookieManager::HasCookies(JNIEnv* env) {
+bool CookieManager::HasCookies(JNIEnv* env) {
   bool has_cookies;
   ExecCookieTaskSync(base::BindOnce(&CookieManager::HasCookiesAsyncHelper,
                                     base::Unretained(this), &has_cookies));
@@ -722,12 +706,11 @@ bool CookieManager::GetAllowFileSchemeCookies() {
   return allow_file_scheme_cookies_;
 }
 
-jboolean CookieManager::GetAllowFileSchemeCookies(JNIEnv* env) {
+bool CookieManager::GetAllowFileSchemeCookies(JNIEnv* env) {
   return GetAllowFileSchemeCookies();
 }
 
-void CookieManager::SetAllowFileSchemeCookies(JNIEnv* env,
-                                              jboolean allow) {
+void CookieManager::SetAllowFileSchemeCookies(JNIEnv* env, bool allow) {
   ExecCookieTaskSync(
       base::BindOnce(&CookieManager::SetAllowFileSchemeCookiesAsyncHelper,
                      base::Unretained(this), allow));
@@ -770,12 +753,12 @@ void CookieManager::ClearClientHintsCachedPerOriginMapIfNeeded() {
   // next check and see that the browser has been started.
   if (should_clear_client_hints_cached_per_origin_map_) {
     GetContext()->GetPrefService()->SetDict(
-        prefs::kClientHintsCachedPerOriginMap, base::Value::Dict());
+        prefs::kClientHintsCachedPerOriginMap, base::DictValue());
     should_clear_client_hints_cached_per_origin_map_ = false;
   }
 }
 
-static jlong JNI_AwCookieManager_GetDefaultCookieManager(JNIEnv* env) {
+static int64_t JNI_AwCookieManager_GetDefaultCookieManager(JNIEnv* env) {
   return reinterpret_cast<intptr_t>(CookieManager::GetDefaultInstance());
 }
 

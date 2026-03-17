@@ -8,7 +8,8 @@
 #import "components/search_engines/util.h"
 #import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_swift.h"
 
-VivaldiSearchEngineEditorItem* VivaldiCreateSearchEngineEditorItemFromTemplateURL(
+VivaldiSearchEngineEditorItem*
+VivaldiCreateSearchEngineEditorItemFromTemplateURL(
     const TemplateURL* templateURL) {
   if (!templateURL) {
     return nil;
@@ -20,15 +21,14 @@ VivaldiSearchEngineEditorItem* VivaldiCreateSearchEngineEditorItemFromTemplateUR
                            name:base::SysUTF16ToNSString(
                                     templateURL->short_name())
                        nickname:base::SysUTF16ToNSString(templateURL->keyword())
-                            url:base::SysUTF8ToNSString(GetUrlToDisplay(
-                                        templateURL->url()))
+                            url:base::SysUTF8ToNSString(
+                                    GetUrlToDisplay(templateURL->url()))
                      suggestURL:base::SysUTF8ToNSString(GetUrlToDisplay(
-                                        templateURL->suggestions_url()))
+                                    templateURL->suggestions_url()))
                  postParameters:base::SysUTF8ToNSString(GetUrlToDisplay(
-                                        templateURL
-                                            ->suggestions_url_post_params()))
-                 imageSearchURL:base::SysUTF8ToNSString(GetUrlToDisplay(
-                                        templateURL->image_url()))
+                                    templateURL->suggestions_url_post_params()))
+                 imageSearchURL:base::SysUTF8ToNSString(
+                                    GetUrlToDisplay(templateURL->image_url()))
       imageSearchPostParameters:base::SysUTF8ToNSString(GetUrlToDisplay(
-                                        templateURL->image_url_post_params()))];
+                                    templateURL->image_url_post_params()))];
 }

@@ -60,6 +60,8 @@ bool PinLimitedAccessFeatureAvailable() {
   static constexpr wchar_t taskbar_api_token[] =
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
       L"InBNYixzyiUzivxj5T/HqA==";
+#elif defined(VIVALDI_BUILD)
+      L"Ucgw4BbTJLO/T9cyMfXtkA==";
 #else
       L"ILzQYl3daXqTIyjmNj5xwg==";
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)

@@ -45,6 +45,14 @@ void IsClipboardCopyAllowedByPolicy(
     const content::ClipboardPasteData& data,
     content::ContentBrowserClient::IsClipboardCopyAllowedCallback callback);
 
+// This function checks if data dragged from a browser tab is allowed to be
+// dragged to the OS according to the following policies:
+// - DataControlsRules
+//
+// Returns true if the drag is allowed, false otherwise.
+bool IsDragAllowedByPolicy(const content::ClipboardEndpoint& source,
+                           const content::DropData& drop_data);
+
 #if BUILDFLAG(IS_ANDROID)
 // This function checks if data being shared from a browser tab is allowed to
 // be written to the OS clipboard according to the following policies:
@@ -79,26 +87,27 @@ void ReplaceSameTabClipboardDataIfRequiredByPolicy(
     ui::ClipboardSequenceNumberToken seqno,
     content::ClipboardPasteData& data);
 
-// This function writes the given text to the clipboard. Wrapper over
-// IsClipboardCopyAllowedByPolicy.
-// Returns false if clipboard policy is not enforced, allowing the caller to use
-// default clipboard write. Returns true if the function handles the clipboard
-// write, potentially showing a dialog.
-bool HandleWriteTextToClipboard(content::WebContents* web_contents,
-                                ui::ClipboardBuffer clipboard_buffer,
-                                const std::u16string_view& text);
-
-// This function checks if drag and drop is allowed for the given source
-// according to the DataControlsRules policy. Used to check if event is allowed
-// synchronously without popup window.
-bool DragAndDropForTextIsAllowed(content::WebContents* web_contents);
-
 // Checks if the user is allowed to populate the find bar with
 // the currently selected text in the given WebContents based on
 // DataControlsRules policies. This is used to prevent potential data
 // bypass through the find bar when copy/paste restrictions are in place.
 // Returns true if populating the find bar is allowed, false otherwise.
 bool CanPopulateFindBarFromSelection(content::WebContents* web_contents);
+
+// Returns true if data copied from the find bar should be replaced before being
+// put in the clipboard due to the "DataControlsRules" policy. If that is the
+// case, the string put in `replacement` is what should instead by written to
+// the clipboard.
+bool ReplaceCopyFromFindBar(std::u16string_view selected_text,
+                            content::WebContents* web_contents,
+                            std::u16string* replacement);
+
+// Checks if the given `web_contents` is allowed to receive replaced clipboard
+// data, and returns it if so. This is used so `FindBarView` code doesn't always
+// receive blocked pasted data in safe cases like searching a string in the same
+// page it was copied from.
+std::optional<std::u16string> ReplacePasteToFindBar(
+    content::WebContents* web_contents);
 
 }  // namespace enterprise_data_protection
 

@@ -12,8 +12,8 @@
 /// VivaldiATBAddDomainSourceViewController is used to
 /// add/edit domain and source for exceptions and ad blocker rule
 /// respectively.
-@interface VivaldiATBAddDomainSourceViewController :
-  LegacyChromeTableViewController <UIAdaptivePresentationControllerDelegate>
+@interface VivaldiATBAddDomainSourceViewController
+    : LegacyChromeTableViewController <UIAdaptivePresentationControllerDelegate>
 
 // INITIALIZER
 - (instancetype)initWithBrowser:(Browser*)browser

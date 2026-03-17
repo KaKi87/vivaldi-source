@@ -13,6 +13,7 @@
 
 #include "base/check.h"
 #include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/time/time.h"
@@ -331,6 +332,7 @@ void WaylandEventSource::OnPointerFocusChanged(
     const gfx::PointF& location,
     base::TimeTicks timestamp,
     wl::EventDispatchPolicy dispatch_policy) {
+  window_manager_->SetVivaldiDragEndWindow(window);
   bool focused = !!window;
   if (focused) {
     // Save new pointer location.

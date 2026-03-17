@@ -97,7 +97,6 @@ if (is_ios) {
 if (vivaldi_build_tests) {
   update_template_instance("//chrome/test/data/webui/settings:build") {
     files -= [
-      "ai_compare_subpage_test.ts",
       "ai_history_search_subpage_test.ts",
       "ai_info_card_test.ts",
       "ai_logging_info_bullet_test.ts",
@@ -109,6 +108,7 @@ if (vivaldi_build_tests) {
       "autofill_ai_entries_list_test.ts",
       "autofill_ai_section_test.ts",
       "collapsible_autofill_settings_card_test.ts",
+      "default_browser_test.ts",
       "offer_writing_help_page_test.ts",
       "privacy_page_test.ts",
       "privacy_guide_ad_topics_fragment_test.ts",
@@ -133,6 +133,8 @@ if (vivaldi_build_tests) {
       "searchable_view_container_mixin_test.ts",
       "security_page_feature_row_test.ts",
       "security_page_v2_test.ts",
+      "secure_dns_test.ts",
+      "secure_dns_v2_test.ts",
       "settings_main_plugins_test.ts",
       "settings_main_test.ts",
       "settings_view_mixin_test.ts",

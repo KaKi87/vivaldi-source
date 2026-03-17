@@ -143,6 +143,10 @@ class WaylandWindowManager {
 
   void DumpState(std::ostream& out) const;
 
+  // Vivaldi
+  WaylandWindow* GetVivaldiDragEndWindow() const;
+  void SetVivaldiDragEndWindow(WaylandWindow* window);
+
  private:
   raw_ptr<WaylandWindow> pointer_focused_window_ = nullptr;
   raw_ptr<WaylandWindow> keyboard_focused_window_ = nullptr;
@@ -170,6 +174,10 @@ class WaylandWindowManager {
   // Current system's text font scaling factor provided by WaylandScreen,
   // through LinuxUi, when enabled.
   float font_scale_ = 1.0f;
+
+  // Vivaldi
+  // window under pointer, nullptr when pointer outside of windows.
+  raw_ptr<WaylandWindow> vivaldi_drag_end_window_ = nullptr;
 };
 
 }  // namespace ui

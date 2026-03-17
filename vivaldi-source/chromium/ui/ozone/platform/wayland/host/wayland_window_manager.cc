@@ -275,6 +275,9 @@ void WaylandWindowManager::RemoveWindow(gfx::AcceleratedWidget widget) {
   if (window == pointer_focused_window_) {
     pointer_focused_window_ = nullptr;
   }
+  if (window == vivaldi_drag_end_window_) {
+    vivaldi_drag_end_window_ = nullptr;
+  }
   if (window == keyboard_focused_window_) {
     keyboard_focused_window_ = nullptr;
     UpdateParentToplevelAcivationOnRemoval(window);
@@ -373,6 +376,16 @@ void WaylandWindowManager::UpdateActivationState() {
       toplevel_window->UpdateActivationState();
     }
   }
+}
+
+// Vivaldi
+WaylandWindow* WaylandWindowManager::GetVivaldiDragEndWindow() const {
+  return vivaldi_drag_end_window_;
+}
+
+// Vivaldi
+void WaylandWindowManager::SetVivaldiDragEndWindow(WaylandWindow* window) {
+  vivaldi_drag_end_window_ = window;
 }
 
 }  // namespace ui

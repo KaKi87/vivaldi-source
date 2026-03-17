@@ -16,12 +16,12 @@ typedef NS_ENUM(NSUInteger, URLValidationType) {
 @interface VivaldiTextFieldView : UIView
 
 - (instancetype)initWithPlaceholder:(NSString*)placeholder
-  NS_DESIGNATED_INITIALIZER;
+    NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithFrame:(CGRect)frame NS_UNAVAILABLE;
 - (instancetype)initWithCoder:(NSCoder*)aDecoder NS_UNAVAILABLE;
 
 // Boolean to keep track whether to validate scheme in URL mode.
-@property(nonatomic,assign) BOOL validateScheme;
+@property(nonatomic, assign) BOOL validateScheme;
 
 // SETTERS
 /// Sets the placeholder after initialization.

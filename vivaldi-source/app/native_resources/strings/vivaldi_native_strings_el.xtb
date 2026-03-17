@@ -11,6 +11,7 @@
 <translation id="1276145862619442150">Ταχείες Κλήσεις</translation>
 <translation id="1281950884873973195">Ζώο 6</translation>
 <translation id="1411638389238344450">Αποστολή Συνδέσμου μέσω Ηλεκτρονικού Ταχυδρομείου</translation>
+<translation id="1444961972702494601">Αποτυχία ανάγνωσης του αρχείου προτιμήσεων του Opera</translation>
 <translation id="1454726940098520109">Να μην εμφανιστεί ξανά η επιβεβαίωση</translation>
 <translation id="1462666970065907900">Θέλετε πραγματικά να κλείσετε αυτό το παράθυρο;</translation>
 <translation id="1480046233931937785">Συντελεστές</translation>
@@ -26,8 +27,11 @@
 <translation id="1702758681952953055">Εάν το σφάλμα παραμένει, αναφέρετέ το και συμπεριλάβετε τις ακόλουθες λεπτομέρειες:</translation>
 <translation id="1728549374069268714">Επικόλληση και μετάβαση</translation>
 <translation id="1756026472674246267">Άνοιγμα Συνδέσμου σε Νέα Καρτέλα</translation>
+<translation id="1756609631857154536">Το αρχείο κωδικών πρόσβασης (wand) δεν υπάρχει</translation>
 <translation id="1759842336958782510">Chrome</translation>
 <translation id="1769904678986817931">Ιδιότητες Εικόνας...</translation>
+<translation id="1826707182290941822">Οι ρυθμίσεις του Chrome σας δεν είναι διαθέσιμες όσο ο browser είναι σε λειτουργία. Για να εισαγάγετε αυτές τις ρυθμίσεις στο Vivaldi, αποθηκεύστε την εργασία σας και κλείστε όλα τα παράθυρα του Chrome. Στη συνέχεια, κάντε κλικ στο Συνέχεια.</translation>
+<translation id="1836997307232631937">Το αρχείο κωδικών πρόσβασης δεν μπορεί να αναγνωσθεί και ενδέχεται να είναι κατεστραμμένο</translation>
 <translation id="1919345977826869612">Διαφημίσεις</translation>
 <translation id="1920297417712412573">Αντιγραφή σε Σημείωση</translation>
 <translation id="1924750141060565109">Τοπίο 15</translation>
@@ -36,12 +40,17 @@
 <translation id="1973351931613083086">αυτόματη αναπαραγωγή</translation>
 <translation id="1985669426322966465">Αναβάθμιση Λογισμικού</translation>
 <translation id="2079036669923635404">Κάντε κλικ εδώ για να ενημερώσετε το Vivaldi στην έκδοση <ph name="VERSION" />.</translation>
+<translation id="2096375219036704155">Το αρχείο σελιδοδεικτών δεν βρέθηκε</translation>
+<translation id="2101054359190001133">Οι ρυθμίσεις του Opera σας δεν είναι διαθέσιμες όσο ο browser είναι σε λειτουργία. Για να εισαγάγετε αυτές τις ρυθμίσεις στο Vivaldi, αποθηκεύστε την εργασία σας και κλείστε όλα τα παράθυρα του Opera. Στη συνέχεια, κάντε κλικ στο Συνέχεια.</translation>
 <translation id="2141974047387702305">Παρουσιάστηκε σφάλμα κατά τη λήψη αρχείων ενημέρωσης. Ελέγξτε τη σύνδεσή σας στο διαδίκτυο και δοκιμάστε ξανά αργότερα.</translation>
+<translation id="2142146492302700970">Δεν ήταν δυνατή η εύρεση της καταχώρησης 'encrypted_key' για το προφίλ προέλευσης</translation>
+<translation id="2209970441698102782">Δεν ήταν δυνατή η εύρεση του Local State για το προφίλ προέλευσης</translation>
 <translation id="2225863440766607138">Ιχνηλάτες</translation>
 <translation id="2226825946708954262">⚠ Συνεχίστε με Απώλεια Δεδομένων</translation>
 <translation id="2339641773402824483">Ελεγχος για ενημερώσεις...</translation>
 <translation id="2429571091666452569">Από τη λίστα:</translation>
 <translation id="2441056087170876076">Τέρας 2</translation>
+<translation id="2443880093901730341">Αποτυχία ερωτήματος στη βάση δεδομένων ιστορικού</translation>
 <translation id="2444387452209867610">Εισαγωγή Σημείωσης</translation>
 <translation id="2486841023299517366">Ζώο 4</translation>
 <translation id="2501278716633472235">Πήγαινε πίσω</translation>
@@ -53,6 +62,7 @@
 <translation id="2765309692777226484">Ο αποκλεισμός Ιχνηλατών και Διαφημίσεων είναι απενεργοποιημένος.</translation>
 <translation id="2848085334714181751">Ζώο 3</translation>
 <translation id="2873951654529031587">Κάδος απορριμμάτων</translation>
+<translation id="2902312830803030883">Περισσότερες ενέργειες</translation>
 <translation id="292258461174562431">Τέρας 4</translation>
 <translation id="2923448633003185837">Επικόλληση και Μετάβαση</translation>
 <translation id="2953943267837858202">Δεν επιτρέπεται η αυτόματη αναπαραγωγή βίντεο</translation>
@@ -61,6 +71,7 @@
 <translation id="2989805286512600854">Άνοιγμα σε Νέα Καρτέλα</translation>
 <translation id="3084011186245865060">Τοπίο 6</translation>
 <translation id="3085906383264247940">Opera (Beta)</translation>
+<translation id="3089483810725397237">Το αρχείο σημειώσεων δεν υπάρχει</translation>
 <translation id="3093931836425623631">Το Vivaldi υλοποιήθηκε με χρήση του έργου ανοικτού κώδικα Chromium και άλλου λογισμικού ανοικτού κώδικα.</translation>
 <translation id="3119245580849443327">Έκθεση Απορρήτου Vivaldi</translation>
 <translation id="3126903660515914763">https://vivaldi.com/blog/news/alert-no-google-topics-in-vivaldi/</translation>
@@ -76,8 +87,10 @@
 <translation id="3308738399950580893">Διαφημίσεις</translation>
 <translation id="3334610655141903168">(χωρίς τίτλο)</translation>
 <translation id="3372505110412186107">Το Vivaldi <ph name="VERSION" /> είναι προς το παρόν η πιο πρόσφατη διαθέσιμη έκδοση.</translation>
+<translation id="3378346665180477942">Μη έγκυρο αρχείο σελιδοδεικτών</translation>
 <translation id="3383198080133834965">Είστε ενημερωμένοι!</translation>
 <translation id="3402602684546832928">Επιλέξτε Αρχείο σελιδοδεικτών Opera</translation>
+<translation id="3427361875526086153">Το αρχείο δεδομένων σύνδεσης δεν βρέθηκε</translation>
 <translation id="3451317331714872347">Τοπίο 8</translation>
 <translation id="3457498675806041407">Επιβεβαίωση Εξόδου</translation>
 <translation id="3470981972195599598">Το Vivaldi <ph name="VERSION" /> είναι ήδη εγκατεστημένο και θα ενεργοποιηθεί μετά την επανεκκίνηση του προγράμματος περιήγησης.</translation>
@@ -98,6 +111,8 @@
 <translation id="3732157130969736834">Προσθήκη Συνδέσμου στους Σελιδοδείκτες</translation>
 <translation id="3732388226447288666">Ζώο 2</translation>
 <translation id="3732439195215136813">Ζώο 5</translation>
+<translation id="3807270291741046903">Το κλειδί δεν είναι κλειδί DPAPI, αδυναμία αποκρυπτογράφησης</translation>
+<translation id="3821561970091304474">Δεν ήταν δυνατή η πρόσβαση στο αρχείο της βάσης δεδομένων ιστορικού</translation>
 <translation id="3822431842304177896">Νέο Διαχωριστικό</translation>
 <translation id="3832132597516774400">Τοπίο 5</translation>
 <translation id="3861977424605124250">Εμφάνιση κατά την εκκίνηση</translation>
@@ -106,36 +121,44 @@
 <translation id="3921292902397893431">Τέρας 8</translation>
 <translation id="3943857333388298514">Επικόλληση</translation>
 <translation id="4005270918754737597">Παράλειψη αυτής της έκδοσης</translation>
+<translation id="4012248391474116967">Το αρχείο σελιδοδεικτών δεν υπάρχει</translation>
 <translation id="4044951018940382324">Vivaldi</translation>
 <translation id="4064545092083709582">To Vivaldi δεν μπόρεσε να ξεκλειδώσει το κατάστημα ασφαλών κλειδιών σας. Χωρίς το κατάστημα κλειδιών, θα χάσετε τα αποθηκευμένα στοιχεία σύνδεσης, τα ασφαλή cookie και ορισμένες λειτουργίες όπως ο Συγχρονισμός, η Aλληλογραφία και το Ημερολόγιο θα σταματήσουν να λειτουργούν.
 
  Κλείστε τώρα, ξεκλειδώστε ή επισκευάστε το κατάστημα κλειδιών σας και, στη συνέχεια, δοκιμάστε ξανά. Θέλετε πραγματικά να συνεχίσετε, αλλά να χάσετε δεδομένα;</translation>
 <translation id="4074744496918018786">Άνοιγμα Εικόνας σε Ιδιωτικό Παράθυρο</translation>
 <translation id="410351446219883937">Αυτόματη αναπαραγωγή</translation>
+<translation id="4241573219093785166">Οι ρυθμίσεις σας δεν μπορούν να εισαχθούν από άλλη εγκατάσταση του Vivaldi όσο αυτή είναι ακόμα σε λειτουργία. Για να εισαγάγετε αυτές τις ρυθμίσεις σε αυτόν τον browser, κλείστε όλα τα παράθυρα της άλλης εγκατάστασης του Vivaldi και στη συνέχεια κάντε κλικ στο Συνέχεια.</translation>
 <translation id="4281844954008187215">Όροι χρήσης</translation>
 <translation id="430967081421617822">Όλος ο Χρόνος</translation>
 <translation id="4324492550286218827">Τοπίο 2</translation>
+<translation id="436942009209245676">Δεν ήταν δυνατή η ανάλυση του JSON στο Local State</translation>
 <translation id="4406101500523955324">Άνοιγμα σε Νέο Ιδιωτικό Παράθυρο</translation>
 <translation id="4420816922321010053">Θέλετε πραγματικά να κλείσετε τον Vivaldi;</translation>
 <translation id="4430019312045809116">Ένταση</translation>
 <translation id="443008484043213881">Εργαλεία</translation>
+<translation id="4441649773969751521">Οι ρυθμίσεις του Yandex σας δεν είναι διαθέσιμες όσο ο browser είναι σε λειτουργία. Για να εισαγάγετε αυτές τις ρυθμίσεις στο Vivaldi, αποθηκεύστε την εργασία σας και κλείστε όλα τα παράθυρα του Yandex. Στη συνέχεια, κάντε κλικ στο Συνέχεια.</translation>
 <translation id="4456211719108566931">Τέρας 6</translation>
 <translation id="4459169140545916303">Ενεργό <ph name="DEVICE_LAST_ACTIVATED_TIME" /> ημέρες πριν</translation>
 <translation id="4474776280324528449">https://vivaldi.com/blog/do-no-track-gets-legal-backing-in-germany/</translation>
+<translation id="4510781427281143276">Διαγραφή Προφίλ</translation>
 <translation id="4511738570787012048">Συμμετάσχετε στην προσπάθεια του Vivaldi για μηδενική παρακολούθηση και ανακτήστε τον έλεγχο της ιδιωτικότητάς σας στο διαδίκτυο.
 Μάθετε περισσότερα για τον αγώνα μας για τα δικαιώματα των χρηστών στα παρακάτω άρθρα.</translation>
 <translation id="4512900838580567989">Άνοιγμα Συνδέσμου σε Νέα Καρτέλα στο Παρασκήνιο</translation>
 <translation id="4545097004879999966">Opera Mail</translation>
 <translation id="4548358047305717967">Άνοιγμα Εικόνας σε Νέα Καρτέλα στο Παρασκήνιο</translation>
 <translation id="4582480609585453144">Άνοιγμα Συνδέσμου σε Καρτέλα Παρασκηνίου</translation>
+<translation id="461909702339733257">Οι ρυθμίσεις του Edge σας δεν είναι διαθέσιμες όσο ο browser είναι σε λειτουργία. Για να εισαγάγετε αυτές τις ρυθμίσεις στο Vivaldi, αποθηκεύστε την εργασία σας και κλείστε όλα τα παράθυρα του Edge. Στη συνέχεια, κάντε κλικ στο Συνέχεια.</translation>
 <translation id="4636708767492582204">Αποστολή μέσω Ηλεκτρονικού Ταχυδρομείου</translation>
 <translation id="4677434526832593569">Ζώο 8</translation>
+<translation id="4729666228450010210">Δεν ήταν δυνατή η ανάγνωση του αρχείου ταχείας κλήσης</translation>
 <translation id="4736016046474602958">Αποκλεισμός Παρακολούθησης</translation>
 <translation id="474217410105706308">Σίγαση Καρτέλας</translation>
 <translation id="4861715717329665002">Αυτόματα αποθηκευμένες περίοδοι σύνδεσης</translation>
 <translation id="4881695831933465202">Άνοιγμα</translation>
 <translation id="498766871928286903"><ph name="DOWNLOADED" /> από <ph name="TOTAL_SIZE_TO_DOWNLOAD" /></translation>
 <translation id="5014281392052865061">Ταχεία Κλήση που έχει εισαχθεί</translation>
+<translation id="5034185370374718631">Οι ρυθμίσεις του Opera GX σας δεν είναι διαθέσιμες όσο ο browser είναι σε λειτουργία. Για να εισαγάγετε αυτές τις ρυθμίσεις στο Vivaldi, αποθηκεύστε την εργασία σας και κλείστε όλα τα παράθυρα του Opera GX. Στη συνέχεια, κάντε κλικ στο Συνέχεια.</translation>
 <translation id="5092656712000637858">Προσθήκη Σελίδας σε Πίνακα Ιστού</translation>
 <translation id="5106275083540628394">Η Αποκρυπτογράφηση Απέτυχε: Κίνδυνος Απώλειας Δεδομένων</translation>
 <translation id="5177818338935286353">Τέρας 7</translation>
@@ -143,6 +166,7 @@
 <translation id="5238244642230426581">Σελιδοδείκτες που έχουν εισαχθεί</translation>
 <translation id="527605719918376753">Σίγαση καρτέλας</translation>
 <translation id="5305569355661722298">Επιβεβαίωση για το Κλείσιμο του Παραθύρου</translation>
+<translation id="5317780077021120954">Αποθήκευση</translation>
 <translation id="5322922669477407077">Opera (Developer)</translation>
 <translation id="5388358297987318779">Άνοιγμα Εικόνας</translation>
 <translation id="5398772614898833570">Διαφημίσεις που έχουν αποκλειστεί</translation>
@@ -154,9 +178,11 @@
 <translation id="5648110075441906505">Άνοιγμα Εικόνας σε Νέο Παράθυρο</translation>
 <translation id="5648166631817621825">Τελευταίες 7 ημέρες</translation>
 <translation id="5656371807944747581">Σφάλμα Ενημέρωσης!</translation>
+<translation id="5707114137287591385">Αποτυχία ανάγνωσης των δεδομένων εισαγωγής</translation>
 <translation id="5732584064771442623">Το Vivaldi <ph name="NEW_VERSION" /> είναι τώρα διαθέσιμο (έχετε την έκδοση <ph name="OLD_VERSION" />). Θέλετε να το κατεβάσετε τώρα;</translation>
 <translation id="5741670635761443575">Ειδοποίηση: Χωρίς Google Topics στο Vivaldi.</translation>
 <translation id="5770433027661640693">Τοπίο 10</translation>
+<translation id="5786053688537975020">Δεν ήταν δυνατή η ανάγνωση του Local State από τον δίσκο</translation>
 <translation id="5857090052475505287">Νέος Φάκελος</translation>
 <translation id="588258955323874662">Πλήρης οθόνη</translation>
 <translation id="6040143037577758943">Κλείσιμο</translation>
@@ -176,11 +202,13 @@
 <translation id="6630781781151951863">Τοπίο 18</translation>
 <translation id="6635049669875534328">Σημειώσεις έκδοσης:</translation>
 <translation id="6653655836861174026">Με τα προφίλ Vivaldi μπορείτε να διαχωρίσετε όλα τα στοιχεία σας στο Vivaldi. Δημιουργήστε προφίλ για φίλους και συγγενείς ή διαχωρίστε την εργασία από την ψυχαγωγία.</translation>
+<translation id="6693551000972665087">Απαιτείται κύριος κωδικός πρόσβασης, αλλά δεν δόθηκε κανένας</translation>
 <translation id="6693585104974197539">Επιλέξτε φάκελο προφίλ του Edge για εισαγωγή</translation>
 <translation id="6726279523566323394">Επιλέξτε φάκελο προφίλ του Brave για εισαγωγή</translation>
 <translation id="6736243959894955139">Διεύθυνση</translation>
 <translation id="6892812721183419409">Άνοιγμα Συνδέσμου ως <ph name="USER" /></translation>
 <translation id="6896758677409633944">Αντιγραφή</translation>
+<translation id="6951961820678531655">Είστε βέβαιοι ότι θέλετε να διαγράψετε το προφίλ «__1»;</translation>
 <translation id="6960139763942959188">Αυτό το προφίλ είναι προς το παρόν αποθηκευμένο με μη ασφαλή τρόπο σε μη κρυπτογραφημένη μορφή. To Vivaldi πρόκειται να αναβαθμίσει το προφίλ σας σε μια πιο ασφαλή κρυπτογραφημένη μορφή. Θα πρέπει να κλείσετε τώρα και να δημιουργήσετε αντίγραφα ασφαλείας του προφίλ σας πριν συνεχίσετε.</translation>
 <translation id="7013466836883158999">Είναι δυνατόν να δημιουργηθούν βιώσιμα προϊόντα χωρίς να κατασκοπεύονται οι χρήστες; Πώς θα είναι το μέλλον της περιήγησης στο διαδίκτυο; Δείτε τον Διευθύνοντα Σύμβουλο μας, Jon von Tetzchner, να απαντά σε αυτές τις ερωτήσεις στο Web Summit 2023.</translation>
 <translation id="7066262000446496119">Ποιος χρησιμοποιεί το Vivaldi;</translation>
@@ -188,12 +216,17 @@
 <translation id="7099506190679014195">Ασφαλής αναβάθμιση αποθήκευσης κλειδιών</translation>
 <translation id="7111492742514999492">Τοπίο 9</translation>
 <translation id="7113310725918019676">Επιτρέψτε <ph name="BLOCKED_TYPE" /> από <ph name="DOMAIN" /></translation>
+<translation id="7230790743794586907">Δεν ήταν δυνατή η πρόσβαση στο αρχείο της βάσης δεδομένων συνδέσεων</translation>
 <translation id="7277237102285741596">https://vivaldi.com/blog/manifest-v3-webrequest-and-ad-blockers/</translation>
 <translation id="7283555985781738399">Λειτουργία επισκέπτη</translation>
+<translation id="7319087656340696133">Το κλειδί αποκρυπτογράφησης δεν είναι έγκυρο</translation>
 <translation id="7321500017121629018">Ενεργό χθες</translation>
 <translation id="7337881442233988129">Chromium</translation>
+<translation id="7382439465323652245">Δεν ήταν δυνατή η εύρεση της καταχώρησης 'os_crypt' για το προφίλ προέλευσης</translation>
 <translation id="7421665776469827022">Δεδομένα που αποθηκεύτηκαν</translation>
 <translation id="7454640759045234067">Ιχνηλάτες που αποκλείστηκαν</translation>
+<translation id="7508642657131162635">Οι ρυθμίσεις του Brave σας δεν είναι διαθέσιμες όσο ο browser είναι σε λειτουργία. Για να εισαγάγετε αυτές τις ρυθμίσεις στο Vivaldi, αποθηκεύστε την εργασία σας και κλείστε όλα τα παράθυρα του Brave. Στη συνέχεια, κάντε κλικ στο Συνέχεια.</translation>
+<translation id="7515032462649518126">Επιλογή προσαρμοσμένης εικόνας avatar</translation>
 <translation id="7581266044164103589">Αποτυχία εκκίνησης του προγράμματος εγκατάστασης ενημέρωσης. Βεβαιωθείτε ότι ο υπολογιστής διαθέτει αρκετή μνήμη ή χώρο στο δίσκο και δοκιμάστε ξανά αργότερα.</translation>
 <translation id="7658239707568436148">Άκυρο</translation>
 <translation id="7698231949697067951">Ό,τι κάνετε στο διαδίκτυο είναι δική σας υπόθεση! Παρακάτω μπορείτε να δείτε πώς σας βοηθήσαμε να παραμείνετε προστατευμένοι.</translation>
@@ -206,6 +239,7 @@
 <translation id="788493840831967104">Χρόνος που εξοικονομήθηκε</translation>
 <translation id="7957213167373139414">Το Ημερολόγιό Μου</translation>
 <translation id="7981965265950405093">Το Vivaldi διαθέτει ενσωματωμένο αποκλεισμό για Ιχνηλάτες και Διαφημίσεις, πολλές επιλογές προσαρμογής, ενσωματωμένο Ηλεκτρονικό Ταχυδρομείο και Ημερολόγιο και πολλά άλλα. Θα ακολουθήσει την αυστηρή εξάρτηση της Google από το Manifest V3; Ο προγραμματιστής του Vivaldi, Julien Picalausa, εξετάζει σε βάθος αυτό το θέμα.</translation>
+<translation id="7985415590384688462">Αποτυχία αποκρυπτογράφησης κωδικών πρόσβασης</translation>
 <translation id="8027581147000338959">Άνοιγμα σε Νέο Παράθυρο</translation>
 <translation id="8034402064393340023">Η δέσμευσή μας για την προστασία της ιδιωτικότητάς σας</translation>
 <translation id="8044382196220116469">Να μην επιτρέπεται στους ιστότοπους η αυτόματη αναπαραγωγή βίντεο</translation>
@@ -233,18 +267,22 @@
 <translation id="8774017153185436870">Οι ιστότοποι ενδέχεται να αναπαράγουν αυτόματα βίντεο</translation>
 <translation id="8813277370772331957">Θύμισέ μου αργότερα</translation>
 <translation id="8837256239226739065">Επιθεώρηση Υπηρεσίας Παρασκηνίου</translation>
+<translation id="8861872665418508137">Οι ρυθμίσεις του Arc σας δεν είναι διαθέσιμες όσο ο browser είναι σε λειτουργία. Για να εισαγάγετε αυτές τις ρυθμίσεις στο Vivaldi, αποθηκεύστε την εργασία σας και κλείστε όλα τα παράθυρα του Arc. Στη συνέχεια, κάντε κλικ στο Συνέχεια.</translation>
 <translation id="8894900864683381599">Προσθήκη Συνδέσμου σε Πίνακα Ιστού</translation>
 <translation id="8912720443398351457">Θέλετε πραγματικά να κλείσετε τον Vivaldi;</translation>
+<translation id="8924818205225323428">Το αρχείο ιστορικού δεν υπάρχει</translation>
 <translation id="8940028675168378100">Αποκλείστηκε από <ph name="BLOCKER_NAME" /></translation>
 <translation id="8947109330183116400">Επιλέξτε αρχείο σελιδοδεικτών HTML</translation>
 <translation id="9017566390391482291">Επιλέξτε το φάκελο προφίλ Vivaldi για εισαγωγή</translation>
 <translation id="9048058608784130603">Εκκρεμεί ενημέρωση <ph name="VERSION" /></translation>
 <translation id="9048224371732578627">Επιτρέπεται η αυτόματη αναπαραγωγή βίντεο</translation>
+<translation id="9051519327745317142">Το αρχείο προτιμήσεων του Opera δεν βρέθηκε</translation>
 <translation id="9065203028668620118">Επεξεργασία</translation>
 <translation id="9090254883741610153">Ας συνεχίσω</translation>
 <translation id="910680796491389880">Thunderbird</translation>
 <translation id="9118360612142967597">Η παρακολούθηση της συμπεριφοράς των ανθρώπων και η δημιουργία προφίλ τους είναι λάθος. Για αυτόν τον λόγο, φροντίσαμε να απενεργοποιήσουμε τη λειτουργία Topics της Google με δύο διαφορετικούς τρόπους στον browser Vivaldi.</translation>
 <translation id="912022491595344261">Άνοιγμα εικόνας ως <ph name="USER" /></translation>
+<translation id="9149866541089851383">Επεξεργασία...</translation>
 <translation id="9157539936604258187">Άνοιγμα Συνδέσμου</translation>
 <translation id="9169060351863393881">Opera 12.x</translation>
 <translation id="9180553614777056266">Αποκλεισμός Διαφημίσεων</translation>

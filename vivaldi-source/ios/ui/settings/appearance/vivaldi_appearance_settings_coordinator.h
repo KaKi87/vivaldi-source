@@ -14,7 +14,7 @@ class Browser;
 - (instancetype)initWithBaseNavigationController:
                     (UINavigationController*)navigationController
                         presentingViewController:
-              (UIViewController*)presentingViewController
+                            (UIViewController*)presentingViewController
                                          browser:(Browser*)browser
     NS_DESIGNATED_INITIALIZER;
 

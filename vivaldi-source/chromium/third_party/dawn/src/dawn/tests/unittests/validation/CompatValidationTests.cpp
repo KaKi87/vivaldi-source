@@ -72,6 +72,21 @@ TEST_F(CompatValidationTest, CanNotCreateCubeArrayTextureView) {
     cubeTexture.Destroy();
 }
 
+TEST_F(CompatValidationTest, CanNotCreateCubeArrayTexture) {
+    wgpu::TextureDescriptor descriptor;
+    descriptor.size = {1, 1, 6};
+    descriptor.dimension = wgpu::TextureDimension::e2D;
+    descriptor.format = wgpu::TextureFormat::RGBA8Unorm;
+    descriptor.usage = wgpu::TextureUsage::TextureBinding;
+
+    wgpu::TextureBindingViewDimensionDescriptor textureBindingViewDimensionDesc;
+    textureBindingViewDimensionDesc.textureBindingViewDimension =
+        wgpu::TextureViewDimension::CubeArray;
+    descriptor.nextInChain = &textureBindingViewDimensionDesc;
+
+    ASSERT_DEVICE_ERROR(device.CreateTexture(&descriptor));
+}
+
 TEST_F(CompatValidationTest, CanNotSpecifyAlternateCompatibleViewFormatRGBA8Unorm) {
     constexpr wgpu::TextureFormat viewFormat = wgpu::TextureFormat::RGBA8UnormSrgb;
 
@@ -905,6 +920,7 @@ void TestMultipleTextureViewValidationInRenderPass(
     descriptor.dimension = wgpu::TextureDimension::e2D;
     descriptor.format = format;
     descriptor.usage = wgpu::TextureUsage::TextureBinding;
+
     wgpu::Texture texture = device.CreateTexture(&descriptor);
 
     constexpr uint32_t indices[] = {0, 1, 2};
@@ -1731,7 +1747,7 @@ class CompatTextureViewDimensionValidationTests : public CompatTextureViewValida
             CreateTextureWithViewDimension(depth, dimension, textureBindingViewDimension);
         } else {
             ASSERT_DEVICE_ERROR(
-                CreateTextureWithViewDimension(depth, dimension, textureBindingViewDimension);
+                CreateTextureWithViewDimension(depth, dimension, textureBindingViewDimension),
                 testing::HasSubstr(expectedSubstr));
         }
     }
@@ -1752,7 +1768,7 @@ class CompatTextureViewDimensionValidationTests : public CompatTextureViewValida
         bool success) {
         TestCreateTextureWithViewDimensionImpl(depth, dimension, textureBindingViewDimension,
                                                success,
-                                               "is only compatible with depthOrArrayLayers ==");
+                                               "is only compatible with depthOrArrayLayers equals");
     }
 
     wgpu::Texture CreateTextureWithViewDimension(

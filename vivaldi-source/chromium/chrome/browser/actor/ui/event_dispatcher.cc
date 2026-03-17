@@ -63,14 +63,19 @@ constexpr absl::Overload PreToolEventsFn{
           ComputedMouseMove(tr.GetTabHandle(), tr.GetTarget()),
           MouseClick(tr.GetTabHandle(), tr.GetClickType(), tr.GetClickCount())};
     },
+#if !BUILDFLAG(SKIP_ANDROID_UNMIGRATED_ACTOR_FILES)
     NoUiEvents<ActivateTabToolRequest>,
     NoUiEvents<ActivateWindowToolRequest>,
     NoUiEvents<CloseTabToolRequest>,
     NoUiEvents<CloseWindowToolRequest>,
     NoUiEvents<CreateTabToolRequest>,
     NoUiEvents<CreateWindowToolRequest>,
+#endif
     NoUiEvents<DragAndReleaseToolRequest>,
     NoUiEvents<HistoryToolRequest>,
+#if !BUILDFLAG(SKIP_ANDROID_UNMIGRATED_ACTOR_FILES)
+    NoUiEvents<LoadAndExtractContentToolRequest>,
+#endif
     NoUiEvents<MediaControlToolRequest>,
     [](const MoveMouseToolRequest& tr) {
       return EventSequence<AsyncUiEvent>{
@@ -84,21 +89,28 @@ constexpr absl::Overload PreToolEventsFn{
           ComputedMouseMove(tr.GetTabHandle(), tr.GetTarget())};
     },
     NoUiEvents<WaitToolRequest>,
+#if !BUILDFLAG(SKIP_ANDROID_UNMIGRATED_ACTOR_FILES)
     NoUiEvents<AttemptLoginToolRequest>,
+#endif
     NoUiEvents<AttemptFormFillingToolRequest>,
     NoUiEvents<ScriptToolRequest>,
     NoUiEvents<ScrollToToolRequest>};
 
 constexpr absl::Overload PostToolEventsFn{
     NoUiEvents<ClickToolRequest>,
+#if !BUILDFLAG(SKIP_ANDROID_UNMIGRATED_ACTOR_FILES)
     NoUiEvents<ActivateTabToolRequest>,
     NoUiEvents<ActivateWindowToolRequest>,
     NoUiEvents<CloseTabToolRequest>,
     NoUiEvents<CloseWindowToolRequest>,
     NoUiEvents<CreateTabToolRequest>,
     NoUiEvents<CreateWindowToolRequest>,
+#endif
     NoUiEvents<DragAndReleaseToolRequest>,
     NoUiEvents<HistoryToolRequest>,
+#if !BUILDFLAG(SKIP_ANDROID_UNMIGRATED_ACTOR_FILES)
+    NoUiEvents<LoadAndExtractContentToolRequest>,
+#endif
     NoUiEvents<MediaControlToolRequest>,
     NoUiEvents<MoveMouseToolRequest>,
     NoUiEvents<NavigateToolRequest>,
@@ -106,7 +118,9 @@ constexpr absl::Overload PostToolEventsFn{
     NoUiEvents<SelectToolRequest>,
     NoUiEvents<TypeToolRequest>,
     NoUiEvents<WaitToolRequest>,
+#if !BUILDFLAG(SKIP_ANDROID_UNMIGRATED_ACTOR_FILES)
     NoUiEvents<AttemptLoginToolRequest>,
+#endif
     NoUiEvents<AttemptFormFillingToolRequest>,
     NoUiEvents<ScriptToolRequest>,
     NoUiEvents<ScrollToToolRequest>};
@@ -125,8 +139,12 @@ constexpr absl::Overload ActorTaskSyncChangeFn{
           c.new_state == ActorTask::State::kActing) {
         seq.push_back(StartTask(c.task_id));
       }
-      seq.push_back(TaskStateChanged(c.task_id, c.new_state, c.title));
+      seq.push_back(TaskStateChanged(c.task_id, c.new_state));
       return seq;
+    },
+    [](const UiEventDispatcher::StopTask& c) {
+      return EventSequence<SyncUiEvent>{StopTask(
+          c.task_id, c.final_state, c.title, c.last_acted_on_tab_handle)};
     },
     [](const UiEventDispatcher::RemoveTab& c) {
       return EventSequence<SyncUiEvent>{StoppedActingOnTab(c.handle)};
@@ -201,6 +219,12 @@ struct InputTraits<UiEventDispatcher::ActorTaskSyncChange> {
                   "ChangeTaskState task_id=%d old_state=%s new_state=%s",
                   c.task_id.GetUnsafeValue(), ToString(c.old_state),
                   ToString(c.new_state));
+            },
+            [](const UiEventDispatcher::StopTask& c) {
+              return absl::StrFormat(
+                  "StopTask task_id=%d final_state=%s title=%s tab=%d",
+                  c.task_id.GetUnsafeValue(), ToString(c.final_state), c.title,
+                  c.last_acted_on_tab_handle.raw_value());
             },
             [](const UiEventDispatcher::RemoveTab& c) {
               return absl::StrFormat("RemoveTab task_id=%d tab=%d",
@@ -361,10 +385,8 @@ class UiEventDispatcherImpl : public UiEventDispatcher {
       VLOG(4) << VisitorTraits<V>::phase_name
               << "(SyncUiEvent): " << DebugString(event);
 
-      base::ScopedUmaHistogramTimer timer(
-          GetUiEventDurationHistogramName(GetUiEventName(event)),
-          base::ScopedUmaHistogramTimer::ScopedHistogramTiming::
-              kMicrosecondTimes);
+      base::ScopedUmaHistogramTimer timer =
+          GetUiEventDurationScopedTimer(GetUiEventName(event));
       ui_state_manager_->OnUiEvent(std::move(event));
     }
     ResetAndComplete(MakeOkResult());

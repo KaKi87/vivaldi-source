@@ -7,6 +7,7 @@
 
 #include <stddef.h>
 
+#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/time/time.h"
@@ -43,7 +44,10 @@ class OmniboxPopupViewWebUI : public OmniboxPopupView,
   void ProvideButtonFocusHint(size_t line) override;
   void OnDragCanceled() override;
   void GetPopupAccessibleNodeData(ui::AXNodeData* node_data) const override;
-  raw_ptr<OmniboxPopupViewWebUI> GetOmniboxPopupViewWebUI() override;
+  void StepSelection(OmniboxPopupSelection::Direction direction,
+                     OmniboxPopupSelection::Step step) override;
+  void OpenCurrentSelection(WindowOpenDisposition disposition) override;
+  bool IsSelectionPopupControlled() const override;
 
   // OmniboxEditModel::Observer:
   void OnSelectionChanged(OmniboxPopupSelection old_selection,
@@ -51,13 +55,9 @@ class OmniboxPopupViewWebUI : public OmniboxPopupView,
   void OnMatchIconUpdated(size_t index) override {}
   void OnContentsChanged() override;
   void OnKeywordStateChanged(bool is_keyword_selected) override {}
+  void OnCharTyped(base::TimeTicks timestamp) override {}
 
  protected:
-  friend class OmniboxPopupViewWebUITest;
-  friend class OmniboxWebUiInteractiveTest;
-  FRIEND_TEST_ALL_PREFIXES(OmniboxPopupViewWebUITest,
-                           PopupLoadsAndAcceptsCalls);
-
   // OmniboxPopupView:
   bool IsOpen() const override;
 

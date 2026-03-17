@@ -15,6 +15,7 @@ import sys
 import tempfile
 from typing import Iterable
 import unittest
+from unittest import mock
 import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -94,8 +95,23 @@ class TestConfigWizard(unittest.TestCase):
             'https://chromium.googlesource.com/chromium/tools/depot_tools.git')
         self.wizard._configure_sso(parts, scope='global')
         want = {
-            'url.sso://chromium/.insteadof':
-            ['https://chromium.googlesource.com/'],
+            'url.sso://chromium/.insteadof': [
+                'https://chromium.googlesource.com/',
+                'https://chromium-review.googlesource.com/'
+            ],
+        }
+        self.assertEqual(self.global_state, want)
+
+    def test_configure_sso_global_with_review_host(self):
+        parts = urllib.parse.urlsplit(
+            'https://chromium-review.googlesource.com/chromium/tools/depot_tools.git'
+        )
+        self.wizard._configure_sso(parts, scope='global')
+        want = {
+            'url.sso://chromium/.insteadof': [
+                'https://chromium.googlesource.com/',
+                'https://chromium-review.googlesource.com/'
+            ],
         }
         self.assertEqual(self.global_state, want)
 
@@ -109,13 +125,28 @@ class TestConfigWizard(unittest.TestCase):
         }
         self.assertEqual(self.global_state, want)
 
+    def test_configure_oauth_global_with_review_host(self):
+        parts = urllib.parse.urlsplit(
+            'https://chromium-review.googlesource.com/chromium/tools/depot_tools.git'
+        )
+        self.wizard._configure_oauth(parts, scope='global')
+        want = {
+            'credential.https://chromium-review.googlesource.com.helper':
+            ['', 'luci'],
+            'credential.https://chromium-review.googlesource.com.usehttppath':
+            ['yes'],
+        }
+        self.assertEqual(self.global_state, want)
+
     def test_configure_sso_global_oauth_local(self):
         parts = urllib.parse.urlsplit(
             'https://chromium.googlesource.com/chromium/tools/depot_tools.git')
         self.wizard._configure_sso(parts, scope='global')
         want = {
-            'url.sso://chromium/.insteadof':
-            ['https://chromium.googlesource.com/'],
+            'url.sso://chromium/.insteadof': [
+                'https://chromium.googlesource.com/',
+                'https://chromium-review.googlesource.com/'
+            ],
         }
         self.assertEqual(self.global_state, want)
         self.wizard._configure_oauth(parts, scope='local')
@@ -130,8 +161,97 @@ class TestConfigWizard(unittest.TestCase):
                 os.getcwd(),
                 'url.https://chromium.googlesource.com/chromium/tools/depot_tools.git.insteadof'
             ), [
-                'https://chromium.googlesource.com/chromium/tools/depot_tools.git'
+                'https://chromium.googlesource.com/chromium/tools/depot_tools.git',
             ])
+
+    def test_configure_review_sso_global_oauth_local(self):
+        parts = urllib.parse.urlsplit(
+            'https://chromium-review.googlesource.com/chromium/tools/depot_tools.git'
+        )
+        self.wizard._configure_sso(parts, scope='global')
+        want = {
+            'url.sso://chromium/.insteadof': [
+                'https://chromium.googlesource.com/',
+                'https://chromium-review.googlesource.com/'
+            ],
+        }
+        self.assertEqual(self.global_state, want)
+        self.wizard._configure_oauth(parts, scope='local')
+        self.assertEqual(
+            scm.GIT.GetConfigList(
+                os.getcwd(),
+                'credential.https://chromium-review.googlesource.com.helper'),
+            ['', 'luci'])
+        # Ensure that we're overriding the global overwrite rule
+        self.assertEqual(
+            scm.GIT.GetConfigList(
+                os.getcwd(),
+                'url.https://chromium-review.googlesource.com/chromium/tools/depot_tools.git.insteadof'
+            ), [
+                'https://chromium-review.googlesource.com/chromium/tools/depot_tools.git',
+            ])
+
+    @mock.patch('git_auth.ConfigWizard._check_use_sso', spec=True)
+    def test_configure_host_clears_conflicting_local_stale(self, check):
+        parts = urllib.parse.urlsplit(
+            'https://chromium.googlesource.com/chromium/tools/depot_tools.git')
+        email = 'columbina@example.com'
+
+        check.return_value = True
+        self.wizard._configure_host(parts, email, scope='local')
+        # Check local rule is created
+        self.assertEqual(
+            scm.GIT.GetConfigList(os.getcwd(), 'url.sso://chromium/.insteadof'),
+            [
+                'https://chromium.googlesource.com/',
+                'https://chromium-review.googlesource.com/',
+            ])
+
+        check.return_value = False
+        self.wizard._configure_host(parts, email, scope='global')
+        want = {
+            'credential.https://chromium.googlesource.com.helper': ['', 'luci'],
+            'credential.https://chromium.googlesource.com.usehttppath': ['yes'],
+        }
+        self.assertEqual(self.global_state, want)
+        # Ensure the local rule gets purged
+        self.assertEqual(
+            scm.GIT.GetConfigList(os.getcwd(), 'url.sso://chromium/.insteadof'),
+            [])
+
+    @mock.patch('git_auth.ConfigWizard._check_use_sso', spec=True)
+    def test_configure_host_outside_repo_keeps_local_stale(self, check):
+        parts = urllib.parse.urlsplit(
+            'https://chromium.googlesource.com/chromium/tools/depot_tools.git')
+        email = 'columbina@example.com'
+
+        check.return_value = True
+        self.wizard._configure_host(parts, email, scope='local')
+        # Check local rule is created
+        self.assertEqual(
+            scm.GIT.GetConfigList(os.getcwd(), 'url.sso://chromium/.insteadof'),
+            [
+                'https://chromium.googlesource.com/',
+                'https://chromium-review.googlesource.com/',
+            ])
+
+        check.return_value = False
+        wizard = git_auth.ConfigWizard(ui=self.ui, remote_url_func=lambda: '')
+        wizard._configure_host(parts, email, scope='global')
+        want = {
+            'credential.https://chromium.googlesource.com.helper': ['', 'luci'],
+            'credential.https://chromium.googlesource.com.usehttppath': ['yes'],
+        }
+        self.assertEqual(self.global_state, want)
+        # Check the local rule remains.
+        # This test is wonky because the scm.GIT mock always assumes we're in a repo
+        self.assertEqual(
+            scm.GIT.GetConfigList(os.getcwd(), 'url.sso://chromium/.insteadof'),
+            [
+                'https://chromium.googlesource.com/',
+                'https://chromium-review.googlesource.com/',
+            ])
+
 
     def test_check_gitcookies_same(self):
         with tempfile.NamedTemporaryFile() as gitcookies:

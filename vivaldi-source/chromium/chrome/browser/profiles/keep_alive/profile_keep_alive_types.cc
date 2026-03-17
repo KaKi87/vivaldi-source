@@ -89,6 +89,8 @@ std::ostream& operator<<(std::ostream& out,
       return out << "kWaitingForGlicView";
     case ProfileKeepAliveOrigin::kWaitingForBookmarksImportOnFirstRun:
       return out << "kWaitingForBookmarksImportOnFirstRun";
+    case ProfileKeepAliveOrigin::kSkillsDialog:
+      return out << "kSkillsDialog";
   }
   NOTREACHED();
 }

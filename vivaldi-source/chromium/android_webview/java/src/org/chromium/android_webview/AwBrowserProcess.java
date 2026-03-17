@@ -5,6 +5,7 @@
 package org.chromium.android_webview;
 
 import android.Manifest;
+import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -188,6 +189,8 @@ public final class AwBrowserProcess {
                 LibraryProcessType.PROCESS_WEBVIEW_CHILD,
                 bindToCaller,
                 ignoreVisibilityForImportance);
+
+        ChildProcessLauncherHelper.initialize();
     }
 
     /**
@@ -235,6 +238,17 @@ public final class AwBrowserProcess {
         }
     }
 
+    public static boolean shouldDeferGmsCalls() {
+        return WebViewCachedFlags.get()
+                        .isCachedFeatureEnabled(
+                                AwFeatures.WEBVIEW_OPT_IN_TO_GMS_BIND_SERVICE_OPTIMIZATION)
+                || WebViewCachedFlags.get()
+                        .isCachedFeatureEnabled(AwFeatures.WEBVIEW_DEFER_STARTUP_GMS_CALLS)
+                || CommandLine.getInstance().hasSwitch(AwSwitches.WEBVIEW_DEFER_STARTUP_GMS_CALLS)
+                || CommandLine.getInstance()
+                        .hasSwitch(AwSwitches.WEBVIEW_OPT_IN_TO_GMS_BIND_SERVICE_OPTIMIZATION);
+    }
+
     /**
      * Finishes the chromium browser process initialization. Starts the browser process
      * synchronously if not already started.
@@ -266,9 +280,7 @@ public final class AwBrowserProcess {
                 AwContentsLifecycleNotifier.initialize();
             }
 
-            if (!WebViewCachedFlags.get()
-                    .isCachedFeatureEnabled(
-                            AwFeatures.WEBVIEW_OPT_IN_TO_GMS_BIND_SERVICE_OPTIMIZATION)) {
+            if (!shouldDeferGmsCalls()) {
                 setupSupervisedUser();
             }
 
@@ -342,9 +354,7 @@ public final class AwBrowserProcess {
                     DualTraceEvent.scoped("AwBrowserProcess.maybeEnableSafeBrowsingFromManifest")) {
                 AwSafeBrowsingConfigHelper.maybeEnableSafeBrowsingFromManifest();
             }
-            if (!WebViewCachedFlags.get()
-                    .isCachedFeatureEnabled(
-                            AwFeatures.WEBVIEW_OPT_IN_TO_GMS_BIND_SERVICE_OPTIMIZATION)) {
+            if (!shouldDeferGmsCalls()) {
                 maybeEnableSafeBrowsingFromGms();
             }
         }
@@ -445,6 +455,23 @@ public final class AwBrowserProcess {
     @CalledByNative
     public static @ApkType int getApkType() {
         return sApkType;
+    }
+
+    /**
+     * Returns whether the app is visible to the user. That is, the app is currently at the top of
+     * the screen which the user is interacting with.
+     *
+     * <p>Note that this is different from the Foreground/Background state of WebView that we track
+     * via AwContentsLifecycleNotifier/WebViewAppStateObserver. Those track the state of the
+     * WebViews in an app while this tracks the state of the app as a whole.
+     */
+    @CalledByNative
+    public static boolean isAppVisibleToUser() {
+        ActivityManager.RunningAppProcessInfo runningAppProcessInfo =
+                new ActivityManager.RunningAppProcessInfo();
+        ActivityManager.getMyMemoryState(runningAppProcessInfo);
+        return runningAppProcessInfo.importance
+                <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE;
     }
 
     /** Trigger minidump copying, which in turn triggers minidump uploading. */
@@ -933,17 +960,37 @@ public final class AwBrowserProcess {
     }
 
     /**
-     * Start Perfetto initialization.
+     * Start tracing initialization.
      *
      * <p>This must only be called <em>before</em> Content startup. If Content Main has already been
-     * called, perfetto will already be initialized, and this method will crash.
+     * called, tracing will already be initialized, and this method will crash.
      *
      * @param enableSystemConsumer Set to {@code true} in order to send Perfetto traces to the
      *     Android system consumer. Equivalent to enabling {@link
      *     org.chromium.services.tracing.TracingServiceFeatures.ENABLE_PERFETTO_SYSTEM_TRACING}
+     * @param runningOnBackgroundThread Indicates that tracing is being initialized on a background
+     *     thread, which will set up the mechanism for Startup to wait for initialization to finish
+     *     before proceeding.
      */
-    public static void initPerfetto(boolean enableSystemConsumer) {
-        AwBrowserProcessJni.get().initPerfetto(enableSystemConsumer);
+    public static void initTracing(
+            boolean enableSystemConsumer, boolean runningOnBackgroundThread) {
+        AwBrowserProcessJni.get().initTracing(enableSystemConsumer, runningOnBackgroundThread);
+    }
+
+    /**
+     * Sets a flag to indicate that tracing will be initialized on a background thread. Should be
+     * set if {@link #initTracing(boolean, boolean)} is called from a background thread.
+     */
+    public static void markTracingInitializedOnBackground() {
+        AwBrowserProcessJni.get().markTracingInitializedOnBackground();
+    }
+
+    /**
+     * Sets a flag to disable tracing init during normal browser main. Should be set if tracing is
+     * initialized earlier during startup.
+     */
+    public static void disableTracingInitDuringBrowserMain() {
+        AwBrowserProcessJni.get().disableTracingInitDuringBrowserMain();
     }
 
     private static void configureDisplayAndroidManager() {
@@ -961,6 +1008,12 @@ public final class AwBrowserProcess {
 
         void onStartupComplete();
 
-        void initPerfetto(@JniType("bool") boolean enableSystemConsumer);
+        void initTracing(
+                @JniType("bool") boolean enableSystemConsumer,
+                @JniType("bool") boolean runningOnBackgroundThread);
+
+        void markTracingInitializedOnBackground();
+
+        void disableTracingInitDuringBrowserMain();
     }
 }

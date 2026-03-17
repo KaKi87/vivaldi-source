@@ -76,7 +76,7 @@
 #import "ios/ui/settings/appearance/vivaldi_appearance_settings_prefs_helper.h"
 #import "ios/ui/settings/appearance/vivaldi_appearance_settings_prefs.h"
 #import "ios/ui/settings/tabs/vivaldi_tab_settings_helper.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 // End Vivaldi
 
 using ScopedTabGroupSyncObservation =

@@ -7,7 +7,6 @@
 
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_item.h"
 
-
 @interface VivaldiTableViewAttributedTextViewItem : TableViewItem
 
 @property(nonatomic, readwrite, strong) NSAttributedString* text;

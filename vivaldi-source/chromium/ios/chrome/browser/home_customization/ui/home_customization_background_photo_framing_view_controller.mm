@@ -9,7 +9,7 @@
 #import "base/check.h"
 #import "base/functional/bind.h"
 #import "base/functional/callback.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/content_suggestions_collection_utils.h"
+#import "ios/chrome/browser/content_suggestions/ui/content_suggestions_collection_utils.h"
 #import "ios/chrome/browser/home_customization/ui/home_customization_accessibility_identifiers.h"
 #import "ios/chrome/browser/home_customization/ui/home_customization_background_photo_framing_mutator.h"
 #import "ios/chrome/browser/home_customization/ui/home_customization_framing_coordinates.h"
@@ -392,11 +392,12 @@ const CGFloat kGradientSpacingAboveInstructions = 150;
 - (void)setupGradientView {
   UIColor* startColor = [UIColor.blackColor colorWithAlphaComponent:0];
   UIColor* endColor = [UIColor.blackColor colorWithAlphaComponent:0.6];
-  UIView* gradientView = [[GradientView alloc]
-      initWithStartColor:startColor
-                endColor:endColor
-              startPoint:CGPointMake(0, 0)
-                endPoint:CGPointMake(0, kGradientEndPoint)];
+  UIView* gradientView =
+      [[GradientView alloc] initWithStartColor:startColor
+                                      endColor:endColor
+                                    startPoint:CGPointMake(0, 0)
+                                      endPoint:CGPointMake(0, kGradientEndPoint)
+                                 useEasedCurve:NO];
   gradientView.translatesAutoresizingMaskIntoConstraints = NO;
 
   [self.view insertSubview:gradientView aboveSubview:_scrollView];

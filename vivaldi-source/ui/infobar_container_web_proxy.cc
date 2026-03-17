@@ -11,8 +11,8 @@
 #include "content/public/browser/web_contents.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/tools/vivaldi_tools.h"
-#include "vivaldi/extensions/schema/infobars.h"
 #include "ui/base/l10n/l10n_util.h"
+#include "vivaldi/extensions/schema/infobars.h"
 
 namespace vivaldi {
 
@@ -31,16 +31,14 @@ ConfirmInfoBarWebProxy::ConfirmInfoBarWebProxy(
 ConfirmInfoBarWebProxy::~ConfirmInfoBarWebProxy() {}
 
 void ConfirmInfoBarWebProxy::PlatformSpecificHide(bool animate) {
-  base::Value::List args(
-      extensions::vivaldi::infobars::OnInfobarRemoved::Create(
-          tab_id_, delegate()->GetIdentifier()));
+  base::ListValue args(extensions::vivaldi::infobars::OnInfobarRemoved::Create(
+      tab_id_, delegate()->GetIdentifier()));
   ::vivaldi::BroadcastEvent(
       extensions::vivaldi::infobars::OnInfobarRemoved::kEventName,
       std::move(args), profile_);
 }
 
 void ConfirmInfoBarWebProxy::PlatformSpecificShow(bool animate) {
-
   content::WebContents* web_contents =
       infobars::ContentInfoBarManager::WebContentsFromInfoBar(this);
 
@@ -59,7 +57,8 @@ void ConfirmInfoBarWebProxy::PlatformSpecificShow(bool animate) {
     infobar.message_text = base::UTF16ToUTF8(GetMessageText());
     infobar.link_text = base::UTF16ToUTF8(delegate->GetLinkText());
 
-    if (delegate->GetButtons() & TabSharingInfoBarDelegate::kShareThisTabInstead) {
+    if (delegate->GetButtons() &
+        TabSharingInfoBarDelegate::kShareThisTabInstead) {
       InfobarButton button[1] = {};
 
       button->action = ButtonAction::kAccept;
@@ -114,7 +113,7 @@ void ConfirmInfoBarWebProxy::PlatformSpecificShow(bool animate) {
   infobar.identifier = delegate()->GetIdentifier();
   infobar.is_closeable = delegate()->IsCloseable();
 
-  base::Value::List args(
+  base::ListValue args(
       extensions::vivaldi::infobars::OnInfobarCreated::Create(infobar));
   vivaldi::BroadcastEvent(
       extensions::vivaldi::infobars::OnInfobarCreated::kEventName,
@@ -143,7 +142,8 @@ std::u16string GetMessageTextCapturing(bool shared_tab,
 
 std::u16string ConfirmInfoBarWebProxy::GetMessageText() const {
   bool thisiscaptured = false;
-  return GetMessageTextCapturing(thisiscaptured, shared_tab_name_, capturer_name_);
+  return GetMessageTextCapturing(thisiscaptured, shared_tab_name_,
+                                 capturer_name_);
 }
 
 InfoBarContainerWebProxy::InfoBarContainerWebProxy(Delegate* delegate)
@@ -155,16 +155,13 @@ InfoBarContainerWebProxy::~InfoBarContainerWebProxy() {
 
 void InfoBarContainerWebProxy::PlatformSpecificAddInfoBar(
     infobars::InfoBar* new_infobar,
-    size_t position) {
-}
+    size_t position) {}
 
-  void InfoBarContainerWebProxy::PlatformSpecificReplaceInfoBar(
+void InfoBarContainerWebProxy::PlatformSpecificReplaceInfoBar(
     infobars::InfoBar* old_infobar,
-    infobars::InfoBar* new_infobar) {
-}
+    infobars::InfoBar* new_infobar) {}
 
 void InfoBarContainerWebProxy::PlatformSpecificRemoveInfoBar(
-    infobars::InfoBar* infobar) {
-}
+    infobars::InfoBar* infobar) {}
 
 }  // namespace vivaldi

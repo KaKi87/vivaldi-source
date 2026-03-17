@@ -24,6 +24,9 @@
 #import "ios/chrome/browser/favicon/model/ios_chrome_favicon_loader_factory.h"
 #import "ios/chrome/browser/incognito_reauth/ui_bundled/incognito_reauth_commands.h"
 #import "ios/chrome/browser/incognito_reauth/ui_bundled/incognito_reauth_scene_agent.h"
+#import "ios/chrome/browser/intelligence/bwg/metrics/gemini_metrics.h"
+#import "ios/chrome/browser/intelligence/bwg/model/bwg_service.h"
+#import "ios/chrome/browser/intelligence/bwg/model/bwg_service_factory.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/bwg_constants.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/lens/ui_bundled/lens_availability.h"
@@ -48,13 +51,13 @@
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/public/commands/activity_service_commands.h"
 #import "ios/chrome/browser/shared/public/commands/activity_service_share_url_command.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/enhanced_calendar_commands.h"
 #import "ios/chrome/browser/shared/public/commands/lens_commands.h"
 #import "ios/chrome/browser/shared/public/commands/mini_map_commands.h"
 #import "ios/chrome/browser/shared/public/commands/reading_list_add_command.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/search_image_with_lens_command.h"
 #import "ios/chrome/browser/shared/public/commands/unit_conversion_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -209,89 +212,9 @@ NSString* const kAlertAccessibilityIdentifier = @"AlertAccessibilityIdentifier";
                                                actionProvider:actionProvider];
 }
 
-#pragma mark - Properties
-
-- (web::WebState*)webState {
-  if (base::FeatureList::IsEnabled(kEnableLensOverlay) && _baseWebState) {
-    return _baseWebState.get();
-  }
-  web::WebState* activeWebState =
-      self.browser ? self.browser->GetWebStateList()->GetActiveWebState()
-                   : nullptr;
-  if (activeWebState) {
-    // Check if there is an alternate webState.
-    ReaderModeTabHelper* readerModeTabHelper =
-        ReaderModeTabHelper::FromWebState(activeWebState);
-    if (readerModeTabHelper) {
-      web::WebState* readerModeWebState =
-          readerModeTabHelper->GetReaderModeWebState();
-      if (readerModeWebState) {
-        return readerModeWebState;
-      }
-    }
-  }
-  return activeWebState;
-}
-
-#pragma mark - Private
-
-// Returns a preview for the images in contextual menu for a given image web
-// state.
-- (UIContextMenuContentPreviewProvider)
-    contextMenuContentPreviewProviderForWebState:(web::WebState*)webState
-                                          params:
-                                              (web::ContextMenuParams)params {
-  if (IsVivaldiRunning() &&
-      self.browser->GetProfile()->GetOriginalProfile()->GetPrefs()->GetBoolean(
-          prefs::kLinkPreviewEnabled)) {
-    const GURL linkURL = params.link_url;
-    const bool isLink = linkURL.is_valid();
-    const GURL imageURL = params.src_url;
-    const bool isImage = imageURL.is_valid();
-
-    if (isLink) {
-      self.linkPreviewCoordinator =
-          [[LinkPreviewCoordinator alloc] initWithBrowser:self.browser
-                                                      URL:linkURL];
-      self.linkPreviewCoordinator.referrer =
-          web::Referrer(linkURL, web::ReferrerPolicyDefault);
-      [self.linkPreviewCoordinator start];
-      return ^() {
-        return [self.linkPreviewCoordinator linkPreviewViewController];
-      };
-    } else if (isImage) {
-      ImagePreviewViewController* previewViewController =
-          [[ImagePreviewViewController alloc]
-              initWithSrcURL:net::NSURLWithGURL(imageURL)
-                    webState:webState];
-      [previewViewController loadPreview];
-      return ^() {
-        return previewViewController;
-      };
-    } else {
-      return nil;
-    }
-  } else { // Vivaldi
-  if (!params.src_url.is_valid() || params.link_url.is_valid()) {
-    return nil;
-  }
-
-  ImagePreviewViewController* previewViewController =
-      [[ImagePreviewViewController alloc]
-          initWithSrcURL:net::NSURLWithGURL(params.src_url)
-                webState:webState];
-  [previewViewController loadPreview];
-  return ^() {
-    return previewViewController;
-  };
-  }  // End Vivaldi
-}
-
-// Returns an action based contextual menu for a given web state (link, image,
-// copy and intent detection actions).
-- (UIContextMenuActionProvider)
-    contextMenuActionProviderForWebState:(web::WebState*)webState
-                                  params:(web::ContextMenuParams)params {
+- (UIMenu*)contextMenuForWebState:(web::WebState*)webState
+                           params:(web::ContextMenuParams)params
+                         scenario:(MenuScenarioHistogram)menuScenario {
   // Reset the URL.
   _URLToLoad = GURL();
 
@@ -313,12 +236,6 @@ NSString* const kAlertAccessibilityIdentifier = @"AlertAccessibilityIdentifier";
   web::Referrer referrer(lastCommittedURL, web::ReferrerPolicyDefault);
 
   NSMutableArray<UIMenuElement*>* menuElements = [[NSMutableArray alloc] init];
-  // TODO(crbug.com/40823789) add scenario for not a link and not an image.
-  MenuScenarioHistogram menuScenario =
-      [self getMenuScenarioHistogramWithWebState:webState
-                                         isImage:isImage
-                                          isLink:isLink];
-
   NSString* menuTitle = nil;
   UIAction* showFullURL = nil;
 
@@ -405,8 +322,111 @@ NSString* const kAlertAccessibilityIdentifier = @"AlertAccessibilityIdentifier";
     return nil;
   }
 
-  UIMenu* menu = [UIMenu menuWithTitle:menuTitle children:menuElements];
+  return [UIMenu menuWithTitle:menuTitle children:menuElements];
+}
 
+- (void)recordMenuShown:(MenuScenarioHistogram)scenario {
+  RecordMenuShown(scenario);
+}
+
+#pragma mark - Properties
+
+- (web::WebState*)webState {
+  if (_baseWebState) {
+    return _baseWebState.get();
+  }
+  web::WebState* activeWebState =
+      self.browser ? self.browser->GetWebStateList()->GetActiveWebState()
+                   : nullptr;
+  if (activeWebState) {
+    // Check if there is an alternate webState.
+    ReaderModeTabHelper* readerModeTabHelper =
+        ReaderModeTabHelper::FromWebState(activeWebState);
+    if (readerModeTabHelper) {
+      web::WebState* readerModeWebState =
+          readerModeTabHelper->GetReaderModeWebState();
+      if (readerModeWebState) {
+        return readerModeWebState;
+      }
+    }
+  }
+  return activeWebState;
+}
+
+#pragma mark - Private
+
+// Returns a preview for the images in contextual menu for a given image web
+// state.
+- (UIContextMenuContentPreviewProvider)
+    contextMenuContentPreviewProviderForWebState:(web::WebState*)webState
+                                          params:
+                                              (web::ContextMenuParams)params {
+  if (IsVivaldiRunning() &&
+      self.browser->GetProfile()->GetOriginalProfile()->GetPrefs()->GetBoolean(
+          prefs::kLinkPreviewEnabled)) {
+    const GURL linkURL = params.link_url;
+    const bool isLink = linkURL.is_valid();
+    const GURL imageURL = params.src_url;
+    const bool isImage = imageURL.is_valid();
+
+    if (isLink) {
+      self.linkPreviewCoordinator =
+          [[LinkPreviewCoordinator alloc] initWithBrowser:self.browser
+                                                      URL:linkURL];
+      self.linkPreviewCoordinator.referrer =
+          web::Referrer(linkURL, web::ReferrerPolicyDefault);
+      [self.linkPreviewCoordinator start];
+      return ^() {
+        return [self.linkPreviewCoordinator linkPreviewViewController];
+      };
+    } else if (isImage) {
+      ImagePreviewViewController* previewViewController =
+          [[ImagePreviewViewController alloc]
+              initWithSrcURL:net::NSURLWithGURL(imageURL)
+                    webState:webState];
+      [previewViewController loadPreview];
+      return ^() {
+        return previewViewController;
+      };
+    } else {
+      return nil;
+    }
+  } else { // Vivaldi
+  if (!params.src_url.is_valid() || params.link_url.is_valid()) {
+    return nil;
+  }
+
+  ImagePreviewViewController* previewViewController =
+      [[ImagePreviewViewController alloc]
+          initWithSrcURL:net::NSURLWithGURL(params.src_url)
+                webState:webState];
+  [previewViewController loadPreview];
+  return ^() {
+    return previewViewController;
+  };
+  }  // End Vivaldi
+}
+
+// Returns an action based contextual menu for a given web state (link, image,
+// copy and intent detection actions).
+- (UIContextMenuActionProvider)
+    contextMenuActionProviderForWebState:(web::WebState*)webState
+                                  params:(web::ContextMenuParams)params {
+  const bool isLink = params.link_url.is_valid();
+  const bool isImage = params.src_url.is_valid();
+
+  // TODO(crbug.com/40823789) add scenario for not a link and not an image.
+  MenuScenarioHistogram menuScenario =
+      [self getMenuScenarioHistogramWithWebState:webState
+                                         isImage:isImage
+                                          isLink:isLink];
+
+  UIMenu* menu = [self contextMenuForWebState:webState
+                                       params:params
+                                     scenario:menuScenario];
+  if (menu.children.count == 0) {
+    return nil;
+  }
   UIContextMenuActionProvider actionProvider =
       ^(NSArray<UIMenuElement*>* suggestedActions) {
         RecordMenuShown(menuScenario);
@@ -592,24 +612,6 @@ NSString* const kAlertAccessibilityIdentifier = @"AlertAccessibilityIdentifier";
 
   __weak __typeof(self) weakSelf = self;
 
-  // Launch the Gemini experience with an image attached.
-  // TODO(crbug.com/457469273): Add more eligibility checks.
-  if (IsImageContextMenuGeminiEntryPointEnabled()) {
-    ProceduralBlock geminiElementCallback = ^{
-      [weakSelf openGeminiWithImageURL:imageURL referrer:referrer];
-    };
-    UIMenuElement* geminiElement = [actionFactory
-        actionToOpenImageInGeminiWithBlock:geminiElementCallback];
-
-    // Wrap the Gemini element in an inline menu to create a distinct section.
-    UIMenu* geminiSection = [UIMenu menuWithTitle:@""
-                                            image:nil
-                                       identifier:nil
-                                          options:UIMenuOptionsDisplayInline
-                                         children:@[ geminiElement ]];
-    [imageMenuElements addObject:geminiSection];
-  }
-
   // Image saving.
   NSArray<UIMenuElement*>* imageSavingElements =
       [self imageSavingElementsWithURL:imageURL
@@ -639,7 +641,38 @@ NSString* const kAlertAccessibilityIdentifier = @"AlertAccessibilityIdentifier";
       [self imageSearchingElementsWithURL:imageURL
                                  scenario:scenario
                                  referrer:referrer];
+
+  // Launch the Gemini experience with an image attached.
+  UIMenuElement* geminiElement = nil;
+  raw_ptr<BwgService> BWGService =
+      BwgServiceFactory::GetForProfile(self.browser->GetProfile());
+  BOOL canShowGeminiElement = IsGeminiImageRemixToolEnabled() && BWGService &&
+                              BWGService->IsBwgAvailableForWebState(webState);
+  BOOL geminiAboveSearch = IsGeminiImageRemixToolShowAboveSearchImageEnabled();
+  BOOL geminiBelowSearch = IsGeminiImageRemixToolShowBelowSearchImageEnabled();
+
+  if (canShowGeminiElement && (geminiAboveSearch || geminiBelowSearch)) {
+    RecordImageRemixContextMenuEntryPointShown();
+
+    ProceduralBlock geminiElementCallback = ^{
+      [weakSelf openGeminiWithImageURL:imageURL referrer:referrer];
+    };
+    geminiElement = [actionFactory
+        actionToOpenImageInGeminiWithBlock:geminiElementCallback];
+  }
+
+  // Display the gemini element either above or below the search image
+  // element based on the flags.
+  if (geminiElement && geminiAboveSearch) {
+    [imageMenuElements addObject:geminiElement];
+  }
+
   [imageMenuElements addObjectsFromArray:imageSearchingElements];
+
+  // Ensure we don't show gemini twice if both flags are enabled.
+  if (geminiElement && geminiBelowSearch && !geminiAboveSearch) {
+    [imageMenuElements addObject:geminiElement];
+  }
 
   // Share Image.
   // Shares the URL of the image and not the image itself.
@@ -1200,10 +1233,17 @@ NSString* const kAlertAccessibilityIdentifier = @"AlertAccessibilityIdentifier";
 // Opens the Gemini overlay with an image attached. The sanitized `image` is
 // passed to Gemini.
 - (void)openGeminiWithImage:(UIImage*)image {
+  double aspectRatio = 0.0;
+  if (image.size.width > 0 && image.size.height > 0) {
+    aspectRatio = image.size.width / image.size.height;
+  }
+  RecordImageRemixContextMenuEntryPointTapped(aspectRatio);
+
   id<BWGCommands> handler =
       HandlerForProtocol(_browser->GetCommandDispatcher(), BWGCommands);
-  [handler startBWGFlowWithImageAttachment:image
-                                entryPoint:bwg::EntryPoint::ImageContextMenu];
+  [handler
+      startGeminiFlowWithImageAttachment:image
+                              entryPoint:gemini::EntryPoint::ImageContextMenu];
 }
 
 #pragma mark - Vivaldi

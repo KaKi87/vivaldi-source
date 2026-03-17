@@ -10,16 +10,16 @@
 #import "base/ios/block_types.h"
 #import "base/memory/raw_ptr.h"
 #import "base/memory/weak_ptr.h"
+#import "ios/chrome/browser/browser_view/public/browser_view_visibility_state_changed_callback.h"
 #import "ios/chrome/browser/browser_view/ui_bundled/tab_consumer.h"
 #import "ios/chrome/browser/contextual_panel/coordinator/contextual_sheet_presenter.h"
 #import "ios/chrome/browser/incognito_reauth/ui_bundled/incognito_reauth_consumer.h"
-#import "ios/chrome/browser/lens/ui_bundled/lens_coordinator.h"
 #import "ios/chrome/browser/lens_overlay/coordinator/lens_overlay_presentation_environment.h"
 #import "ios/chrome/browser/omnibox/ui/omnibox_focus_delegate.h"
 #import "ios/chrome/browser/omnibox/ui/popup/omnibox_popup_presenter.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/public/commands/browser_commands.h"
-#import "ios/chrome/browser/toolbar/ui_bundled/public/toolbar_height_delegate.h"
+#import "ios/chrome/browser/toolbar/ui/toolbar_height_delegate.h"
 #import "ios/chrome/browser/web/model/web_state_container_view_provider.h"
 
 // Vivaldi
@@ -28,29 +28,30 @@
 #import "ios/web/public/web_state.h"
 // End Vivaldi
 
-@protocol ApplicationCommands;
 @class BookmarksCoordinator;
-@class BrowserContainerViewController;
+@class BrowserContentViewController;
+@protocol BrowserCoordinatorCommands;
+@protocol BWGCommands;
 @protocol DefaultPromoNonModalPresentationDelegate;
 @protocol FindInPageCommands;
 class FullscreenController;
 @protocol HelpCommands;
+@protocol IncognitoReauthCommands;
 @class KeyCommandsProvider;
+@class LayoutGuideCenter;
 @class NewTabPageCoordinator;
-@protocol OmniboxCommands;
 @protocol PopupMenuCommands;
 @class PopupMenuCoordinator;
 @class SafeAreaProvider;
+@protocol SceneCommands;
 @class SideSwipeCoordinator;
 class SnapshotBrowserAgent;
 @class TabStripCoordinator;
 class TabUsageRecorderBrowserAgent;
 @protocol TextZoomCommands;
 @class ToolbarAccessoryPresenter;
+@protocol ToolbarCommands;
 @class ToolbarCoordinator;
-@protocol IncognitoReauthCommands;
-@class LayoutGuideCenter;
-@protocol LoadQueryCommands;
 class UrlLoadingBrowserAgent;
 @protocol VoiceSearchController;
 
@@ -69,11 +70,14 @@ typedef struct {
   SideSwipeCoordinator* sideSwipeCoordinator;
   BookmarksCoordinator* bookmarksCoordinator;
   raw_ptr<FullscreenController> fullscreenController;
+  id<BrowserCoordinatorCommands> browserCoordinatorHandler;
   id<TextZoomCommands> textZoomHandler;
   id<HelpCommands> helpHandler;
   id<PopupMenuCommands> popupMenuCommandsHandler;
-  id<ApplicationCommands> applicationCommandsHandler;
+  id<SceneCommands> sceneHandler;
+  id<ToolbarCommands> toolbarHandler;
   id<FindInPageCommands> findInPageCommandsHandler;
+  id<BWGCommands> geminiHandler;
   LayoutGuideCenter* layoutGuideCenter;
   BOOL isOffTheRecord;
   raw_ptr<UrlLoadingBrowserAgent> urlLoadingBrowserAgent;
@@ -96,7 +100,6 @@ typedef struct {
     : UIViewController <BrowserCommands,
                         ContextualSheetPresenter,
                         IncognitoReauthConsumer,
-                        LensPresentationDelegate,
                         LensOverlayPresentationEnvironment,
                         TabConsumer,
                         OmniboxFocusDelegate,
@@ -105,16 +108,16 @@ typedef struct {
                         WebStateContainerViewProvider>
 
 // Initializes a new BVC.
-// `browserContainerViewController` is the container object this BVC will exist
+// `browserContentViewController` is the container object this BVC will exist
 // inside.
 // TODO(crbug.com/41475381): Remove references to model objects from this class.
-- (instancetype)
-    initWithBrowserContainerViewController:
-        (BrowserContainerViewController*)browserContainerViewController
-                       keyCommandsProvider:
-                           (KeyCommandsProvider*)keyCommandsProvider
-                              dependencies:(BrowserViewControllerDependencies)
-                                               dependencies
+- (instancetype)initWithBrowserContentViewController:
+                    (BrowserContentViewController*)browserContentViewController
+                                 keyCommandsProvider:
+                                     (KeyCommandsProvider*)keyCommandsProvider
+                                        dependencies:
+                                            (BrowserViewControllerDependencies)
+                                                dependencies
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)initWithNibName:(NSString*)nibNameOrNil
@@ -140,11 +143,12 @@ typedef struct {
 @property(nonatomic, weak) id<DefaultPromoNonModalPresentationDelegate>
     nonModalPromoPresentationDelegate;
 
-// Command handler for load query commands.
-@property(nonatomic, weak) id<LoadQueryCommands> loadQueryCommandsHandler;
+// Command handler for Gemini commands.
+@property(nonatomic, weak) id<BWGCommands> geminiHandler;
 
-// Command handler for omnibox commands.
-@property(nonatomic, weak) id<OmniboxCommands> omniboxCommandsHandler;
+// Callback that will be invoked when the browser view visibility changed.
+@property(nonatomic, assign) const BrowserViewVisibilityStateChangedCallback&
+    browserViewVisibilityStateChangedCallback;
 
 // Opens a new tab as if originating from `originPoint` and `focusOmnibox`.
 - (void)openNewTabFromOriginPoint:(CGPoint)originPoint

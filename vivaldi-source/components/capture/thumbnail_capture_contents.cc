@@ -10,6 +10,7 @@
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "chrome/browser/profiles/profile.h"
@@ -21,9 +22,9 @@
 
 #include "components/capture/capture_page.h"
 #include "components/viz/common/frame_sinks/copy_output_result.h"
+#include "extensions/buildflags/buildflags.h"
 #include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
 #include "ui/vivaldi_skia_utils.h"
-#include "extensions/buildflags/buildflags.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "extensions/browser/view_type_utils.h"
@@ -59,11 +60,12 @@ scoped_refptr<base::RefCountedMemory> ConvertToPNGOnWorkerThread(
 }  // namespace
 
 // static
-ThumbnailCaptureContents* ThumbnailCaptureContents::Capture(content::BrowserContext* browser_context,
-                                       const GURL& start_url,
-                                       gfx::Size initial_size,
-                                       gfx::Size target_size,
-                                       CaptureCallback callback) {
+ThumbnailCaptureContents* ThumbnailCaptureContents::Capture(
+    content::BrowserContext* browser_context,
+    const GURL& start_url,
+    gfx::Size initial_size,
+    gfx::Size target_size,
+    CaptureCallback callback) {
   ThumbnailCaptureContents* capture = new ThumbnailCaptureContents();
   capture->Start(browser_context, start_url, initial_size, target_size,
                  std::move(callback));
@@ -99,7 +101,7 @@ void ThumbnailCaptureContents::Start(content::BrowserContext* browser_context,
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   extensions::SetViewType(offscreen_tab_web_contents_.get(),
-      extensions::mojom::ViewType::kOffscreenDocument);
+                          extensions::mojom::ViewType::kOffscreenDocument);
 #endif
 
   WebContentsObserver::Observe(offscreen_tab_web_contents_.get());
@@ -305,6 +307,7 @@ void ThumbnailCaptureContents::TryCapture(bool last_try) {
       view->CopyFromSurface(
           gfx::Rect(),  // Copy entire surface area.
           gfx::Size(),  // Result contains device-level detail.
+          base::TimeDelta(),
           base::BindOnce(&ThumbnailCaptureContents::OnCopyImageReady,
                          weak_ptr_factory_.GetWeakPtr()));
     } else {
@@ -343,9 +346,12 @@ void ThumbnailCaptureContents::CaptureViaIpc() {
 }
 
 void ThumbnailCaptureContents::OnCopyImageReady(
-    const viz::CopyOutputBitmapWithMetadata& bitmap) {
-  if (!bitmap.bitmap.drawsNothing()) {
-    RespondAndDelete(bitmap.bitmap);
+    const content::CopyFromSurfaceResult& result) {
+  const SkBitmap& bitmap =
+      result.value_or(viz::CopyOutputBitmapWithMetadata()).bitmap;
+
+  if (!bitmap.drawsNothing()) {
+    RespondAndDelete(bitmap);
     return;
   }
 

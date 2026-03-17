@@ -19,7 +19,7 @@ NS_SWIFT_UI_ACTOR
 // Updates the state with dynamic accent color enabled preference value.
 - (void)setPreferenceDynamicAccentColorEnabled:(BOOL)dynamicAccentColorEnabled;
 
-#pragma mark: Optional methods - These do not have outbound events from UI.
+#pragma mark : Optional methods - These do not have outbound events from UI.
 // Updates the state with the bottom omnibox preference value.
 @optional
 - (void)setPreferenceForOmniboxAtBottom:(BOOL)bottomOmniboxEnabled;

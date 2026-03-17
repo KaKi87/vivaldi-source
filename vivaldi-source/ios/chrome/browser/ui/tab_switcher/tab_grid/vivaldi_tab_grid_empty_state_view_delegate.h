@@ -3,7 +3,7 @@
 #ifndef IOS_CHROME_BROWSER_UI_TAB_SWITCHER_TAB_GRID_VIVALDI_TAB_GRID_EMPTY_STATE_VIEW_DELEGATE_H_
 #define IOS_CHROME_BROWSER_UI_TAB_SWITCHER_TAB_GRID_VIVALDI_TAB_GRID_EMPTY_STATE_VIEW_DELEGATE_H_
 
-@protocol VivaldiTabGridEmptyStateViewDelegate<NSObject>
+@protocol VivaldiTabGridEmptyStateViewDelegate <NSObject>
 
 - (void)didSelectLoginFromEmptyStateView;
 - (void)didSelectRegisterFromEmptyStateView;

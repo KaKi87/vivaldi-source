@@ -233,15 +233,12 @@ struct Config {
 #if defined(GPU_FUZZER_USE_RASTER_DECODER)
     context_type = CONTEXT_TYPE_OPENGLES2;
 #else
-    bool es31 = it.GetBit();
     if (es3) {
-      context_type =
-          es31 ? CONTEXT_TYPE_OPENGLES31_FOR_TESTING : CONTEXT_TYPE_OPENGLES3;
+      context_type = CONTEXT_TYPE_OPENGLES3;
     } else {
       context_type = CONTEXT_TYPE_OPENGLES2;
     }
 #endif
-    enable_gpu_rasterization = it.GetBit();
 
 #if defined(GPU_FUZZER_USE_STUB)
     std::vector<std::string_view> enabled_extensions;
@@ -269,21 +266,21 @@ struct Config {
     !defined(GPU_FUZZER_USE_RASTER_DECODER)
     gl_context_attribs.webgl_compatibility_context =
         IsWebGLContextType(context_type);
+    gl_context_attribs.hardened_context =
+        !gl_context_attribs.webgl_compatibility_context;
     gl_context_attribs.global_texture_share_group = true;
     gl_context_attribs.robust_resource_initialization = true;
     gl_context_attribs.robust_buffer_access = true;
     gl_context_attribs.allow_client_arrays = false;
     gl_context_attribs.client_major_es_version =
         IsWebGL2OrES3OrHigherContextType(context_type) ? 3 : 2;
-    gl_context_attribs.client_minor_es_version =
-        IsES31ForTestingContextType(context_type) ? 1 : 0;
+    gl_context_attribs.client_minor_es_version = 0;
 #endif
 
     return it.consumed_bytes();
   }
 
   ContextType context_type = CONTEXT_TYPE_OPENGLES2;
-  bool enable_gpu_rasterization = false;
   GpuDriverBugWorkarounds workarounds;
   gl::GLContextAttribs gl_context_attribs;
 #if defined(GPU_FUZZER_USE_STUB)
@@ -431,8 +428,7 @@ class CommandBufferSetup {
     decoder_->GetLogger()->set_log_synthesized_gl_errors(false);
 
     auto result =
-        decoder_->Initialize(config_.enable_gpu_rasterization,
-                             /*lose_context_when_out_of_memory=*/false);
+        decoder_->Initialize(/*lose_context_when_out_of_memory=*/false);
     if (result != gpu::ContextResult::kSuccess) {
       return false;
     }

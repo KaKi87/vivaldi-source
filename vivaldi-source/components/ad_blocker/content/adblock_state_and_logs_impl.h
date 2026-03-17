@@ -46,7 +46,7 @@ class StateAndLogsImpl : public StateAndLogs {
 
   void OnTrackerInfosUpdated(RuleGroup group,
                              const ActiveRuleSource& source,
-                             base::Value::Dict new_tracker_infos);
+                             base::DictValue new_tracker_infos);
 
   void OnUrlBlocked(RuleGroup group,
                     url::Origin origin,

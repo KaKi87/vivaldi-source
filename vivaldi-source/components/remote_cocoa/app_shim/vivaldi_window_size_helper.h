@@ -11,7 +11,7 @@ namespace display {
 
 using Displays = std::vector<Display>;
 
-} // namespace display
+}  // namespace display
 
 namespace vivaldi {
 

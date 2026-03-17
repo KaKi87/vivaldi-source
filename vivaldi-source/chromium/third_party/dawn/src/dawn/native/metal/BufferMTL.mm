@@ -125,6 +125,7 @@ MaybeError Buffer::Initialize(bool mappedAtCreation) {
     // BufferBase::MapAtCreation().
     if (GetDevice()->IsToggleEnabled(Toggle::NonzeroClearResourcesOnCreationForTesting) &&
         !mappedAtCreation) {
+        auto scopedUseDuringCreation = UseInternal();
         CommandRecordingContext* commandContext =
             ToBackend(GetDevice()->GetQueue())->GetPendingCommandContext();
         ClearBuffer(commandContext, uint8_t(1u));
@@ -137,6 +138,7 @@ MaybeError Buffer::Initialize(bool mappedAtCreation) {
             uint32_t clearSize = Align(paddingBytes, 4);
             uint64_t clearOffset = GetAllocatedSize() - clearSize;
 
+            auto scopedUseDuringCreation = UseInternal();
             CommandRecordingContext* commandContext =
                 ToBackend(GetDevice()->GetQueue())->GetPendingCommandContext();
             ClearBuffer(commandContext, 0, clearOffset, clearSize);
@@ -180,6 +182,7 @@ MaybeError Buffer::InitializeHostMapped(const BufferHostMappedPointer* hostMappe
 Buffer::~Buffer() = default;
 
 id<MTLBuffer> Buffer::GetMTLBuffer() const {
+    DAWN_ASSERT(mMtlBuffer != nullptr);
     return mMtlBuffer.Get();
 }
 
@@ -193,14 +196,17 @@ MaybeError Buffer::MapAtCreationImpl() {
 }
 
 MaybeError Buffer::MapAsyncImpl(wgpu::MapMode mode, size_t offset, size_t size) {
-    CommandRecordingContext* commandContext =
-        ToBackend(GetDevice()->GetQueue())->GetPendingCommandContext();
-    EnsureDataInitialized(commandContext);
-
     return {};
 }
 
 MaybeError Buffer::FinalizeMapImpl(BufferState newState) {
+    // The real mapped pointer is never returned for zero sized buffers. MappedAtCreation buffers
+    // are initialized in BufferBase already.
+    if (NeedsInitialization() && GetSize() > 0 && newState == BufferState::Mapped) {
+        std::memset(GetMappedPointerImpl(), 0, GetAllocatedSize());
+        GetDevice()->IncrementLazyClearCountForTesting();
+        SetInitialized(true);
+    }
     return {};
 }
 
@@ -208,11 +214,11 @@ void* Buffer::GetMappedPointerImpl() {
     return [*mMtlBuffer contents];
 }
 
-void Buffer::UnmapImpl(BufferState oldState) {
+void Buffer::UnmapImpl(BufferState oldState, BufferState newState) {
     // Nothing to do, Metal StorageModeShared buffers are always mapped.
 }
 
-void Buffer::DestroyImpl() {
+void Buffer::DestroyImpl(DestroyReason reason) {
     // TODO(crbug.com/dawn/831): DestroyImpl is called from two places.
     // - It may be called if the buffer is explicitly destroyed with APIDestroy.
     //   This case is NOT thread-safe and needs proper synchronization with other
@@ -220,7 +226,7 @@ void Buffer::DestroyImpl() {
     // - It may be called when the last ref to the buffer is dropped and the buffer
     //   is implicitly destroyed. This case is thread-safe because there are no
     //   other threads using the buffer since there are no other live refs.
-    BufferBase::DestroyImpl();
+    BufferBase::DestroyImpl(reason);
     mMtlBuffer = nullptr;
 }
 

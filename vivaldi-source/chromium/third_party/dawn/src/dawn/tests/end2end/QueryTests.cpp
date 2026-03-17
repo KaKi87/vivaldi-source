@@ -99,7 +99,7 @@ class OcclusionExpectation : public detail::Expectation {
 class OcclusionQueryTests : public QueryTests {
   protected:
     void SetUp() override {
-        DawnTest::SetUp();
+        QueryTests::SetUp();
 
         // Create basic render pipeline
         vsModule = utils::CreateShaderModule(device, R"(
@@ -243,6 +243,8 @@ TEST_P(OcclusionQueryTests, QuerySetDestroy) {
 // zero indicates that no sample passed depth/stencil testing,
 // non-zero indicates that at least one sample passed depth/stencil testing.
 TEST_P(OcclusionQueryTests, QueryWithDepthStencilTest) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     // TODO(dawn:1870): D3D11_QUERY_OCCLUSION_PREDICATE doesn't work on Intel Gen12.
     DAWN_SUPPRESS_TEST_IF(IsD3D11() && IsIntelGen12());
 
@@ -264,6 +266,8 @@ TEST_P(OcclusionQueryTests, QueryWithDepthStencilTest) {
 // zero indicates that no sample passed scissor testing,
 // non-zero indicates that at least one sample passed scissor testing.
 TEST_P(OcclusionQueryTests, QueryWithScissorTest) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     // TODO(dawn:1870): D3D11_QUERY_OCCLUSION_PREDICATE doesn't work on Intel Gen12.
     DAWN_SUPPRESS_TEST_IF(IsD3D11() && IsIntelGen12());
 
@@ -276,6 +280,8 @@ TEST_P(OcclusionQueryTests, QueryWithScissorTest) {
 
 // Test begin occlusion query with same query index on different render pass
 TEST_P(OcclusionQueryTests, Rewrite) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     constexpr uint32_t kQueryCount = 1;
 
     wgpu::QuerySet querySet = CreateOcclusionQuerySet(kQueryCount);
@@ -314,6 +320,8 @@ TEST_P(OcclusionQueryTests, Rewrite) {
 // Test resolving occlusion query correctly if the queries are written sparsely, which also tests
 // the query resetting at the start of render passes on Vulkan backend.
 TEST_P(OcclusionQueryTests, ResolveSparseQueries) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     constexpr uint32_t kQueryCount = 7;
 
     wgpu::QuerySet querySet = CreateOcclusionQuerySet(kQueryCount);
@@ -539,6 +547,8 @@ TEST_P(OcclusionQueryTests, RewriteToZeroWithDraw) {
 
 // Test resolving occlusion query to the destination buffer with offset
 TEST_P(OcclusionQueryTests, ResolveToBufferWithOffset) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     // TODO(crbug.com/dawn/2295): diagnose this failure on Pixel 6 OpenGLES
     DAWN_SUPPRESS_TEST_IF(IsOpenGLES() && IsAndroid() && IsARM());
 
@@ -621,10 +631,30 @@ class TimestampExpectation : public detail::Expectation {
     }
 };
 
-class TimestampQueryTests : public QueryTests {
+class TimestampQueryTestsBase : public QueryTests {
   protected:
     void SetUp() override {
-        DawnTest::SetUp();
+        QueryTests::SetUp();
+
+        // TODO(crbug.com/458607667): Timestamp tests are flaky on WARP.
+        DAWN_SUPPRESS_TEST_IF(IsWARP());
+
+        // TODO(crbug.com/451389800): [Capture] implement query set.
+        DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
+    }
+
+    wgpu::QuerySet CreateQuerySetForTimestamp(uint32_t queryCount) {
+        wgpu::QuerySetDescriptor descriptor;
+        descriptor.count = queryCount;
+        descriptor.type = wgpu::QueryType::Timestamp;
+        return device.CreateQuerySet(&descriptor);
+    }
+};
+
+class TimestampQueryTests : public TimestampQueryTestsBase {
+  protected:
+    void SetUp() override {
+        TimestampQueryTestsBase::SetUp();
 
         // Skip all tests if timestamp feature is not supported
         DAWN_TEST_UNSUPPORTED_IF(!SupportsFeatures({wgpu::FeatureName::TimestampQuery}));
@@ -646,13 +676,6 @@ class TimestampQueryTests : public QueryTests {
             requiredFeatures.push_back(wgpu::FeatureName::TimestampQuery);
         }
         return requiredFeatures;
-    }
-
-    wgpu::QuerySet CreateQuerySetForTimestamp(uint32_t queryCount) {
-        wgpu::QuerySetDescriptor descriptor;
-        descriptor.count = queryCount;
-        descriptor.type = wgpu::QueryType::Timestamp;
-        return device.CreateQuerySet(&descriptor);
     }
 
     wgpu::RenderPipeline CreateRenderPipeline(bool hasFragmentStage = true) {
@@ -854,10 +877,6 @@ TEST_P(TimestampQueryTests, QuerySetCreation) {
 
 // Test calling timestamp query from command encoder
 TEST_P(TimestampQueryTests, TimestampOnCommandEncoder) {
-    // TODO(crbug.com/458607667): Flaky on WARP, but seemingly only on Debug
-    // builds built with MSVC.
-    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsWARP() && IsWebGPUOnWebGPU());
-
     constexpr uint32_t kQueryCount = 2;
 
     // Write timestamp with different query indexes
@@ -918,10 +937,6 @@ TEST_P(TimestampQueryTests, TimestampWritesQueryIndexOnComputePass) {
 
 // Test timestampWrites with timestamp location in compute pass descriptor
 TEST_P(TimestampQueryTests, TimestampWritesLocationOnComputePass) {
-    // TODO(crbug.com/458607667): Flaky on WARP, but seemingly only on Debug
-    // builds built with MSVC.
-    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsWARP());
-
     constexpr uint32_t kQueryCount = 2;
 
     // Set timestampWrites with only one value of ComputePassTimestampLocation
@@ -948,7 +963,6 @@ TEST_P(TimestampQueryTests, TimestampWritesOnComputePassWithNoPipline) {
     // TODO (dawn:1473): Metal fails to store GPU counters to sampleBufferAttachments on empty
     // encoders.
     DAWN_SUPPRESS_TEST_IF(IsMacOS() && IsMetal() && IsApple());
-    DAWN_SUPPRESS_TEST_IF(IsWebGPUOn(wgpu::BackendType::Metal));
 
     wgpu::QuerySet querySet = CreateQuerySetForTimestamp(2);
 
@@ -959,7 +973,6 @@ TEST_P(TimestampQueryTests, TimestampWritesOnComputePassWithNoPipline) {
 TEST_P(TimestampQueryTests, TimestampWritesQuerySetOnRenderPass) {
     // TODO (dawn:1473): Metal bug which fails to store GPU counters to different sample buffer.
     DAWN_SUPPRESS_TEST_IF(IsMacOS() && IsMetal() && IsApple());
-    DAWN_SUPPRESS_TEST_IF(IsWebGPUOn(wgpu::BackendType::Metal));
 
     // Set timestampWrites with different query set on same render pass
     wgpu::QuerySet querySet0 = CreateQuerySetForTimestamp(1);
@@ -1083,8 +1096,6 @@ TEST_P(TimestampQueryTests, ResolveWithoutWritten) {
 
 // Test resolving timestamp query to one slot in the buffer
 TEST_P(TimestampQueryTests, ResolveToBufferWithOffset) {
-    DAWN_SUPPRESS_TEST_IF(IsWARP());  // Flaky on WARP
-
     constexpr uint32_t kQueryCount = 2;
     constexpr uint64_t kBufferSize = kQueryCount * sizeof(uint64_t) + kMinDestinationOffset;
     constexpr uint64_t kCount = kQueryCount + kMinCount;
@@ -1152,7 +1163,6 @@ TEST_P(TimestampQueryTests, ResolveTwiceToSameBuffer) {
 TEST_P(TimestampQueryTests, ManyWriteTimestampDistinctQuerySets) {
     // TODO(crbug.com/dawn/1829): Avoid OOM on Apple GPUs.
     DAWN_SUPPRESS_TEST_IF(IsApple());
-    DAWN_SUPPRESS_TEST_IF(IsWebGPUOn(wgpu::BackendType::Metal));
 
     constexpr uint32_t kQueryCount = 100;
     // Write timestamp with a different query sets many times
@@ -1171,10 +1181,10 @@ TEST_P(TimestampQueryTests, ManyWriteTimestampDistinctQuerySets) {
     }
 }
 
-class TimestampQueryInsidePassesTests : public TimestampQueryTests {
+class TimestampQueryInsidePassesTests : public TimestampQueryTestsBase {
   protected:
     void SetUp() override {
-        DawnTest::SetUp();
+        TimestampQueryTestsBase::SetUp();
 
         // Skip all tests if timestamp feature is not supported
         DAWN_TEST_UNSUPPORTED_IF(
@@ -1197,8 +1207,6 @@ class TimestampQueryInsidePassesTests : public TimestampQueryTests {
 
 // Test calling timestamp query from render pass encoder
 TEST_P(TimestampQueryInsidePassesTests, FromOnRenderPass) {
-    DAWN_SUPPRESS_TEST_IF(IsWARP());  // Flaky on WARP
-
     constexpr uint32_t kQueryCount = 2;
 
     // Write timestamp with different query indexes
@@ -1246,7 +1254,6 @@ TEST_P(TimestampQueryInsidePassesTests, FromOnRenderPass) {
 TEST_P(TimestampQueryInsidePassesTests, FromComputePass) {
     // TODO(crbug.com/dawn/1852): Flaky negative timestamps on Mac AMD and Windows WARP.
     DAWN_SUPPRESS_TEST_IF(IsMacOS() && IsMetal() && IsAMD());
-    DAWN_SUPPRESS_TEST_IF(IsWARP());
 
     constexpr uint32_t kQueryCount = 2;
 

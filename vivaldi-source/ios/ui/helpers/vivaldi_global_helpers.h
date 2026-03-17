@@ -3,8 +3,8 @@
 #ifndef IOS_UI_HELPERS_VIVALDI_GLOBAL_HELPERS_H_
 #define IOS_UI_HELPERS_VIVALDI_GLOBAL_HELPERS_H_
 
-#import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
 // Enum for the iPad layout states in multi tasking.
 typedef NS_ENUM(NSUInteger, IPadLayoutState) {
@@ -16,7 +16,7 @@ typedef NS_ENUM(NSUInteger, IPadLayoutState) {
 
 /// Contains the helper methods related to window size and device
 /// state for iPad multitasking UI, also other common misc ones.
-@interface VivaldiGlobalHelpers: NSObject
+@interface VivaldiGlobalHelpers : NSObject
 
 /// Returns whether vivaldi build is running.
 + (BOOL)isVivaldiRunning;
@@ -36,9 +36,8 @@ typedef NS_ENUM(NSUInteger, IPadLayoutState) {
 /// the TraitCollection/TraitEnvironment of the presented view which is
 /// reliable and officially recommended API.
 + (BOOL)canShowSidePanelForTraitEnvironment:
-      (id<UITraitEnvironment> _Nullable)trait;
-+ (BOOL)canShowSidePanelForTrait:
-      (UITraitCollection* _Nullable)trait;
+    (id<UITraitEnvironment> _Nullable)trait;
++ (BOOL)canShowSidePanelForTrait:(UITraitCollection* _Nullable)trait;
 /// Safe area insets for the key window.
 + (UIEdgeInsets)safeAreaInsets;
 /// Returns boolean whether dark text should be used above a view using the
@@ -48,8 +47,8 @@ typedef NS_ENUM(NSUInteger, IPadLayoutState) {
 /// dominant color for the image.
 + (BOOL)shouldUseDarkTextForImage:(UIImage* _Nonnull)image;
 /// Returns boolean whether tab strip should use default themeColor for
-/// the given color. Too bright or dark(near white/black) webState themeColor could
-/// conflict with tab selected color which is also white for light scheme.
+/// the given color. Too bright or dark(near white/black) webState themeColor
+/// could conflict with tab selected color which is also white for light scheme.
 + (BOOL)shouldUseDefaultThemeColor:(UIColor* _Nonnull)color;
 /// Returns the luminance for given color.
 + (CGFloat)luminanceForColor:(UIColor* _Nonnull)color;
@@ -105,7 +104,7 @@ typedef NS_ENUM(NSUInteger, IPadLayoutState) {
                         start:(NSUInteger)start
                        length:(NSUInteger)length;
 + (NSString* _Nonnull)formattedURLStringForChromeScheme:
-  (NSString* _Nonnull)urlText;
+    (NSString* _Nonnull)urlText;
 /// Returns whether the given URL string is an internal
 /// page.
 + (BOOL)isURLInternalPage:(NSString* _Nonnull)urlString;
@@ -113,9 +112,9 @@ typedef NS_ENUM(NSUInteger, IPadLayoutState) {
 /// part of the string wih different color.
 + (NSAttributedString* _Nonnull)
     attributedStringWithText:(NSString* _Nonnull)text
-         highlight:(NSString* _Nonnull)highlight
-               textColor:(UIColor* _Nonnull)textColor
-                    highlightColor:(UIColor* _Nonnull)highlightColor;
+                   highlight:(NSString* _Nonnull)highlight
+                   textColor:(UIColor* _Nonnull)textColor
+              highlightColor:(UIColor* _Nonnull)highlightColor;
 @end
 
 #endif  // IOS_UI_HELPERS_VIVALDI_GLOBAL_HELPERS_H_

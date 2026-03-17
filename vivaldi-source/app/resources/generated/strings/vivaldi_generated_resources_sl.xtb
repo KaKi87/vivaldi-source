@@ -89,7 +89,7 @@
 <translation id="2348176352564285430">Aplikacija: <ph name="ARC_PROCESS_NAME" /></translation>
 <translation id="2378602615417849384">{NUM_EXTENSIONS, plural,
       =1 {Ta razširitev morda kmalu ne bo več podprta}
-      drugo {Te razširitve morda kmalu ne bodo več podprte}
+      other {Te razširitve morda kmalu ne bodo več podprte}
     }</translation>
 <translation id="2378982052244864789">Izberite imenik z razširitvami.</translation>
 <translation id="2379281330731083556">Natisni s sistemskim pogovornim oknom... <ph name="SHORTCUT_KEY" /></translation>
@@ -143,7 +143,7 @@
 <translation id="3222066309010235055">Vnaprejšnje upodabljanje: <ph name="PRERENDER_CONTENTS_NAME" /></translation>
 <translation id="3228985231489269630">{NUM_EXTENSIONS, plural,
       =1 {Odstranite jo ali jo zamenjajte s podobnimi razširitvami iz <ph name="BEGIN_LINK" />Spletne trgovine Chrome<ph name="END_LINK" />}
-      drugo {Odstranite jih ali jih zamenjajte s podobnimi razširitvami iz <ph name="BEGIN_LINK" />Spletne trgovine Chrome<ph name="END_LINK" />}
+      other {Odstranite jih ali jih zamenjajte s podobnimi razširitvami iz <ph name="BEGIN_LINK" />Spletne trgovine Chrome<ph name="END_LINK" />}
     }</translation>
 <translation id="3241680850019875542">Izberite korenski imenik razširitve, ki jo želite zapakirati. Če želite posodobiti razširitev, izberite tudi datoteko z zasebnim ključem, ki jo želite znova uporabiti.</translation>
 <translation id="3275778913554317645">Odpri kot okno</translation>
@@ -303,7 +303,6 @@
 <translation id="5624959475330585145">Vprašaj pred uporabo povezav, ki niso varne</translation>
 <translation id="5638309510554459422">Poišči razširitve in teme v <ph name="BEGIN_LINK" />Spletni trgovini Chrome<ph name="END_LINK" /></translation>
 <translation id="5677928146339483299">Blokirano</translation>
-<translation id="5707185214361380026">Ni mogoče naložiti razširitev iz:</translation>
 <translation id="5713171467967533494">Odpri v brskalniku Vivaldi</translation>
 <translation id="5746169159649715125">Shrani kot PDF</translation>
 <translation id="5747809636523347288">Pr&amp;ilepi in pojdi na <ph name="URL" /></translation>
@@ -441,7 +440,7 @@ Datoteko s ključem shranite na varnem. Potrebovali jo boste za izdelavo novih r
         few {# zaznamka}
         other {# zaznamkov}}</translation>
 <translation id="8135557862853121765"><ph name="NUM_KILOBYTES" /> KB</translation>
-<translation id="8212008074015601248">{NUM_DOWNLOAD,plural,¸
+<translation id="8212008074015601248">{NUM_DOWNLOAD,plural,
  =1 {Poteka prenos} one {Poteka prenos} two {Potekata prenosa} few {Potekajo prenosi} other {Potekajo prenosi}}</translation>
 <translation id="8230134520748321204">Shranim geslo za <ph name="ORIGIN" />?</translation>
 <translation id="8248050856337841185">&amp;Prilepi</translation>

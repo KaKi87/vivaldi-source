@@ -19,14 +19,15 @@ constexpr char kRecoveryEmailKey[] = "recovery_email";
 
 static jlong JNI_VivaldiAccountManager_Init(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj) {
+    const base::android::JavaRef<jobject>& obj) {
   VivaldiAccountManagerAndroid* vivaldi_account_manager_android =
       new VivaldiAccountManagerAndroid(env, obj);
   return reinterpret_cast<intptr_t>(vivaldi_account_manager_android);
 }
 
-VivaldiAccountManagerAndroid::VivaldiAccountManagerAndroid(JNIEnv* env,
-                                                const base::android::JavaRef<jobject>& obj)
+VivaldiAccountManagerAndroid::VivaldiAccountManagerAndroid(
+    JNIEnv* env,
+    const base::android::JavaRef<jobject>& obj)
     : profile_(ProfileManager::GetActiveUserProfile()),
       weak_java_ref_(env, obj) {
   DCHECK(profile_);
@@ -49,9 +50,9 @@ void VivaldiAccountManagerAndroid::CreateNow() {
 
 void VivaldiAccountManagerAndroid::Login(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
-    const base::android::JavaParamRef<jstring>& username,
-    const base::android::JavaParamRef<jstring>& password,
+    const base::android::JavaRef<jobject>& obj,
+    const base::android::JavaRef<jstring>& username,
+    const base::android::JavaRef<jstring>& password,
     jboolean save_password) {
   account_manager_->Login(base::android::ConvertJavaStringToUTF8(env, username),
                           base::android::ConvertJavaStringToUTF8(env, password),
@@ -60,24 +61,24 @@ void VivaldiAccountManagerAndroid::Login(
 
 void VivaldiAccountManagerAndroid::Logout(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj) {
+    const base::android::JavaRef<jobject>& obj) {
   account_manager_->Logout();
 }
 
 void VivaldiAccountManagerAndroid::SetSessionName(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
-    const base::android::JavaParamRef<jstring>& session_name) {
+    const base::android::JavaRef<jobject>& obj,
+    const base::android::JavaRef<jstring>& session_name) {
   profile_->GetPrefs()->SetString(
       vivaldiprefs::kSyncSessionName,
       base::android::ConvertJavaStringToUTF8(env, session_name));
-      SendStateUpdate();
+  SendStateUpdate();
 }
 
 base::android::ScopedJavaLocalRef<jobject>
 VivaldiAccountManagerAndroid::GetPendingRegistration(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj) {
+    const base::android::JavaRef<jobject>& obj) {
   const base::Value& pending_registration = profile_->GetPrefs()->GetValue(
       vivaldiprefs::kVivaldiAccountPendingRegistration);
 
@@ -109,10 +110,10 @@ VivaldiAccountManagerAndroid::GetPendingRegistration(
 
 jboolean VivaldiAccountManagerAndroid::SetPendingRegistration(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
-    const base::android::JavaParamRef<jstring>& username,
-    const base::android::JavaParamRef<jstring>& password,
-    const base::android::JavaParamRef<jstring>& recovery_email) {
+    const base::android::JavaRef<jobject>& obj,
+    const base::android::JavaRef<jstring>& username,
+    const base::android::JavaRef<jstring>& password,
+    const base::android::JavaRef<jstring>& recovery_email) {
   std::string encrypted_password;
   // Android uses the posix implementation, which is non-blocking.
   if (!OSCrypt::EncryptString(
@@ -137,7 +138,7 @@ jboolean VivaldiAccountManagerAndroid::SetPendingRegistration(
 
 void VivaldiAccountManagerAndroid::ResetPendingRegistration(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj) {
+    const base::android::JavaRef<jobject>& obj) {
   profile_->GetPrefs()->ClearPref(
       vivaldiprefs::kVivaldiAccountPendingRegistration);
 }
@@ -165,7 +166,8 @@ void VivaldiAccountManagerAndroid::SendStateUpdate() {
       account_manager_->has_refresh_token(),
       account_manager_->has_encrypted_refresh_token(),
       account_manager_->GetTokenRequestTime().InMillisecondsSinceUnixEpoch(),
-      account_manager_->GetNextTokenRequestTime().InMillisecondsSinceUnixEpoch(),
+      account_manager_->GetNextTokenRequestTime()
+          .InMillisecondsSinceUnixEpoch(),
       last_token_fetch_error.type,
       base::android::ConvertUTF8ToJavaString(
           env, last_token_fetch_error.server_message),
@@ -188,3 +190,5 @@ void VivaldiAccountManagerAndroid::OnTokenFetchFailed() {
 }
 
 void VivaldiAccountManagerAndroid::OnVivaldiAccountShutdown() {}
+
+DEFINE_JNI_FOR_VivaldiAccountManager_SEE_JNI_ZERO_README()

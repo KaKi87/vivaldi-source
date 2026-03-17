@@ -12,17 +12,14 @@
 namespace {
 
 // Padding for thumbnail. In order - Top, Left, Bottom, Right
-const UIEdgeInsets thumbnailPadding =
-    UIEdgeInsetsMake(4.f, 4.f, 0.f, 4.f);
+const UIEdgeInsets thumbnailPadding = UIEdgeInsetsMake(4.f, 4.f, 0.f, 4.f);
 // Padding for favicon. In order - Top, Left, Bottom, Right
-const UIEdgeInsets faviconPadding =
-    UIEdgeInsetsMake(8.f, 8.f, 8.f, 0.0);
+const UIEdgeInsets faviconPadding = UIEdgeInsetsMake(8.f, 8.f, 8.f, 0.0);
 // Padding for favicon fallback label
 const UIEdgeInsets faviconFallbackLabelPadding =
     UIEdgeInsetsMake(2.f, 2.f, 2.f, 2.f);
 // Padding for title label. In order - Top, Left, Bottom, Right
-const UIEdgeInsets titleLabelPadding =
-    UIEdgeInsetsMake(0.f, 8.f, 0.f, 8.f);
+const UIEdgeInsets titleLabelPadding = UIEdgeInsetsMake(0.f, 8.f, 0.f, 8.f);
 const UIEdgeInsets titleLabelMaskPadding =
     UIEdgeInsetsMake(2.f, 10.f, 2.f, 16.f);
 
@@ -33,26 +30,26 @@ const CGFloat activityIndicatorRadius = 4.f;
 const CGFloat activityIndicatorBGOpacity = 0.8;
 
 const CGFloat thumbnailCropYOffset = 14.f;
-}
+}  // namespace
 
-@interface VivaldiSpeedDialRegularCell()
+@interface VivaldiSpeedDialRegularCell ()
 // The title label for the speed dial URL item.
-@property(nonatomic,weak) UILabel* titleLabel;
+@property(nonatomic, weak) UILabel* titleLabel;
 // The title label mask for preview purpose
-@property(nonatomic,weak) UIView* titleLabelMaskView;
+@property(nonatomic, weak) UIView* titleLabelMaskView;
 // The fallback label when there's no thumbnail available for the speed dial
 // URL item.
-@property(nonatomic,weak) UILabel* fallbackTitleLabel;
+@property(nonatomic, weak) UILabel* fallbackTitleLabel;
 // Imageview for the thumbnail.
-@property(nonatomic,weak) UIImageView* thumbView;
+@property(nonatomic, weak) UIImageView* thumbView;
 // Imageview for the favicon.
-@property(nonatomic,weak) UIImageView* faviconView;
+@property(nonatomic, weak) UIImageView* faviconView;
 // The fallback label when there's no favicon available.
-@property(nonatomic,weak) UILabel* fallbackFaviconLabel;
+@property(nonatomic, weak) UILabel* fallbackFaviconLabel;
 // Activity indicator visible when thumbnail is updating.
-@property(nonatomic,weak) UIActivityIndicatorView* activityIndicator;
+@property(nonatomic, weak) UIActivityIndicatorView* activityIndicator;
 // Property to hold the resource path
-@property(nonatomic,strong) NSString* resourcePath;
+@property(nonatomic, strong) NSString* resourcePath;
 @end
 
 @implementation VivaldiSpeedDialRegularCell
@@ -70,9 +67,9 @@ const CGFloat thumbnailCropYOffset = 14.f;
 - (id)initWithFrame:(CGRect)frame {
   self = [super initWithFrame:frame];
   if (self) {
-    _resourcePath = [NSString stringWithFormat:@"%@%@",
-                        [[NSBundle mainBundle] resourcePath],
-                        @"/res"];
+    _resourcePath = [NSString
+        stringWithFormat:@"%@%@", [[NSBundle mainBundle] resourcePath],
+                         @"/res"];
     [self setUpUI];
   }
   return self;
@@ -92,29 +89,24 @@ const CGFloat thumbnailCropYOffset = 14.f;
   self.fallbackFaviconLabel.text = nil;
 }
 
-
 #pragma mark - SET UP UI COMPONENTS
 - (void)setUpUI {
-
   self.layer.cornerRadius = vSpeedDialItemCornerRadius;
   self.clipsToBounds = true;
   self.layer.borderColor = UIColor.clearColor.CGColor;
   // Add drop shadow to parent
-  [self
-    addShadowWithBackground: [UIColor colorNamed:
-                              vNTPSpeedDialCellBackgroundColor]
-                     offset: vSpeedDialItemShadowOffset
-                shadowColor: [UIColor colorNamed:vSpeedDialItemShadowColor]
-                     radius: vSpeedDialItemShadowRadius
-                    opacity: vSpeedDialItemShadowOpacity
-  ];
-  self.backgroundColor =
-    [UIColor colorNamed: vNTPSpeedDialCellBackgroundColor];
+  [self addShadowWithBackground:[UIColor
+                                    colorNamed:vNTPSpeedDialCellBackgroundColor]
+                         offset:vSpeedDialItemShadowOffset
+                    shadowColor:[UIColor colorNamed:vSpeedDialItemShadowColor]
+                         radius:vSpeedDialItemShadowRadius
+                        opacity:vSpeedDialItemShadowOpacity];
+  self.backgroundColor = [UIColor colorNamed:vNTPSpeedDialCellBackgroundColor];
 
   // Container view to hold the labels and image views.
-  UIView *container = [UIView new];
+  UIView* container = [UIView new];
   container.backgroundColor =
-    [UIColor colorNamed: vNTPSpeedDialCellBackgroundColor];
+      [UIColor colorNamed:vNTPSpeedDialCellBackgroundColor];
   container.layer.cornerRadius = vSpeedDialItemCornerRadius;
   container.clipsToBounds = true;
   [self addSubview:container];
@@ -127,26 +119,25 @@ const CGFloat thumbnailCropYOffset = 14.f;
   _thumbView.backgroundColor = UIColor.clearColor;
   _thumbView.layer.cornerRadius = vSpeedDialFaviconCornerRadius;
   _thumbView.clipsToBounds = true;
-  [container addSubview: _thumbView];
-  [_thumbView anchorTop: container.topAnchor
-                leading: container.leadingAnchor
-                 bottom: nil
-               trailing: container.trailingAnchor
-                padding: thumbnailPadding];
+  [container addSubview:_thumbView];
+  [_thumbView anchorTop:container.topAnchor
+                leading:container.leadingAnchor
+                 bottom:nil
+               trailing:container.trailingAnchor
+                padding:thumbnailPadding];
 
   // Fallback title label
   UILabel* fallbackTitleLabel = [[UILabel alloc] init];
   _fallbackTitleLabel = fallbackTitleLabel;
   fallbackTitleLabel.textColor =
-    [UIColor colorNamed:vNTPSpeedDialDomainTextColor];
+      [UIColor colorNamed:vNTPSpeedDialDomainTextColor];
   fallbackTitleLabel.font =
-    [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+      [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
   fallbackTitleLabel.numberOfLines = 0;
   fallbackTitleLabel.textAlignment = NSTextAlignmentCenter;
 
   [container addSubview:_fallbackTitleLabel];
-  [_fallbackTitleLabel matchToView:_thumbView
-                           padding:titleLabelPadding];
+  [_fallbackTitleLabel matchToView:_thumbView padding:titleLabelPadding];
 
   // Loading spinner
   UIActivityIndicatorView* indicator =
@@ -174,21 +165,21 @@ const CGFloat thumbnailCropYOffset = 14.f;
   _faviconView.backgroundColor = UIColor.clearColor;
   _faviconView.layer.cornerRadius = vSpeedDialFaviconCornerRadius;
   _faviconView.clipsToBounds = true;
-  [container addSubview: _faviconView];
-  [_faviconView anchorTop: thumbView.bottomAnchor
-                  leading: container.leadingAnchor
-                   bottom: container.bottomAnchor
-                 trailing: nil
-                  padding: faviconPadding
-                     size: vSpeedDialItemFaviconSizeRegularLayout];
+  [container addSubview:_faviconView];
+  [_faviconView anchorTop:thumbView.bottomAnchor
+                  leading:container.leadingAnchor
+                   bottom:container.bottomAnchor
+                 trailing:nil
+                  padding:faviconPadding
+                     size:vSpeedDialItemFaviconSizeRegularLayout];
 
   // Fallback favicon label
   UILabel* fallbackFaviconLabel = [[UILabel alloc] init];
   _fallbackFaviconLabel = fallbackFaviconLabel;
   fallbackFaviconLabel.textColor =
-    [UIColor colorNamed:vNTPSpeedDialDomainTextColor];
+      [UIColor colorNamed:vNTPSpeedDialDomainTextColor];
   fallbackFaviconLabel.font =
-    [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+      [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
   fallbackFaviconLabel.numberOfLines = 0;
   fallbackFaviconLabel.textAlignment = NSTextAlignmentCenter;
 
@@ -207,11 +198,11 @@ const CGFloat thumbnailCropYOffset = 14.f;
   titleLabel.textAlignment = NSTextAlignmentLeft;
 
   [container addSubview:_titleLabel];
-  [_titleLabel anchorTop: nil
-                 leading: faviconView.trailingAnchor
-                  bottom: nil
-                trailing: container.trailingAnchor
-                 padding: titleLabelPadding];
+  [_titleLabel anchorTop:nil
+                 leading:faviconView.trailingAnchor
+                  bottom:nil
+                trailing:container.trailingAnchor
+                 padding:titleLabelPadding];
   [titleLabel centerYToView:faviconView];
 
   // Title label mask, used for preview only
@@ -222,14 +213,13 @@ const CGFloat thumbnailCropYOffset = 14.f;
   titleLabelMaskView.clipsToBounds = true;
 
   [container addSubview:titleLabelMaskView];
-  [titleLabelMaskView anchorTop: faviconView.topAnchor
-                        leading: faviconView.trailingAnchor
-                         bottom: faviconView.bottomAnchor
-                       trailing: container.trailingAnchor
-                        padding: titleLabelMaskPadding];
+  [titleLabelMaskView anchorTop:faviconView.topAnchor
+                        leading:faviconView.trailingAnchor
+                         bottom:faviconView.bottomAnchor
+                       trailing:container.trailingAnchor
+                        padding:titleLabelMaskPadding];
   titleLabelMaskView.hidden = YES;
 }
-
 
 #pragma mark - SETTERS
 
@@ -240,15 +230,14 @@ const CGFloat thumbnailCropYOffset = 14.f;
   switch (style) {
     case VivaldiStartPageLayoutStyleMedium:
       _titleLabel.font =
-        [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+          [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
       _fallbackFaviconLabel.font =
-        [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
+          [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
       break;
     case VivaldiStartPageLayoutStyleLarge:
-      _titleLabel.font =
-        [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+      _titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
       _fallbackFaviconLabel.font =
-        [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+          [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
       break;
     default:
       break;
@@ -256,7 +245,7 @@ const CGFloat thumbnailCropYOffset = 14.f;
 
   if (item.isFrequentlyVisited) {
     self.thumbView.backgroundColor =
-        [UIColor colorNamed: vSearchbarBackgroundColor];
+        [UIColor colorNamed:vSearchbarBackgroundColor];
     self.fallbackTitleLabel.hidden = NO;
     self.fallbackTitleLabel.text = item.host;
   } else {
@@ -266,22 +255,21 @@ const CGFloat thumbnailCropYOffset = 14.f;
     // fallback and show the item title instead.
     NSString* bundlePath =
         [_resourcePath stringByAppendingPathComponent:item.thumbnail];
-    UIImage *thumbnailBundle =
+    UIImage* thumbnailBundle =
         [[UIImage alloc] initWithContentsOfFile:bundlePath];
 
     if (thumbnailBundle) {
-      [self.thumbView setImage: thumbnailBundle];
+      [self.thumbView setImage:thumbnailBundle];
     } else {
       UIImage* thumbnailLocal =
           [[[VivaldiThumbnailService alloc] init] thumbnailForSDItem:item];
       if (thumbnailLocal) {
-        UIImage* thumbnailImage =
-            [self cropTopAndResizeImage:thumbnailLocal
-                                 toSize:self.bounds.size];
-        [self.thumbView setImage: thumbnailImage];
+        UIImage* thumbnailImage = [self cropTopAndResizeImage:thumbnailLocal
+                                                       toSize:self.bounds.size];
+        [self.thumbView setImage:thumbnailImage];
       } else {
         self.thumbView.backgroundColor =
-            [UIColor colorNamed: vSearchbarBackgroundColor];
+            [UIColor colorNamed:vSearchbarBackgroundColor];
         self.fallbackTitleLabel.hidden = NO;
 
         if ([item.title length] > 0) {
@@ -319,10 +307,10 @@ const CGFloat thumbnailCropYOffset = 14.f;
   self.faviconView.backgroundColor = UIColor.vSystemGray03;
   self.titleLabelMaskView.hidden = NO;
   self.titleLabelMaskView.backgroundColor =
-    [UIColor.vSystemGray03 colorWithAlphaComponent:0.4];
+      [UIColor.vSystemGray03 colorWithAlphaComponent:0.4];
 }
 
-#pragma mark: PRIVATE
+#pragma mark : PRIVATE
 
 - (void)showFallbackFavicon:(VivaldiSpeedDialItem*)sdItem {
   if (sdItem.isInternalPage) {
@@ -333,14 +321,13 @@ const CGFloat thumbnailCropYOffset = 14.f;
     self.fallbackFaviconLabel.hidden = NO;
     self.faviconView.image = nil;
     self.faviconView.backgroundColor =
-        [UIColor colorNamed: vSearchbarBackgroundColor];
-    NSString *firstLetter = [[sdItem.host substringToIndex:1] uppercaseString];
+        [UIColor colorNamed:vSearchbarBackgroundColor];
+    NSString* firstLetter = [[sdItem.host substringToIndex:1] uppercaseString];
     self.fallbackFaviconLabel.text = firstLetter;
   }
 }
 
-- (UIImage*)cropTopAndResizeImage:(UIImage*)image
-                           toSize:(CGSize)newSize {
+- (UIImage*)cropTopAndResizeImage:(UIImage*)image toSize:(CGSize)newSize {
   // Determine the aspect ratio to scale the height appropriately
   CGFloat aspectWidth = newSize.width / image.size.width;
   CGFloat scaledHeight = image.size.height * aspectWidth;
@@ -353,7 +340,7 @@ const CGFloat thumbnailCropYOffset = 14.f;
   // scaling it
   [image drawInRect:drawRect];
   // Capture the new image
-  UIImage *newImage = UIGraphicsGetImageFromCurrentImageContext();
+  UIImage* newImage = UIGraphicsGetImageFromCurrentImageContext();
   // End the context
   UIGraphicsEndImageContext();
   return newImage;

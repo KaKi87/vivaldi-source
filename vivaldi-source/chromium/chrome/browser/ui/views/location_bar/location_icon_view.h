@@ -6,19 +6,20 @@
 #define CHROME_BROWSER_UI_VIEWS_LOCATION_BAR_LOCATION_ICON_VIEW_H_
 
 #include <optional>
+#include <string>
 
+#include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/views/location_bar/icon_label_bubble_view.h"
-#include "components/omnibox/browser/location_bar_model.h"
+#include "components/security_state/core/security_state.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 
 namespace content {
 class WebContents;
 }
 
-namespace security_state {
-enum SecurityLevel;
-}
+class LocationBarModel;
 
 // Use a LocationIconView to display an icon on the leading side of the edit
 // page security status (after navigation has completed), or extension name (if
@@ -38,6 +39,9 @@ class LocationIconView : public IconLabelBubbleView {
     // Determines whether the omnibox (if any) is editing or empty.
     virtual bool IsEditingOrEmpty() const = 0;
 
+    // Called when the location icon is touched, with the event.
+    virtual void OnLocationIconGestureEvent(ui::GestureEvent* event) {}
+
     // Called when the location icon is pressed, with the event.
     virtual void OnLocationIconPressed(const ui::MouseEvent& event) {}
 
@@ -55,7 +59,7 @@ class LocationIconView : public IconLabelBubbleView {
     virtual bool ShowPageInfoDialog() = 0;
 
     // Gets the LocationBarModel.
-    const virtual LocationBarModel* GetLocationBarModel() const = 0;
+    virtual const LocationBarModel* GetLocationBarModel() const = 0;
 
     // Gets an icon for the location bar icon chip.
     virtual ui::ImageModel GetLocationIcon(
@@ -82,6 +86,7 @@ class LocationIconView : public IconLabelBubbleView {
   bool ShouldShowLabelAfterAnimation() const override;
   bool ShowBubble(const ui::Event& event) override;
   bool IsBubbleShowing() const override;
+  void OnGestureEvent(ui::GestureEvent* event) override;
   bool OnMousePressed(const ui::MouseEvent& event) override;
   void AddedToWidget() override;
   void OnThemeChanged() override;

@@ -22,11 +22,12 @@
 
 @end
 
-@interface VivaldiSyncCreateAccountUserViewController :
-    SettingsRootTableViewController
+@interface VivaldiSyncCreateAccountUserViewController
+    : SettingsRootTableViewController
 
 @property(nonatomic, weak)
-    id<VivaldiSyncCreateAccountUserViewControllerDelegate> delegate;
+    id<VivaldiSyncCreateAccountUserViewControllerDelegate>
+        delegate;
 
 // Initializes the view controller, configured with |style|. The default
 // ChromeTableViewStyler will be used.

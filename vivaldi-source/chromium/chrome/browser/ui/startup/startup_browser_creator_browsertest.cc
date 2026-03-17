@@ -193,8 +193,8 @@ Browser* OpenNewBrowser(Profile* profile,
 
 bool HasInfoBar(infobars::ContentInfoBarManager* infobar_manager,
                 const infobars::InfoBarDelegate::InfoBarIdentifier identifier) {
-  return base::Contains(infobar_manager->infobars(), identifier,
-                        &infobars::InfoBar::GetIdentifier);
+  return std::ranges::contains(infobar_manager->infobars(), identifier,
+                               &infobars::InfoBar::GetIdentifier);
 }
 
 struct StartupBrowserCreatorFlagTypeValue {
@@ -1288,7 +1288,7 @@ IN_PROC_BROWSER_TEST_F(StartupBrowserCreatorTest, StartupPrefSetAsLastAndURLs) {
   const auto wait_for_load_stop_for_browser =
       [](BrowserWindowInterface* browser) {
         TabStripModel* const tab_strip_model = browser->GetTabStripModel();
-        for (int i = 0; i < tab_strip_model->GetTabCount(); ++i) {
+        for (int i = 0; i < tab_strip_model->count(); ++i) {
           content::WebContents* const contents =
               tab_strip_model->GetWebContentsAt(i);
           EXPECT_TRUE(content::WaitForLoadStop(contents));
@@ -1314,7 +1314,7 @@ IN_PROC_BROWSER_TEST_F(StartupBrowserCreatorTest, StartupPrefSetAsLastAndURLs) {
   EXPECT_NO_FATAL_FAILURE(
       wait_for_load_stop_for_browser(pref_urls_opened_browser));
   tab_strip_model = pref_urls_opened_browser->GetTabStripModel();
-  EXPECT_EQ(2, tab_strip_model->GetTabCount());
+  EXPECT_EQ(2, tab_strip_model->count());
   EXPECT_EQ(t1_url, tab_strip_model->GetWebContentsAt(0)->GetVisibleURL());
   EXPECT_EQ(t2_url, tab_strip_model->GetWebContentsAt(1)->GetVisibleURL());
   EXPECT_EQ(0, tab_strip_model->active_index());
@@ -3085,8 +3085,9 @@ IN_PROC_BROWSER_TEST_F(StartupBrowserWebAppProtocolAndFileHandlingTest,
   content::WebContents* web_contents = tab_strip->GetWebContentsAt(0);
   EXPECT_EQ(file_handler.action, web_contents->GetVisibleURL());
 
+  ui_test_utils::BrowserDestroyedObserver observer(app_browser);
   app_browser->GetWindow()->Close();
-  ui_test_utils::WaitForBrowserToClose(app_browser);
+  observer.Wait();
 }
 
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
@@ -3194,7 +3195,7 @@ IN_PROC_BROWSER_TEST_F(StartupBrowserCreatorFirstRunTest,
                   policy::POLICY_LEVEL_MANDATORY, policy::POLICY_SCOPE_USER,
                   policy::POLICY_SOURCE_CLOUD,
                   base::Value(SessionStartupPref::kPrefValueURLs), nullptr);
-  base::Value::List startup_urls;
+  base::ListValue startup_urls;
   startup_urls.Append(embedded_test_server()->GetURL("/title1.html").spec());
   policy_map_.Set(policy::key::kRestoreOnStartupURLs,
                   policy::POLICY_LEVEL_MANDATORY, policy::POLICY_SCOPE_USER,
@@ -3288,7 +3289,7 @@ class StartupBrowserCreatorWasRestartedFlag : public InProcessBrowserTest,
     base::FilePath user_data_dir;
     base::PathService::Get(chrome::DIR_USER_DATA, &user_data_dir);
 
-    base::Value::Dict local_state;
+    base::DictValue local_state;
     local_state.SetByDottedPath(prefs::kWasRestarted, true);
     std::string json = base::WriteJson(local_state).value_or("");
 
@@ -4248,7 +4249,7 @@ class StartupBrowserCreatorPickerInfobarTest
   // opened.
   void OpenProfileFromPicker(const base::FilePath& profile_path,
                              bool open_settings) {
-    base::Value::List args;
+    base::ListValue args;
     args.Append(base::FilePathToValue(profile_path));
     profile_picker_handler()->HandleLaunchSelectedProfile(open_settings, args);
   }

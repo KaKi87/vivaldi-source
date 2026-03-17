@@ -10,7 +10,7 @@
 #import "ios/chrome/browser/shared/model/utils/observable_boolean.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
 #import "ios/ui/settings/general/vivaldi_general_settings_prefs.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 @interface VivaldiGeneralSettingsMediator () <BooleanObserver> {
   PrefBackedBoolean* _homepageEnabled;
@@ -32,14 +32,14 @@
   if (self) {
     _prefService = originalPrefService;
     _homepageEnabled = [[PrefBackedBoolean alloc]
-      initWithPrefService:originalPrefService
-                 prefName:vivaldiprefs::kVivaldiHomepageEnabled];
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kVivaldiHomepageEnabled];
     [_homepageEnabled setObserver:self];
     [self.consumer setPreferenceForHomepageUrl:self.homepageURL];
 
     _backgroundAudioEnabled = [[PrefBackedBoolean alloc]
-      initWithPrefService:originalPrefService
-                 prefName:vivaldiprefs::kVivaldiBackgroundAudioEnabled];
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kVivaldiBackgroundAudioEnabled];
     [_backgroundAudioEnabled setObserver:self];
   }
   return self;
@@ -65,8 +65,8 @@
 }
 
 - (NSString*)homepageURL {
-  return [VivaldiGeneralSettingPrefs
-           getHomepageUrlWithPrefService: _prefService];
+  return
+      [VivaldiGeneralSettingPrefs getHomepageUrlWithPrefService:_prefService];
 }
 
 - (BOOL)isBackgroundAudioEnabled {
@@ -92,9 +92,9 @@
     [_homepageEnabled setValue:homepageEnabled];
 }
 
-- (void)setPreferenceForHomepageUrl:(NSString *)url {
-  [VivaldiGeneralSettingPrefs
-    setHomepageUrlWithPrefService: url inPrefServices: _prefService];
+- (void)setPreferenceForHomepageUrl:(NSString*)url {
+  [VivaldiGeneralSettingPrefs setHomepageUrlWithPrefService:url
+                                             inPrefServices:_prefService];
 }
 
 - (void)setPreferenceForBackgroundAudioEnabled:(BOOL)enabled {

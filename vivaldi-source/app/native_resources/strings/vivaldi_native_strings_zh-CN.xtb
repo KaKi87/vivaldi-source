@@ -44,7 +44,7 @@
 <translation id="2101054359190001133">Opera 浏览器正在运行，其设置不可访问。要将这些设置导入 Vivaldi，请保存您在 Opera 上的工作并关闭所有 Opera 窗口。然后单击继续。</translation>
 <translation id="2141974047387702305">下载更新文件时出现一个错误。请检查您的互联网连接并重试。</translation>
 <translation id="2142146492302700970">无法找到源配置文件的“加密密钥”条目</translation>
-<translation id="2209970441698102782">无法找到源配置文件的本地状态</translation>
+<translation id="2209970441698102782">无法找到源配置文件中的“Local State”文件</translation>
 <translation id="2225863440766607138">跟踪器</translation>
 <translation id="2226825946708954262">⚠ 放弃数据继续</translation>
 <translation id="2339641773402824483">检查更新...</translation>
@@ -169,7 +169,7 @@
 <translation id="5317780077021120954">保存</translation>
 <translation id="5322922669477407077">Opera (Developer)</translation>
 <translation id="5388358297987318779">打开图片</translation>
-<translation id="5398772614898833570">条广告已拦截</translation>
+<translation id="5398772614898833570">已拦截广告</translation>
 <translation id="5416008465899576639">有新版本 Vivaldi。</translation>
 <translation id="5497042274492038489">确认关闭窗口</translation>
 <translation id="5556459405103347317">重载</translation>
@@ -224,7 +224,7 @@
 <translation id="7337881442233988129">Chromium 浏览器</translation>
 <translation id="7382439465323652245">无法找到源配置文件的“os_crypt”条目</translation>
 <translation id="7421665776469827022">节省的数据量</translation>
-<translation id="7454640759045234067">个跟踪器被拦截</translation>
+<translation id="7454640759045234067">已拦截跟踪器</translation>
 <translation id="7508642657131162635">Brave 浏览器正在运行，其设置不可访问。要将这些设置导入 Vivaldi，请保存您在 Brave 上的工作并关闭所有 Brave 窗口。然后单击继续。</translation>
 <translation id="7515032462649518126">选择自定义头像</translation>
 <translation id="7581266044164103589">启动更新安装器失败。请检查是否有足够的内存或存储空间然后重试。</translation>

@@ -27,7 +27,7 @@ class IOSEnterpriseInterstitial
       security_interstitials::SecurityInterstitialCommand command) override;
   bool ShouldCreateNewNavigation() const override;
   void PopulateInterstitialStrings(
-      base::Value::Dict& load_time_data) const override;
+      base::DictValue& load_time_data) const override;
   void WasDismissed() override;
 
   // EnterpriseInterstitialBase:
@@ -61,6 +61,7 @@ class IOSEnterpriseInterstitial
     GURL request_url_;
     safe_browsing::SBThreatType threat_type_;
     safe_browsing::ThreatSource threat_source_;
+    safe_browsing::RTLookupResponse rt_lookup_response_;
   };
 
   IOSEnterpriseInterstitial(

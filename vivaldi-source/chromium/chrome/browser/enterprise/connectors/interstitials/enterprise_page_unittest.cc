@@ -5,6 +5,7 @@
 #include "chrome/browser/enterprise/connectors/interstitials/enterprise_block_page.h"
 #include "chrome/browser/enterprise/connectors/interstitials/enterprise_warn_page.h"
 
+#include "base/strings/strcat.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "chrome/browser/enterprise/connectors/interstitials/enterprise_block_controller_client.h"
 #include "chrome/browser/enterprise/connectors/interstitials/enterprise_warn_controller_client.h"
@@ -116,7 +117,7 @@ TEST_F(EnterprisePageTest, EnterpriseWarn_CustomMessageDisplayed) {
       std::make_unique<EnterpriseWarnControllerClient>(web_contents(),
                                                        GURL("exampleurl.net")));
 
-  base::Value::Dict load_time_data;
+  base::DictValue load_time_data;
   std::string final_message = test_page.GetCustomMessageForTesting();
   std::string expected_message = base::StrCat(
       {"Your organization says: ", "\"<a target=\"_blank\" href=\"", kTestUrl,
@@ -138,7 +139,7 @@ TEST_F(EnterprisePageTest, EnterpriseBlock_CustomMessageDisplayed) {
       std::make_unique<EnterpriseBlockControllerClient>(
           web_contents(), GURL("exampleurl.net")));
 
-  base::Value::Dict load_time_data;
+  base::DictValue load_time_data;
   std::string final_message = test_page.GetCustomMessageForTesting();
   std::string expected_message = base::StrCat(
       {"Your organization says: ", "\"<a target=\"_blank\" href=\"", kTestUrl,

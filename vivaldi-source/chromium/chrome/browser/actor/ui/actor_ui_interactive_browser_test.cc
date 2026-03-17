@@ -4,31 +4,31 @@
 
 #include "chrome/browser/actor/ui/actor_ui_interactive_browser_test.h"
 
-#include "chrome/browser/actor/actor_policy_checker.h"
 #include "chrome/browser/actor/actor_task_metadata.h"
+#include "chrome/browser/actor/actor_test_util.h"
 #include "chrome/common/chrome_switches.h"
 
 using actor::ExpectOkResult;
 using actor::TaskId;
 using base::test::TestFuture;
 
+ActorUiInteractiveBrowserTest::ActorUiInteractiveBrowserTest() = default;
+
+ActorUiInteractiveBrowserTest::~ActorUiInteractiveBrowserTest() = default;
+
 void ActorUiInteractiveBrowserTest::SetUpCommandLine(
     base::CommandLine* command_line) {
   InteractiveBrowserTest::SetUpCommandLine(command_line);
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   command_line->AppendSwitch(switches::kGlicDev);
   // Skips FRE experience.
   command_line->AppendSwitch(switches::kGlicAutomation);
 #endif
 }
 
-void ActorUiInteractiveBrowserTest::SetUpOnMainThread() {
-  InteractiveBrowserTest::SetUpOnMainThread();
-  actor_keyed_service()->GetPolicyChecker().SetActOnWebForTesting(true);
-}
-
 void ActorUiInteractiveBrowserTest::StartActingOnTab() {
-  task_id_ = actor_keyed_service()->CreateTask();
+  task_id_ =
+      actor_keyed_service()->CreateTask(actor::NoEnterprisePolicyChecker());
   TestFuture<actor::mojom::ActionResultPtr> future;
   actor_keyed_service()->GetTask(task_id_)->AddTab(
       browser()->GetActiveTabInterface()->GetHandle(), future.GetCallback());

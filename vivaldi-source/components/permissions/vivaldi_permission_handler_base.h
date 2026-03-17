@@ -31,7 +31,7 @@ class VivaldiPermissionHandlerBase {
       ::permissions::PermissionRequest* request);
 };
 
-} // namespace permissions
-} // namespace vivaldi
+}  // namespace permissions
+}  // namespace vivaldi
 
 #endif /* COMPONENTS_PERMISSIONS_VIVALDI_PERMISSION_HANDLER_BASE_H */

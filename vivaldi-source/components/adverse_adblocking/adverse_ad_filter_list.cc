@@ -58,10 +58,9 @@ AdverseAdFilterListService::AdverseAdFilterListService(Profile* profile)
   }
 }
 
-AdverseAdFilterListService::~AdverseAdFilterListService() {
-}
+AdverseAdFilterListService::~AdverseAdFilterListService() {}
 
-void AdverseAdFilterListService::OnProfileAdded(Profile *profile) {
+void AdverseAdFilterListService::OnProfileAdded(Profile* profile) {
   // Profile and services are up and running
   // PathExists() triggers IO restriction.
   base::VivaldiScopedAllowBlocking allow_blocking;
@@ -118,7 +117,7 @@ void AdverseAdFilterListService::DoChecksumBeforeDownload() {
 }
 
 void AdverseAdFilterListService::OnSHA256SumDownloadDone(
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   if (!sha256_sum_.empty() && response_body && sha256_sum_ != *response_body) {
     DownloadBlockList();
   }

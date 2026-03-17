@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/debug/alias.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/functional/bind.h"
@@ -43,6 +42,7 @@
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/session_crashed_bubble.h"
+#include "chrome/browser/ui/startup/profile_launch_observer.h"
 #include "chrome/browser/ui/startup/startup_browser_creator.h"
 #include "chrome/browser/ui/startup/startup_tab.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
@@ -251,15 +251,14 @@ void SessionService::DeleteLastSession() {
 void SessionService::SetSplitTab(SessionID window_id,
                                  SessionID tab_id,
                                  std::optional<split_tabs::SplitTabId> split) {
-  if (!ShouldTrackChangesToWindow(window_id) ||
-      !features::IsRestoringSplitViewEnabled()) {
+  if (!ShouldTrackChangesToWindow(window_id)) {
     return;
   }
 
   // Tabs get unsplit as they close. However, if the whole window is closing
   // tabs should stay in their split. So, ignore this call in that case.
-  if (base::Contains(pending_window_close_ids_, window_id) ||
-      base::Contains(window_closing_ids_, window_id)) {
+  if (pending_window_close_ids_.contains(window_id) ||
+      window_closing_ids_.contains(window_id)) {
     return;
   }
 
@@ -270,14 +269,13 @@ void SessionService::SetSplitTabData(
     SessionID window_id,
     const split_tabs::SplitTabId split,
     const split_tabs::SplitTabVisualData* visual_data) {
-  if (!ShouldTrackChangesToWindow(window_id) ||
-      !features::IsRestoringSplitViewEnabled()) {
+  if (!ShouldTrackChangesToWindow(window_id)) {
     return;
   }
 
   // Any split metadata changes happening in a closing window can be ignored.
-  if (base::Contains(pending_window_close_ids_, window_id) ||
-      base::Contains(window_closing_ids_, window_id)) {
+  if (pending_window_close_ids_.contains(window_id) ||
+      window_closing_ids_.contains(window_id)) {
     return;
   }
 
@@ -293,9 +291,10 @@ void SessionService::SetTabGroup(SessionID window_id,
 
   // Tabs get ungrouped as they close. However, if the whole window is closing
   // tabs should stay in their groups. So, ignore this call in that case.
-  if (base::Contains(pending_window_close_ids_, window_id) ||
-      base::Contains(window_closing_ids_, window_id))
+  if (pending_window_close_ids_.contains(window_id) ||
+      window_closing_ids_.contains(window_id)) {
     return;
+  }
 
   ScheduleCommand(sessions::CreateTabGroupCommand(tab_id, std::move(group)));
 }
@@ -330,8 +329,8 @@ void SessionService::SetTabGroupMetadata(
   }
 
   // Any group metadata changes happening in a closing window can be ignored.
-  if (base::Contains(pending_window_close_ids_, window_id) ||
-      base::Contains(window_closing_ids_, window_id)) {
+  if (pending_window_close_ids_.contains(window_id) ||
+      window_closing_ids_.contains(window_id)) {
     return;
   }
 
@@ -610,7 +609,7 @@ bool SessionService::RestoreIfNecessary(const StartupTabs& startup_tabs,
       // instance.
       SessionCrashedBubble::ShowIfNotOffTheRecordProfile(
           browser, /*skip_tab_checking=*/true);
-      AddLaunchedProfile(profile());
+      ProfileLaunchObserver::AddLaunched(profile());
     }
 #endif  // BUILDFLAG(IS_CHROMEOS)
   }
@@ -667,7 +666,7 @@ void SessionService::BuildCommandsForTab(
         sessions::CreateTabGroupCommand(session_id, std::move(group)));
   }
 
-  if (features::IsRestoringSplitViewEnabled() && split.has_value()) {
+  if (split.has_value()) {
     command_storage_manager()->AppendRebuildCommand(
         sessions::CreateSplitTabCommand(session_id, std::move(split)));
   }

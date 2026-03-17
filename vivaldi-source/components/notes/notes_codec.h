@@ -39,14 +39,14 @@ class NotesCodec {
   // Encodes the model to a JSON value. This is invoked to encode the contents
   // of the notes model and is currently a convenience to invoking Encode that
   // takes the notes node and other folder node.
-  base::Value::Dict Encode(NotesModel* model,
-                           const std::string& sync_metadata_str);
+  base::DictValue Encode(NotesModel* model,
+                         const std::string& sync_metadata_str);
 
   // Encodes the notes folder returning the JSON value.
-  base::Value::Dict Encode(const NoteNode* notes_node,
-                           const NoteNode* other_notes_node,
-                           const NoteNode* trash_notes_node,
-                           std::string sync_metadata_str);
+  base::DictValue Encode(const NoteNode* notes_node,
+                         const NoteNode* other_notes_node,
+                         const NoteNode* trash_notes_node,
+                         std::string sync_metadata_str);
 
   // Decodes the previously encoded value to the specified nodes as well as
   // setting |max_node_id| to the greatest node id. Returns true on success,
@@ -57,7 +57,7 @@ class NotesCodec {
               NoteNode* other_notes_node,
               NoteNode* trash_notes_node,
               int64_t* max_node_id,
-              const base::Value::Dict& value,
+              const base::DictValue& value,
               std::string* sync_metadata_str);
 
   // Updates the check-sum with the given string.
@@ -103,14 +103,14 @@ class NotesCodec {
  private:
   // Encodes node and all its children into a Value object and returns it.
   // The caller takes ownership of the returned object.
-  base::Value::Dict EncodeNode(const NoteNode* node,
-                               const std::vector<const NoteNode*>* extra_nodes);
+  base::DictValue EncodeNode(const NoteNode* node,
+                             const std::vector<const NoteNode*>* extra_nodes);
 
   // Helper to perform decoding.
   bool DecodeHelper(NoteNode* notes_node,
                     NoteNode* other_notes_node,
                     NoteNode* trash_notes_node,
-                    const base::Value::Dict& value,
+                    const base::DictValue& value,
                     std::string* sync_metadata_str);
   void ExtractSpecialNode(NoteNode::Type type,
                           NoteNode* source,
@@ -123,7 +123,7 @@ class NotesCodec {
   // created appropriately by way of DecodeChildren. If node is NULL a new
   // node is created and added to parent (parent must then be non-NULL),
   // otherwise node is used.
-  void DecodeNode(const base::Value::Dict& value,
+  void DecodeNode(const base::DictValue& value,
                   NoteNode* parent,
                   NoteNode* node,
                   NoteNode* child_other_node,

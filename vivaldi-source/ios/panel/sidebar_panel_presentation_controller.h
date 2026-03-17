@@ -5,15 +5,13 @@
 
 #import <UIKit/UIKit.h>
 
-#import "ios/chrome/browser/toolbar/ui_bundled/public/toolbar_type.h"
+#import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_type.h"
 
-@interface SidebarPanelPresentationController
-    : UIPresentationController
+@interface SidebarPanelPresentationController : UIPresentationController
 
-- (instancetype)initWithPresentedViewController:
-                (UIViewController*)presentedViewController
-                       presentingViewController:
-                (UIViewController*)presentingViewController;
+- (instancetype)
+    initWithPresentedViewController:(UIViewController*)presentedViewController
+           presentingViewController:(UIViewController*)presentingViewController;
 
 @property(nonatomic, assign) ToolbarType toolbarType;
 

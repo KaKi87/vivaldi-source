@@ -18,6 +18,7 @@
 #include "base/functional/bind.h"
 #include "base/json/values_util.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/not_fatal_until.h"
 #include "base/notreached.h"
@@ -32,7 +33,6 @@
 #include "base/values.h"
 #include "build/buildflag.h"
 #include "chrome/browser/app_mode/app_mode_utils.h"
-#include "chrome/browser/apps/app_service/app_launch_params.h"
 #include "chrome/browser/apps/app_service/launch_utils.h"
 #include "chrome/browser/apps/link_capturing/enable_link_capturing_infobar_delegate.h"
 #include "chrome/browser/profiles/profile.h"
@@ -51,6 +51,7 @@
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/intent_picker_tab_helper.h"
+#include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "chrome/browser/ui/tabs/tab_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
@@ -65,7 +66,9 @@
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom-shared.h"
 #include "chrome/browser/web_applications/navigation_capturing_log.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
+#include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_constants.h"
+#include "chrome/browser/web_applications/web_app_filter.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_install_utils.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
@@ -75,6 +78,7 @@
 #include "chrome/browser/web_applications/web_app_ui_manager.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
 #include "chromeos/constants/chromeos_features.h"
+#include "components/services/app_service/public/cpp/app_launch_params.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "components/site_engagement/content/site_engagement_service.h"
 #include "components/webapps/browser/launch_queue/launch_params.h"
@@ -240,8 +244,8 @@ std::unique_ptr<AppBrowserController> MaybeCreateHostedAppBrowserController(
   return nullptr;
 }
 
-base::Value::Dict ToDebugDict(const apps::AppLaunchParams& params) {
-  base::Value::Dict value;
+base::DictValue ToDebugDict(const apps::AppLaunchParams& params) {
+  base::DictValue value;
   value.Set("app_id", params.app_id);
   value.Set("launch_id", params.launch_id);
   value.Set("container", static_cast<int>(params.container));
@@ -260,7 +264,7 @@ base::Value::Dict ToDebugDict(const apps::AppLaunchParams& params) {
             base::FilePathToValue(params.current_directory));
   value.Set("launch_source", static_cast<int>(params.launch_source));
   value.Set("display_id", base::saturated_cast<int>(params.display_id));
-  base::Value::List files_list;
+  base::ListValue files_list;
   for (const base::FilePath& file : params.launch_files) {
     files_list.Append(base::FilePathToValue(file));
   }
@@ -372,29 +376,34 @@ void ReparentWebContentsIntoBrowserImpl(Browser* source_browser,
 
   std::unique_ptr<content::WebContents> contents_move =
       source_tabstrip->DetachWebContentsAtForInsertion(found_tab_index.value());
-  int location = target_browser->GetFeatures().tab_strip_model()->count();
+
+  // Clear omnibox state to prevent stale user-typed text from appearing in the
+  // target browser. When reparenting between app windows and browser windows,
+  // the omnibox context changes significantly and old state is inappropriate.
+  // See https://crbug.com/40697091
+  OmniboxTabHelper::ClearOmniboxInputState(web_contents);
+
+  TabStripModel* const target_tab_strip_model =
+      target_browser->GetTabStripModel();
+  int location = target_tab_strip_model->count();
   int add_types = (AddTabTypes::ADD_INHERIT_OPENER | AddTabTypes::ADD_ACTIVE);
   if (insert_as_pinned_home_tab) {
     location = 0;
     add_types |= AddTabTypes::ADD_PINNED;
   }
   const bool target_has_pinned_home_tab =
-      HasPinnedHomeTab(target_browser->GetFeatures().tab_strip_model());
+      HasPinnedHomeTab(target_tab_strip_model);
   // This method moves a WebContents from a non-normal browser window to a
   // normal browser window. We cannot move the Tab over directly since TabModel
   // enforces the requirement that it cannot move between window types.
   // https://crbug.com/334281979): Non-normal browser windows should not have a
   // tab to begin with.
-  target_browser->GetFeatures().tab_strip_model()->InsertWebContentsAt(
+  target_tab_strip_model->InsertWebContentsAt(
       location, std::move(contents_move), add_types);
-  CHECK_EQ(
-      web_contents,
-      target_browser->GetFeatures().tab_strip_model()->GetActiveWebContents());
+  CHECK_EQ(web_contents, target_tab_strip_model->GetActiveWebContents());
 
   if (insert_as_pinned_home_tab && target_has_pinned_home_tab) {
-    target_browser->GetFeatures()
-        .tab_strip_model()
-        ->DetachAndDeleteWebContentsAt(1);
+    target_tab_strip_model->DetachAndDeleteWebContentsAt(1);
   }
 
   if (!target_app_id) {
@@ -464,10 +473,19 @@ bool MaybeHandleIntentPickerFocusExistingOrNavigateExisting(
                                               ->launch_handler()
                                               .value_or(LaunchHandler())
                                               .parsed_client_mode();
+
   if (client_mode != LaunchHandler::ClientMode::kFocusExisting &&
       client_mode != LaunchHandler::ClientMode::kNavigateExisting) {
     return false;
   }
+
+  // For IWA navigate existing is the same as focus existing,
+  // because IWA does not support navigation to non isolate-app:// schemes.
+  if (registrar.AppMatches(app_id, WebAppFilter::IsIsolatedApp()) ||
+      registrar.AppMatches(app_id, WebAppFilter::IsIsolatedSubApp())) {
+    client_mode = LaunchHandler::ClientMode::kFocusExisting;
+  }
+
   std::optional<AppBrowserController::BrowserAndTabIndex> existing_app_host =
       AppBrowserController::FindTopLevelBrowsingContextForWebApp(
           *profile, app_id, /*for_app_browser=*/true,
@@ -481,9 +499,8 @@ bool MaybeHandleIntentPickerFocusExistingOrNavigateExisting(
   CHECK_NE(existing_app_host->tab_index, -1);
 
   content::WebContents* preexisting_web_contents =
-      existing_app_host->browser->GetFeatures()
-          .tab_strip_model()
-          ->GetWebContentsAt(existing_app_host->tab_index);
+      existing_app_host->browser->GetTabStripModel()->GetWebContentsAt(
+          existing_app_host->tab_index);
   CHECK(preexisting_web_contents != contents);
 
   // We've found a browser in the background. We need to focus it and enqueue
@@ -546,11 +563,12 @@ BrowserWindowInterface* ReparentWebContentsIntoAppBrowser(
     std::move(completion_callback).Run(contents);
     return nullptr;
   }
-
-  if (registrar.IsInstallState(
-          app_id, {proto::InstallState::SUGGESTED_FROM_ANOTHER_DEVICE,
-                   proto::InstallState::INSTALLED_WITHOUT_OS_INTEGRATION,
-                   proto::InstallState::INSTALLED_WITH_OS_INTEGRATION})) {
+  bool is_iwa = registrar.AppMatches(app_id, WebAppFilter::IsIsolatedApp()) ||
+                registrar.AppMatches(app_id, WebAppFilter::IsIsolatedSubApp());
+  // Since iwa will result in a new app open and this web contents closed,
+  // History pruning is not necessary.
+  if (!is_iwa &&
+      registrar.AppMatches(app_id, WebAppFilter::IsAppSurfaceableToUser())) {
     std::optional<GURL> app_scope = registrar.GetAppScope(app_id);
     if (!app_scope) {
       app_scope = registrar.GetAppStartUrl(app_id).GetWithoutFilename();
@@ -584,6 +602,25 @@ BrowserWindowInterface* ReparentWebContentsIntoAppBrowser(
             registrar)) {
       return nullptr;
     }
+  }
+
+  if (is_iwa) {
+    provider->scheduler().LaunchApp(
+        app_id, launch_url,
+        base::BindOnce(
+            [](base::WeakPtr<content::WebContents> old_contents,
+               base::WeakPtr<Browser> browser,
+               base::WeakPtr<content::WebContents> web_contents,
+               apps::LaunchContainer container) {
+              if (old_contents) {
+                old_contents->Close();
+              }
+              return web_contents.get();
+            },
+            contents->GetWeakPtr())
+            .Then(std::move(completion_callback)));
+
+    return nullptr;
   }
 
   if (web_app->launch_handler()
@@ -648,11 +685,8 @@ std::unique_ptr<AppBrowserController> MaybeCreateAppBrowserController(
       GetAppIdFromApplicationName(browser->app_name());
   auto* const provider =
       WebAppProvider::GetForLocalAppsUnchecked(browser->profile());
-  if (provider &&
-      provider->registrar_unsafe().IsInstallState(
-          app_id, {proto::InstallState::SUGGESTED_FROM_ANOTHER_DEVICE,
-                   proto::InstallState::INSTALLED_WITHOUT_OS_INTEGRATION,
-                   proto::InstallState::INSTALLED_WITH_OS_INTEGRATION})) {
+  if (provider && provider->registrar_unsafe().AppMatches(
+                      app_id, WebAppFilter::IsAppSurfaceableToUser())) {
 #if BUILDFLAG(IS_CHROMEOS)
     if (chromeos::IsKioskSession()) {
       controller = CreateWebKioskBrowserController(browser, provider, app_id);
@@ -682,7 +716,7 @@ void MaybeAddPinnedHomeTab(BrowserWindowInterface* browser,
       registrar.GetAppPinnedHomeTabUrl(app_id);
 
   if (registrar.IsTabbedWindowModeEnabled(app_id) &&
-      !HasPinnedHomeTab(browser->GetFeatures().tab_strip_model()) &&
+      !HasPinnedHomeTab(browser->GetTabStripModel()) &&
       pinned_home_tab_url.has_value()) {
     NavigateParams home_tab_nav_params(browser->GetBrowserForMigrationOnly(),
                                        pinned_home_tab_url.value(),
@@ -924,28 +958,13 @@ void LaunchWebApp(apps::AppLaunchParams params,
                   Profile& profile,
                   WithAppResources& lock,
                   LaunchWebAppDebugValueCallback callback) {
-  base::Value::Dict debug_value;
+  base::DictValue debug_value;
   debug_value.Set("launch_params", ToDebugDict(params));
   debug_value.Set("launch_window_setting", static_cast<int>(launch_setting));
 
   if (launch_setting == LaunchWebAppWindowSetting::kOverrideWithWebAppConfig) {
-    DisplayMode display_mode =
-        lock.registrar().GetAppEffectiveDisplayMode(params.app_id);
-    switch (display_mode) {
-      case DisplayMode::kUndefined:
-      case DisplayMode::kFullscreen:
-      case DisplayMode::kBrowser:
-        params.container = apps::LaunchContainer::kLaunchContainerTab;
-        break;
-      case DisplayMode::kMinimalUi:
-      case DisplayMode::kWindowControlsOverlay:
-      case DisplayMode::kTabbed:
-      case DisplayMode::kBorderless:
-      case DisplayMode::kPictureInPicture:
-      case DisplayMode::kStandalone:
-        params.container = apps::LaunchContainer::kLaunchContainerWindow;
-        break;
-    }
+    params.container = ConvertDisplayModeToAppLaunchContainer(
+        lock.registrar().GetAppEffectiveDisplayMode(params.app_id));
   }
 
   DCHECK_NE(params.container, apps::LaunchContainer::kLaunchContainerNone);
@@ -956,11 +975,10 @@ void LaunchWebApp(apps::AppLaunchParams params,
   // Do not launch anything if the profile is being deleted.
   if (Browser::GetCreationStatusForProfile(&profile) ==
       Browser::CreationStatus::kOk) {
-    if (lock.registrar().IsInstallState(
-            params.app_id,
-            {proto::InstallState::SUGGESTED_FROM_ANOTHER_DEVICE,
-             proto::InstallState::INSTALLED_WITHOUT_OS_INTEGRATION,
-             proto::InstallState::INSTALLED_WITH_OS_INTEGRATION})) {
+    // TODO(crbug.com/379136842): This is likely too 'permissive' of a check,
+    // and different more restrictive filter should likely be used instead.
+    if (lock.registrar().AppMatches(params.app_id,
+                                    WebAppFilter::IsAppSurfaceableToUser())) {
       container = params.container;
       if (WebAppLaunchProcess::GetOpenApplicationCallbackForTesting()) {
         WebAppLaunchProcess::GetOpenApplicationCallbackForTesting().Run(
@@ -1018,14 +1036,15 @@ void EnqueueLaunchParams(content::WebContents* contents,
 
 void FocusAppContainer(BrowserWindowInterface* browser, int tab_index) {
   CHECK(browser);
+  TabStripModel* const tab_strip_model = browser->GetTabStripModel();
   content::WebContents* const web_contents =
-      browser->GetFeatures().tab_strip_model()->GetWebContentsAt(tab_index);
+      tab_strip_model->GetWebContentsAt(tab_index);
   CHECK(web_contents);
   web_contents->Focus();
   // ActivateTabAt() does not work for PWA windows.
   if (!WebAppBrowserController::IsWebApp(browser)) {
     // Note: This will CHECK-fail if tab_index is invalid.
-    browser->GetFeatures().tab_strip_model()->ActivateTabAt(tab_index);
+    tab_strip_model->ActivateTabAt(tab_index);
   }
   // This call will un-minimize the window.
   browser->GetBrowserForMigrationOnly()->GetBrowserView().Activate();

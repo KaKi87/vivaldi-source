@@ -102,6 +102,11 @@ class BookmarkMenuDelegate : public BookmarkMergedSurfaceServiceObserver,
     return context_menu_ ? context_menu_->menu() : nullptr;
   }
 
+  // Added by Vivaldi
+  bool vivaldi_menu_uses_mnemonics() {
+    return menu_uses_mnemonics_;
+  }
+
   views::Widget* parent() { return parent_; }
   const views::Widget* parent() const { return parent_; }
 

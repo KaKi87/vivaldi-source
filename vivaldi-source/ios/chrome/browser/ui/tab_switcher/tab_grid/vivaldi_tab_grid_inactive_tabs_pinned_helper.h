@@ -23,7 +23,7 @@
 
 // Toggles the top fade overlay for the inactive tabs header.
 + (void)setFadeEnabled:(BOOL)enabled
-  forGridViewController:(BaseGridViewController*)gridViewController;
+    forGridViewController:(BaseGridViewController*)gridViewController;
 
 @end
 

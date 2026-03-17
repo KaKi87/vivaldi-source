@@ -12,7 +12,7 @@ import android.view.ViewGroup;
 import android.view.ViewGroup.MarginLayoutParams;
 import android.view.ViewStub;
 
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.cc.input.BrowserControlsState;
@@ -21,7 +21,6 @@ import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider
 import org.chromium.chrome.browser.browser_controls.BrowserControlsUtils;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsVisibilityManager;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
-import org.chromium.chrome.browser.omnibox.OmniboxFocusReason;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabAttributeKeys;
 import org.chromium.chrome.browser.tab.TabAttributes;
@@ -35,6 +34,7 @@ import org.chromium.components.browser_ui.modaldialog.TabModalPresenter;
 import org.chromium.components.browser_ui.util.BrowserControlsVisibilityDelegate;
 import org.chromium.components.browser_ui.widget.scrim.ScrimManager;
 import org.chromium.components.browser_ui.widget.scrim.ScrimProperties;
+import org.chromium.components.omnibox.OmniboxFocusReason;
 import org.chromium.components.webxr.XrDelegate;
 import org.chromium.components.webxr.XrDelegateProvider;
 import org.chromium.content_public.browser.WebContents;
@@ -58,10 +58,11 @@ public class ChromeTabModalPresenter extends TabModalPresenter
     private final Runnable mHideContextualSearch;
     private final FullscreenManager mFullscreenManager;
     private final BrowserControlsVisibilityManager mBrowserControlsVisibilityManager;
-    private final TabModalBrowserControlsVisibilityDelegate mVisibilityDelegate;
+    private final BrowserControlsVisibilityDelegate mVisibilityDelegate =
+            new BrowserControlsVisibilityDelegate();
     private final TabModelSelector mTabModelSelector;
-    private final ObservableSupplier<ScrimManager> mScrimManagerSupplier;
-    private final ObservableSupplier<EdgeToEdgeController> mEdgeToEdgeControllerSupplier;
+    private final MonotonicObservableSupplier<ScrimManager> mScrimManagerSupplier;
+    private final MonotonicObservableSupplier<EdgeToEdgeController> mEdgeToEdgeControllerSupplier;
 
     /** The active tab of which the dialog will be shown on top. */
     private @Nullable Tab mActiveTab;
@@ -117,8 +118,8 @@ public class ChromeTabModalPresenter extends TabModalPresenter
             FullscreenManager fullscreenManager,
             BrowserControlsVisibilityManager browserControlsVisibilityManager,
             TabModelSelector tabModelSelector,
-            ObservableSupplier<ScrimManager> scrimManagerSupplier,
-            ObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier) {
+            MonotonicObservableSupplier<ScrimManager> scrimManagerSupplier,
+            MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier) {
         super(activity);
         mActivity = activity;
         mTabObscuringHandlerSupplier = tabObscuringHandlerSupplier;
@@ -126,7 +127,6 @@ public class ChromeTabModalPresenter extends TabModalPresenter
         mFullscreenManager = fullscreenManager;
         mBrowserControlsVisibilityManager = browserControlsVisibilityManager;
         mBrowserControlsVisibilityManager.addObserver(this);
-        mVisibilityDelegate = new TabModalBrowserControlsVisibilityDelegate();
         mHideContextualSearch = hideContextualSearch;
         mTabModelSelector = tabModelSelector;
         mScrimManagerSupplier = scrimManagerSupplier;
@@ -369,7 +369,10 @@ public class ChromeTabModalPresenter extends TabModalPresenter
     private void onTabModalDialogStateChanged(boolean isShowing) {
         assumeNonNull(mActiveTab);
         TabAttributes.from(mActiveTab).set(TabAttributeKeys.MODAL_DIALOG_SHOWING, isShowing);
-        mVisibilityDelegate.updateConstraintsForTab(mActiveTab);
+        mVisibilityDelegate.set(
+                isDialogShowing(mActiveTab)
+                        ? BrowserControlsState.SHOWN
+                        : BrowserControlsState.BOTH);
 
         // AR Sessions are fullscreen sessions where it's okay to show the TabModal dialog
         // without exiting fullscreen. So if we are in one we need to ensure that we:
@@ -417,19 +420,5 @@ public class ChromeTabModalPresenter extends TabModalPresenter
 
     @Nullable ViewGroup getContainerParentForTest() {
         return mContainerParent;
-    }
-
-    /** Handles browser controls constraints for the TabModal dialogs. */
-    static class TabModalBrowserControlsVisibilityDelegate
-            extends BrowserControlsVisibilityDelegate {
-        public TabModalBrowserControlsVisibilityDelegate() {
-            super(BrowserControlsState.BOTH);
-        }
-
-        /** Updates the tab modal browser constraints for the given tab. */
-        public void updateConstraintsForTab(Tab tab) {
-            if (tab == null) return;
-            set(isDialogShowing(tab) ? BrowserControlsState.SHOWN : BrowserControlsState.BOTH);
-        }
     }
 }

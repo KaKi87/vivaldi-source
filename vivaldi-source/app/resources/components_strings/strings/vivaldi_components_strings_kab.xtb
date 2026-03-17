@@ -20,6 +20,7 @@
 <translation id="2119505898009119320">Yettwazen ɣer: <ph name="ORGANIZATION" /> [<ph name="JURISDICTION" />]</translation>
 <translation id="2166378884831602661">Asmel-a ur yezmir ara ad d-yefk tuqqna taɣellsant</translation>
 <translation id="2224337661447660594">Ulac internet</translation>
+<translation id="2283340219607151381">Sekles u ččar tansiwin</translation>
 <translation id="2292556288342944218">Anekcum-ik·im ɣer Internet yettusewḥel</translation>
 <translation id="2317259163369394535"><ph name="DOMAIN" /> yesra isem n useqdac d wawal uffir.</translation>
 <translation id="2337852623177822836">Aɣewwar yettuεass sɣur anedbal-inek·inem</translation>
@@ -75,7 +76,6 @@
 <translation id="4250431568374086873">Tuqqna-inek·inem ɣer usmel-a mačči d taɣellsant yemmden</translation>
 <translation id="4265872034478892965">Yettusireg sɣur unedbal-ik•im</translation>
 <translation id="4305666528087210886">Anekcum ɣer ufaylu-inek·inem d awezɣi</translation>
-<translation id="4408413947728134509">Inagan n tuqqna <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> ur yeqbil ara aselen-inek·inem n unekcum, neɣ ur t-tmuddeḍ ara.</translation>
 <translation id="4506599922270137252">Nermes anedbal n unagraw</translation>
 <translation id="4522570452068850558">Talqayt</translation>
@@ -89,7 +89,6 @@
 <translation id="4764776831041365478">Asebter web <ph name="URL" /> yezmer ulac anekcum ɣur-s i kra n waud, neɣ ahat yettusenkez ɣer usebter web amaynut i lebda.</translation>
 <translation id="4943872375798546930">Ulac igemmaḍ</translation>
 <translation id="5023310440958281426">Senqed tisertiyin n unedbal-ik•im</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 deg useqdec)} other {(# deg useqdec)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Asenqed n tansa n upṛuksi<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bit)</translation>
 <translation id="5355557959165512791">Ur tezmireḍ ara ad terzuḍ ɣer<ph name="SITE" /> akka tura acku aselkin-is yettwagi. Tuccḍiwin n uzeṭṭa d ẓẓedmat, s umata, d iskudanen, ihi ad tzemreḍ ad tkecmeḍ ɣer usebter-a ticki.</translation>

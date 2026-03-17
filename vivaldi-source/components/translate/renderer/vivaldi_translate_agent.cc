@@ -24,11 +24,9 @@ namespace vivaldi {
 
 ////////////////////////////////////////////////////////////////////////////////
 // TranslateAgent, public:
-VivaldiTranslateAgent::VivaldiTranslateAgent(
-    content::RenderFrame* render_frame,
-    int world_id)
-    : translate::TranslateAgent(render_frame, world_id),
-      world_id_(world_id) {}
+VivaldiTranslateAgent::VivaldiTranslateAgent(content::RenderFrame* render_frame,
+                                             int world_id)
+    : translate::TranslateAgent(render_frame, world_id), world_id_(world_id) {}
 
 VivaldiTranslateAgent::~VivaldiTranslateAgent() {}
 
@@ -70,7 +68,7 @@ std::string VivaldiTranslateAgent::GetPageSourceLanguage() {
 void VivaldiTranslateAgent::RevertTranslation() {
   if (!IsTranslateLibAvailable()) {
     NOTREACHED();
-    //return;
+    // return;
   }
 
   CancelPendingTranslation();

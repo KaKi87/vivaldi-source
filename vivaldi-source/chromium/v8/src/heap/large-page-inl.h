@@ -6,15 +6,16 @@
 #define V8_HEAP_LARGE_PAGE_INL_H_
 
 #include "src/heap/large-page.h"
+// Include the non-inl header before the rest of the headers.
+
 #include "src/heap/mutable-page-inl.h"
 
 namespace v8 {
 namespace internal {
 
 // static
-LargePageMetadata* LargePageMetadata::FromHeapObject(Tagged<HeapObject> o) {
-  DCHECK(!V8_ENABLE_THIRD_PARTY_HEAP_BOOL);
-  return cast(MutablePageMetadata::FromHeapObject(o));
+LargePage* LargePage::FromHeapObject(Isolate* i, Tagged<HeapObject> o) {
+  return SbxCast<LargePage>(BasePage::FromHeapObject(i, o));
 }
 
 }  // namespace internal

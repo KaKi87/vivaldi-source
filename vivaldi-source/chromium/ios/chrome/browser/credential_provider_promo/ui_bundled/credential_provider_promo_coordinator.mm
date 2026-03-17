@@ -12,8 +12,8 @@
 #import "ios/chrome/browser/credential_provider_promo/ui_bundled/credential_provider_promo_metrics.h"
 #import "ios/chrome/browser/credential_provider_promo/ui_bundled/credential_provider_promo_view_controller.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
+#import "ios/chrome/browser/promos_manager/coordinator/promos_manager_ui_handler.h"
 #import "ios/chrome/browser/promos_manager/model/promos_manager_factory.h"
-#import "ios/chrome/browser/promos_manager/ui_bundled/promos_manager_ui_handler.h"
 #import "ios/chrome/browser/shared/coordinator/utils/credential_provider_settings_utils.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
@@ -104,7 +104,27 @@ using credential_provider_promo::IOSCredentialProviderPromoAction;
   self.mediator.tracker =
       feature_engagement::TrackerFactory::GetForProfile(self.profile);
   self.viewController.actionHandler = self;
-  self.viewController.presentationController.delegate = self;
+
+  UIViewController* viewControllerToPresent = self.viewController;
+
+  // Add the "Done" button to the navigation item if the promo was triggered by
+  // a Tips Notification.
+  if (trigger == CredentialProviderPromoTrigger::TipsNotification) {
+    UIBarButtonItem* dismissButton = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                             target:self
+                             action:@selector
+                             (confirmationAlertSecondaryAction)];
+    self.viewController.navigationItem.rightBarButtonItem = dismissButton;
+
+    UINavigationController* navigationController =
+        [[UINavigationController alloc]
+            initWithRootViewController:self.viewController];
+    navigationController.modalPresentationStyle = UIModalPresentationFormSheet;
+    navigationController.presentationController.delegate = self;
+    viewControllerToPresent = navigationController;
+  }
+
   self.promoContext = [self promoContextFromTrigger:trigger];
   [self.mediator configureConsumerWithTrigger:trigger
                                       context:self.promoContext];
@@ -112,7 +132,7 @@ using credential_provider_promo::IOSCredentialProviderPromoAction;
   UIViewController* topViewController =
       top_view_controller::TopPresentedViewControllerFrom(
           self.baseViewController);
-  [topViewController presentViewController:self.viewController
+  [topViewController presentViewController:viewControllerToPresent
                                   animated:YES
                                 completion:nil];
   self.promoSeenInCurrentSession = YES;

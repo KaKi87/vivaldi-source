@@ -31,6 +31,7 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/strings/str_cat.h"
+#include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/centipede_default_callbacks.h"
@@ -1200,6 +1201,20 @@ TEST_F(CentipedeWithTemporaryLocalDir,
   EXPECT_NE(inputs, mutants);
 }
 
+TEST_F(CentipedeWithTemporaryLocalDir,
+       GetsSeedViaExternalBinaryStopsAfterStopTime) {
+  Environment env;
+  env.binary = "sleep 100";
+  CentipedeDefaultCallbacks callbacks(env);
+  const auto start = absl::Now();
+  ClearEarlyStopRequestAndSetStopTime(start + absl::Seconds(3));
+  std::vector<ByteArray> seeds;
+  callbacks.GetSeeds(/*num_seeds=*/1, seeds);
+  // Give it some slack to stop in 5s.
+  EXPECT_LE(absl::Now() - start, absl::Seconds(5));
+  ClearEarlyStopRequestAndSetStopTime(absl::InfiniteFuture());
+}
+
 TEST_F(CentipedeWithTemporaryLocalDir, HangingFuzzTargetExitsAfterTimeout) {
   Environment env;
   env.binary =
@@ -1215,7 +1230,7 @@ TEST_F(CentipedeWithTemporaryLocalDir, HangingFuzzTargetExitsAfterTimeout) {
   EXPECT_FALSE(callbacks.Execute(env.binary, {{0}}, batch_result));
 }
 
-TEST_F(CentipedeWithTemporaryLocalDir, RunnerExitsAfterFirstCustomFailure) {
+TEST_F(CentipedeWithTemporaryLocalDir, ExecuteEndsAfterCustomFailure) {
   Environment env;
   env.binary = GetDataDependencyFilepath("centipede/testing/test_fuzz_target");
   CentipedeDefaultCallbacks callbacks(env);
@@ -1225,9 +1240,37 @@ TEST_F(CentipedeWithTemporaryLocalDir, RunnerExitsAfterFirstCustomFailure) {
       {'c', 'u', 's', 't', 'o', 'm'},
   };
   EXPECT_FALSE(callbacks.Execute(env.binary, inputs, result));
-  EXPECT_THAT(result.failure_description(), HasSubstr("custom"));
+  EXPECT_THAT(result.failure_description(), HasSubstr("custom 0"));
   EXPECT_THAT(result.log(), AllOf(HasSubstr("custom failure 0"),
                                   Not(HasSubstr("custom failure 1"))));
+  EXPECT_FALSE(callbacks.Execute(env.binary, inputs, result));
+  EXPECT_THAT(result.failure_description(), HasSubstr("custom 1"));
+  EXPECT_THAT(result.log(), AllOf(HasSubstr("custom failure 1"),
+                                  Not(HasSubstr("custom failure 2"))));
+}
+
+TEST_F(CentipedeWithTemporaryLocalDir, ToleratesAsyncFailureInMutation) {
+  Environment env;
+  env.binary =
+      GetDataDependencyFilepath("centipede/testing/async_failing_target");
+  CentipedeDefaultCallbacks callbacks(env);
+  BatchResult result;
+  std::vector<ByteArray> inputs = {
+      {'s', 'o', 'm', 'e'},
+  };
+  ClearEarlyStopRequestAndSetStopTime(absl::InfiniteFuture());
+  EXPECT_TRUE(callbacks.Execute(env.binary, inputs, result));
+  // Match the error log to check for retrying mutation.
+  EXPECT_DEATH(
+      [&] {
+        callbacks.Mutate(GetMutationInputRefsFromDataInputs(inputs),
+                         inputs.size());
+        FUZZTEST_LOG(INFO) << "Mutate() succeeded";
+        std::_Exit(EXIT_FAILURE);
+      }(),
+      AllOf(HasSubstr("Test binary failed to mutate inputs - cleaning up and "
+                      "trying again."),
+            HasSubstr("Mutate() succeeded")));
 }
 
 }  // namespace

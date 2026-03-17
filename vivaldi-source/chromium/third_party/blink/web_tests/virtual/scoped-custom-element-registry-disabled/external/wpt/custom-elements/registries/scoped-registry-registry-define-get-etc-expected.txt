@@ -14,4 +14,3 @@ This is a testharness.js-based test.
 [FAIL] Scoped Custom element registry getters do not resolve globally registered classes from whenDefined
   promise_test: Unhandled rejection with value: object "TypeError: Failed to construct 'CustomElementRegistry': Illegal constructor"
 Harness: the test ran to completion.
-

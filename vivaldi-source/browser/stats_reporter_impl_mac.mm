@@ -5,8 +5,8 @@
 #include <Cocoa/Cocoa.h>
 
 #include "base/base_paths.h"
-#include "base/path_service.h"
 #include "base/files/file_path.h"
+#include "base/path_service.h"
 
 namespace {
 NSString* vivaldi_uuid_key = @"vivaldi_user_id";

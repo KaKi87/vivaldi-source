@@ -6,9 +6,7 @@
 
 #import <UIKit/UIKit.h>
 
-
-@interface VivaldiSpeedDialBaseControllerFlowLayout:
-    UICollectionViewFlowLayout
+@interface VivaldiSpeedDialBaseControllerFlowLayout : UICollectionViewFlowLayout
 
 @end
 

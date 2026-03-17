@@ -31,7 +31,8 @@
     : SettingsRootTableViewController
 
 @property(nonatomic, weak)
-    id<VivaldiSyncEncryptionPasswordViewControllerDelegate> delegate;
+    id<VivaldiSyncEncryptionPasswordViewControllerDelegate>
+        delegate;
 
 // Initializes the view controller, configured with |style|. The default
 // ChromeTableViewStyler will be used.

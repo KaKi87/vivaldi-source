@@ -29,8 +29,7 @@ class NoteNode;
 // NoteFolderStyle then all other property values will be
 // ignored.
 - (instancetype)initWithType:(NSInteger)type
-                       style:(NoteFolderStyle)style
-    NS_DESIGNATED_INITIALIZER;
+                       style:(NoteFolderStyle)style NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithType:(NSInteger)type NS_UNAVAILABLE;
 
 // The item's title.
@@ -60,8 +59,7 @@ class NoteNode;
 // The folder child count displayed by this cell
 @property(nonatomic, strong) UILabel* folderItemsLabel;
 // Accessory Type.
-@property(nonatomic, assign)
-    TableViewNoteFolderAccessoryType noteAccessoryType;
+@property(nonatomic, assign) TableViewNoteFolderAccessoryType noteAccessoryType;
 @end
 
 #endif  // IOS_UI_NOTES_CELLS_NOTE_FOLDER_ITEM_H_

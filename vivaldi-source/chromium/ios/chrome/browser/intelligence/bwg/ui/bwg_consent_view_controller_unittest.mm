@@ -5,8 +5,8 @@
 #import "ios/chrome/browser/intelligence/bwg/ui/bwg_consent_view_controller.h"
 
 #import "base/test/metrics/histogram_tester.h"
-#import "ios/chrome/browser/intelligence/bwg/metrics/bwg_metrics.h"
-#import "ios/chrome/browser/intelligence/bwg/ui/bwg_consent_mutator.h"
+#import "ios/chrome/browser/intelligence/bwg/metrics/gemini_metrics.h"
+#import "ios/chrome/browser/intelligence/bwg/ui/gemini_consent_mutator.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/bwg_constants.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "testing/gtest/include/gtest/gtest.h"
@@ -60,7 +60,7 @@ class BWGConsentViewControllerTest : public PlatformTest {
   BWGConsentViewController* CreateViewController(BOOL is_account_managed) {
     BWGConsentViewController* controller = [[BWGConsentViewController alloc]
         initWithIsAccountManaged:is_account_managed];
-    mock_mutator_ = OCMProtocolMock(@protocol(BWGConsentMutator));
+    mock_mutator_ = OCMProtocolMock(@protocol(GeminiConsentMutator));
     controller.mutator = mock_mutator_;
     // Force view initialization since this view controller is never added into
     // the hierarchy in this unit test.
@@ -109,7 +109,7 @@ TEST_F(BWGConsentViewControllerTest, ContentHeightReturnsValidValue) {
 // Tests that the primary button action calls the correct mutator method.
 TEST_F(BWGConsentViewControllerTest, TestPrimaryButtonAction) {
   BWGConsentViewController* view_controller = CreateViewController(NO);
-  OCMExpect([mock_mutator_ didConsentBWG]);
+  OCMExpect([mock_mutator_ didConsentGemini]);
 
   UIButton* primaryButton =
       static_cast<UIButton*>(GetViewWithAccessibilityIdentifier(
@@ -124,7 +124,7 @@ TEST_F(BWGConsentViewControllerTest, TestPrimaryButtonAction) {
 // Tests that the secondary button action calls the correct mutator method.
 TEST_F(BWGConsentViewControllerTest, TestSecondaryButtonAction) {
   BWGConsentViewController* view_controller = CreateViewController(NO);
-  OCMExpect([mock_mutator_ didRefuseBWGConsent]);
+  OCMExpect([mock_mutator_ didRefuseGeminiConsent]);
 
   UIButton* secondaryButton =
       static_cast<UIButton*>(GetViewWithAccessibilityIdentifier(

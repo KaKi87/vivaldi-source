@@ -74,7 +74,6 @@
 <translation id="4235360514405112390">ਜਾਇਜ਼ ਹੈ</translation>
 <translation id="4250431568374086873">ਇਸ ਸਾਇਟ ਨਾਲ ਤੁਹਾਡਾ ਕਨੈਕਸ਼ਨ ਪੂਰੀ ਤਰ੍ਹਾਂ ਸੁਰੱਖਿਅਤ ਨਹੀਂ ਹੈ</translation>
 <translation id="4265872034478892965">ਤੁਹਾਡੇ ਪ੍ਰਸ਼ਾਸਕ ਵੱਲੋਂ ਪ੍ਰਵਾਨਿਤ ਹੈ</translation>
-<translation id="4408413947728134509">ਕੁਕੀਆਂ <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> ਨੇ ਤੁਹਾਡਾ ਦਾਖਲਾ ਸਰਟੀਫਿਕੇਟ ਸਵੀਕਾਰ ਨਹੀਂ ਕੀਤਾ, ਜਾਂ ਸ਼ਾਇਦ ਮੁਹੱਈਆ ਨਹੀਂ ਕਰਵਾਇਆ ਗਿਆ।</translation>
 <translation id="4506599922270137252">ਸਿਸਟਮ ਪ੍ਰਸ਼ਾਸਕ ਨਾਲ ਸੰਪਰਕ ਕੀਤਾ ਜਾ ਰਿਹਾ ਹੈ</translation>
 <translation id="4522570452068850558">ਵੇਰਵੇ</translation>
@@ -88,7 +87,6 @@
 <translation id="4764776831041365478"><ph name="URL" /> ਸਥਿੱਤ ਵੈੱਬਪੰਨਾ ਜਾਂ ਤਾਂ ਆਰਜੀ ਤੌਰ 'ਤੇ ਅਣ-ਉਪਲਬਧ ਹੈ ਜਾਂ ਸਦਾ ਲਈ ਕਿਸੇ ਨਵੇਂ ਵੈੱਬ ਪਤੇ 'ਤੇ ਲਿਜਾਇਆ ਜਾ ਚੁੱਕਿਆ ਹੈ।</translation>
 <translation id="4943872375798546930">ਕੋਈ ਨਤੀਜਾ ਨਹੀਂ</translation>
 <translation id="5023310440958281426">ਆਪਣੇ ਪ੍ਰਸ਼ਾਸਕ ਦੀਆਂ ਨੀਤੀਆਂ ਦੀ ਜਾਂਚ ਕਰੋ</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 ਵਰਤੋਂ ਵਿੱਚ)} other {(# ਵਰਤੋਂ ਵਿੱਚ)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />ਮੁਖਤਿਆਰੀ ਦੇ ਪਤੇ ਦੀ ਜਾਂਚ ਕੀਤੀ ਜਾ ਰਹੀ ਹੈ<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-ਬਿੱਟ)</translation>
 <translation id="5355557959165512791">ਤੁਸੀਂ <ph name="SITE" /> ਨੂੰ ਹੁਣੇ ਖੋਲ੍ਹ ਨਹੀਂ ਸਕਦੇ ਕਿਉਂਕਿ ਇਸਦੇ ਸਰਟੀਫਿਕੇਟ ਨੂੰ ਮਨਸੂਖ ਕਰ ਦਿੱਤਾ ਗਿਆ ਹੈ। ਨੈੱਟਵਰਕ ਦੀਆਂ ਸਮੱਸਿਆਵਾਂ ਅਤੇ ਹਮਲੇ ਆਮ ਤੌਰ 'ਤੇ ਆਰਜ਼ੀ ਹੁੰਦੇ ਹਨ, ਇਸ ਲਈ ਸ਼ਾਇਦ ਇਹ ਪੰਨਾ ਬਾਅਦ ਵਿੱਚ ਕੰਮ ਕਰੇਗਾ।</translation>

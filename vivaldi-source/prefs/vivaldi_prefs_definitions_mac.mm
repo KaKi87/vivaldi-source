@@ -40,6 +40,9 @@ base::Value VivaldiPrefsDefinitions::GetPlatformComputedDefault(
   if (path == vivaldiprefs::kSystemHighlightColor) {
     return base::Value(getSystemHighlightColor());
   }
+  if (path == vivaldiprefs::kSystemMacMenubarVisibleInFullscreen) {
+    return base::Value(getMenubarVisibleInFullscreen());
+  }
 
   return base::Value();
 }

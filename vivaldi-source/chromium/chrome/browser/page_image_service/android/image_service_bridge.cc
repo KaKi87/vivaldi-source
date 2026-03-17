@@ -17,7 +17,7 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/browser/page_image_service/android/jni_headers/ImageServiceBridge_jni.h"
 
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 using base::android::ScopedJavaGlobalRef;
 using base::android::ScopedJavaLocalRef;
 
@@ -35,7 +35,7 @@ void HandleImageUrlResponse(
 
 }  // namespace
 
-static jlong JNI_ImageServiceBridge_Init(JNIEnv* env, Profile* profile) {
+static int64_t JNI_ImageServiceBridge_Init(JNIEnv* env, Profile* profile) {
   DCHECK(!profile->IsOffTheRecord());
   ImageServiceBridge* image_service_bridge = new ImageServiceBridge(
       page_image_service::ImageServiceFactory::GetForBrowserContext(profile),
@@ -45,7 +45,7 @@ static jlong JNI_ImageServiceBridge_Init(JNIEnv* env, Profile* profile) {
 
 static std::string JNI_ImageServiceBridge_ClientIdToString(
     JNIEnv* env,
-    const jint client_id) {
+    const int32_t client_id) {
   return page_image_service::ClientIdToString(
       static_cast<page_image_service::mojom::ClientId>(client_id));
 }
@@ -61,12 +61,11 @@ void ImageServiceBridge::Destroy(JNIEnv* env) {
   delete this;
 }
 
-void ImageServiceBridge::FetchImageUrlFor(
-    JNIEnv* env,
-    const bool is_account_data,
-    const jint client_id,
-    const GURL& page_url,
-    const JavaParamRef<jobject>& j_callback) {
+void ImageServiceBridge::FetchImageUrlFor(JNIEnv* env,
+                                          const bool is_account_data,
+                                          const int32_t client_id,
+                                          const GURL& page_url,
+                                          const JavaRef<jobject>& j_callback) {
   ScopedJavaGlobalRef<jobject> callback(j_callback);
   FetchImageUrlForImpl(
       is_account_data,
@@ -96,9 +95,8 @@ void ImageServiceBridge::FetchImageUrlForImpl(
                                 std::move(callback));
 }
 
-jboolean ImageServiceBridge::HasConsentToFetchImages(
-    JNIEnv* env,
-    const bool is_account_data) {
+bool ImageServiceBridge::HasConsentToFetchImages(JNIEnv* env,
+                                                 const bool is_account_data) {
   return HasConsentToFetchImagesImpl(is_account_data);
 }
 

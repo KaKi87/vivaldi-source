@@ -13,7 +13,7 @@
 #define IDB_BITMAP_LOGO_150 142
 #define IDB_BITMAP_LOGO_200 143
 #define IDB_BITMAP_LOGO_250 144
- // these are kept 10 apart to simplfy
+// these are kept 10 apart to simplfy
 #define IDB_BITMAP_LOGO_100_DARK 150
 #define IDB_BITMAP_LOGO_125_DARK 151
 #define IDB_BITMAP_LOGO_150_DARK 152
@@ -47,6 +47,5 @@
 #define IDC_STATIC_SLOGAN 1027
 #define IDC_BTN_CLOSE 1028
 #define IDC_STATIC_DIALOG_TITLE 1029
-
 
 #endif  // INSTALLER_WIN_SETUP_SETUP_RESOURCE_H_

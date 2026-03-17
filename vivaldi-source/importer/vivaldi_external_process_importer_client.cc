@@ -75,8 +75,7 @@ void ExternalProcessImporterClient::OnExtensionsImportGroup(
     bridge_->AddExtensions(extensions_);
 }
 
-void ExternalProcessImporterClient::OnTabImportStart(
-    uint32_t total_count) {
+void ExternalProcessImporterClient::OnTabImportStart(uint32_t total_count) {
   if (cancelled_)
     return;
 

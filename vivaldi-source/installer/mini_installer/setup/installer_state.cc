@@ -167,10 +167,9 @@ bool InstallerState::RequiresActiveSetup() const {
 void InstallerState::ClearToastActivatorTargetExe() const {
   base::FilePath target_exe = target_path().Append(installer::kChromeExe);
   VLOG(1) << "Deleting kVivaldiToastActivatorCLSID: " << target_exe;
-  installer::DeleteRegistryValue(HKEY_CURRENT_USER,
-                      vivaldi::constants::kVivaldiToastActivatorCLSID,
-                      WorkItem::kWow64Default,
-                      target_exe.value());
+  installer::DeleteRegistryValue(
+      HKEY_CURRENT_USER, vivaldi::constants::kVivaldiToastActivatorCLSID,
+      WorkItem::kWow64Default, target_exe.value());
 }
 
 }  // namespace installer

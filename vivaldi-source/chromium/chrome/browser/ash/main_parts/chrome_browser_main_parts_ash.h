@@ -7,6 +7,7 @@
 
 #include <memory>
 
+#include "base/callback_list.h"
 #include "base/feature_list.h"
 #include "base/functional/callback_helpers.h"
 #include "base/memory/weak_ptr.h"
@@ -15,6 +16,7 @@
 #include "chrome/browser/chrome_browser_main_linux.h"
 #include "chrome/browser/memory/memory_kills_monitor.h"
 #include "chromeos/ash/components/pcie_peripheral/ash_usb_detector.h"
+#include "chromeos/ash/experiences/arc/arc_platform_support_impl.h"
 #include "printing/buildflags/buildflags.h"  // USE_CUPS
 
 class AmbientClientImpl;
@@ -78,7 +80,7 @@ class KioskController;
 class LoginScreenExtensionsStorageCleaner;
 class LowDiskNotification;
 class AuthEventsRecorder;
-class MagicBoostControllerAsh;
+class MagicBoostControllerImpl;
 class NetworkChangeManagerClient;
 class NetworkPrefStateObserver;
 class NetworkThrottlingObserver;
@@ -158,6 +160,7 @@ class ChromeBrowserMainPartsAsh : public ChromeBrowserMainPartsLinux {
   int PreEarlyInitialization() override;
   void PreCreateMainMessageLoop() override;
   void PostCreateMainMessageLoop() override;
+  int PreCreateThreads() override;
   int PreMainMessageLoopRun() override;
 
   // Stages called from PreMainMessageLoopRun.
@@ -213,6 +216,7 @@ class ChromeBrowserMainPartsAsh : public ChromeBrowserMainPartsLinux {
       doze_mode_power_status_scheduler_;
 
   std::unique_ptr<arc::ArcServiceLauncher> arc_service_launcher_;
+  std::unique_ptr<arc::ArcPlatformSupportImpl> arc_platform_support_;
 
   std::unique_ptr<ImageDownloaderImpl> image_downloader_;
 
@@ -256,6 +260,7 @@ class ChromeBrowserMainPartsAsh : public ChromeBrowserMainPartsLinux {
   std::unique_ptr<FwupdDownloadClientImpl> fwupd_download_client_;
 
   std::unique_ptr<SessionTerminationManager> session_termination_manager_;
+  base::CallbackListSubscription app_terminating_subscription_;
 
   std::unique_ptr<cros_healthd::internal::DataCollector>
       cros_healthd_data_collector_;
@@ -305,7 +310,7 @@ class ChromeBrowserMainPartsAsh : public ChromeBrowserMainPartsLinux {
 
   std::unique_ptr<MisconfiguredUserCleaner> misconfigured_user_cleaner_;
 
-  std::unique_ptr<ash::MagicBoostControllerAsh> magic_boost_controller_ash_;
+  std::unique_ptr<ash::MagicBoostControllerImpl> magic_boost_controller_;
 
   std::unique_ptr<parent_access::ParentAccessService> parent_access_service_;
 

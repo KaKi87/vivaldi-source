@@ -7,12 +7,12 @@
 #import "components/pref_registry/pref_registry_syncable.h"
 #import "components/prefs/pref_service.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 @implementation VivaldiStartPagePrefs
 
-static PrefService *_prefService = nil;
-static PrefService *_localPrefService = nil;
+static PrefService* _prefService = nil;
+static PrefService* _localPrefService = nil;
 
 + (PrefService*)prefService {
   return _prefService;
@@ -41,13 +41,21 @@ static PrefService *_localPrefService = nil;
                                 VivaldiStartPageLayoutColumnUnlimited);
   registry->RegisterBooleanPref(
       vivaldiprefs::kVivaldiStartPageShowFrequentlyVisited, NO);
-  registry->RegisterBooleanPref(
-      vivaldiprefs::kVivaldiStartPageShowSpeedDials, YES);
+  registry->RegisterBooleanPref(vivaldiprefs::kVivaldiStartPageShowSpeedDials,
+                                YES);
   registry->RegisterBooleanPref(
       vivaldiprefs::kVivaldiStartPageShowCustomizeButton, YES);
   registry->RegisterStringPref(vivaldiprefs::kVivaldiStartupWallpaper, "");
-  registry->RegisterStringPref(vivaldiprefs::kVivaldiStartpagePortraitImage,"");
-  registry->RegisterStringPref(vivaldiprefs::kVivaldiStartpageLandscapeImage,"");
+  registry->RegisterStringPref(vivaldiprefs::kVivaldiStartpagePortraitImage,
+                               "");
+  registry->RegisterStringPref(vivaldiprefs::kVivaldiStartpageLandscapeImage,
+                               "");
+  registry->RegisterStringPref(vivaldiprefs::kVivaldiStartPageDailyMixImage,
+                               "");
+  registry->RegisterStringPref(
+      vivaldiprefs::kVivaldiStartPageDailyMixLastFetchDate, "");
+  registry->RegisterStringPref(vivaldiprefs::kVivaldiStartPageDailyMixMetadata,
+                               "");
 }
 
 + (void)registerLocalStatePrefs:(PrefRegistrySimple*)registry {
@@ -62,9 +70,9 @@ static PrefService *_localPrefService = nil;
 #pragma mark - GETTERS
 
 + (const SpeedDialSortingMode)getSDSortingMode {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
   int modeIndex =
-    prefService->GetInteger(vivaldiprefs::kVivaldiSpeedDialSortingMode);
+      prefService->GetInteger(vivaldiprefs::kVivaldiSpeedDialSortingMode);
 
   switch (modeIndex) {
     case SpeedDialSortingManual:
@@ -87,7 +95,7 @@ static PrefService *_localPrefService = nil;
 }
 
 + (const SpeedDialSortingOrder)getSDSortingOrder {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
   int orderIndex =
       prefService->GetInteger(vivaldiprefs::kVivaldiSpeedDialSortingOrder);
   switch (orderIndex) {
@@ -101,9 +109,9 @@ static PrefService *_localPrefService = nil;
 }
 
 + (const VivaldiStartPageLayoutStyle)getStartPageLayoutStyle {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
   int style =
-    prefService->GetInteger(vivaldiprefs::kVivaldiStartPageLayoutStyle);
+      prefService->GetInteger(vivaldiprefs::kVivaldiStartPageLayoutStyle);
 
   switch (style) {
     case 0:
@@ -114,7 +122,7 @@ static PrefService *_localPrefService = nil;
       return VivaldiStartPageLayoutStyleSmall;
     case 3:
       return VivaldiStartPageLayoutStyleList;
-#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2 // Not final
+#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2  // Not final
     case 4:
       return VivaldiStartPageLayoutStyleIcon;
 #endif
@@ -124,7 +132,7 @@ static PrefService *_localPrefService = nil;
 }
 
 + (const VivaldiStartPageLayoutColumn)getStartPageSpeedDialMaximumColumns {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
   int style =
       prefService->GetInteger(vivaldiprefs::kVivaldiStartPageSDMaximumColumns);
 
@@ -157,19 +165,18 @@ static PrefService *_localPrefService = nil;
 }
 
 + (BOOL)showFrequentlyVisitedPages {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
   return prefService->GetBoolean(
       vivaldiprefs::kVivaldiStartPageShowFrequentlyVisited);
 }
 
 + (BOOL)showSpeedDials {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
-  return prefService->GetBoolean(
-      vivaldiprefs::kVivaldiStartPageShowSpeedDials);
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  return prefService->GetBoolean(vivaldiprefs::kVivaldiStartPageShowSpeedDials);
 }
 
 + (const VivaldiStartPageStartItemType)getReopenStartPageWithItem {
-  PrefService *prefService = [VivaldiStartPagePrefs localPrefService];
+  PrefService* prefService = [VivaldiStartPagePrefs localPrefService];
   int item =
       prefService->GetInteger(vivaldiprefs::kVivaldiStartPageOpenWithItem);
 
@@ -188,122 +195,150 @@ static PrefService *_localPrefService = nil;
 }
 
 + (const NSInteger)getStartPageLastVisitedGroupIndex {
-  PrefService *prefService = [VivaldiStartPagePrefs localPrefService];
+  PrefService* prefService = [VivaldiStartPagePrefs localPrefService];
   return prefService->GetInteger(
-            vivaldiprefs::kVivaldiStartPageLastVisitedGroup);
+      vivaldiprefs::kVivaldiStartPageLastVisitedGroup);
 }
 
 + (BOOL)showStartPageCustomizeButton {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
   return prefService->GetBoolean(
       vivaldiprefs::kVivaldiStartPageShowCustomizeButton);
 }
 
 + (BOOL)showAddButton {
-  PrefService *prefService = [VivaldiStartPagePrefs localPrefService];
-  return prefService->GetBoolean(
-      vivaldiprefs::kVivaldiStartPageShowAddButton);
+  PrefService* prefService = [VivaldiStartPagePrefs localPrefService];
+  return prefService->GetBoolean(vivaldiprefs::kVivaldiStartPageShowAddButton);
 }
 
 + (NSString*)getWallpaperName {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
-  NSString *name = base::SysUTF8ToNSString(
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  NSString* name = base::SysUTF8ToNSString(
       prefService->GetString(vivaldiprefs::kVivaldiStartupWallpaper));
   return name;
 }
 
-+ (UIImage *)getPortraitWallpaper {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
-  NSString *base64String =
-  base::SysUTF8ToNSString(
-    prefService->GetString(vivaldiprefs::kVivaldiStartpagePortraitImage)
-  );
++ (UIImage*)getPortraitWallpaper {
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  NSString* base64String = base::SysUTF8ToNSString(
+      prefService->GetString(vivaldiprefs::kVivaldiStartpagePortraitImage));
   return [self getImageFromBase64String:base64String];
 }
 
-+ (UIImage *)getLandscapeWallpaper {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
-  NSString *base64String =
-  base::SysUTF8ToNSString(
-    prefService->GetString(vivaldiprefs::kVivaldiStartpageLandscapeImage)
-  );
++ (UIImage*)getLandscapeWallpaper {
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  NSString* base64String = base::SysUTF8ToNSString(
+      prefService->GetString(vivaldiprefs::kVivaldiStartpageLandscapeImage));
+  return [self getImageFromBase64String:base64String];
+}
+
++ (NSString*)getDailyMixLastFetchDate {
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  return base::SysUTF8ToNSString(prefService->GetString(
+      vivaldiprefs::kVivaldiStartPageDailyMixLastFetchDate));
+}
+
++ (UIImage*)getDailyMixWallpaper {
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  NSString* base64String = base::SysUTF8ToNSString(
+      prefService->GetString(vivaldiprefs::kVivaldiStartPageDailyMixImage));
   return [self getImageFromBase64String:base64String];
 }
 
 #pragma mark - SETTERS
 
 + (void)setSDSortingMode:(const SpeedDialSortingMode)mode {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
   prefService->SetInteger(vivaldiprefs::kVivaldiSpeedDialSortingMode, mode);
 }
 
 + (void)setSDSortingOrder:(const SpeedDialSortingOrder)order {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
   prefService->SetInteger(vivaldiprefs::kVivaldiSpeedDialSortingOrder, order);
 }
 
 + (void)setStartPageLayoutStyle:(const VivaldiStartPageLayoutStyle)style {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
   prefService->SetInteger(vivaldiprefs::kVivaldiStartPageLayoutStyle, style);
 }
 
 + (void)setStartPageSpeedDialMaximumColumns:
     (VivaldiStartPageLayoutColumn)columns {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
   prefService->SetInteger(vivaldiprefs::kVivaldiStartPageSDMaximumColumns,
                           columns);
 }
 
 + (void)setShowFrequentlyVisitedPages:(BOOL)show {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
-  prefService->SetBoolean(
-      vivaldiprefs::kVivaldiStartPageShowFrequentlyVisited, show);
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  prefService->SetBoolean(vivaldiprefs::kVivaldiStartPageShowFrequentlyVisited,
+                          show);
 }
 
 + (void)setShowSpeedDials:(BOOL)show {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
-  prefService->SetBoolean(
-      vivaldiprefs::kVivaldiStartPageShowSpeedDials, show);
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  prefService->SetBoolean(vivaldiprefs::kVivaldiStartPageShowSpeedDials, show);
 }
 
 + (void)setReopenStartPageWithItem:(const VivaldiStartPageStartItemType)item {
-  PrefService *prefService = [VivaldiStartPagePrefs localPrefService];
-  prefService->SetInteger(vivaldiprefs::kVivaldiStartPageOpenWithItem,
-                          item);
+  PrefService* prefService = [VivaldiStartPagePrefs localPrefService];
+  prefService->SetInteger(vivaldiprefs::kVivaldiStartPageOpenWithItem, item);
 }
 
 + (void)setStartPageLastVisitedGroupIndex:(const NSInteger)index {
-  PrefService *prefService = [VivaldiStartPagePrefs localPrefService];
+  PrefService* prefService = [VivaldiStartPagePrefs localPrefService];
   prefService->SetInteger(vivaldiprefs::kVivaldiStartPageLastVisitedGroup,
                           index);
 }
 
 + (void)setShowStartPageCustomizeButton:(BOOL)show {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
-  prefService->SetBoolean(
-      vivaldiprefs::kVivaldiStartPageShowCustomizeButton, show);
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  prefService->SetBoolean(vivaldiprefs::kVivaldiStartPageShowCustomizeButton,
+                          show);
 }
 
 + (void)setShowAddButton:(BOOL)show {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
-  prefService->SetBoolean(
-      vivaldiprefs::kVivaldiStartPageShowAddButton, show);
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  prefService->SetBoolean(vivaldiprefs::kVivaldiStartPageShowAddButton, show);
 }
 
 + (void)setWallpaperName:(NSString*)name {
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
-  prefService->SetString(
-      vivaldiprefs::kVivaldiStartupWallpaper, base::SysNSStringToUTF8(name));
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  prefService->SetString(vivaldiprefs::kVivaldiStartupWallpaper,
+                         base::SysNSStringToUTF8(name));
 }
 
-+ (void)setPortraitWallpaper:(UIImage *)image {
-  [self storeImageAsBase64String:image forPreferenceKey:
-    vivaldiprefs::kVivaldiStartpagePortraitImage];
++ (void)setPortraitWallpaper:(UIImage*)image {
+  [self storeImageAsBase64String:image
+                forPreferenceKey:vivaldiprefs::kVivaldiStartpagePortraitImage];
 }
 
-+ (void)setLandscapeWallpaper:(UIImage *)image {
-  [self storeImageAsBase64String:image forPreferenceKey:
-    vivaldiprefs::kVivaldiStartpageLandscapeImage];
++ (void)setLandscapeWallpaper:(UIImage*)image {
+  [self storeImageAsBase64String:image
+                forPreferenceKey:vivaldiprefs::kVivaldiStartpageLandscapeImage];
+}
+
++ (void)setDailyMixLastFetchDate:(NSString*)date {
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  prefService->SetString(vivaldiprefs::kVivaldiStartPageDailyMixLastFetchDate,
+                         base::SysNSStringToUTF8(date ?: @""));
+}
+
++ (void)setDailyMixWallpaper:(UIImage*)image {
+  [self storeImageAsBase64String:image
+                forPreferenceKey:vivaldiprefs::kVivaldiStartPageDailyMixImage];
+}
+
++ (NSString*)getDailyMixMetadata {
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  return base::SysUTF8ToNSString(
+      prefService->GetString(vivaldiprefs::kVivaldiStartPageDailyMixMetadata));
+}
+
++ (void)setDailyMixMetadata:(NSString*)jsonString {
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  prefService->SetString(vivaldiprefs::kVivaldiStartPageDailyMixMetadata,
+                         base::SysNSStringToUTF8(jsonString ?: @""));
 }
 
 #pragma mark - PRIVATE
@@ -313,23 +348,38 @@ static PrefService *_localPrefService = nil;
   return VivaldiStartPageLayoutColumnUnlimited;
 }
 
-+ (void)storeImageAsBase64String:(UIImage *)image
-                forPreferenceKey:(const std::string &)preferenceKey {
++ (void)storeImageAsBase64String:(UIImage*)image
+                forPreferenceKey:(const std::string&)preferenceKey {
+  PrefService* prefService = [VivaldiStartPagePrefs prefService];
+  if (!prefService) {
+    return;
+  }
+
+  // Clearing the image should clear the pref.
+  if (!image) {
+    prefService->SetString(preferenceKey, "");
+    return;
+  }
+
   // Convert UIImage to NSData
-  NSData *imageData = UIImagePNGRepresentation(image);
+  NSData* imageData = UIImagePNGRepresentation(image);
+  if (!imageData) {
+    prefService->SetString(preferenceKey, "");
+    return;
+  }
+
   // Encode NSData to Base64 string
-  NSString *base64String = [imageData base64EncodedStringWithOptions:0];
-  // Store the Base64 string
-  PrefService *prefService = [VivaldiStartPagePrefs prefService];
-  prefService->SetString(preferenceKey, base::SysNSStringToUTF8(base64String));
+  NSString* base64String = [imageData base64EncodedStringWithOptions:0];
+  prefService->SetString(preferenceKey,
+                         base::SysNSStringToUTF8(base64String ?: @""));
 }
 
-+ (UIImage *)getImageFromBase64String:(NSString *)base64String {
++ (UIImage*)getImageFromBase64String:(NSString*)base64String {
   // Decode Base64 string to NSData
-  NSData *imageData =
-    [[NSData alloc] initWithBase64EncodedString:base64String options:0];
+  NSData* imageData = [[NSData alloc] initWithBase64EncodedString:base64String
+                                                          options:0];
   // Convert NSData to UIImage
-  UIImage *image = [UIImage imageWithData:imageData];
+  UIImage* image = [UIImage imageWithData:imageData];
   return image;
 }
 

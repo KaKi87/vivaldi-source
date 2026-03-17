@@ -22,10 +22,11 @@ bool VivaldiStandardManagementPolicyProvider::UserMayLoad(
   return StandardManagementPolicyProvider::UserMayLoad(extension, error);
 }
 
-bool VivaldiStandardManagementPolicyProvider::UserMayInstall(
-    const Extension* extension,
-    std::u16string* error) const {
-  return StandardManagementPolicyProvider::UserMayInstall(extension, error);
+void VivaldiStandardManagementPolicyProvider::UserMayInstall(
+    scoped_refptr<const Extension> extension,
+    base::OnceCallback<void(ManagementPolicy::Decision)> callback) const {
+  return StandardManagementPolicyProvider::UserMayInstall(std::move(extension),
+                                                          std::move(callback));
 }
 
 bool VivaldiStandardManagementPolicyProvider::UserMayModifySettings(
@@ -61,7 +62,8 @@ bool VivaldiStandardManagementPolicyProvider::MustRemainEnabled(
 bool VivaldiStandardManagementPolicyProvider::MustRemainDisabled(
     const Extension* extension,
     disable_reason::DisableReason* reason) const {
-  return StandardManagementPolicyProvider::MustRemainDisabled(extension, reason);
+  return StandardManagementPolicyProvider::MustRemainDisabled(extension,
+                                                              reason);
 }
 
 bool VivaldiStandardManagementPolicyProvider::MustRemainInstalled(

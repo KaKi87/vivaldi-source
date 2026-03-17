@@ -37,8 +37,7 @@ const CGFloat kKeyboardSpacingPt = 16.0;
 @synthesize tableViewModel = _tableViewModel;
 
 - (instancetype)initWithNotesModel:(vivaldi::NotesModel*)notesModel
-                    displayedRootNode:
-                        (const vivaldi::NoteNode*)displayedRootNode {
+                 displayedRootNode:(const vivaldi::NoteNode*)displayedRootNode {
   if ((self = [super init])) {
     _notesModel = notesModel;
     _tableViewDisplayedRootNode = displayedRootNode;

@@ -12,6 +12,9 @@ import static org.junit.Assert.assertThrows;
 import static org.chromium.net.truth.UrlResponseInfoSubject.assertThat;
 
 import android.net.Network;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelHandler;
 import android.os.Build;
 import android.os.ConditionVariable;
 import android.os.Process;
@@ -47,6 +50,7 @@ import org.chromium.net.impl.JavaCronetProvider;
 import org.chromium.net.impl.NetworkExceptionImpl;
 import org.chromium.net.impl.TestLogger;
 import org.chromium.net.impl.UrlResponseInfoImpl;
+import org.chromium.net.impl.UserAgentTestUtil;
 
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
@@ -80,9 +84,24 @@ public class BidirectionalStreamTest {
 
     private TestLogger mTestLogger;
 
+    private boolean mDropConnectionPackets;
+
+    @ChannelHandler.Sharable
+    private final class DroppingPacketHandler extends ChannelInboundHandlerAdapter {
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+            if (mDropConnectionPackets) {
+                Log.i(TAG, "Dropping packet" + msg);
+                return;
+            }
+            ctx.fireChannelRead(msg);
+        }
+    };
+
     @Before
     public void setUp() throws Exception {
         mTestLogger = mLoggerTestRule.mTestLogger;
+        mDropConnectionPackets = false;
         // TODO(crbug.com/40284777): Fallback to MockCertVerifier when custom CAs are not supported.
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.M) {
             mTestRule
@@ -93,7 +112,8 @@ public class BidirectionalStreamTest {
                                             builder, QuicTestServer.createMockCertVerifier()));
         }
         mCronetEngine = mTestRule.getTestFramework().startEngine();
-        assertThat(Http2TestServer.startHttp2TestServer(mTestRule.getTestFramework().getContext()))
+        assertThat(Http2TestServer.startHttp2TestServer(new Http2TestServer.ServerStartOptions(mTestRule.getTestFramework().getContext())
+                        .setPreTlsPacketHandler(new DroppingPacketHandler())))
                 .isTrue();
     }
 
@@ -125,7 +145,12 @@ public class BidirectionalStreamTest {
     }
 
     private static UrlResponseInfo createUrlResponseInfo(
-            String[] urls, String message, int statusCode, int receivedBytes, String... headers) {
+            String[] urls,
+            String message,
+            int statusCode,
+            int receivedBytes,
+            CronetImplementation implementationUnderTest,
+            String... headers) {
         ArrayList<Map.Entry<String, String>> headersList = new ArrayList<>();
         for (int i = 0; i < headers.length; i += 2) {
             headersList.add(new AbstractMap.SimpleImmutableEntry<>(headers[i], headers[i + 1]));
@@ -138,8 +163,13 @@ public class BidirectionalStreamTest {
                         headersList,
                         false,
                         "h2",
-                        null,
-                        receivedBytes);
+                        /* proxyServer= */ switch (implementationUnderTest) {
+                            case STATICALLY_LINKED -> ":0";
+                            case AOSP_PLATFORM -> null;
+                            default -> throw new AssertionError("Unexpected implementation");
+                        },
+                        receivedBytes,
+                        /* isProxied= */ false);
         return urlResponseInfo;
     }
 
@@ -163,7 +193,13 @@ public class BidirectionalStreamTest {
         assertThat(callback.mResponseAsString).isEqualTo("GET");
         UrlResponseInfo urlResponseInfo =
                 createUrlResponseInfo(
-                        new String[] {url}, "", 200, expectedReceivedBytes, ":status", "200");
+                        new String[] {url},
+                        "",
+                        200,
+                        expectedReceivedBytes,
+                        mTestRule.implementationUnderTest(),
+                        ":status",
+                        "200");
         mTestRule.assertResponseEquals(urlResponseInfo, callback.getResponseInfoWithChecks());
         checkResponseInfo(
                 callback.getResponseInfoWithChecks(), Http2TestServer.getEchoMethodUrl(), 200, "");
@@ -293,7 +329,13 @@ public class BidirectionalStreamTest {
         assertThat(callback.mResponseAsString).isEqualTo("GET");
         UrlResponseInfo urlResponseInfo =
                 createUrlResponseInfo(
-                        new String[] {url}, "", 200, expectedReceivedBytes, ":status", "200");
+                        new String[] {url},
+                        "",
+                        200,
+                        expectedReceivedBytes,
+                        mTestRule.implementationUnderTest(),
+                        ":status",
+                        "200");
         mTestRule.assertResponseEquals(urlResponseInfo, callback.getResponseInfoWithChecks());
         checkResponseInfo(
                 callback.getResponseInfoWithChecks(), Http2TestServer.getEchoMethodUrl(), 200, "");
@@ -355,7 +397,16 @@ public class BidirectionalStreamTest {
         assertThat(callback.mResponseAsString).isEqualTo("GET");
         UrlResponseInfo urlResponseInfo =
                 createUrlResponseInfo(
-                        new String[] {url}, "", 200, expectedReceivedBytes, ":status", "200");
+                        new String[] {url},
+                        "",
+                        200,
+                        expectedReceivedBytes,
+                        // This test is always instantiating a JavaCronetEngine regardless of what
+                        // CronetTestRule tells it to do. At the same time, this test is enabling
+                        // FORCE_HTTPENGINE_FLAG, meaning that HttpEngine will always be used.
+                        CronetImplementation.AOSP_PLATFORM,
+                        ":status",
+                        "200");
         mTestRule.assertResponseEquals(urlResponseInfo, callback.getResponseInfoWithChecks());
         checkResponseInfo(
                 callback.getResponseInfoWithChecks(), Http2TestServer.getEchoMethodUrl(), 200, "");
@@ -402,7 +453,14 @@ public class BidirectionalStreamTest {
         assertThat(callback.getResponseInfoWithChecks()).hasHttpStatusCodeThat().isEqualTo(200);
         assertThat(callback.mResponseAsString).isEqualTo("HEAD");
         UrlResponseInfo urlResponseInfo =
-                createUrlResponseInfo(new String[] {url}, "", 200, 32, ":status", "200");
+                createUrlResponseInfo(
+                        new String[] {url},
+                        "",
+                        200,
+                        32,
+                        mTestRule.implementationUnderTest(),
+                        ":status",
+                        "200");
         mTestRule.assertResponseEquals(urlResponseInfo, callback.getResponseInfoWithChecks());
         checkResponseInfo(
                 callback.getResponseInfoWithChecks(), Http2TestServer.getEchoMethodUrl(), 200, "");
@@ -440,6 +498,29 @@ public class BidirectionalStreamTest {
         assertThat(callback.getResponseInfoWithChecks())
                 .hasHeadersThat()
                 .containsEntry("echo-content-type", Arrays.asList("zebra"));
+    }
+
+    @Test
+    @SmallTest
+    public void tlsConnectionFails_throwsConnectionTimeoutError() throws Exception {
+        // Drop all packets before TLS handshake, so that the connection times out.
+        mDropConnectionPackets = true;
+        String url = Http2TestServer.getEchoStreamUrl();
+        TestBidirectionalStreamCallback callback = new TestBidirectionalStreamCallback();
+        // Create stream.
+        BidirectionalStream stream =
+                mCronetEngine
+                        .newBidirectionalStreamBuilder(url, callback, callback.getExecutor())
+                        .build();
+        stream.start();
+        callback.blockForDone();
+
+        // We caught an error.
+        assertThat(stream.isDone()).isTrue();
+        assertThat(callback.mOnErrorCalled).isTrue();
+        assertThat(callback.mError).isInstanceOf(NetworkException.class);
+        NetworkException networkException = (NetworkException) callback.mError;
+        assertThat(networkException.getErrorCode()).isEqualTo(NetworkException.ERROR_TIMED_OUT);
     }
 
     @Test
@@ -1200,8 +1281,7 @@ public class BidirectionalStreamTest {
         assertThat(callback.getResponseInfoWithChecks()).hasHttpStatusCodeThat().isEqualTo(200);
         assertThat(callback.mResponseAsString)
                 .isEqualTo(
-                        new CronetEngine.Builder(mTestRule.getTestFramework().getContext())
-                                .getDefaultUserAgent());
+                        UserAgentTestUtil.getDefaultUserAgent(mTestRule.implementationUnderTest()));
     }
 
     @Test

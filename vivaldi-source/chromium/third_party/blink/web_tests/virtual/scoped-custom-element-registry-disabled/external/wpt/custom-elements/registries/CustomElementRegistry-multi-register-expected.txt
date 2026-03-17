@@ -4,4 +4,3 @@ This is a testharness.js-based test.
 [FAIL] Non-global registries still reject duplicate registrations of the same constructor
   Failed to construct 'CustomElementRegistry': Illegal constructor
 Harness: the test ran to completion.
-

@@ -17,7 +17,8 @@ import org.jni_zero.NativeMethods;
 
 import org.chromium.base.Callback;
 import org.chromium.base.lifetime.Destroyable;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.supplier.OneshotSupplierImpl;
 import org.chromium.build.annotations.NullMarked;
@@ -73,8 +74,8 @@ public class ContextualPageActionController {
         default void destroy() {}
     }
 
-    private final ObservableSupplier<Profile> mProfileSupplier;
-    private final ObservableSupplier<@Nullable Tab> mTabSupplier;
+    private final MonotonicObservableSupplier<Profile> mProfileSupplier;
+    private final NullableObservableSupplier<Tab> mTabSupplier;
     private final AdaptiveToolbarButtonController mAdaptiveToolbarButtonController;
     private @Nullable CurrentTabObserver mCurrentTabObserver;
     private @Nullable SignalAccumulator mSignalAccumulator;
@@ -92,11 +93,11 @@ public class ContextualPageActionController {
      *     handles the logic to decide between multiple buttons to show.
      */
     public ContextualPageActionController(
-            ObservableSupplier<Profile> profileSupplier,
-            ObservableSupplier<@Nullable Tab> tabSupplier,
+            MonotonicObservableSupplier<Profile> profileSupplier,
+            NullableObservableSupplier<Tab> tabSupplier,
             AdaptiveToolbarButtonController adaptiveToolbarButtonController,
             Supplier<ShoppingService> shoppingServiceSupplier,
-            Supplier<BookmarkModel> bookmarkModelSupplier) {
+            Supplier<@Nullable BookmarkModel> bookmarkModelSupplier) {
         mProfileSupplier = profileSupplier;
         mTabSupplier = tabSupplier;
         mAdaptiveToolbarButtonController = adaptiveToolbarButtonController;
@@ -147,7 +148,7 @@ public class ContextualPageActionController {
     @VisibleForTesting
     protected void initActionProviders(
             Supplier<ShoppingService> shoppingServiceSupplier,
-            Supplier<BookmarkModel> bookmarkModelSupplier) {
+            Supplier<@Nullable BookmarkModel> bookmarkModelSupplier) {
         removeProviders();
         mActionProviders.put(
                 AdaptiveToolbarButtonVariant.PRICE_TRACKING,

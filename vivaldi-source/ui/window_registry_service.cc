@@ -2,7 +2,6 @@
 
 #include "ui/window_registry_service.h"
 
-#include "base/containers/contains.h"
 #include "chrome/browser/profiles/profile.h"
 #include "content/public/browser/browser_context.h"
 #include "ui/window_registry_service_factory.h"
@@ -22,7 +21,7 @@ WindowRegistryService::~WindowRegistryService() {}
 
 void WindowRegistryService::AddWindow(VivaldiBrowserWindow* window,
                                       std::string window_key) {
-  if (!base::Contains(named_windows_, window_key)) {
+  if (!named_windows_.contains(window_key)) {
     named_windows_[window_key] = window;
   }
 }

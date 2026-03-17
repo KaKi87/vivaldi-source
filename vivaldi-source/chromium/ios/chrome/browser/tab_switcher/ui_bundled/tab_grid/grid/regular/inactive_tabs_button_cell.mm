@@ -44,6 +44,7 @@ constexpr CGFloat kCornerRadius = 10;
       self.backgroundColor =
           [UIColor colorNamed:vBackgroundColor];
     } else {
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.backgroundColor =
         [UIColor colorNamed:kGroupedSecondaryBackgroundColor];
     } // End Vivaldi

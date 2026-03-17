@@ -2,17 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "chrome/browser/ash/policy/reporting/arc_app_install_event_log_manager.h"
 
 #include <iterator>
 #include <map>
 #include <vector>
 
+#include "base/compiler_specific.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/json/json_string_value_serializer.h"
@@ -101,15 +97,15 @@ bool ContainsSameEvents(const Events& expected,
   return true;
 }
 
-base::Value::List ConvertEventsToValue(const Events& events, Profile* profile) {
-  base::Value::Dict context = reporting::GetContext(profile);
-  base::Value::List event_list;
+base::ListValue ConvertEventsToValue(const Events& events, Profile* profile) {
+  base::DictValue context = reporting::GetContext(profile);
+  base::ListValue event_list;
 
   for (auto it = events.begin(); it != events.end(); ++it) {
     const std::string& package = (*it).first;
     for (const em::AppInstallReportLogEvent& app_install_report_log_event :
          (*it).second) {
-      base::Value::Dict wrapper = ConvertArcAppEventToValue(
+      base::DictValue wrapper = ConvertArcAppEventToValue(
           package, app_install_report_log_event, context);
       event_list.Append(std::move(wrapper));
     }
@@ -206,9 +202,9 @@ class ArcAppInstallEventLogManagerTest : public testing::Test {
   void AddLogEntry(int app_index) {
     ASSERT_GE(app_index, 0);
     ASSERT_LT(app_index, static_cast<int>(std::size(kPackageNames)));
-    const std::string package_name = kPackageNames[app_index];
+    const std::string package_name = UNSAFE_TODO(kPackageNames[app_index]);
     events_[package_name].push_back(event_);
-    manager_->Add({kPackageNames[app_index]}, event_);
+    manager_->Add({UNSAFE_TODO(kPackageNames[app_index])}, event_);
     FlushNonDelayedTasks();
     event_.set_timestamp(event_.timestamp() + 1000);
   }
@@ -225,9 +221,9 @@ class ArcAppInstallEventLogManagerTest : public testing::Test {
   void AddLogEntryForAllApps() { AddLogEntryForsetOfApps(packages_); }
 
   void BuildReport() {
-    base::Value::List event_list =
+    base::ListValue event_list =
         ConvertEventsToValue(events_, /*profile=*/nullptr);
-    base::Value::Dict context = reporting::GetContext(/*profile=*/nullptr);
+    base::DictValue context = reporting::GetContext(/*profile=*/nullptr);
 
     events_value_ = RealtimeReportingJobConfiguration::BuildReport(
         std::move(event_list), std::move(context));
@@ -254,7 +250,7 @@ class ArcAppInstallEventLogManagerTest : public testing::Test {
 
     EXPECT_CALL(cloud_policy_client_,
                 UploadAppInstallReport(MatchEvents(&events_value_), _))
-        .WillOnce([](base::Value::Dict,
+        .WillOnce([](base::DictValue,
                      CloudPolicyClient::ResultCallback callback) {
           std::move(callback).Run(CloudPolicyClient::Result(DM_STATUS_SUCCESS));
         });
@@ -310,7 +306,7 @@ class ArcAppInstallEventLogManagerTest : public testing::Test {
 
   const base::FilePath log_file_path_;
   const std::set<std::string> packages_;
-  base::Value::Dict events_value_;
+  base::DictValue events_value_;
   std::unique_ptr<ash::system::ScopedFakeStatisticsProvider>
       scoped_fake_statistics_provider_;
 
@@ -734,7 +730,7 @@ TEST_F(ArcAppInstallEventLogManagerTest, Clear) {
   log.Add(kPackageNames[0], event_);
   log.Store();
 
-  base::Value::List list;
+  base::ListValue list;
   list.Append("test");
   profile_.GetPrefs()->SetList(arc::prefs::kArcPushInstallAppsRequested,
                                list.Clone());
@@ -770,7 +766,7 @@ TEST_F(ArcAppInstallEventLogManagerTest, RunClearRun) {
   FlushNonDelayedTasks();
   VerifyLogFile();
 
-  base::Value::List list;
+  base::ListValue list;
   list.Append("test");
   profile_.GetPrefs()->SetList(arc::prefs::kArcPushInstallAppsRequested,
                                list.Clone());

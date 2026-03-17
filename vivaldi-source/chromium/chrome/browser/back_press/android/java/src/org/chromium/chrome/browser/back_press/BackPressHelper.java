@@ -106,7 +106,8 @@ public final class BackPressHelper {
         if (handler.getHandleBackPressChangedSupplier().get() != null) {
             callback.setEnabled(handler.getHandleBackPressChangedSupplier().get());
         }
-        handler.getHandleBackPressChangedSupplier().addObserver(callback::setEnabled);
+        handler.getHandleBackPressChangedSupplier()
+                .addSyncObserverAndPostIfNonNull(callback::setEnabled);
         dispatcher.addCallback(lifecycleOwner, callback);
 
         return (keyCode, event) -> {
@@ -142,10 +143,7 @@ public final class BackPressHelper {
 
     /**
      * Register a list of {@link BackPressHandler} on a given {@link OnBackPressedDispatcher}. The
-     * first handler has the top priority and the last one has the least. TODO(crbug.com/40252517):
-     * consider introducing a lightweight {@link
-     * org.chromium.chrome.browser.back_press.BackPressManager} if too many handlers should be
-     * registered.
+     * first handler has the top priority and the last one has the least.
      *
      * @param lifecycleOwner {@link LifecycleOwner} managing the back press logic's lifecycle.
      * @param dispatcher {@link OnBackPressedDispatcher} that holds other callbacks.

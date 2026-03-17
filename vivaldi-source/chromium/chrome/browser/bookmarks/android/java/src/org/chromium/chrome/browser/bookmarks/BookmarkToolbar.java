@@ -49,6 +49,7 @@ public class BookmarkToolbar extends SelectableListToolbar<BookmarkId>
     private boolean mSelectionShowOpenInNewTab;
     private boolean mSelectionShowOpenInIncognito;
     private boolean mSelectionShowMove;
+    private boolean mSelectionShowCopyLink;
     private boolean mSelectionShowMarkRead;
     private boolean mSelectionShowMarkUnread;
 
@@ -157,6 +158,12 @@ public class BookmarkToolbar extends SelectableListToolbar<BookmarkId>
         getMenu().findItem(R.id.selection_mode_move_menu_id).setVisible(show);
     }
 
+    void setSelectionShowCopyLink(boolean show) {
+        mSelectionShowCopyLink = show;
+        if (show) assert mIsSelectionEnabled;
+        getMenu().findItem(R.id.selection_mode_copy_link).setVisible(show);
+    }
+
     void setSelectionShowMarkRead(boolean show) {
         mSelectionShowMarkRead = show;
         if (show) assert mIsSelectionEnabled;
@@ -260,6 +267,7 @@ public class BookmarkToolbar extends SelectableListToolbar<BookmarkId>
         setSelectionShowOpenInNewTab(mSelectionShowOpenInNewTab);
         setSelectionShowOpenInIncognito(mSelectionShowOpenInIncognito);
         setSelectionShowMove(mSelectionShowMove);
+        setSelectionShowCopyLink(mSelectionShowCopyLink);
         setSelectionShowMarkRead(mSelectionShowMarkRead);
         setSelectionShowMarkUnread(mSelectionShowMarkUnread);
     }

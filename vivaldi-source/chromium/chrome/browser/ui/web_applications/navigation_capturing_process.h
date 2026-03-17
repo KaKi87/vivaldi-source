@@ -172,9 +172,10 @@ class NavigationCapturingProcess
       const NavigateParams& params);
 
   // Checks if a newly created `WebContents` was programmatically opened by an
-  // Isolated Web App and notifies the `IsolatedWebAppsOpenedTabsCounterService`
-  // so it can be tracked. The opener is identified via the opener chain or the
-  // navigation's initiator origin. Standard link clicks are ignored.
+  // Isolated Web App and notifies the
+  // `IsolatedWebAppsWindowOpenPermissionService` so it can be tracked. The
+  // opener is identified via the opener chain or the navigation's initiator
+  // origin. Standard link clicks are ignored.
   void MaybeNotifyIwaTabCounterService(
       content::WebContents& web_contents,
       content::NavigationHandle* navigation_handle);
@@ -256,7 +257,7 @@ class NavigationCapturingProcess
            disposition_ == WindowOpenDisposition::NEW_BACKGROUND_TAB;
   }
 
-  base::Value::Dict& PopulateAndGetDebugData();
+  base::DictValue& PopulateAndGetDebugData();
 
   PipelineState state_ = PipelineState::kCreated;
 
@@ -271,6 +272,8 @@ class NavigationCapturingProcess
   const WindowOpenDisposition disposition_;
   const raw_ptr<Browser> navigation_params_browser_;
   std::optional<webapps::AppId> first_navigation_app_id_;
+  // If exists, should be the same origin as first_navigation_app_id_.
+  std::optional<webapps::AppId> first_navigation_parent_app_id_;
   std::optional<blink::mojom::DisplayMode> first_navigation_app_display_mode_;
 
   bool isolated_web_app_navigation_ = false;
@@ -302,7 +305,7 @@ class NavigationCapturingProcess
 
   // Debug information persisted to chrome://web-app-internals on destruction of
   // this class.
-  base::Value::Dict debug_data_;
+  base::DictValue debug_data_;
   std::optional<int64_t> navigation_handle_id_ = std::nullopt;
 
   // Stores the exact time when the navigation capturing process starts

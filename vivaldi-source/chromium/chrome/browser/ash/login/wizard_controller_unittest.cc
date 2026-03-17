@@ -13,12 +13,14 @@
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
 #include "base/check_deref.h"
 #include "base/functional/callback.h"
+#include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_future.h"
 #include "build/config/chromebox_for_meetings/buildflags.h"
 #include "chrome/browser/ash/app_mode/kiosk_chrome_app_manager.h"
 #include "chrome/browser/ash/app_mode/kiosk_cryptohome_remover.h"
+#include "chrome/browser/ash/browser_delegate/browser_controller_impl.h"
 #include "chrome/browser/ash/input_method/input_method_configuration.h"
 #include "chrome/browser/ash/login/enrollment/mock_enrollment_launcher.h"
 #include "chrome/browser/ash/login/startup_utils.h"
@@ -60,6 +62,7 @@
 #include "chromeos/ash/components/dbus/update_engine/fake_update_engine_client.h"
 #include "chromeos/ash/components/install_attributes/stub_install_attributes.h"
 #include "chromeos/ash/components/login/auth/auth_events_recorder.h"
+#include "chromeos/ash/components/login/session/session_termination_manager.h"
 #include "chromeos/ash/components/network/network_handler_test_helper.h"
 #include "chromeos/ash/components/settings/cros_settings.h"
 #include "chromeos/ash/components/settings/device_settings_cache.h"
@@ -120,11 +123,11 @@ constexpr StaticOobeScreenId kGaiaSigninScreen = GaiaScreenHandler::kScreenId;
 #endif  // !BUILDFLAG(PLATFORM_CFM)
 
 // Converts an arbitrary number of arguments to a list of `base::Value`.
-base::Value::List ToList() {
-  return base::Value::List();
+base::ListValue ToList() {
+  return base::ListValue();
 }
 template <typename A, typename... Args>
-base::Value::List ToList(A&& value, Args&&... values) {
+base::ListValue ToList(A&& value, Args&&... values) {
   auto list = ToList(values...);
   list.Insert(list.begin(), base::Value(std::move(value)));
   return list;
@@ -201,6 +204,8 @@ class WizardControllerTestBase : public ::testing::Test {
 
     profile_manager_ = std::make_unique<TestingProfileManager>(
         TestingBrowserProcess::GetGlobal());
+
+    browser_controller_ = std::make_unique<ash::BrowserControllerImpl>();
     network_handler_test_helper_ = std::make_unique<NetworkHandlerTestHelper>();
     input_method::Initialize(TestingBrowserProcess::GetGlobal()->local_state(),
                              TestingBrowserProcess::GetGlobal()
@@ -270,6 +275,8 @@ class WizardControllerTestBase : public ::testing::Test {
     // Need to call `StartTearDown` otherwise timezone resolver still registered
     // with prefs when we delete profile manager.
     TestingBrowserProcess::GetGlobal()->platform_part()->StartTearDown();
+
+    browser_controller_.reset();
     profile_ = nullptr;
     profile_manager_.reset();
 
@@ -293,9 +300,11 @@ class WizardControllerTestBase : public ::testing::Test {
           base::test::TaskEnvironment::ThreadingMode::MULTIPLE_THREADS,
           base::test::TaskEnvironment::TimeSource::MOCK_TIME);
 
+  ash::SessionTerminationManager session_termination_manager_;
   user_manager::TypedScopedUserManager<user_manager::FakeUserManager>
       fake_user_manager_{std::make_unique<user_manager::FakeUserManager>()};
   std::unique_ptr<TestingProfileManager> profile_manager_;
+  std::unique_ptr<ash::BrowserControllerImpl> browser_controller_;
   raw_ptr<Profile> profile_ = nullptr;
   std::unique_ptr<ui::TestContextFactories> test_context_factories_;
   std::unique_ptr<AshTestHelper> ash_test_helper_;
@@ -575,7 +584,7 @@ TEST_F(WizardControllerAfterRollbackTest, ImportNetworkConfigAfterRollback) {
   ASSERT_TRUE(imported_config != nullptr);
   ASSERT_TRUE(imported_config->is_dict());
 
-  const base::Value::List* network_list =
+  const base::ListValue* network_list =
       imported_config->GetDict().FindList("NetworkConfigurations");
   ASSERT_TRUE(network_list);
 

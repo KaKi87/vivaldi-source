@@ -32,7 +32,7 @@ class PrefService;
                                 inPrefServices:(PrefService*)prefService;
 
 /// Returns reader mode theme
-+ (NSString*)getReaderModeThemeWithPrefService: (PrefService*)prefService;
++ (NSString*)getReaderModeThemeWithPrefService:(PrefService*)prefService;
 
 /// Sets reader mode theme
 + (void)setReaderModeThemeWithPrefService:(NSString*)theme

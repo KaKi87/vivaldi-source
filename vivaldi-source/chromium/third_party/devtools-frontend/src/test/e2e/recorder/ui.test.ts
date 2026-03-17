@@ -36,6 +36,14 @@ describe('Recorder', function() {
   }
 
   async function assertStepList(expectedStepList: string[], devToolsPage: DevToolsPage) {
+    await devToolsPage.waitForFunction(async () => {
+      const steps = await devToolsPage.page.$$eval(
+          'pierce/.step:not(.is-start-of-group) .action .main-title',
+          actions => actions.map(e => (e as HTMLElement).innerText),
+      );
+      return steps.length === expectedStepList.length;
+    });
+
     const actualStepList = await devToolsPage.page.$$eval(
         'pierce/.step:not(.is-start-of-group) .action .main-title',
         actions => actions.map(e => (e as HTMLElement).innerText),
@@ -79,15 +87,13 @@ describe('Recorder', function() {
 
         await stopRecording(devToolsPage);
 
-        const steps = await devToolsPage.page.$$eval(
-            'pierce/.step:not(.is-start-of-group) .action .main-title',
-            actions => actions.map(e => (e as HTMLElement).innerText),
-        );
-        assert.deepEqual(steps, [
-          'Set viewport',
-          'Navigate' as StepType.Navigate,
-          'Click' as StepType.Click,
-        ]);
+        await assertStepList(
+            [
+              'Set viewport',
+              'Navigate' as StepType.Navigate,
+              'Click' as StepType.Click,
+            ],
+            devToolsPage);
 
         await inspectedPage.page.goto('about:blank');
 
@@ -97,9 +103,9 @@ describe('Recorder', function() {
               'pierce/.step:not(.is-start-of-group).is-success .action .main-title',
               actions => actions.map(e => (e as HTMLElement).innerText),
           );
-          return steps.length === successfulSteps.length;
+          return successfulSteps.length === 3;
         });
-        await clickSelectButtonItem('Normal (Default)', 'devtools-replay-section', devToolsPage);
+        await clickSelectButtonItem('Normal (Default)', '.select-button', devToolsPage);
         await inspectedPage.bringToFront();
         await promise;
         assert.strictEqual(
@@ -123,7 +129,7 @@ describe('Recorder', function() {
         await button.click();
         const input = await devToolsPage.waitFor<HTMLInputElement>('#title-input');
         await devToolsPage.raf();
-        await input.type(' with Hello world', {delay: 50});
+        await devToolsPage.pasteText(' with Hello world');
         await input.evaluate(input => {
           input.blur();
         });
@@ -155,7 +161,7 @@ describe('Recorder', function() {
         async function expandStep(devToolsPage: DevToolsPage, index: number) {
           await devToolsPage.bringToFront();
           // TODO(crbug.com/1411283): figure out why misclicks happen here.
-          await devToolsPage.waitForAnimationFrame();
+          await devToolsPage.raf();
           await devToolsPage.click(`.step[data-step-index="${index}"] .action`);
           await devToolsPage.waitFor('.expanded');
         }
@@ -315,7 +321,7 @@ describe('Recorder', function() {
         await stopRecording(devToolsPage);
 
         await devToolsPage.click('aria/Edit replay settings');
-        await devToolsPage.waitForAnimationFrame();
+        await devToolsPage.raf();
 
         const selectMenu = await devToolsPage.waitFor(
             '.editable-setting select',

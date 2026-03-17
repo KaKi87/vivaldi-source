@@ -12,8 +12,8 @@
 #include "base/memory/ref_counted_memory.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/uuid.h"
-#include "content/public/browser/url_data_source.h"
 #include "components/datasource/vivaldi_image_store_constants.h"
+#include "content/public/browser/url_data_source.h"
 
 class Profile;
 
@@ -333,7 +333,7 @@ class VivaldiImageStore : public base::RefCountedThreadSafe<VivaldiImageStore> {
                                   std::string image_url);
 
   void LoadMappingsOnFileThread();
-  void InitMappingsOnFileThread(base::Value::Dict& mappings);
+  void InitMappingsOnFileThread(base::DictValue& mappings);
 
   std::string GetMappingJSONOnFileThread();
   void SaveMappingsOnFileThread();

@@ -119,4 +119,7 @@ public abstract class BookmarkModelObserver {
     public void bookmarkSpeedDialNodeChanged(BookmarkItem node) {
         bookmarkModelChanged();
     }
+
+    // Vivaldi - Export feature
+    public void onBookmarksExported(boolean result) {}
 }

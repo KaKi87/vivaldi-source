@@ -34,7 +34,7 @@ class HistoryPrivateEventRouter : public history::HistoryServiceObserver {
 
   void DispatchEvent(Profile* profile,
                      const std::string& event_name,
-                     base::Value::List event_args);
+                     base::ListValue event_args);
   const raw_ptr<Profile> profile_;
   base::ScopedObservation<history::HistoryService,
                           history::HistoryServiceObserver>
@@ -125,10 +125,10 @@ class HistoryPrivateUpdateTopSitesFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("historyPrivate.updateTopSites",
                              HISTORYPRIVATE_UPDATE_TOP_SITES)
-   HistoryPrivateUpdateTopSitesFunction() = default;
+  HistoryPrivateUpdateTopSitesFunction() = default;
 
  private:
-   ~HistoryPrivateUpdateTopSitesFunction() override = default;
+  ~HistoryPrivateUpdateTopSitesFunction() override = default;
   ResponseAction Run() override;
 };
 }  // namespace extensions

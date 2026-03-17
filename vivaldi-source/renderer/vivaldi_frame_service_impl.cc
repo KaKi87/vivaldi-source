@@ -71,8 +71,7 @@ void VivaldiFrameServiceImpl::GetAccessKeysForPage(
     GetAccessKeysForPageCallback callback) {
   std::vector<vivaldi::mojom::AccessKeyPtr> access_keys;
 
-  blink::WebLocalFrame* frame =
-      render_frame_->GetWebView()->FocusedFrame();
+  blink::WebLocalFrame* frame = render_frame_->GetWebView()->FocusedFrame();
   if (!frame) {
     std::move(callback).Run(std::move(access_keys));
     return;
@@ -99,8 +98,7 @@ void VivaldiFrameServiceImpl::GetAccessKeysForPage(
 }
 
 void VivaldiFrameServiceImpl::AccessKeyAction(const std::string& access_key) {
-  blink::WebLocalFrame* frame =
-      render_frame_->GetWebView()->FocusedFrame();
+  blink::WebLocalFrame* frame = render_frame_->GetWebView()->FocusedFrame();
   if (!frame) {
     return;
   }
@@ -114,8 +112,7 @@ void VivaldiFrameServiceImpl::AccessKeyAction(const std::string& access_key) {
 }
 
 blink::Document* VivaldiFrameServiceImpl::GetDocument() {
-  blink::WebLocalFrame* frame =
-      render_frame_->GetWebView()->FocusedFrame();
+  blink::WebLocalFrame* frame = render_frame_->GetWebView()->FocusedFrame();
   if (!frame) {
     return nullptr;
   }
@@ -132,7 +129,6 @@ void VivaldiFrameServiceImpl::ScrollPage(
 
   blink::WebLocalFrame* web_local_frame =
       render_frame_->GetWebView()->FocusedFrame();
-
 
   if (!web_local_frame) {
     return;
@@ -214,8 +210,7 @@ void VivaldiFrameServiceImpl::MoveSpatnavRect(
 
 void VivaldiFrameServiceImpl::GetFocusedElementInfo(
     GetFocusedElementInfoCallback callback) {
-  blink::WebLocalFrame* frame =
-      render_frame_->GetWebView()->FocusedFrame();
+  blink::WebLocalFrame* frame = render_frame_->GetWebView()->FocusedFrame();
   if (!frame) {
     frame = render_frame_->GetWebFrame();
   }
@@ -246,7 +241,7 @@ void VivaldiFrameServiceImpl::GetFocusedElementInfo(
                                ->GetFrame()
                                ->GetWebPluginContainer();
   if (plugin_container) {
-    auto *plugin = plugin_container->Plugin();
+    auto* plugin = plugin_container->Plugin();
     if (plugin) {
       editable = plugin->CanEditText();
     }
@@ -280,11 +275,10 @@ void VivaldiFrameServiceImpl::HideSpatnavIndicator() {
   spatnav_controller_->HideIndicator();
 }
 
-// NOTE(daniel@vivaldi.com): This doesn't always work correctly. Should we fall back
-// on just CloseSpatnav?
+// NOTE(daniel@vivaldi.com): This doesn't always work correctly. Should we fall
+// back on just CloseSpatnav?
 void VivaldiFrameServiceImpl::CloseSpatnavOrCurrentOpenMenu(
     CloseSpatnavOrCurrentOpenMenuCallback callback) {
-
   bool layout_changed = false;
   bool element_valid = false;
   spatnav_controller_->CloseSpatnavOrCurrentOpenMenu(layout_changed,

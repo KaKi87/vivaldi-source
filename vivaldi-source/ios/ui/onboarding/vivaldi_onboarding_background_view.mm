@@ -13,15 +13,15 @@
 namespace {
 CGFloat const kOverlayDarkOpacity = 0.3;
 CGFloat const kOverlayLightOpacity = 0.6;
-}
+}  // namespace
 
 @interface VivaldiOnboardingBackgroundView ()
 
-@property (nonatomic, strong) AVPlayerLayer *playerLayer;
-@property (nonatomic, strong) AVPlayer *player;
-@property (nonatomic, strong) AVPlayerLooper *playerLooper;
+@property(nonatomic, strong) AVPlayerLayer* playerLayer;
+@property(nonatomic, strong) AVPlayer* player;
+@property(nonatomic, strong) AVPlayerLooper* playerLooper;
 
-@property (nonatomic, weak) UIView* overlay;
+@property(nonatomic, weak) UIView* overlay;
 
 @end
 
@@ -60,9 +60,8 @@ CGFloat const kOverlayLightOpacity = 0.6;
   [overlay fillSuperview];
 
   if (@available(iOS 17, *)) {
-    NSArray<UITrait>* traits = TraitCollectionSetForTraits(@[
-      UITraitVerticalSizeClass.class, UITraitHorizontalSizeClass.class
-    ]);
+    NSArray<UITrait>* traits = TraitCollectionSetForTraits(
+        @[ UITraitVerticalSizeClass.class, UITraitHorizontalSizeClass.class ]);
     [self registerForTraitChanges:traits
                        withAction:@selector(updatePlayerLayerFrame)];
 
@@ -77,9 +76,9 @@ CGFloat const kOverlayLightOpacity = 0.6;
 
 - (UIColor*)overlayColor {
   UIColor* color =
-      self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleLight ?
-          [[UIColor whiteColor] colorWithAlphaComponent:kOverlayLightOpacity] :
-          [[UIColor blackColor] colorWithAlphaComponent:kOverlayDarkOpacity];
+      self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleLight
+          ? [[UIColor whiteColor] colorWithAlphaComponent:kOverlayLightOpacity]
+          : [[UIColor blackColor] colorWithAlphaComponent:kOverlayDarkOpacity];
   return color;
 }
 
@@ -90,58 +89,58 @@ CGFloat const kOverlayLightOpacity = 0.6;
   self.playerLayer.videoGravity = AVLayerVideoGravityResizeAspectFill;
   [self.layer addSublayer:self.playerLayer];
 
-  NSURL *fileUrl = [self videoFileURL];
-  if (!fileUrl) return;
+  NSURL* fileUrl = [self videoFileURL];
+  if (!fileUrl)
+    return;
 
-  AVAsset *asset = [AVAsset assetWithURL:fileUrl];
-  AVPlayerItem *item = [AVPlayerItem playerItemWithAsset:asset];
+  AVAsset* asset = [AVAsset assetWithURL:fileUrl];
+  AVPlayerItem* item = [AVPlayerItem playerItemWithAsset:asset];
 
-  AVQueuePlayer *queuePlayer = [AVQueuePlayer playerWithPlayerItem:item];
+  AVQueuePlayer* queuePlayer = [AVQueuePlayer playerWithPlayerItem:item];
   self.player = queuePlayer;
   self.player.muted = YES;
   self.playerLayer.player = self.player;
 
   // Set up the player looper
-  self.playerLooper =
-      [AVPlayerLooper playerLooperWithPlayer:queuePlayer
-                                templateItem:item];
+  self.playerLooper = [AVPlayerLooper playerLooperWithPlayer:queuePlayer
+                                                templateItem:item];
   [self.player play];
 }
 
 - (NSURL*)videoFileURL {
-  NSString *fileName = [VivaldiGlobalHelpers isDeviceTablet] ?
-      [VivaldiOnboardingVideoConstants auroraLoopTablet] :
-      [VivaldiOnboardingVideoConstants auroraLoop];
+  NSString* fileName = [VivaldiGlobalHelpers isDeviceTablet]
+                           ? [VivaldiOnboardingVideoConstants auroraLoopTablet]
+                           : [VivaldiOnboardingVideoConstants auroraLoop];
 
-  NSURL *fileUrl =
-      [[NSBundle mainBundle]
-         URLForResource:fileName
-          withExtension:[VivaldiOnboardingVideoConstants fileExtension]
-           subdirectory:
-             [VivaldiOnboardingVideoConstants bundlePath]];
+  NSURL* fileUrl = [[NSBundle mainBundle]
+      URLForResource:fileName
+       withExtension:[VivaldiOnboardingVideoConstants fileExtension]
+        subdirectory:[VivaldiOnboardingVideoConstants bundlePath]];
   return fileUrl;
 }
 
 - (void)restartPlayer {
-  if (!self.player) return;
+  if (!self.player)
+    return;
   CMTime currentTime = self.player.currentTime;
   if (!CMTIME_IS_VALID(currentTime)) {
     return;
   }
 
-  NSURL *fileUrl = [self videoFileURL];
-  if (!fileUrl) return;
+  NSURL* fileUrl = [self videoFileURL];
+  if (!fileUrl)
+    return;
 
-  AVPlayerItem *playerItem = [AVPlayerItem playerItemWithURL:fileUrl];
+  AVPlayerItem* playerItem = [AVPlayerItem playerItemWithURL:fileUrl];
   [self.player replaceCurrentItemWithPlayerItem:playerItem];
   [self.player seekToTime:currentTime
           toleranceBefore:kCMTimeZero
            toleranceAfter:kCMTimeZero
         completionHandler:^(BOOL finished) {
-    if (finished) {
-      [self.player play];
-    }
-  }];
+          if (finished) {
+            [self.player play];
+          }
+        }];
 }
 
 - (void)updateStyleAndRestartPlayer {

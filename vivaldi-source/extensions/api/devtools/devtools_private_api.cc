@@ -7,7 +7,8 @@
 #include "browser/vivaldi_browser_finder.h"
 #include "chrome/browser/devtools/devtools_contents_resizing_strategy.h"
 #include "chrome/browser/devtools/devtools_window.h"
-#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "content/public/browser/web_contents.h"
@@ -69,8 +70,7 @@ ExtensionFunction::ResponseAction DevtoolsPrivateCloseDevtoolsFunction::Run() {
   bool success = false;
 
   if (params->window_id) {
-    Browser* browser = ::vivaldi::FindBrowserByWindowId(
-            *params->window_id);
+    Browser* browser = ::vivaldi::FindBrowserByWindowId(*params->window_id);
     if (browser) {
       TabStripModel* tabs = browser->tab_strip_model();
       for (int n = 0; n < tabs->count(); n++) {
@@ -114,31 +114,37 @@ ExtensionFunction::ResponseAction DevtoolsPrivateToggleDevtoolsFunction::Run() {
   PanelType panelType = params->panel_type;
   int windowId = params->window_id;
 
-  Browser* browser =
-      ::vivaldi::FindBrowserByWindowId(windowId);
+  Browser* browser = ::vivaldi::FindBrowserByWindowId(windowId);
 
   if (!browser) {
     return RespondNow(NoArguments());
   }
 
+  // Why are we searching if the specified browser does not have a active tab?
   content::WebContents* current_tab =
       browser->tab_strip_model()->GetActiveWebContents();
-  if (!current_tab) {
-    auto* profile = browser->GetProfile();
-    for (Browser* br : *BrowserList::GetInstance()) {
-      // Ensure the same profile.
-      if (br->GetProfile() != profile)
-        continue;
-      current_tab = br->tab_strip_model()->GetActiveWebContents();
-      if (current_tab) {
-        browser = br;
-        break;
+
+  CHECK(current_tab);
+
+  /* if (!current_tab) {
+      auto* profile = browser->GetProfile();
+      std::vector<BrowserWindowInterface*> all_browsers =
+          GetAllBrowserWindowInterfaces();
+      for (auto* browser_window_interface : all_browsers) {
+        // Ensure the same profile.
+        if (browser_window_interface->GetProfile() != profile)
+          continue;
+        current_tab =
+            browser_window_interface->GetTabStripModel()->GetActiveWebContents();
+        if (current_tab) {
+          browser = br;
+          break;
+        }
       }
-    }
-    // Hmmm, what else we can do?
-    if (!current_tab)
-      return RespondNow(NoArguments());
-  }
+      // Hmmm, what else we can do?
+      if (!current_tab)
+        return RespondNow(NoArguments());
+    }*/
 
   DevToolsWindow* window =
       DevToolsWindow::GetInstanceForInspectedWebContents(current_tab);
@@ -163,16 +169,16 @@ ExtensionFunction::ResponseAction DevtoolsPrivateToggleDevtoolsFunction::Run() {
           static_cast<VivaldiBrowserWindow*>(browser->window())->web_contents();
     }
     if (panelType == PanelType::kDefault) {
-      DevToolsWindow::OpenDevToolsWindow(contents_to_inspect,
-          DevToolsToggleAction::Show(),
+      DevToolsWindow::OpenDevToolsWindow(
+          contents_to_inspect, DevToolsToggleAction::Show(),
           DevToolsOpenedByAction::kContextMenuInspect);
     } else if (panelType == PanelType::kInspect) {
-      DevToolsWindow::OpenDevToolsWindow(contents_to_inspect,
-          DevToolsToggleAction::Inspect(),
+      DevToolsWindow::OpenDevToolsWindow(
+          contents_to_inspect, DevToolsToggleAction::Inspect(),
           DevToolsOpenedByAction::kContextMenuInspect);
     } else if (panelType == PanelType::kConsole) {
-      DevToolsWindow::OpenDevToolsWindow(contents_to_inspect,
-          DevToolsToggleAction::ShowConsolePanel(),
+      DevToolsWindow::OpenDevToolsWindow(
+          contents_to_inspect, DevToolsToggleAction::ShowConsolePanel(),
           DevToolsOpenedByAction::kContextMenuInspect);
     }
   }

@@ -7,6 +7,7 @@
 <translation id="1644574205037202324">Povijest</translation>
 <translation id="1829244130665387512">Traži na stranici</translation>
 <translation id="2038563949887743358">Uključivanje zahtjeva za prikaz klasične web-lokacije</translation>
+<translation id="2306442503286132111">Oznaka je spremljena u mapi <ph name="FOLDER_NAME" /></translation>
 <translation id="2433507940547922241">Izgled</translation>
 <translation id="2633278372998075009">Privatne kartice</translation>
 <translation id="2951071800649516099">Dodajte stranice na popis za čitanje za poslije</translation>
@@ -18,9 +19,12 @@
 <translation id="3518985090088779359">Prihvati i nastavi</translation>
 <translation id="3700829948786686853">Dobrodošli u Vivaldi</translation>
 <translation id="385051799172605136">Natrag</translation>
+<translation id="4121750346708795461">Upotrebom ove aplikacije prihvaćate Vivaldijeve <ph name="BEGIN_LINK1" />Uvjete pružanja usluge<ph name="END_LINK1" /> i <ph name="BEGIN_LINK2" />Obavijest o privatnosti<ph name="END_LINK2" />.</translation>
 <translation id="4243710787042215766">Otvori u privatnoj kartici</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Uključite zaključavanje zaslona u postavkama Androida<ph name="END_LINK" /></translation>
 <translation id="4526803704855831732">Privatne kartice</translation>
+<translation id="4532845899244822526">Odabir mape</translation>
+<translation id="4699172675775169585">Predmemorirane slike i datoteke</translation>
 <translation id="4759238208242260848">Preuzimanja</translation>
 <translation id="4883379392681899581">Izađite iz privatnog načina rada</translation>
 <translation id="4943872375798546930">Nema rezultata</translation>
@@ -28,12 +32,14 @@
 <translation id="5186185447130319458">Privatno</translation>
 <translation id="5233638681132016545">Nova kartica</translation>
 <translation id="572328651809341494">Nedavne kartice</translation>
+<translation id="6150320133806434356">Oznaka je spremljena</translation>
 <translation id="6336451774241870485">Nova privatna kartica</translation>
 <translation id="6341580099087024258">Pitaj gdje spremiti datoteke</translation>
 <translation id="6593061639179217415">Klasični prikaz</translation>
 <translation id="6610147964972079463">Zatvorite privatne kartice</translation>
 <translation id="6865313869410766144">Podaci iz obrazaca za automatsko popunjavanje</translation>
 <translation id="706339621163631076">Pravila o privatnosti preglednika</translation>
+<translation id="732145680195464316">Oznaka je spremljena u <ph name="PRODUCT_NAME" /></translation>
 <translation id="7359002509206457351">Pristup načinima plaćanja</translation>
 <translation id="7419565702166471774">Uvijek upotrebljavaj sigurne veze</translation>
 <translation id="7427132068601343474">O Vivaldi pregledniku</translation>

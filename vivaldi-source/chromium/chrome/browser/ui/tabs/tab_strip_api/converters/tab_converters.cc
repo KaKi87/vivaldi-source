@@ -10,10 +10,10 @@
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert_controller.h"
+#include "components/split_tabs/split_tab_visual_data.h"
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "components/tabs/public/split_tab_collection.h"
 #include "components/tabs/public/split_tab_data.h"
-#include "components/tabs/public/split_tab_visual_data.h"
 #include "components/tabs/public/tab_group.h"
 #include "components/tabs/public/tab_group_tab_collection.h"
 #include "components/tabs/public/tab_interface.h"
@@ -63,10 +63,12 @@ mojom::AlertState ToMojo(tabs::TabAlert state) {
       return mojom::AlertState::kAudioRecording;
     case tabs::TabAlert::kVideoRecording:
       return mojom::AlertState::kVideoRecording;
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
     case tabs::TabAlert::kGlicAccessing:
       return mojom::AlertState::kGlicAccessing;
     case tabs::TabAlert::kGlicSharing:
       return mojom::AlertState::kGlicSharing;
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
     case tabs::TabAlert::kActorAccessing:
       return mojom::AlertState::kActorAccessing;
     case tabs::TabAlert::kActorWaitingOnUser:
@@ -208,10 +210,15 @@ tabs::TabAlert FromMojo(mojom::AlertState state) {
       return tabs::TabAlert::kAudioRecording;
     case mojom::AlertState::kVideoRecording:
       return tabs::TabAlert::kVideoRecording;
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
     case mojom::AlertState::kGlicAccessing:
       return tabs::TabAlert::kGlicAccessing;
     case mojom::AlertState::kGlicSharing:
       return tabs::TabAlert::kGlicSharing;
+#else
+    default:
+      return tabs::TabAlert::kActorAccessing;
+#endif
     case mojom::AlertState::kActorAccessing:
       return tabs::TabAlert::kActorAccessing;
     case mojom::AlertState::kActorWaitingOnUser:

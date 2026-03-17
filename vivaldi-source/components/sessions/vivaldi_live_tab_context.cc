@@ -58,7 +58,7 @@ LiveTab* LiveTabContext::ReplaceRestoredTab(
 
 #if !BUILDFLAG(IS_IOS)
 const std::string& ContentLiveTab::GetVivExtData() const {
-  return web_contents()->GetVivExtData();
+  return GetWebContents().GetVivExtData();
 }
 #endif
 

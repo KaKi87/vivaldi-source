@@ -125,11 +125,11 @@ std::wstring ReadRegistryString(const wchar_t* name,
 
 // Return nullopt on errors.
 std::optional<uint32_t> ReadRegistryUint32(const wchar_t* name,
-                                            const base::win::RegKey& key);
+                                           const base::win::RegKey& key);
 
 // Return nullopt on errors.
 std::optional<bool> ReadRegistryBool(const wchar_t* name,
-                                      const base::win::RegKey& key);
+                                     const base::win::RegKey& key);
 
 // If value is empty, this delete the name.
 void WriteRegistryString(const wchar_t* name,

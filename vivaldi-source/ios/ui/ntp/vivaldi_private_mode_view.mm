@@ -8,8 +8,8 @@
 #import "ios/chrome/browser/drag_and_drop/model/url_drag_drop_handler.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_url_loader_delegate.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
-#import "ios/chrome/browser/toolbar/ui_bundled/public/toolbar_constants.h"
-#import "ios/chrome/browser/toolbar/ui_bundled/public/toolbar_utils.h"
+#import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_constants.h"
+#import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_utils.h"
 #import "ios/chrome/common/string_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
@@ -85,15 +85,13 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
-  return [self initWithFrame:frame
-      showTopIncognitoImageAndTitle:YES];
+  return [self initWithFrame:frame showTopIncognitoImageAndTitle:YES];
 }
 
 - (instancetype)initWithFrame:(CGRect)frame
     showTopIncognitoImageAndTitle:(BOOL)showTopIncognitoImageAndTitle {
   self = [super initWithFrame:frame];
   if (self) {
-
     self.backgroundColor = UIColor.clearColor;
 
     _dragDropHandler = [[URLDragDropHandler alloc] init];
@@ -292,7 +290,7 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
 // Triggers a navigation to the help page.
 - (void)learnMoreButtonPressed {
   [self.URLLoaderDelegate
-    loadURLInTab:ConvertUserDataToGURL(vVivaldiPrivacyAndSecurity)];
+      loadURLInTab:ConvertUserDataToGURL(vVivaldiPrivacyAndSecurity)];
 }
 
 // Adds views containing the text of the incognito page to `_stackView`.
@@ -319,8 +317,7 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   subtitleLabel.font = BodyFont();
   subtitleLabel.textColor = bodyTextColor;
   subtitleLabel.numberOfLines = 0;
-  subtitleLabel.text =
-      l10n_util::GetNSString(IDS_IOS_NEW_TAB_PRIVATE_MESSAGE);
+  subtitleLabel.text = l10n_util::GetNSString(IDS_IOS_NEW_TAB_PRIVATE_MESSAGE);
   subtitleLabel.adjustsFontForContentSizeCategory = YES;
 
   UIButton* learnMoreButton = [UIButton buttonWithType:UIButtonTypeCustom];

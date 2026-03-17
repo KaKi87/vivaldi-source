@@ -10,8 +10,9 @@
 class ProfileIOS;
 
 // Class binding an instance of WebsiteDarkModeAgent to a WebState.
-class WebsiteDarkModeTabHelper: public web::WebStateObserver,
-                      public web::WebStateUserData<WebsiteDarkModeTabHelper> {
+class WebsiteDarkModeTabHelper
+    : public web::WebStateObserver,
+      public web::WebStateUserData<WebsiteDarkModeTabHelper> {
  public:
   WebsiteDarkModeTabHelper(const WebsiteDarkModeTabHelper&) = delete;
   WebsiteDarkModeTabHelper& operator=(const WebsiteDarkModeTabHelper&) = delete;
@@ -32,6 +33,5 @@ class WebsiteDarkModeTabHelper: public web::WebStateObserver,
   // The Objective-C AutofillAgent instance.
   __strong WebsiteDarkModeAgent* website_dark_mode_agent_;
 };
-
 
 #endif  // IOS_WEBSITE_DARK_MODE_WEBSITE_DARK_MODE_TAB_HELPER_H_

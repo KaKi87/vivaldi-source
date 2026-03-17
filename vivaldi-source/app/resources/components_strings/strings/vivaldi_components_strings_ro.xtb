@@ -8,6 +8,7 @@
 <translation id="1175364870820465910">Ti&amp;părește...</translation>
 <translation id="1375198122581997741">Despre versiune</translation>
 <translation id="139305205187523129"><ph name="HOST_NAME" /> nu a trimis date.</translation>
+<translation id="1555191101192706055">Atacatorii de pe site-ul pe care ai încercat să-l accesezi te pot păcăli să instalezi software dăunător, care afectează modul în care navighezi - de exemplu, schimbând pagina principală sau afișând anunțuri suplimentare pe site-urile pe care le accesezi.</translation>
 <translation id="1559528461873125649">Nu există un astfel de fișier sau director</translation>
 <translation id="1640244768702815859">Încercați <ph name="BEGIN_LINK" />vizitarea paginii inițiale a site-ului<ph name="END_LINK" />.</translation>
 <translation id="1645368109819982629">Protocol nesuportat</translation>
@@ -152,4 +153,5 @@
 <translation id="9183425211371246419"><ph name="HOST_NAME" /> folosește un protocol neacceptat.</translation>
 <translation id="969892804517981540">Versiune oficială</translation>
 <translation id="988159990683914416">Versiune de programare</translation>
+<translation id="995755448277384931">Adaugă IBAN</translation>
 </translationbundle>

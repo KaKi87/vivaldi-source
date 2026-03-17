@@ -105,8 +105,7 @@ class EcheTrayTest : public AshTestBase {
   // AshTestBase:
   void SetUp() override {
     feature_list_.InitWithFeatures(
-        /*enabled_features=*/{features::kEcheSWA,
-                              features::kEcheNetworkConnectionState},
+        /*enabled_features=*/{features::kEcheSWA},
         /*disabled_features=*/{});
 
     DCHECK(test_web_view_factory_.get());
@@ -128,6 +127,12 @@ class EcheTrayTest : public AshTestBase {
 
     display::test::DisplayManagerTestApi(display_manager())
         .SetFirstDisplayAsInternalDisplay();
+  }
+
+  void TearDown() override {
+    phone_hub_tray_ = nullptr;
+    eche_tray_ = nullptr;
+    AshTestBase::TearDown();
   }
 
   // Performs a tap on the eche tray button.
@@ -158,9 +163,8 @@ class EcheTrayTest : public AshTestBase {
 
  private:
   FakeConnectionStatusObserver fake_connection_status_observer_;
-  raw_ptr<EcheTray, DanglingUntriaged> eche_tray_ = nullptr;  // Not owned
-  raw_ptr<PhoneHubTray, DanglingUntriaged> phone_hub_tray_ =
-      nullptr;  // Not owned
+  raw_ptr<EcheTray> eche_tray_ = nullptr;  // Not owned
+  raw_ptr<PhoneHubTray> phone_hub_tray_ = nullptr;  // Not owned
 
   // Calling the factory constructor is enough to set it up.
   std::unique_ptr<TestAshWebViewFactory> test_web_view_factory_ =
@@ -610,23 +614,6 @@ TEST_F(EcheTrayTest, OnRequestBackgroundConnectionAttempt) {
   eche_tray()->OnRequestBackgroundConnectionAttempt();
 
   EXPECT_TRUE(eche_tray()->get_initializer_webview_for_test());
-  EXPECT_FALSE(eche_tray()->is_active());
-}
-
-TEST_F(EcheTrayTest, OnRequestBackgroundConnectionAttemptFlagDisabled) {
-  feature_list_.Reset();
-  feature_list_.InitWithFeatures(
-      /*enabled_features=*/{features::kEcheSWA},
-      /*disabled_features=*/{features::kEcheNetworkConnectionState});
-
-  ResetUnloadWebContent();
-
-  EXPECT_FALSE(eche_tray()->is_active());
-  EXPECT_FALSE(eche_tray()->get_initializer_webview_for_test());
-
-  eche_tray()->OnRequestBackgroundConnectionAttempt();
-
-  EXPECT_FALSE(eche_tray()->get_initializer_webview_for_test());
   EXPECT_FALSE(eche_tray()->is_active());
 }
 

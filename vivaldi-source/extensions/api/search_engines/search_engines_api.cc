@@ -53,7 +53,8 @@ vivaldi::search_engines::TemplateURL TemplateURLToJSType(
   result_turl.image_post_params =
       GetUrlToDisplay(template_url->image_url_post_params());
   result_turl.prepopulate_id = template_url->prepopulate_id();
-  result_turl.starter_pack_id = template_url->starter_pack_id();
+  result_turl.starter_pack_id =
+      static_cast<int>(template_url->starter_pack_id());
   result_turl.is_active = static_cast<int>(template_url->is_active());
 
   return result_turl;
@@ -176,9 +177,11 @@ ExtensionFunction::ResponseAction SearchEnginesGetTemplateUrlsFunction::Run() {
     for (const TemplateURL* template_url : template_urls) {
       // We abuse is_active to hide "removed" prepopulated searches.
       if (template_url->is_active() != TemplateURLData::ActiveStatus::kFalse &&
-          template_url->starter_pack_id() == 0) {
+          template_url->starter_pack_id() ==
+              template_url_starter_pack_data::StarterPackId::kNone) {
         AddTemplateURLToResult(template_url, false, result.template_urls);
-      } else if (template_url->starter_pack_id() > 0) {
+      } else if (template_url->starter_pack_id() !=
+                 template_url_starter_pack_data::StarterPackId::kNone) {
         AddTemplateURLToResult(template_url, false,
                                result.starter_pack_engines);
       }
@@ -554,7 +557,8 @@ SearchEnginesRepairPrepopulatedTemplateUrlsFunction::Run() {
       service->GetTemplateURLs();
   for (const auto template_url : template_urls) {
     if (template_url->prepopulate_id() == 0 &&
-        template_url->starter_pack_id() == 0)
+        template_url->starter_pack_id() ==
+            template_url_starter_pack_data::StarterPackId::kNone)
       service->Remove(template_url);
   }
 
@@ -631,7 +635,7 @@ SearchEnginesAcknowledgeSwitchPromptFunction::Run() {
           ->GetSearchEnginesPromptManager();
 
   params->special_prompt_type ? manager->PutProfileToQuarantine(prefs)
-                            : manager->MarkCurrentPromptAsSeen(prefs);
+                              : manager->MarkCurrentPromptAsSeen(prefs);
 
   return RespondNow(NoArguments());
 }
@@ -649,7 +653,9 @@ ExtensionFunction::ResponseAction SearchEnginesSetIsActiveFunction::Run() {
   }
 
   TemplateURL* turl_to_update = service->GetTemplateURLForGUID(params->guid);
-  if (!turl_to_update || turl_to_update->starter_pack_id() == 0) {
+  if (!turl_to_update ||
+      turl_to_update->starter_pack_id() ==
+          template_url_starter_pack_data::StarterPackId::kNone) {
     return RespondNow(NoArguments());
   }
   service->SetIsActiveTemplateURL(turl_to_update, params->is_active);

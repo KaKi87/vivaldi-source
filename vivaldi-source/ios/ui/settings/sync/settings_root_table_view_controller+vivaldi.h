@@ -7,7 +7,7 @@
 
 #import "ios/chrome/browser/settings/ui_bundled/settings_root_table_view_controller.h"
 
-@interface SettingsRootTableViewController(Vivaldi)
+@interface SettingsRootTableViewController (Vivaldi)
 
 - (void)showErrorCellWithMessage:(NSString*)message
                          section:(NSInteger)section
@@ -16,8 +16,7 @@
 - (void)showErrorCellWithMessage:(NSString*)message
                          section:(NSInteger)section
                         itemType:(NSInteger)itemType;
-- (void)removeErrorCell:(NSInteger)section
-               itemType:(NSInteger)itemType;
+- (void)removeErrorCell:(NSInteger)section itemType:(NSInteger)itemType;
 - (void)reloadSection:(NSInteger)section;
 
 @end

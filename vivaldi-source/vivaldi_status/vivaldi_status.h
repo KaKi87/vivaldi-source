@@ -6,12 +6,12 @@
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/time/time.h"
+#include "base/timer/timer.h"
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_context.h"
-#include "services/network/public/cpp/simple_url_loader.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
-#include "base/timer/timer.h"
+#include "services/network/public/cpp/simple_url_loader.h"
 
 #if !BUILDFLAG(IS_IOS)
 class Profile;
@@ -45,15 +45,16 @@ class VivaldiStatus : public KeyedService {
 
   // These values must match ids in status entry in json
   enum Mode {
-    kUnknown     = 0,
+    kUnknown = 0,
     kOperational = 1,
     kMaintenance = 2,
     kMinorOutage = 3,
     kMajorOutage = 4,
   };
   struct Health {
-    bool operator==(const Health &rhs) const
-        { return id == rhs.id && mode == rhs.mode; }
+    bool operator==(const Health& rhs) const {
+      return id == rhs.id && mode == rhs.mode;
+    }
     Services id;
     Mode mode;
   };
@@ -101,8 +102,8 @@ class VivaldiStatus : public KeyedService {
  private:
   void Download();
   void OnDownloadDone(const size_t loader_idx,
-                      std::unique_ptr<std::string> response_body);
-  bool Parse(std::unique_ptr<std::string> response_body);
+                      std::optional<std::string> response_body);
+  bool Parse(std::optional<std::string> response_body);
 
   // Looks up state of a particular service. Returned 'mode' is only valid if
   // function returns true.
@@ -126,6 +127,6 @@ class VivaldiStatus : public KeyedService {
   base::WeakPtrFactory<VivaldiStatus> weak_factory_{this};
 };
 
-}  // vivaldi_status
+}  // namespace vivaldi_status
 
 #endif  // VIVALDI_STATUS_H_

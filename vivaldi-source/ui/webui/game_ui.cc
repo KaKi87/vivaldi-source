@@ -17,8 +17,8 @@ namespace vivaldi {
 
 content::WebUIDataSource* CreateGameUIDataSource(content::WebUI* web_ui) {
   content::WebUIDataSource* html_source =
-    content::WebUIDataSource::CreateAndAdd(Profile::FromWebUI(web_ui),
-                                           vivaldi::kVivaldiGameHost);
+      content::WebUIDataSource::CreateAndAdd(Profile::FromWebUI(web_ui),
+                                             vivaldi::kVivaldiGameHost);
 
   html_source->SetDefaultResource(IDR_VIVALDI_GAME_INDEX);
 

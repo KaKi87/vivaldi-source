@@ -18,8 +18,8 @@
 #include "base/rand_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/win/registry.h"
-#include "installer/mini_installer/util/scoped_token_privilege.h"
 #include "components/base32/base32.h"
+#include "installer/mini_installer/util/scoped_token_privilege.h"
 
 namespace installer {
 

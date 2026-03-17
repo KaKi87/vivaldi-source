@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.multiwindow;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -18,12 +19,16 @@ import androidx.test.filters.SmallTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.runner.lifecycle.Stage;
 
+import org.chromium.base.test.util.DisabledTest;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.ActivityState;
+import org.chromium.base.ApplicationStatus;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.Token;
@@ -37,13 +42,17 @@ import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.MinAndroidSdkLevel;
+import org.chromium.base.test.util.Restriction;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.IntentHandler;
+import org.chromium.chrome.browser.RecentlyClosedEntriesManager;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.CloseWindowAppSource;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.NewWindowAppSource;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.PersistedInstanceType;
+import org.chromium.chrome.browser.ntp.RecentlyClosedEntry;
+import org.chromium.chrome.browser.ntp.RecentlyClosedWindow;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
 import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.tab.Tab;
@@ -59,10 +68,13 @@ import org.chromium.components.messages.MessageIdentifier;
 import org.chromium.components.messages.MessageStateHandler;
 import org.chromium.components.messages.MessagesTestHelper;
 import org.chromium.content_public.browser.LoadUrlParams;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.modaldialog.ModalDialogManager;
+import org.chromium.ui.test.util.DeviceRestriction;
 import org.chromium.url.GURL;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +85,7 @@ import java.util.Set;
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
 @MinAndroidSdkLevel(VERSION_CODES.S)
+@EnableFeatures(ChromeFeatureList.RECENTLY_CLOSED_TABS_AND_WINDOWS)
 public class MultiInstanceManagerApi31Test {
     private static final int TAB1_ID = 456;
     private static final Token TAB_GROUP_ID1 = new Token(2L, 2L);
@@ -106,15 +119,49 @@ public class MultiInstanceManagerApi31Test {
         for (ChromeTabbedActivity activity : mExtraActivities) {
             ThreadUtils.runOnUiThreadBlocking(
                     () ->
-                            mMultiInstanceManager.closeWindow(
-                                    activity.getWindowIdForTesting(), CloseWindowAppSource.OTHER));
+                            mMultiInstanceManager.closeWindows(
+                                    Collections.singletonList(activity.getWindowIdForTesting()),
+                                    CloseWindowAppSource.OTHER));
         }
+    }
+
+    @Test
+    @SmallTest
+    public void testTabModelSelectorObserverOnTabStateInitialized() {
+        ChromeTabbedActivity activity = mActivityTestRule.getActivity();
+
+        // Get the original value of |mCreatedTabOnStartup|.
+        boolean createdTabOnStartup = activity.getCreatedTabOnStartupForTesting();
+
+        // Reset the values of |mCreatedTabOnStartup| and |MultiInstanceManager.mTabModelObserver|.
+        // This tab model selector observer should be registered in MultiInstanceManager on tab
+        // state initialization irrespective of the value of |mCreatedTabOnStartup|.
+        activity.setCreatedTabOnStartupForTesting(false);
+        activity.getMultiInstanceMangerForTesting().setTabModelObserverForTesting(null);
+
+        var tabModelSelectorObserver = activity.getTabModelSelectorObserverForTesting();
+        ThreadUtils.runOnUiThreadBlocking(tabModelSelectorObserver::onTabStateInitialized);
+        Assert.assertEquals(
+                "Regular tab count should be written to persistent store after tab state"
+                        + " initialization.",
+                1,
+                MultiInstancePersistentStore.readNormalTabCount(activity.getWindowIdForTesting()));
+        Assert.assertEquals(
+                "Incognito tab count should be written to persistent store after tab state"
+                        + " initialization.",
+                0,
+                MultiInstancePersistentStore.readIncognitoTabCount(
+                        activity.getWindowIdForTesting()));
+
+        // Restore the original value of |mCreatedTabOnStartup|.
+        activity.setCreatedTabOnStartupForTesting(createdTabOnStartup);
     }
 
     // Initial state: max limit = 4, active tasks = 4, inactive tasks = 0.
     // Final state: max limit = 2, active tasks = 2, inactive tasks = 2.
     @Test
     @MediumTest
+    @DisableFeatures(ChromeFeatureList.ROBUST_WINDOW_MANAGEMENT)
     public void decreaseInstanceLimit_ExcessActive_ExcessTasksFinished() {
         // Set initial instance limit.
         MultiWindowUtils.setMaxInstancesForTesting(4);
@@ -134,6 +181,11 @@ public class MultiInstanceManagerApi31Test {
         // Simulate restoration of an existing instance after a decrease in instance limit that
         // should trigger instance limit downgrade actions.
         otherActivities[2].finishAndRemoveTask();
+        CriteriaHelper.pollUiThread(
+                () ->
+                        ApplicationStatus.getStateForActivity(otherActivities[2])
+                                == ActivityState.DESTROYED,
+                "Activity not destroyed");
         var newActivity =
                 createNewWindow(
                         firstActivity,
@@ -151,6 +203,8 @@ public class MultiInstanceManagerApi31Test {
     // Final state: max limit = 2, active tasks = 2, inactive tasks = 1.
     @Test
     @MediumTest
+    @DisabledTest(message="crbug.com/482145010: Flaky on test-tablet & automotive.")
+    @DisableFeatures(ChromeFeatureList.ROBUST_WINDOW_MANAGEMENT)
     public void decreaseInstanceLimit_MaxActive_NoTasksFinished() {
         // Set initial instance limit.
         MultiWindowUtils.setMaxInstancesForTesting(3);
@@ -188,7 +242,6 @@ public class MultiInstanceManagerApi31Test {
 
     @Test
     @MediumTest
-    @EnableFeatures(ChromeFeatureList.RECENTLY_CLOSED_TABS_AND_WINDOWS)
     public void closeWindowFromWindowManager_softClosure() {
         // Set initial instance limit.
         MultiWindowUtils.setMaxInstancesForTesting(5);
@@ -204,8 +257,10 @@ public class MultiInstanceManagerApi31Test {
         // Close one window.
         ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        mMultiInstanceManager.closeWindow(
-                                otherActivities[otherActivities.length - 1].getWindowIdForTesting(),
+                        mMultiInstanceManager.closeWindows(
+                                Collections.singletonList(
+                                        otherActivities[otherActivities.length - 1]
+                                                .getWindowIdForTesting()),
                                 CloseWindowAppSource.WINDOW_MANAGER));
 
         // Check state of instances after one instance is closed - the closed window should become
@@ -231,13 +286,170 @@ public class MultiInstanceManagerApi31Test {
         // Close one window.
         ThreadUtils.runOnUiThreadBlocking(
                 () ->
-                        mMultiInstanceManager.closeWindow(
-                                otherActivities[otherActivities.length - 1].getWindowIdForTesting(),
+                        mMultiInstanceManager.closeWindows(
+                                Collections.singletonList(
+                                        otherActivities[otherActivities.length - 1]
+                                                .getWindowIdForTesting()),
                                 CloseWindowAppSource.WINDOW_MANAGER));
 
         // Check state of instances after one instance is closed - the window should be fully
         // closed.
         verifyInstanceState(/* expectedActiveInstances= */ 2, /* expectedTotalInstances= */ 2);
+    }
+
+    @Test
+    @MediumTest
+    public void closeWindowFromWindowManager_RecentlyClosedEntriesUpdated() {
+        // Set initial instance limit.
+        MultiWindowUtils.setMaxInstancesForTesting(5);
+
+        ChromeTabbedActivity firstActivity = mActivityTestRule.getActivity();
+        ChromeTabbedActivity[] otherActivities =
+                createNewWindows(
+                        firstActivity, /* numWindows= */ 2, /* addIncognitoExtras= */ false);
+
+        // Check initial state of instances.
+        verifyInstanceState(/* expectedActiveInstances= */ 3, /* expectedTotalInstances= */ 3);
+
+        // Verify there is 0 entry in the RecentlyClosedEntriesManager.
+        RecentlyClosedEntriesManager recentlyClosedEntriesManager =
+                firstActivity.getRecentlyClosedEntriesManagerForTesting();
+        assertEquals(0, recentlyClosedEntriesManager.getRecentlyClosedEntries().size());
+
+        // Close one window.
+        ThreadUtils.runOnUiThreadBlocking(
+                () ->
+                        mMultiInstanceManager.closeWindows(
+                                Collections.singletonList(
+                                        otherActivities[otherActivities.length - 1]
+                                                .getWindowIdForTesting()),
+                                CloseWindowAppSource.WINDOW_MANAGER));
+
+        // Check state of instances after one instance is closed - the closed window should become
+        // an inactive one.
+        verifyInstanceState(/* expectedActiveInstances= */ 2, /* expectedTotalInstances= */ 3);
+
+        // Verify there is 1 window entry in the RecentlyClosedEntriesManager after the window
+        // closure.
+        List<RecentlyClosedEntry> entries = recentlyClosedEntriesManager.getRecentlyClosedEntries();
+        assertEquals("There should be 1 recently closed entry", 1, entries.size());
+        assertTrue(
+                "The recently closed entry should be RecentlyClosedWindow type",
+                entries.get(0) instanceof RecentlyClosedWindow);
+
+        // Close another window.
+        ThreadUtils.runOnUiThreadBlocking(
+                () ->
+                        mMultiInstanceManager.closeWindows(
+                                Collections.singletonList(
+                                        otherActivities[otherActivities.length - 2]
+                                                .getWindowIdForTesting()),
+                                CloseWindowAppSource.WINDOW_MANAGER));
+
+        // Check state of instances after the second instance is closed - the closed window should
+        // become an inactive one.
+        verifyInstanceState(/* expectedActiveInstances= */ 1, /* expectedTotalInstances= */ 3);
+
+        // Verify there are 2 window entries in the RecentlyClosedEntriesManager after the second
+        // window closure.
+        entries = recentlyClosedEntriesManager.getRecentlyClosedEntries();
+        assertEquals("There should be 2 recently closed entry", 2, entries.size());
+        assertTrue(
+                "The recently closed entry should be RecentlyClosedWindow type",
+                entries.get(0) instanceof RecentlyClosedWindow);
+    }
+
+    @Test
+    @MediumTest
+    public void
+            closeWindowFromWindowManager_RecentlyClosedEntriesNotUpdated_WindowContainsOnlyOneNtp() {
+        // Set initial instance limit.
+        MultiWindowUtils.setMaxInstancesForTesting(5);
+
+        ChromeTabbedActivity firstActivity = mActivityTestRule.getActivity();
+        ChromeTabbedActivity otherActivity =
+                createNewWindow(
+                        firstActivity,
+                        /* instanceId= */ 1,
+                        /* addIncognitoExtras= */ false,
+                        /* loadCustomUrl= */ false,
+                        /* createMultipleTabs= */ false);
+
+        // Check initial state of instances.
+        verifyInstanceState(/* expectedActiveInstances= */ 2, /* expectedTotalInstances= */ 2);
+
+        // Verify there is 0 entry in the RecentlyClosedEntriesManager.
+        RecentlyClosedEntriesManager recentlyClosedEntriesManager =
+                firstActivity.getRecentlyClosedEntriesManagerForTesting();
+        assertEquals(0, recentlyClosedEntriesManager.getRecentlyClosedEntries().size());
+
+        // Close the window that contains only 1 NTP.
+        ThreadUtils.runOnUiThreadBlocking(
+                () ->
+                        mMultiInstanceManager.closeWindows(
+                                Collections.singletonList(otherActivity.getWindowIdForTesting()),
+                                CloseWindowAppSource.WINDOW_MANAGER));
+
+        // Check state of instances after one instance is closed - the closed window should be
+        // permanently deleted.
+        verifyInstanceState(/* expectedActiveInstances= */ 1, /* expectedTotalInstances= */ 1);
+
+        // Verify there is 0 window entry in the RecentlyClosedEntriesManager after the window
+        // closure.
+        List<RecentlyClosedEntry> entries = recentlyClosedEntriesManager.getRecentlyClosedEntries();
+        assertEquals("There should be 0 recently closed entry", 0, entries.size());
+    }
+
+    @Test
+    @MediumTest
+    @EnableFeatures(ChromeFeatureList.RECENTLY_CLOSED_TABS_AND_WINDOWS)
+    public void restoreWindow_RecentlyClosedEntriesUpdated() {
+        // Set initial instance limit.
+        MultiWindowUtils.setMaxInstancesForTesting(5);
+
+        ChromeTabbedActivity firstActivity = mActivityTestRule.getActivity();
+        ChromeTabbedActivity[] otherActivities =
+                createNewWindows(
+                        firstActivity, /* numWindows= */ 2, /* addIncognitoExtras= */ false);
+
+        // Check initial state of instances.
+        verifyInstanceState(/* expectedActiveInstances= */ 3, /* expectedTotalInstances= */ 3);
+
+        // Verify there is 0 entry in the RecentlyClosedEntriesManager.
+        RecentlyClosedEntriesManager recentlyClosedEntriesManager =
+                firstActivity.getRecentlyClosedEntriesManagerForTesting();
+        assertEquals(0, recentlyClosedEntriesManager.getRecentlyClosedEntries().size());
+
+        // Close one window.
+        ThreadUtils.runOnUiThreadBlocking(
+                () ->
+                        mMultiInstanceManager.closeWindows(
+                                Collections.singletonList(
+                                        otherActivities[otherActivities.length - 1]
+                                                .getWindowIdForTesting()),
+                                CloseWindowAppSource.WINDOW_MANAGER));
+
+        // Check state of instances after one instance is closed - the closed window should become
+        // an inactive one.
+        verifyInstanceState(/* expectedActiveInstances= */ 2, /* expectedTotalInstances= */ 3);
+
+        // Verify there is 1 window entry in the RecentlyClosedEntriesManager after the window
+        // closure.
+        List<RecentlyClosedEntry> entries = recentlyClosedEntriesManager.getRecentlyClosedEntries();
+        assertEquals("There should be 1 recently closed entry", 1, entries.size());
+        assertTrue(
+                "The recently closed entry should be RecentlyClosedWindow type",
+                entries.get(0) instanceof RecentlyClosedWindow);
+        RecentlyClosedWindow window = (RecentlyClosedWindow) entries.get(0);
+
+        // Restore window.
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> recentlyClosedEntriesManager.openRecentlyClosedEntry(window));
+
+        // Verify window is restored and removed from recentlyClosedEntries.
+        entries = recentlyClosedEntriesManager.getRecentlyClosedEntries();
+        assertEquals("There should be 0 recently closed entry", 0, entries.size());
+        verifyInstanceState(/* expectedActiveInstances= */ 3, /* expectedTotalInstances= */ 3);
     }
 
     @Test
@@ -287,6 +499,11 @@ public class MultiInstanceManagerApi31Test {
 
     @Test
     @SmallTest
+    @Restriction({
+        DeviceFormFactor.TABLET_OR_DESKTOP,
+        DeviceRestriction.RESTRICTION_TYPE_NON_AUTO,
+        DeviceRestriction.RESTRICTION_TYPE_NON_FOLDABLE
+    })
     @Features.EnableFeatures({
         ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW,
         ChromeFeatureList.ROBUST_WINDOW_MANAGEMENT
@@ -320,6 +537,11 @@ public class MultiInstanceManagerApi31Test {
 
     @Test
     @SmallTest
+    @Restriction({
+        DeviceFormFactor.TABLET_OR_DESKTOP,
+        DeviceRestriction.RESTRICTION_TYPE_NON_AUTO,
+        DeviceRestriction.RESTRICTION_TYPE_NON_FOLDABLE
+    })
     @Features.EnableFeatures({
         ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW,
         ChromeFeatureList.ROBUST_WINDOW_MANAGEMENT
@@ -355,7 +577,7 @@ public class MultiInstanceManagerApi31Test {
         createNewWindows(
                 mActivityTestRule.getActivity(),
                 /* numWindows= */ 2,
-                /* addIncognitoExtras= */ true);
+                /* addIncognitoExtras= */ false);
         List<Tab> tabs = new ArrayList<>();
         var activeTab = ThreadUtils.runOnUiThreadBlocking(activity::getActivityTab);
         tabs.add(activeTab);
@@ -410,6 +632,11 @@ public class MultiInstanceManagerApi31Test {
 
     @Test
     @SmallTest
+    @Restriction({
+        DeviceFormFactor.TABLET_OR_DESKTOP,
+        DeviceRestriction.RESTRICTION_TYPE_NON_AUTO,
+        DeviceRestriction.RESTRICTION_TYPE_NON_FOLDABLE
+    })
     @Features.EnableFeatures({
         ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW,
         ChromeFeatureList.ROBUST_WINDOW_MANAGEMENT
@@ -561,6 +788,11 @@ public class MultiInstanceManagerApi31Test {
 
     @Test
     @SmallTest
+    @Restriction({
+        DeviceFormFactor.TABLET_OR_DESKTOP,
+        DeviceRestriction.RESTRICTION_TYPE_NON_AUTO,
+        DeviceRestriction.RESTRICTION_TYPE_NON_FOLDABLE
+    })
     @Features.EnableFeatures({
         ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW,
         ChromeFeatureList.ROBUST_WINDOW_MANAGEMENT
@@ -592,6 +824,11 @@ public class MultiInstanceManagerApi31Test {
 
     @Test
     @SmallTest
+    @Restriction({
+        DeviceFormFactor.TABLET_OR_DESKTOP,
+        DeviceRestriction.RESTRICTION_TYPE_NON_AUTO,
+        DeviceRestriction.RESTRICTION_TYPE_NON_FOLDABLE
+    })
     @Features.EnableFeatures({
         ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW,
         ChromeFeatureList.ROBUST_WINDOW_MANAGEMENT
@@ -625,7 +862,11 @@ public class MultiInstanceManagerApi31Test {
     }
 
     private ChromeTabbedActivity createNewWindow(
-            Context context, int instanceId, boolean addIncognitoExtras) {
+            Context context,
+            int instanceId,
+            boolean addIncognitoExtras,
+            boolean loadCustomUrl,
+            boolean createMultipleTabs) {
         Intent intent =
                 MultiWindowUtils.createNewWindowIntent(
                         context,
@@ -650,9 +891,24 @@ public class MultiInstanceManagerApi31Test {
                                 activity.getActivityTab(),
                                 notNullValue()));
         Tab tab = ThreadUtils.runOnUiThreadBlocking(() -> activity.getActivityTab());
-        ChromeTabUtils.loadUrlOnUiThread(tab, UrlConstants.GOOGLE_URL);
+        if (loadCustomUrl) {
+            ChromeTabUtils.loadUrlOnUiThread(tab, UrlConstants.GOOGLE_URL);
+        }
+        if (createMultipleTabs && !addIncognitoExtras) {
+            ChromeTabUtils.newTabFromMenu(InstrumentationRegistry.getInstrumentation(), activity);
+        }
         mExtraActivities.add(activity);
         return activity;
+    }
+
+    private ChromeTabbedActivity createNewWindow(
+            Context context, int instanceId, boolean addIncognitoExtras) {
+        return createNewWindow(
+                context,
+                instanceId,
+                addIncognitoExtras,
+                /* loadCustomUrl= */ true,
+                /* createMultipleTabs= */ true);
     }
 
     private void verifyInstanceState(int expectedActiveInstances, int expectedTotalInstances) {

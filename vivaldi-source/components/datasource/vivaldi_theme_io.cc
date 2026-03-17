@@ -7,6 +7,7 @@
 #include "base/containers/flat_set.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/callback_helpers.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/memory/raw_ref.h"
@@ -87,8 +88,7 @@ void RemoveTempDirLater(const scoped_refptr<base::SequencedTaskRunner>& runner,
 
 // Return the index of the theme with the given id in |value| or SIZE_MAX if
 // not found.
-size_t FindThemeIndex(const base::Value::List& list,
-                      std::string_view theme_id) {
+size_t FindThemeIndex(const base::ListValue& list, std::string_view theme_id) {
   // Be defensive and do not assume any structure of the value.
   for (size_t i = 0; i < list.size(); ++i) {
     const base::Value& elem = list[i];

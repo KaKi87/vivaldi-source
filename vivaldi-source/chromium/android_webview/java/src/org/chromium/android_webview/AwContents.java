@@ -119,7 +119,6 @@ import org.chromium.content_public.browser.MessagePort;
 import org.chromium.content_public.browser.NavigationController;
 import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.NavigationHistory;
-import org.chromium.content_public.browser.Page;
 import org.chromium.content_public.browser.RenderFrameHost;
 import org.chromium.content_public.browser.SelectionClient;
 import org.chromium.content_public.browser.SelectionPopupController;
@@ -134,6 +133,7 @@ import org.chromium.content_public.browser.navigation_controller.UserAgentOverri
 import org.chromium.content_public.common.ContentUrlConstants;
 import org.chromium.content_public.common.Referrer;
 import org.chromium.device.gamepad.GamepadList;
+import org.chromium.js_injection.mojom.DocumentInjectionTime;
 import org.chromium.net.NetworkChangeNotifier;
 import org.chromium.network.mojom.ReferrerPolicy;
 import org.chromium.ui.base.ActivityWindowAndroid;
@@ -162,6 +162,7 @@ import java.util.WeakHashMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -198,6 +199,8 @@ public class AwContents implements SmartClipProvider {
     private static final Pattern BAD_HEADER_CHAR = Pattern.compile("[\u0000\r\n]");
     private static final String BAD_HEADER_MSG =
             "HTTP headers must not contain null, CR, or NL characters. ";
+    public static final String PAGE_WORLD_NAME = "";
+    private static final int MAX_JS_WORLDS = 1 << 29;
 
     private static int sLastId;
     // Unique id given to each AwContents object, starting from 1.
@@ -279,10 +282,9 @@ public class AwContents implements SmartClipProvider {
     }
 
     /**
-     * WebKit hit test related data structure. These are used to implement
-     * getHitTestResult, requestFocusNodeHref, requestImageRef methods in WebView.
-     * All values should be updated together. The native counterpart is
-     * AwHitTestData.
+     * WebKit hit test related data structure. These are used to implement getHitTestResult,
+     * requestFocusNodeHref, requestImageRef methods in WebView. All values should be updated
+     * together. The native counterpart is AwHitTestData.
      */
     public static class HitTestData {
         // Used in getHitTestResult.
@@ -529,6 +531,9 @@ public class AwContents implements SmartClipProvider {
     // (drag-started event) or when the current page navigates to a new URL.
     private DragAndDropPermissions mDragAndDropPermissions;
 
+    // Storing the mapping of world name -> world ID for this webview.
+    private final Map<String, Integer> mJsWorldNameIds;
+
     private static class WebContentsInternalsHolder implements WebContents.InternalsHolder {
         private final WeakReference<AwContents> mAwContentsRef;
 
@@ -556,13 +561,13 @@ public class AwContents implements SmartClipProvider {
         }
     }
 
-    private static final class AwContentsDestroyRunnable implements Runnable {
+    private static final class AwContentsDestroyConsumer implements Consumer<Boolean> {
         private final long mNativeAwContents;
         // Hold onto a reference to the window (via its wrapper), so that it is not destroyed
         // until we are done here.
         private final WindowAndroidWrapper mWindowAndroid;
 
-        private AwContentsDestroyRunnable(
+        private AwContentsDestroyConsumer(
                 long nativeAwContents, WindowAndroidWrapper windowAndroid) {
             mNativeAwContents = nativeAwContents;
             mWindowAndroid = windowAndroid;
@@ -570,7 +575,10 @@ public class AwContents implements SmartClipProvider {
         }
 
         @Override
-        public void run() {
+        public void accept(Boolean isExplicitCleanup) {
+            if (!isExplicitCleanup) {
+                TraceEvent.instant("CleanupReference.garbageCollection.AwContents");
+            }
             AwContentsJni.get().destroy(mNativeAwContents);
             mWindowAndroid.decrementRefFromDestroyRunnable();
         }
@@ -949,6 +957,9 @@ public class AwContents implements SmartClipProvider {
         long startTime = SystemClock.uptimeMillis();
         sLastId += 1;
         mId = sLastId;
+        mJsWorldNameIds = new HashMap<>();
+        mJsWorldNameIds.put(PAGE_WORLD_NAME, 0);
+
         if (!browserContext.isDefaultAwBrowserContext()) {
             // The browser context has been explicitly set by the application.
             mBrowserContextSetExplicitly = true;
@@ -1415,7 +1426,8 @@ public class AwContents implements SmartClipProvider {
         public final @NonNull Map<String, JavascriptInjector.InjectedInterface>
                 javascriptInterfaces;
         public final @Nullable WebMessageListenerInfo[] webMessageListenerInfo;
-        public final @Nullable StartupJavascriptInfo[] startupJavascriptInfo;
+        public final @Nullable PersistentJavascriptInfo[] persistentJavascriptInfo;
+        public final @NonNull Map<String, Integer> worldMapping;
 
         public StateSnapshot(@NonNull AwContents awContents) {
             wasAttached = awContents.mIsAttachedToWindow;
@@ -1424,6 +1436,8 @@ public class AwContents implements SmartClipProvider {
             wasPaused = awContents.mIsPaused;
             wasFocused = awContents.mContainerViewFocused;
             wasWindowFocused = awContents.mWindowFocused;
+            // Make deep copy.
+            worldMapping = new HashMap<>(awContents.mJsWorldNameIds);
 
             // Save injected JavaScript interfaces.
             javascriptInterfaces = new HashMap<>();
@@ -1434,12 +1448,12 @@ public class AwContents implements SmartClipProvider {
             // Save injected WebMessageListeners.
             webMessageListenerInfo =
                     AwContentsJni.get().getWebMessageListenerInfos(awContents.mNativeAwContents);
-            startupJavascriptInfo =
-                    AwContentsJni.get().getDocumentStartupJavascripts(awContents.mNativeAwContents);
+            persistentJavascriptInfo =
+                    AwContentsJni.get().getPersistentJavascripts(awContents.mNativeAwContents);
         }
     }
 
-    // This class destroys the WindowAndroid when after it is gc-ed.
+    // This class destroys the WindowAndroid after it is gc-ed.
     private static class WindowAndroidWrapper {
         private final WindowAndroid mWindowAndroid;
         private final CleanupReference mCleanupReference;
@@ -1449,24 +1463,9 @@ public class AwContents implements SmartClipProvider {
         // if a Wrapper is created without any AwContents.
         private int mRefFromAwContentsDestroyRunnable;
 
-        private static final class DestroyRunnable implements Runnable {
-            private final WindowAndroid mWindowAndroid;
-
-            private DestroyRunnable(WindowAndroid windowAndroid) {
-                mWindowAndroid = windowAndroid;
-            }
-
-            @Override
-            public void run() {
-                mWindowAndroid.destroy();
-            }
-        }
-
         public WindowAndroidWrapper(WindowAndroid windowAndroid) {
-            try (DualTraceEvent e = DualTraceEvent.scoped("WindowAndroidWrapper.constructor")) {
-                mWindowAndroid = windowAndroid;
-                mCleanupReference = new CleanupReference(this, new DestroyRunnable(windowAndroid));
-            }
+            mWindowAndroid = windowAndroid;
+            mCleanupReference = new CleanupReference(this, (e) -> windowAndroid.destroy());
         }
 
         public WindowAndroid getWindowAndroid() {
@@ -1618,7 +1617,8 @@ public class AwContents implements SmartClipProvider {
                         mWebContentsDelegate,
                         mContentsClientBridge,
                         mIoThreadClient,
-                        mInterceptNavigationDelegate);
+                        mInterceptNavigationDelegate,
+                        mNavigationClient);
         GestureListenerManager.fromWebContents(mWebContents)
                 .addListener(new AwGestureStateListener());
 
@@ -1652,7 +1652,7 @@ public class AwContents implements SmartClipProvider {
         // bind all the native->java relationships.
         mCleanupReference =
                 new CleanupReference(
-                        this, new AwContentsDestroyRunnable(mNativeAwContents, mWindowAndroid));
+                        this, new AwContentsDestroyConsumer(mNativeAwContents, mWindowAndroid));
         if (textClassifier != null) setTextClassifier(textClassifier);
         if (mOnscreenContentProvider != null) {
             mOnscreenContentProvider.onWebContentsChanged(mWebContents);
@@ -1732,6 +1732,8 @@ public class AwContents implements SmartClipProvider {
         if (previousState.wasViewVisible) setViewVisibilityInternal(true);
         if (previousState.wasWindowFocused) getViewMethods().onWindowFocusChanged(true);
         if (previousState.wasFocused) getViewMethods().onFocusChanged(true, 0, null);
+        mJsWorldNameIds.clear();
+        mJsWorldNameIds.putAll(previousState.worldMapping);
 
         // Restore injected JavaScript interfaces.
         for (Map.Entry<String, JavascriptInjector.InjectedInterface> entry :
@@ -1758,20 +1760,34 @@ public class AwContents implements SmartClipProvider {
             }
         }
 
+        // Build temporary reverse world for web message and script restoration.
+        Map<Integer, String> worldLookupById = new HashMap<>();
+        for (String key : mJsWorldNameIds.keySet()) {
+            worldLookupById.put(mJsWorldNameIds.get(key), key);
+        }
+
         // Restore injected WebMessageListeners.
         WebMessageListenerInfo[] previousWebMessageListenerInfo =
                 previousState.webMessageListenerInfo;
         if (previousWebMessageListenerInfo != null) {
             for (WebMessageListenerInfo info : previousWebMessageListenerInfo) {
                 addWebMessageListener(
-                        info.mObjectName, info.mAllowedOriginRules, info.mHolder.getListener());
+                        info.mObjectName,
+                        info.mAllowedOriginRules,
+                        info.mHolder.getListener(),
+                        worldLookupById.get(info.mWorldId));
             }
         }
-        StartupJavascriptInfo[] previousDocumentStartupJavascripts =
-                previousState.startupJavascriptInfo;
-        if (previousDocumentStartupJavascripts != null) {
-            for (StartupJavascriptInfo info : previousDocumentStartupJavascripts) {
-                addDocumentStartJavaScript(info.mScript, info.mAllowedOriginRules);
+        PersistentJavascriptInfo[] previousPersistentJavascripts =
+                previousState.persistentJavascriptInfo;
+        if (previousPersistentJavascripts != null) {
+
+            for (PersistentJavascriptInfo info : previousPersistentJavascripts) {
+                addJavaScriptOnEvent(
+                        info.mScript,
+                        info.mInjectionTime,
+                        info.mAllowedOriginRules,
+                        worldLookupById.get(info.mWorldId));
             }
         }
     }
@@ -3038,10 +3054,44 @@ public class AwContents implements SmartClipProvider {
      */
     public ScriptHandler addDocumentStartJavaScript(
             @NonNull String script, @NonNull String[] allowedOriginRules) {
-        if (TRACE) Log.i(TAG, "%s addDocumentStartJavaScript", this);
+        return addJavaScriptOnEvent(
+                script, DocumentInjectionTime.DOCUMENT_START, allowedOriginRules, PAGE_WORLD_NAME);
+    }
+
+    /**
+     * Add a JavaScript snippet that will run at the specified injection time. Note that calling
+     * this method multiple times will add multiple scripts. Added scripts will take effect from the
+     * next navigation. If want to remove previously set script, use the returned ScriptHandler
+     * object to do so. Any JavaScript objects injected by addWebMessageListener() or
+     * addJavascriptInterface() will be available to use in this script if they are added to the
+     * same world as this script. Note that addJavascriptInterface does not support isolated worlds
+     * at this time. Scripts can be removed using the ScriptHandler object returned when they were
+     * added. The DOM tree may not be ready for document start javascript when those scripts run.
+     *
+     * <p>If multiple scripts are added, they will be executed in the same order they were added.
+     *
+     * @param script The JavaScript snippet to be run.
+     * @param injectionEvent The event to inject scripts on: documentstart or documentend.
+     * @param allowedOriginRules The JavaScript snippet will run on every frame whose origin matches
+     *     any one of the allowedOriginRules.
+     * @param world The world that this script should run in.
+     * @throws IllegalArgumentException if one of the allowedOriginRules is invalid or one of
+     *     jsObjectName and allowedOriginRules is {@code null}, or the world is an isolated world
+     *     and has not been previously registered.
+     * @return A {@link ScriptHandler} for removing the script.
+     */
+    public ScriptHandler addJavaScriptOnEvent(
+            String script,
+            @DocumentInjectionTime.EnumType int injectionEvent,
+            String[] allowedOriginRules,
+            String worldName) {
+        if (TRACE) Log.i(TAG, "%s addJavaScriptOnEvent", this);
         if (isDestroyed(WARN)) return null;
         if (script == null) {
             throw new IllegalArgumentException("script shouldn't be null.");
+        }
+        if (!mJsWorldNameIds.containsKey(worldName)) {
+            throw new IllegalArgumentException("worldName [" + worldName + "] is not registered.");
         }
 
         for (int i = 0; i < allowedOriginRules.length; ++i) {
@@ -3054,12 +3104,17 @@ public class AwContents implements SmartClipProvider {
         return new ScriptHandler(
                 this,
                 AwContentsJni.get()
-                        .addDocumentStartJavaScript(mNativeAwContents, script, allowedOriginRules));
+                        .addPersistentJavaScript(
+                                mNativeAwContents,
+                                script,
+                                injectionEvent,
+                                allowedOriginRules,
+                                mJsWorldNameIds.get(worldName)));
     }
 
     /* package */ void removeDocumentStartJavaScript(int scriptId) {
         if (isDestroyed(WARN)) return;
-        AwContentsJni.get().removeDocumentStartJavaScript(mNativeAwContents, scriptId);
+        AwContentsJni.get().removePersistentJavaScript(mNativeAwContents, scriptId);
     }
 
     /**
@@ -3082,10 +3137,40 @@ public class AwContents implements SmartClipProvider {
             @NonNull String jsObjectName,
             @NonNull String[] allowedOriginRules,
             @NonNull WebMessageListener listener) {
+        addWebMessageListener(jsObjectName, allowedOriginRules, listener, PAGE_WORLD_NAME);
+    }
+
+    /**
+     * Add the {@link WebMessageListener} to AwContents, it will also inject the JavaScript object
+     * with the given name to frames that have origins matching the allowedOriginRules. Note that
+     * this call will not inject the JS object immediately. The JS object will be injected only for
+     * future navigations (in DidClearWindowObject). This flavor allows specifying which world the
+     * object will be accessible in.
+     *
+     * @param jsObjectName The name for the injected JavaScript object for this {@link
+     *     WebMessageListener}.
+     * @param allowedOriginRules A list of matching rules for the allowed origins. The JavaScript
+     *     object will be injected when the frame's origin matches any one of the allowed origins.
+     *     If a wildcard "*" is provided, it will inject JavaScript object to all frames.
+     * @param listener The {@link WebMessageListener} to be called when received onPostMessage().
+     * @param world The name of the world to execute the listener in.
+     * @throws IllegalArgumentException if one of the allowedOriginRules is invalid or one of
+     *     jsObjectName and allowedOriginRules is {@code null} or if the world is not previously
+     *     registered.
+     * @throws NullPointerException if listener is {@code null}.
+     */
+    public void addWebMessageListener(
+            @NonNull String jsObjectName,
+            @NonNull String[] allowedOriginRules,
+            @NonNull WebMessageListener listener,
+            @NonNull String worldName) {
         if (TRACE) Log.i(TAG, "%s addWebMessageListener=%s", this, jsObjectName);
         if (isDestroyed(WARN)) return;
         if (listener == null) {
             throw new NullPointerException("listener shouldn't be null");
+        }
+        if (!mJsWorldNameIds.containsKey(worldName)) {
+            throw new IllegalArgumentException("worldName [" + worldName + "] is not registered.");
         }
 
         if (TextUtils.isEmpty(jsObjectName)) {
@@ -3105,7 +3190,8 @@ public class AwContents implements SmartClipProvider {
                                 mNativeAwContents,
                                 new WebMessageListenerHolder(listener),
                                 jsObjectName,
-                                allowedOriginRules);
+                                allowedOriginRules,
+                                mJsWorldNameIds.get(worldName));
 
         if (!TextUtils.isEmpty(exceptionMessage)) {
             throw new IllegalArgumentException(exceptionMessage);
@@ -3116,19 +3202,49 @@ public class AwContents implements SmartClipProvider {
      * Removes the {@link WebMessageListener} added by {@link addWebMessageListener}. This call will
      * immediately remove the JavaScript object/WebMessageListener mapping pair. So any messages
      * from the JavaScript object will be dropped. However the JavaScript object will only be
-     * removed for future navigations.
+     * removed for future navigations. This removes the WebMessageListener from the page world.
      */
     public void removeWebMessageListener(@NonNull String jsObjectName) {
+        removeWebMessageListener(jsObjectName, PAGE_WORLD_NAME);
+    }
+
+    /**
+     * Removes the {@link WebMessageListener} added by {@link addWebMessageListener}. This call will
+     * immediately remove the JavaScript object/WebMessageListener mapping pair. So any messages
+     * from the JavaScript object will be dropped. However the JavaScript object will only be
+     * removed for future navigations. This removes the WebMessageListener from the world specified.
+     */
+    public void removeWebMessageListener(@NonNull String jsObjectName, String world) {
         if (TRACE) Log.i(TAG, "%s removeWebMessageListener=%s", this, jsObjectName);
         if (isDestroyed(WARN)) return;
-        AwContentsJni.get().removeWebMessageListener(mNativeAwContents, jsObjectName);
+        AwContentsJni.get()
+                .removeWebMessageListener(
+                        mNativeAwContents, jsObjectName, mJsWorldNameIds.get(world));
+    }
+
+    /**
+     * Registers the Javascript world for later use.
+     *
+     * <p>If the same world has been created before, it will return the previously created world.
+     *
+     * @throws IllegalStateException if there are too many worlds created.
+     */
+    public int registerJavaScriptWorld(@NonNull String name) {
+        if (mJsWorldNameIds.containsKey(name)) {
+            return mJsWorldNameIds.get(name);
+        }
+        if (mJsWorldNameIds.size() >= MAX_JS_WORLDS) {
+            throw new IllegalStateException("Maximum number of JS worlds reached.");
+        }
+        int id = mJsWorldNameIds.size();
+        mJsWorldNameIds.put(name, id);
+        return id;
     }
 
     /**
      * @see android.webkit.WebView#getScale()
-     *
-     * Please note that the scale returned is the page scale multiplied by
-     * the screen density factor. See CTS WebViewTest.testSetInitialScale.
+     *     <p>Please note that the scale returned is the page scale multiplied by the screen density
+     *     factor. See CTS WebViewTest.testSetInitialScale.
      */
     public float getScale() {
         if (TRACE) Log.i(TAG, "%s getScale", this);
@@ -4116,11 +4232,6 @@ public class AwContents implements SmartClipProvider {
         return AwContentsJni.get().fromWebContents(webContents);
     }
 
-    @CalledByNative
-    private void onPerformanceMark(Page page, String markName, long markTimeMs) {
-        mNavigationClient.onPerformanceMark(page, markName, markTimeMs);
-    }
-
     // -------------------------------------------------------------------------------------------
     // Helper methods
     // -------------------------------------------------------------------------------------------
@@ -4864,7 +4975,8 @@ public class AwContents implements SmartClipProvider {
                 AwWebContentsDelegate webViewWebContentsDelegate,
                 AwContentsClientBridge contentsClientBridge,
                 AwContentsIoThreadClient ioThreadClient,
-                InterceptNavigationDelegate navigationInterceptionDelegate);
+                InterceptNavigationDelegate navigationInterceptionDelegate,
+                AwNavigationClient navigationClient);
 
         void initializeAndroidAutofill(long nativeAwContents);
 
@@ -4984,24 +5096,32 @@ public class AwContents implements SmartClipProvider {
 
         AwRenderProcess getRenderProcess(long nativeAwContents);
 
-        int addDocumentStartJavaScript(
-                long nativeAwContents, String script, String[] allowedOriginRules);
+        int addPersistentJavaScript(
+                long nativeAwContents,
+                @JniType("std::u16string") String script,
+                @JniType("js_injection::mojom::DocumentInjectionTime")
+                        @DocumentInjectionTime.EnumType
+                        int eventType,
+                @JniType("std::vector<std::string>") String[] allowedOriginRules,
+                int worldId);
 
-        void removeDocumentStartJavaScript(long nativeAwContents, int scriptId);
+        void removePersistentJavaScript(long nativeAwContents, int scriptId);
 
         String addWebMessageListener(
                 long nativeAwContents,
                 WebMessageListenerHolder listener,
-                String jsObjectName,
-                String[] allowedOrigins);
+                @JniType("std::u16string") String jsObjectName,
+                @JniType("std::vector<std::string>") String[] allowedOrigins,
+                int worldId);
 
-        void removeWebMessageListener(long nativeAwContents, String jsObjectName);
+        void removeWebMessageListener(
+                long nativeAwContents, @JniType("std::u16string") String jsObjectName, int worldId);
 
         @JniType("std::vector")
         WebMessageListenerInfo[] getWebMessageListenerInfos(long nativeAwContents);
 
         @JniType("std::vector")
-        StartupJavascriptInfo[] getDocumentStartupJavascripts(long nativeAwContents);
+        PersistentJavascriptInfo[] getPersistentJavascripts(long nativeAwContents);
 
         void flushBackForwardCache(long nativeAwContents, int reason);
 
@@ -5009,8 +5129,8 @@ public class AwContents implements SmartClipProvider {
                 long nativeAwContents,
                 @JniType("std::string") @NonNull String prerenderingUrl,
                 @Nullable AwPrefetchParameters prefetchParameters,
-                @NonNull Runnable activationCallback,
-                @NonNull Runnable errorCallback);
+                @JniType("base::OnceClosure") Runnable activationCallback,
+                @JniType("base::OnceClosure") Runnable errorCallback);
 
         void cancelPrerendering(long nativeAwContents, int prerenderId);
 

@@ -16,24 +16,32 @@ class PrefService;
 // Stores and retrieves the prefs for the tab settings.
 @interface VivaldiTabSettingPrefs : NSObject
 
+/// Static variable to store prefService for Vivaldi UI usage.
++ (PrefService*)prefService;
+
+/// Static method to set the PrefService, must be set before calling any method
+/// of this class.
++ (void)setPrefService:(PrefService*)prefService;
+
 /// Registers the feature preferences.
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry;
 
 /// Returns the desktop style tab status
-+ (BOOL)getDesktopTabsModeWithPrefService:
-    (PrefService*)prefService;
++ (BOOL)getDesktopTabsModeWithPrefService:(PrefService*)prefService;
 /// Returns the setting for tab stack
-+ (BOOL)getUseTabStackWithPrefService:
-    (PrefService*)prefService;
++ (BOOL)getUseTabStackWithPrefService:(PrefService*)prefService;
 
 /// Returns Homepage Url
-+ (NSString*)getHomepageUrlWithPrefService: (PrefService*)prefService;
++ (NSString*)getHomepageUrlWithPrefService:(PrefService*)prefService;
 
 /// Get new tab settings
 + (VivaldiNTPType)getNewTabSettingWithPrefService:(PrefService*)prefService;
 
 /// Returns Newtab Url
-+ (NSString*)getNewTabUrlWithPrefService: (PrefService*)prefService;
++ (NSString*)getNewTabUrlWithPrefService:(PrefService*)prefService;
+
+/// Returns YES when swipe-to-close is enabled in tab switcher.
++ (BOOL)swipeToCloseTabEnabled;
 
 /// Sets the desktop style tab mode.
 + (void)setDesktopTabsMode:(BOOL)enabled
@@ -45,17 +53,16 @@ class PrefService;
 + (void)setReverseSearchSuggestionsEnabled:(BOOL)enabled
                             inPrefServices:(PrefService*)prefService;
 /// Sets the setting for tab stack
-+ (void)setUseTabStack:(BOOL)enabled
-        inPrefServices:(PrefService*)prefService;
++ (void)setUseTabStack:(BOOL)enabled inPrefServices:(PrefService*)prefService;
 
 /// Sets Homepage Url
 + (void)setHomepageUrlWithPrefService:(NSString*)url
-        inPrefServices:(PrefService*)prefService;
+                       inPrefServices:(PrefService*)prefService;
 
 /// Save the new tab settings
 + (void)setNewTabSettingWithPrefService:(PrefService*)prefService
                              andSetting:(VivaldiNTPType)setting
-                                withURL:(NSString *)url;
+                                withURL:(NSString*)url;
 
 @end
 

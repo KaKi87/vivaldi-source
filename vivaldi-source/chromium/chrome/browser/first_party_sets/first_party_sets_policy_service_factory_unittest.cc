@@ -41,7 +41,7 @@ TEST_F(FirstPartySetsPolicyServiceFactoryTest,
   TestingProfile* enabled_profile =
       profile_manager().CreateTestingProfile("enabled");
 
-  base::Value::Dict empty_lists = base::test::ParseJsonDict(R"(
+  base::DictValue empty_lists = base::test::ParseJsonDict(R"(
              {
                 "replacements": [],
                 "additions": []
@@ -69,6 +69,8 @@ TEST_F(FirstPartySetsPolicyServiceFactoryTest,
        OffTheRecordProfile_DistinctAndDisabled) {
   TestingProfile* profile =
       profile_manager().CreateTestingProfile("TestProfile");
+  profile->GetPrefs()->SetBoolean(
+      prefs::kPrivacySandboxRelatedWebsiteSetsEnabled, true);
 
   FirstPartySetsPolicyService* service =
       FirstPartySetsPolicyServiceFactory::GetForBrowserContext(

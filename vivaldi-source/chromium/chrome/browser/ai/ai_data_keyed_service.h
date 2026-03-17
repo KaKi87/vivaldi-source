@@ -19,7 +19,7 @@
 #include "components/optimization_guide/proto/features/actions_data.pb.h"
 #include "components/optimization_guide/proto/features/model_prototyping.pb.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/actor/execution_engine.h"
 #include "chrome/browser/glic/host/context/glic_page_context_fetcher.h"
 #endif

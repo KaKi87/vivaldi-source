@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Spravovat zdroje blokování reklam</translation>
 <translation id="1577761519530347814">Synchronizovat uložená hesla webů</translation>
 <translation id="1620921465699122417">Zadejte text pro překlad</translation>
+<translation id="1624621765073396937">Přejetím zavřít list</translation>
 <translation id="1631998297781042533">Populární stránky</translation>
 <translation id="1644574205037202324">Historie</translation>
 <translation id="1655816024544228768">Sport</translation>
@@ -82,6 +83,7 @@
 <translation id="1871058849247304245">Úroveň přiblížení pro <ph name="HOST" /></translation>
 <translation id="1921508034244765766">Vivaldi je pomalý, padá nebo zahřívá zařízení</translation>
 <translation id="1929299157575856072">VÝCHOZÍ ÚROVEŇ BLOKOVÁNÍ</translation>
+<translation id="1933618400514506228">Srbochorvatština (<ph name="ORIGIN" />)</translation>
 <translation id="1968240832686794952">Otevřít obrázek v listu na pozadí</translation>
 <translation id="1986733655397734221">Nic z toho</translation>
 <translation id="1994506778397655062">Otevřít v novém listu na pozadí</translation>
@@ -105,6 +107,7 @@
 <translation id="2330644510603114741">Chování listů</translation>
 <translation id="233493642829799329">Změna této možnosti může vést k opětovnému načtení některých karet</translation>
 <translation id="2336309953058658733">Vysypat koš</translation>
+<translation id="2336679896177818431">Otevře přepínač listů při přejetí nahoru, nebo dolů, na adresním řádku</translation>
 <translation id="2359808026110333948">Pokračovat</translation>
 <translation id="2386793615875593361">1 vybrána</translation>
 <translation id="2387049655823108978">Synchronizovat otevřené listy z dalších zařízení</translation>
@@ -126,6 +129,7 @@
 <translation id="261264557609353020">Úvodní stránka</translation>
 <translation id="2619628557366098325">Portugalština (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">Dle systému</translation>
+<translation id="2638305832232696831">Povolit gesto přejetí pro adresní řádek</translation>
 <translation id="2653659639078652383">Odeslat</translation>
 <translation id="2666092431469916601">Nahoře</translation>
 <translation id="2677862276555105603">Reklama
@@ -152,6 +156,7 @@ blokována</translation>
 <translation id="2862504765180635001">To nás mrzí.</translation>
 <translation id="2878511608894704031">Smazat vše</translation>
 <translation id="2884735088411646852">Řazení</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (blokuje různé otravnosti)</translation>
 <translation id="2898963176829412617">Nová složka…</translation>
 <translation id="2918704853620385162">Otevřít nový list při zavření posledního listu</translation>
 <translation id="2924890236896835588">Název skupiny</translation>
@@ -171,6 +176,7 @@ blokována</translation>
 <translation id="3142562627629111859">Nová skupina</translation>
 <translation id="3157931365184549694">Obnovit</translation>
 <translation id="3159285901314605198">Obrázek pozadí</translation>
+<translation id="317084213044777332">Nastavit jako výchozí vyhledávač</translation>
 <translation id="3177673846235066154">Server odmítl vaše přihlašovací údaje.</translation>
 <translation id="3180057018690062250">Streamování</translation>
 <translation id="3180358318770512945">Rodičovství</translation>
@@ -227,6 +233,7 @@ blokována</translation>
 <translation id="383723620494271391">Chcete dodat ještě něco?</translation>
 <translation id="3842727926262967527">Vyberte, kde chcete mít panel listů a adresní řádek.</translation>
 <translation id="3845564230651302310">Uplatňování nového nastavení blokování…</translation>
+<translation id="385051799172605136">Zpět</translation>
 <translation id="3858860766373142691">Název</translation>
 <translation id="3861379244432690245">Povolit přímou shodu</translation>
 <translation id="3866249974567520381">Popis</translation>
@@ -496,6 +503,7 @@ blokován</translation>
 <translation id="6946395294519639514">S panely máte nástroje vždy nadosah ruky v postranní liště prohlížeče.</translation>
 <translation id="6951435330868954105">Spravovat výchozí nastavení</translation>
 <translation id="6951948201878750661">Klepnutím vyberete tuto barvu</translation>
+<translation id="6954630860045222581">Zobrazit panel</translation>
 <translation id="6967884871145366229">Spravovat nastavení soukromí</translation>
 <translation id="6973630695168034713">Složky</translation>
 <translation id="7000227144065890583">Návrhy hledání: URL</translation>
@@ -593,6 +601,7 @@ blokován</translation>
 <translation id="8066170816074394954">Chyba serveru.</translation>
 <translation id="8076492880354921740">Listy</translation>
 <translation id="8077675488769462025">Neaktivní listy</translation>
+<translation id="8079925180539182073">Výchozí vyhledávač nelze odstranit.</translation>
 <translation id="8112996065264879835">Tento kód se neshoduje s tím, co jsme vám zaslali.
          Dosáhli jste maximálního počtu pokusů. Zažádejte si o nový kód pomocí volby níže.</translation>
 <translation id="8131740175452115882">Potvrdit</translation>
@@ -638,6 +647,7 @@ blokován</translation>
 <translation id="856439694359429369">Klepněte pro více možností nebo poklepejte pro otevření.</translation>
 <translation id="8591818185775466306">Odstranit <ph name="ITEM_TYPE" /></translation>
 <translation id="8605953154325672921">Zadejte živatelské jméno</translation>
+<translation id="861259508026988871">Přidat jako vyhledávač</translation>
 <translation id="8675578805254882416">Načítání</translation>
 <translation id="8677007239430848917">Klepnutím na ikonu „+“ přidáte svou první poznámku</translation>
 <translation id="8684294196284714094">Připraveni nastavit Vivaldi jako váš výchozí prohlížeč?</translation>

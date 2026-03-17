@@ -18,8 +18,7 @@ namespace {
 const UIEdgeInsets stackPadding = UIEdgeInsetsMake(12.f, 12.f, 12.f, 0.f);
 const CGSize imageViewSize = CGSizeMake(32, 32);
 const UIEdgeInsets imageViewPadding = UIEdgeInsetsMake(12.f, 0.f, 0.f, 0.f);
-} // End Namespace
-
+}  // End Namespace
 
 @implementation VivaldiATBSettingItem
 
@@ -35,21 +34,21 @@ const UIEdgeInsets imageViewPadding = UIEdgeInsetsMake(12.f, 0.f, 0.f, 0.f);
            withStyler:(ChromeTableViewStyler*)styler {
   [super configureCell:cell withStyler:styler];
   [cell configurWithItem:self.item
-     userPreferredOption:self.userPreferredOption
-     globalDefaultOption:self.globalDefaultOption
-       showDefaultMarker:self.showDefaultMarker];
+      userPreferredOption:self.userPreferredOption
+      globalDefaultOption:self.globalDefaultOption
+        showDefaultMarker:self.showDefaultMarker];
 }
 
 @end
 
 #pragma mark - VivaldiATBSettingItemCell
-@interface VivaldiATBSettingItemCell()
+@interface VivaldiATBSettingItemCell ()
 // Title of the settings
-@property (weak, nonatomic) UILabel* titleLabel;
+@property(weak, nonatomic) UILabel* titleLabel;
 // Description of the settings
-@property (weak, nonatomic) UILabel* subtitleLabel;
+@property(weak, nonatomic) UILabel* subtitleLabel;
 // Imageview for the settings icon
-@property (weak, nonatomic) UIImageView* imageView;
+@property(weak, nonatomic) UIImageView* imageView;
 @end
 
 @implementation VivaldiATBSettingItemCell
@@ -61,8 +60,7 @@ const UIEdgeInsets imageViewPadding = UIEdgeInsetsMake(12.f, 0.f, 0.f, 0.f);
 #pragma mark - INITIALIZER
 - (instancetype)initWithStyle:(UITableViewCellStyle)style
               reuseIdentifier:(NSString*)reuseIdentifier {
-  self = [super initWithStyle:style
-              reuseIdentifier:reuseIdentifier];
+  self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
   if (self) {
     [self setUpUI];
   }
@@ -93,8 +91,7 @@ const UIEdgeInsets imageViewPadding = UIEdgeInsetsMake(12.f, 0.f, 0.f, 0.f);
   _titleLabel = titleLabel;
   titleLabel.textColor = UIColor.labelColor;
   titleLabel.adjustsFontForContentSizeCategory = YES;
-  titleLabel.font =
-    [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+  titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   titleLabel.numberOfLines = 0;
   titleLabel.textAlignment = NSTextAlignmentLeft;
 
@@ -104,7 +101,7 @@ const UIEdgeInsets imageViewPadding = UIEdgeInsetsMake(12.f, 0.f, 0.f, 0.f);
   subtitleLabel.textColor = UIColor.secondaryLabelColor;
   subtitleLabel.adjustsFontForContentSizeCategory = YES;
   subtitleLabel.font =
-    [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+      [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
   subtitleLabel.numberOfLines = 0;
   subtitleLabel.textAlignment = NSTextAlignmentLeft;
 
@@ -123,9 +120,8 @@ const UIEdgeInsets imageViewPadding = UIEdgeInsetsMake(12.f, 0.f, 0.f, 0.f);
   [imageView centerYInSuperview];
 
   // Stack view for title and subtitle
-  UIStackView* textStackView = [[UIStackView alloc] initWithArrangedSubviews:@[
-    titleLabel, subtitleLabel
-  ]];
+  UIStackView* textStackView = [[UIStackView alloc]
+      initWithArrangedSubviews:@[ titleLabel, subtitleLabel ]];
   textStackView.distribution = UIStackViewDistributionFill;
   textStackView.spacing = vStackSpacing;
   textStackView.axis = UILayoutConstraintAxisVertical;
@@ -144,7 +140,6 @@ const UIEdgeInsets imageViewPadding = UIEdgeInsetsMake(12.f, 0.f, 0.f, 0.f);
      userPreferredOption:(ATBSettingType)userPreferred
      globalDefaultOption:(ATBSettingType)globalDefault
        showDefaultMarker:(BOOL)showDefaultMarker {
-
   self.subtitleLabel.text = item.subtitle;
 
   // Populate icons
@@ -158,18 +153,17 @@ const UIEdgeInsets imageViewPadding = UIEdgeInsetsMake(12.f, 0.f, 0.f, 0.f);
     case ATBSettingBlockTrackersAndAds:
       _imageView.image = [UIImage imageNamed:vATBShieldTrackesAndAds];
       break;
-    default: break;
+    default:
+      break;
   }
 
   // Show selection check
   if (item.type == userPreferred) {
-    _imageView.image =
-        [_imageView.image
-          imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+    _imageView.image = [_imageView.image
+        imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
   } else {
-    _imageView.image =
-        [_imageView.image
-          imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
+    _imageView.image = [_imageView.image
+        imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
   }
 
   // Render title text. The global default item will have a '(Default)' marker
@@ -199,25 +193,26 @@ const UIEdgeInsets imageViewPadding = UIEdgeInsetsMake(12.f, 0.f, 0.f, 0.f);
   NSString* defaultMarker = l10n_util::GetNSString(IDS_DEFAULT_LEVEL_LABEL);
 
   // Create full string from title and marker.
-  NSString *fullString = title;
+  NSString* fullString = title;
 
   if (showDefaultMarker) {
     fullString =
-        [NSString stringWithFormat: @"%@%@%@", title, @" ", defaultMarker];
+        [NSString stringWithFormat:@"%@%@%@", title, @" ", defaultMarker];
   }
 
   // Create attributed string from the full string.
-  NSMutableAttributedString *attributedString =
-    [[NSMutableAttributedString alloc]
-        initWithString:fullString
-            attributes:@{
-              NSForegroundColorAttributeName: [UIColor colorNamed: kBlueColor],
-              NSFontAttributeName:
-                  [UIFont preferredFontForTextStyle:UIFontTextStyleBody]
-            }];
+  NSMutableAttributedString* attributedString =
+      [[NSMutableAttributedString alloc]
+          initWithString:fullString
+              attributes:@{
+                NSForegroundColorAttributeName :
+                    [UIColor colorNamed:kBlueColor],
+                NSFontAttributeName :
+                    [UIFont preferredFontForTextStyle:UIFontTextStyleBody]
+              }];
 
   if (setSelected) {
-    [self.titleLabel setAttributedText: attributedString];
+    [self.titleLabel setAttributedText:attributedString];
   } else {
     self.titleLabel.text = fullString;
     self.titleLabel.textColor = UIColor.labelColor;

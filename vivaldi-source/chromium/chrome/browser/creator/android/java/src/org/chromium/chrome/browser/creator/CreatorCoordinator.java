@@ -22,7 +22,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.RecyclerView.OnScrollListener;
 
 import org.chromium.base.Callback;
-import org.chromium.base.supplier.UnownedUserDataSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.version_info.VersionInfo;
 import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
@@ -120,7 +120,7 @@ public class CreatorCoordinator
     private boolean mFullyOpened;
     private final WebContentsCreator mCreatorWebContents;
     private final NewTabCreator mCreatorOpenTab;
-    private final UnownedUserDataSupplier<ShareDelegate> mBottomsheetShareDelegateSupplier;
+    private final MonotonicObservableSupplier<ShareDelegate> mBottomsheetShareDelegateSupplier;
     private @MonotonicNonNull GURL mBottomSheetUrl;
     private final int mEntryPoint;
 
@@ -139,7 +139,7 @@ public class CreatorCoordinator
      * @param creatorWebContents the interface to generate webcontents for the bottomsheet.
      * @param creatorOpenTab the interface to open urls in a new tab, used by the bottomsheet.
      * @param bottomsheetShareDelegateSupplier an empty share delegate supplier, used by the
-     *         bottomsheet.
+     *     bottomsheet.
      * @param entryPoint the SingleWebFeedEntryPoint has the Activity been launched with.
      * @param isFollowing the initial state of if the creator is being followed.
      */
@@ -152,7 +152,7 @@ public class CreatorCoordinator
             String url,
             WebContentsCreator creatorWebContents,
             NewTabCreator creatorOpenTab,
-            UnownedUserDataSupplier<ShareDelegate> bottomsheetShareDelegateSupplier,
+            MonotonicObservableSupplier<ShareDelegate> bottomsheetShareDelegateSupplier,
             int entryPoint,
             boolean isFollowing,
             SignInInterstitialInitiator signInInterstitialInitiator) {
@@ -213,7 +213,8 @@ public class CreatorCoordinator
      * @param feedActionDelegate Interface for Feed actions implemented by the Browser.
      */
     public void queryFeedStream(
-            FeedActionDelegate feedActionDelegate, Supplier<ShareDelegate> shareDelegateSupplier) {
+            FeedActionDelegate feedActionDelegate,
+            Supplier<@Nullable ShareDelegate> shareDelegateSupplier) {
         if (mCreatorModel.get(CreatorProperties.WEB_FEED_ID_KEY) == null) {
             Callback<QueryResult> queryWebFeedIdCallback =
                     result -> {
@@ -256,7 +257,8 @@ public class CreatorCoordinator
      * @param feedActionDelegate Interface for Feed actions implemented by the Browser.
      */
     private void initFeedStream(
-            FeedActionDelegate feedActionDelegate, Supplier<ShareDelegate> shareDelegateSupplier) {
+            FeedActionDelegate feedActionDelegate,
+            Supplier<@Nullable ShareDelegate> shareDelegateSupplier) {
         mStream =
                 new FeedStream(
                         mActivity,
@@ -369,7 +371,7 @@ public class CreatorCoordinator
     }
 
     private void getWebFeedMetadata() {
-        Callback<WebFeedMetadata> metadata_callback =
+        Callback<WebFeedMetadata> metadataCallback =
                 result -> {
                     @WebFeedSubscriptionStatus
                     int subscriptionStatus =
@@ -396,7 +398,7 @@ public class CreatorCoordinator
                     }
                 };
         WebFeedBridge.getWebFeedMetadata(
-                mCreatorModel.get(CreatorProperties.WEB_FEED_ID_KEY), metadata_callback);
+                mCreatorModel.get(CreatorProperties.WEB_FEED_ID_KEY), metadataCallback);
     }
 
     /** Set up the bottom sheet for this activity. */

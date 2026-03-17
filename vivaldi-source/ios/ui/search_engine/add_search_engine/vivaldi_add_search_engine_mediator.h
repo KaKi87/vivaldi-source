@@ -5,7 +5,7 @@
 
 #import <UIKit/UIKit.h>
 
-#import "ios/chrome/browser/browser_container/model/edit_menu_builder.h"
+#import "ios/chrome/browser/browser_content/model/edit_menu_builder.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 
 @protocol EditMenuAlertDelegate;
@@ -17,9 +17,9 @@
 // Initializer for a mediator.
 - (instancetype)initWithBaseViewController:(UIViewController*)baseViewController
                                    browser:(Browser*)browser
-                             alertDelegate:(id<EditMenuAlertDelegate>)alertDelegate
+                             alertDelegate:
+                                 (id<EditMenuAlertDelegate>)alertDelegate
     NS_DESIGNATED_INITIALIZER;
-
 
 - (instancetype)init NS_UNAVAILABLE;
 

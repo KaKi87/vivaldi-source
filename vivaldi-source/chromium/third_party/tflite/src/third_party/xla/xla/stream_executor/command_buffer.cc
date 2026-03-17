@@ -1,4 +1,4 @@
-/* Copyright 2023 The OpenXLA Authors.
+/* Copyright 2026 The OpenXLA Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,49 +15,60 @@ limitations under the License.
 
 #include "xla/stream_executor/command_buffer.h"
 
+#include <atomic>
+#include <cstdint>
 #include <memory>
 #include <utility>
 
-#include "absl/functional/any_invocable.h"
-#include "absl/status/status.h"
-#include "absl/status/statusor.h"
-#include "xla/stream_executor/kernel.h"
-#include "xla/stream_executor/stream.h"
-#include "xla/stream_executor/stream_executor_interface.h"
-#include "tsl/platform/errors.h"
-#include "tsl/platform/statusor.h"
+#include "absl/base/no_destructor.h"
+#include "absl/base/optimization.h"
+#include "absl/functional/function_ref.h"
+#include "absl/synchronization/mutex.h"
 
 namespace stream_executor {
 
-absl::StatusOr<std::unique_ptr<CommandBuffer>> CommandBuffer::Create(
-    StreamExecutorInterface* executor, Mode mode) {
-  return executor->CreateCommandBuffer(mode);
+CommandBuffer::ResourceTypeId CommandBuffer::GetNextResourceTypeId() {
+  absl::NoDestructor<std::atomic<int64_t>> counter(1);
+  return ResourceTypeId(counter->fetch_add(1));
 }
 
-absl::StatusOr<std::unique_ptr<CommandBuffer>> CommandBuffer::Trace(
-    StreamExecutorInterface* executor,
-    absl::AnyInvocable<absl::Status(Stream*)> function, Mode mode) {
-  TF_ASSIGN_OR_RETURN(auto stream, executor->CreateStream());
-  return Trace(executor, stream.get(), std::move(function), mode);
+CommandBuffer::Resource* CommandBuffer::GetOrNullResource(
+    ResourceTypeId type_id) {
+  absl::MutexLock lock(resource_mutex_);
+  auto it = resources_.find(type_id);
+  return (it != resources_.end()) ? it->second.get() : nullptr;
 }
 
-absl::StatusOr<std::unique_ptr<CommandBuffer>> CommandBuffer::Trace(
-    StreamExecutorInterface* executor, Stream* stream,
-    absl::AnyInvocable<absl::Status(Stream*)> function, Mode mode) {
-  if (stream == nullptr)
-    return absl::InvalidArgumentError(
-        "Can't trace command buffer on a null stream");
+CommandBuffer::Resource* CommandBuffer::GetOrCreateResource(
+    ResourceTypeId type_id,
+    absl::FunctionRef<std::unique_ptr<Resource>()> create) {
+  // First, try to find the resource under lock
+  {
+    absl::MutexLock lock(resource_mutex_);
+    auto it = resources_.find(type_id);
+    if (ABSL_PREDICT_TRUE(it != resources_.end())) {
+      return it->second.get();
+    }
+  }
 
-  // Prepare an empty command buffer instance.
-  TF_ASSIGN_OR_RETURN(std::unique_ptr<CommandBuffer> command_buffer,
-                      CommandBuffer::Create(executor, mode));
+  // Resource not found, create it outside the lock
+  auto resource = create();
+  Resource* ptr = resource.get();
 
-  // Trace and finalize the command buffer.
-  TF_RETURN_IF_ERROR(
-      command_buffer->Trace(stream, [&]() { return function(stream); }));
-  TF_RETURN_IF_ERROR(command_buffer->Finalize());
+  // Acquire lock again to insert the new resource
+  {
+    absl::MutexLock lock(resource_mutex_);
+    auto it = resources_.find(type_id);
+    if (ABSL_PREDICT_TRUE(it == resources_.end())) {
+      // We won the race — insert our resource
+      resources_.emplace(type_id, std::move(resource));
+    } else {
+      // Another thread inserted it in the meantime
+      ptr = it->second.get();
+    }
+  }
 
-  return command_buffer;
+  return ptr;
 }
 
 }  // namespace stream_executor

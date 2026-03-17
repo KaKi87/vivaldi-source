@@ -73,7 +73,8 @@ class Menu_Model : public KeyedService {
 
   std::unique_ptr<MenuLoadDetails> CreateLoadDetails(const std::string& menu,
                                                      bool is_reset);
-  std::unique_ptr<MenuLoadDetails> CreateLoadDetails(int64_t id/*, bool is_reset*/);
+  std::unique_ptr<MenuLoadDetails> CreateLoadDetails(
+      int64_t id /*, bool is_reset*/);
   bool loaded_ = false;
   base::ObserverList<MenuModelObserver> observers_;
   const raw_ptr<content::BrowserContext> context_;

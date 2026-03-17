@@ -79,7 +79,7 @@ class WebContentsView {
 
   virtual void CreateView(gfx::NativeView context) = 0;
 
-  virtual bool IsWebContentsViewChildFrame() const;
+  virtual bool IsWebContentsViewChildFrame() const { return false; }
 
   // Sets up the View that holds the rendered web page, receives messages for
   // it and contains page plugins. The host view should be sized to the current

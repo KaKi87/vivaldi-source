@@ -8,7 +8,7 @@ import android.view.LayoutInflater;
 import android.view.ViewGroup;
 
 import org.chromium.base.Callback;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
@@ -19,6 +19,7 @@ import org.chromium.chrome.browser.magic_stack.ModuleDelegate.ModuleType;
 import org.chromium.chrome.browser.magic_stack.ModuleProvider;
 import org.chromium.chrome.browser.magic_stack.ModuleProviderBuilder;
 import org.chromium.chrome.browser.profiles.Profile;
+import org.chromium.chrome.browser.setup_list.SetupListModuleUtils;
 import org.chromium.components.feature_engagement.Tracker;
 import org.chromium.components.segmentation_platform.InputContext;
 import org.chromium.ui.modelutil.PropertyKey;
@@ -41,9 +42,8 @@ public class EducationalTipModuleBuilder implements ModuleProviderBuilder, Modul
     @Override
     public boolean build(
             ModuleDelegate moduleDelegate, Callback<ModuleProvider> onModuleBuiltCallback) {
-        if (!ChromeFeatureList.sEducationalTipModule.isEnabled()
-                || !ChromeFeatureList.isEnabled(
-                        ChromeFeatureList.SEGMENTATION_PLATFORM_EPHEMERAL_CARD_RANKER)) {
+        if (!ChromeFeatureList.isEnabled(
+                ChromeFeatureList.SEGMENTATION_PLATFORM_EPHEMERAL_CARD_RANKER)) {
             return false;
         }
 
@@ -65,9 +65,18 @@ public class EducationalTipModuleBuilder implements ModuleProviderBuilder, Modul
     /** Create view for the educational tip module. */
     @Override
     public ViewGroup createView(ViewGroup parentView) {
-        return (ViewGroup)
-                LayoutInflater.from(mActionDelegate.getContext())
-                        .inflate(R.layout.educational_tip_module_layout, parentView, false);
+        ViewGroup moduleView =
+                (ViewGroup)
+                        LayoutInflater.from(mActionDelegate.getContext())
+                                .inflate(R.layout.educational_tip_module_layout, parentView, false);
+
+        if (SetupListModuleUtils.isSetupListModule(mModuleType)) {
+            // Setup List images don't have a background
+            moduleView
+                    .findViewById(R.id.educational_tip_module_content_image)
+                    .setBackgroundResource(0);
+        }
+        return moduleView;
     }
 
     /** Bind the property model for the educational tip module. */
@@ -76,11 +85,16 @@ public class EducationalTipModuleBuilder implements ModuleProviderBuilder, Modul
         EducationalTipModuleViewBinder.bind(model, view, propertyKey);
     }
 
+    @Override
+    public @Nullable Integer getManualRank() {
+        return SetupListModuleUtils.getManualRank(mModuleType);
+    }
+
     // ModuleEligibilityChecker implementation:
 
     @Override
     public boolean isEligible() {
-        return ChromeFeatureList.sEducationalTipModule.isEnabled();
+        return true;
     }
 
     @Override
@@ -92,7 +106,7 @@ public class EducationalTipModuleBuilder implements ModuleProviderBuilder, Modul
     }
 
     /** Gets the regular profile if exists. */
-    private Profile getRegularProfile(ObservableSupplier<Profile> profileSupplier) {
+    private Profile getRegularProfile(MonotonicObservableSupplier<Profile> profileSupplier) {
         if (mProfile != null) {
             return mProfile;
         }

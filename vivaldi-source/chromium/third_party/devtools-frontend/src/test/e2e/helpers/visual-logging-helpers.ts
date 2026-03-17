@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {getBrowserAndPages} from '../../conductor/puppeteer-state.js';
-import {getBrowserAndPagesWrappers} from '../../shared/non_hosted_wrappers.js';
 import type {DevToolsPage} from '../shared/frontend-helper.js';
 
 /** Corresponds to the type in front_end/ui/visual_logging/Debugging.ts **/
@@ -88,7 +86,7 @@ export function veImpressionForMainToolbar(options?: {
   ]);
 }
 
-export function veImpressionForElementsPanel(options?: {dockable?: boolean}) {
+export function veImpressionForElementsPanel(options?: {dockable?: boolean, expectExistingPanel?: boolean}) {
   return veImpression('Panel', 'elements', [
     veImpression('Toolbar', 'sidebar', [
       veImpressionForTabHeader('styles'),
@@ -104,7 +102,7 @@ export function veImpressionForElementsPanel(options?: {dockable?: boolean}) {
       veImpression('TreeItem', undefined, [veImpression('Value', 'tag-name')]),
       veImpression('TreeItem'),
     ]),
-    veImpression('Pane', 'styles', [
+    ...(options?.expectExistingPanel ? [] : [veImpression('Pane', 'styles', [
       veImpression('Section', 'style-properties', [veImpression('CSSRuleHeader', 'selector')]),
       veImpression('Section', 'style-properties', [
         veImpression('CSSRuleHeader', 'selector'),
@@ -117,7 +115,7 @@ export function veImpressionForElementsPanel(options?: {dockable?: boolean}) {
             veImpression('Expand'),
           ]),
         ]),
-      ]),
+      ])]),
       veImpression('ToggleSubpane', 'element-states'),
       veImpression('ToggleSubpane', 'elements-classes'),
       veImpression('Action', 'elements.new-style-rule'),
@@ -144,11 +142,10 @@ export function veImpressionForDrawerToolbar(options?: {
  * Prints all VE events that haven't been matched by expectVeEvents calls
  * Useful for writing new assertions.
  **/
-export async function dumpVeEvents(label: string) {
-  const {frontend} = getBrowserAndPages();
+export async function dumpVeEvents(label: string, devToolsPage: DevToolsPage) {
   const events =
       // @ts-expect-error
-      await frontend.evaluate(async () => (await globalThis.getUnmatchedVeEvents()) as unknown as string[]);
+      await devToolsPage.evaluate(async () => (await globalThis.getUnmatchedVeEvents()) as unknown as string[]);
   // eslint-disable-next-line no-console
   console.log(label + '\n', events);
 }
@@ -158,8 +155,7 @@ export async function dumpVeEvents(label: string) {
  * Unexpected VE events are ignored.
  **/
 export async function expectVeEvents(
-    expectedEvents: TestLogEntry[], root?: string,
-    devToolsPage: DevToolsPage = getBrowserAndPagesWrappers().devToolsPage) {
+    expectedEvents: TestLogEntry[], root: string|undefined = undefined, devToolsPage: DevToolsPage) {
   collapseConsecutiveImpressions(expectedEvents);
   prependRoot(expectedEvents, root);
   // @ts-expect-error
@@ -170,7 +166,9 @@ function collapseConsecutiveImpressions(events: TestLogEntry[]) {
   let group: {impressions: string[]}|null = null;
   for (let i = 0; i < events.length; ++i) {
     const event = events[i];
-    if ('interaction' in event) {
+    // We skip resetting the impression group for Resize interactions that could
+    // be initiated by the rendering and not an actual test action.
+    if ('interaction' in event && event.interaction !== 'Resize') {
       group = null;
     }
 

@@ -7,6 +7,9 @@
 #include "base/no_destructor.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "components/prefs/pref_service.h"
 #include "components/web_modal/web_contents_modal_dialog_manager.h"
 #include "content/browser/renderer_host/render_widget_host_view_base.h"  // nogncheck
@@ -18,6 +21,12 @@
 #include "ui/vivaldi_browser_window.h"
 #include "vivaldi/prefs/vivaldi_gen_pref_enums.h"
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
+
+#if BUILDFLAG(IS_LINUX)
+#include "ui/aura/window_tree_host.h"
+#include "ui/ozone/platform_selection.h"
+#include "ui/ozone/public/ozone_platform.h"
+#endif
 
 namespace extensions {
 
@@ -65,8 +74,9 @@ VivaldiBrowserWindow* FindMouseEventWindowFromView(
   // web_contents is not ourtermost content when the root_view corresponds
   // to a native control like date picker on Mac.
   web_contents = web_contents->GetOutermostWebContents();
-  VivaldiBrowserWindow* window = VivaldiBrowserComponentWrapper::GetInstance()
-      ->FindWindowForEmbedderWebContents(web_contents);
+  VivaldiBrowserWindow* window =
+      VivaldiBrowserComponentWrapper::GetInstance()
+          ->FindWindowForEmbedderWebContents(web_contents);
   if (window && ShouldPreventWindowGestures(window)) {
     window = nullptr;
   }
@@ -74,8 +84,9 @@ VivaldiBrowserWindow* FindMouseEventWindowFromView(
 }
 
 VivaldiBrowserWindow* FindMouseEventWindowFromId(SessionID::id_type window_id) {
-  VivaldiBrowserWindow* window = VivaldiBrowserComponentWrapper::GetInstance()
-      ->VivaldiBrowserWindowFromId(window_id);
+  VivaldiBrowserWindow* window =
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          window_id);
   return window && ShouldPreventWindowGestures(window) ? nullptr : window;
 }
 
@@ -91,7 +102,7 @@ gfx::PointF TransformToWindowUICoordinates(VivaldiBrowserWindow* window,
 
 void SendEventToUI(VivaldiBrowserWindow* window,
                    const std::string& eventname,
-                   base::Value::List args) {
+                   base::ListValue args) {
   // TODO(igor@vivaldi.com): This broadcats the event to all windows and
   // extensions forcing our JS code to check in each window if it matches
   // the window id embedded into the event. Find a way to send this only to
@@ -510,8 +521,9 @@ bool VivaldiUIEvents::DoHandleKeyboardEvent(
   if (!web_contents)
     return false;
   web_contents = web_contents->GetOutermostWebContents();
-  VivaldiBrowserWindow* window = VivaldiBrowserComponentWrapper::GetInstance()
-      ->FindWindowForEmbedderWebContents(web_contents);
+  VivaldiBrowserWindow* window =
+      VivaldiBrowserComponentWrapper::GetInstance()
+          ->FindWindowForEmbedderWebContents(web_contents);
   if (!window)
     return false;
 
@@ -519,7 +531,7 @@ bool VivaldiUIEvents::DoHandleKeyboardEvent(
   int modifiers = event.GetModifiers() & 15;
 
   bool is_auto_repeat =
-    event.GetModifiers() & blink::WebInputEvent::kIsAutoRepeat;
+      event.GetModifiers() & blink::WebInputEvent::kIsAutoRepeat;
 
   SendEventToUI(window, tabs_private::OnKeyboardChanged::kEventName,
                 tabs_private::OnKeyboardChanged::Create(
@@ -627,7 +639,6 @@ bool VivaldiUIEvents::DoHandleWheelEventAfterChild(
   if (event.phase & unwanted_phases)
     return false;
 
-
   if (event.event_action == blink::WebMouseWheelEvent::EventAction::kPageZoom) {
     // Not synthetic zoom events are coming from touchpad gestures, so do not
     // override.
@@ -666,37 +677,87 @@ bool VivaldiUIEvents::DoHandleWheelEventAfterChild(
   return true;
 }
 
+#if BUILDFLAG(IS_LINUX)
+VivaldiBrowserWindow* FindWindowByWidget(gfx::AcceleratedWidget widget) {
+  VivaldiBrowserWindow* vivaldi_window = nullptr;
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->is_vivaldi()) {
+          vivaldi_window =
+              static_cast<VivaldiBrowserWindow*>(browser->GetWindow());
+          return false;
+        }
+        return true;
+      });
+  return vivaldi_window;
+}
+#endif
+
+VivaldiBrowserWindow* FindWindowByScreenPosition(int screen_x, int screen_y) {
+  VivaldiBrowserWindow* vivaldi_window = nullptr;
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->is_vivaldi() &&
+            browser->GetWindow()->GetBounds().Contains(screen_x, screen_y)) {
+          vivaldi_window =
+              static_cast<VivaldiBrowserWindow*>(browser->GetWindow());
+          return false;
+        }
+        return true;
+      });
+  return vivaldi_window;
+}
+
 void VivaldiUIEvents::DoHandleDragEnd(content::WebContents* web_contents,
-                                      bool outside_or_webview_in_same_window,
                                       int client_x,
-                                      int client_y) {
-  if (!::vivaldi::IsTabDragInProgress())
-    // If call comes from WebContentsViewAura::CompleteDrop() or
-    // WebDragDest::performDragOperation() it will be first and value of
-    // outside_or_webview_in_same_window will be correct. Ignore subsequent
-    // calls.
-    return;
+                                      int client_y,
+                                      int screen_x,
+                                      int screen_y,
+                                      bool canceled) {
   ::vivaldi::SetTabDragInProgress(false);
 
-  bool cancelled = false;
-#if BUILDFLAG(IS_WIN)
-  if (::vivaldi::g_cancelled_drag) {
-    cancelled = true;
+  VivaldiBrowserWindow* target_window = nullptr;
+  Profile* source_profile =
+      Profile::FromBrowserContext(web_contents->GetBrowserContext());
+
+  // Screen coordinates are not reliable on Wayland
+#if BUILDFLAG(IS_LINUX)
+  if (strcmp(ui::GetOzonePlatformName(), "wayland") == 0) {
+    gfx::AcceleratedWidget widget =
+        ui::OzonePlatform::GetInstance()->GetVivaldiDragEndWidget();
+    if (widget) {
+      target_window = FindWindowByWidget(widget);
+    }
+    if (canceled && !target_window) {
+      // We can not distinguish a drop on desktop from canceled drop on
+      // Wayland. Assume all drops outside of windows are valid.
+      canceled = false;
+    }
+  } else {
+    target_window = FindWindowByScreenPosition(screen_x, screen_y);
+  }
+#else
+  target_window = FindWindowByScreenPosition(screen_x, screen_y);
+#endif
+
+#if BUILDFLAG(IS_MAC)
+  if (canceled && !target_window) {
+    // We can not distinguish a drop on other application from canceled drop.
+    // Assume all drops outside of windows are valid.
+    canceled = false;
   }
 #endif
 
-  using tabs_private::DragEndState;
-  const DragEndState& drag_end_state = cancelled && !outside_or_webview_in_same_window
-      // None of browser windows accepted the drag and we do not moving tabs out.
-      ? DragEndState::kAborted
-      : outside_or_webview_in_same_window
-        ? DragEndState::kOutsideOrWebviewInSameWindow
-        : DragEndState::kInsideOrWebviewInOtherWindow;
+  if (target_window && target_window->browser()->profile() != source_profile) {
+    // Found a window from a different profile - treat as drop outside windows
+    target_window = nullptr;
+  }
 
-  ::vivaldi::BroadcastEvent(
-      tabs_private::OnDragEnd::kEventName,
-      tabs_private::OnDragEnd::Create(drag_end_state, client_x, client_y),
-      web_contents->GetBrowserContext());
+  SessionID::id_type target_window_id = target_window ? target_window->id() : 0;
+  ::vivaldi::BroadcastEvent(tabs_private::OnDragEnd::kEventName,
+                            tabs_private::OnDragEnd::Create(
+                                canceled, client_x, client_y, target_window_id),
+                            web_contents->GetBrowserContext());
 }
 
 // static

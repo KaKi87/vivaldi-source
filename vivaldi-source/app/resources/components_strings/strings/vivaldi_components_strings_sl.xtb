@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Povezava s tem mestom ni povsem varna</translation>
 <translation id="4265872034478892965">Dovolil skrbnik</translation>
 <translation id="4305666528087210886">Do vaše datoteke ni mogoče dostopati</translation>
-<translation id="4408413947728134509">Piškotki <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544">Spletno mesto <ph name="HOST_NAME" /> ni sprejelo potrdila za prijavo ali pa to ni bilo posredovano.</translation>
 <translation id="4506599922270137252">se obrniti na skrbnika sistema</translation>
 <translation id="4522570452068850558">Podrobnosti</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Ni rezultatov</translation>
 <translation id="5017554619425969104">Besedilo, ki ste ga kopirali</translation>
 <translation id="5023310440958281426">Preverite skrbnikove pravilnike</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1{(1 v uporabi)}one{(# v uporabi)}two{(# v uporabi)}few{(# v uporabi)}other{(# v uporabi)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />preverite naslov strežnika proxy<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bitno)</translation>
 <translation id="5216942107514965959">Nazadnje obiskano danes</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Na tem spletnem mestu ne vnašajte občutljivih informacij (npr. gesel ali številk kreditnih kartic), ker jih lahko ukradejo napadalci.</translation>
 <translation id="5863515189965725638">Uredi IBAN</translation>
 <translation id="5869405914158311789">Tega spletnega mesta ni mogoče doseči</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1 {1 v uporabi} one {# v uporabi} two {# v uporabi} few {# v uporabi} other {# v uporabi}}</translation>
 <translation id="5932224571077948991">Spletno mesto prikazuje vsiljive ali zavajajoče oglase</translation>
 <translation id="6051221802930200923">Spletnega mesta <ph name="SITE" /> trenutno ni mogoče obiskati, ker uporablja pripenjanje certifikata. Napake omrežja in napadi na omrežje so običajno začasni, zato bo ta stran verjetno delovala pozneje.</translation>
 <translation id="6146055958333702838">Preverite kable in znova zaženite usmerjevalnike, modeme ali druge omrežne 

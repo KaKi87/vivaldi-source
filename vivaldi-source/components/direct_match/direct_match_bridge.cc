@@ -22,7 +22,6 @@
 using base::android::AttachCurrentThread;
 using base::android::ConvertUTF16ToJavaString;
 using base::android::ConvertUTF8ToJavaString;
-using base::android::JavaParamRef;
 using base::android::JavaRef;
 using base::android::ScopedJavaGlobalRef;
 using base::android::ScopedJavaLocalRef;
@@ -30,6 +29,14 @@ using base::android::ToJavaIntArray;
 using content::BrowserThread;
 using direct_match::DirectMatchService;
 using direct_match::DirectMatchServiceFactory;
+
+static jlong JNI_DirectMatchBridge_Init(
+    JNIEnv* env,
+    const jni_zero::JavaRef<jobject>& caller,
+    const jni_zero::JavaRef<jobject>& profile) {
+  DirectMatchBridge* delegate = new DirectMatchBridge(env, caller, profile);
+  return reinterpret_cast<intptr_t>(delegate);
+}
 
 DirectMatchBridge::DirectMatchBridge(JNIEnv* env,
                                      const JavaRef<jobject>& obj,
@@ -41,17 +48,16 @@ DirectMatchBridge::DirectMatchBridge(JNIEnv* env,
   directmatch_service->AddObserver(this);
 }
 
-DirectMatchBridge::~DirectMatchBridge() {
-}
+DirectMatchBridge::~DirectMatchBridge() {}
 
-void DirectMatchBridge::Destroy(JNIEnv*, const JavaParamRef<jobject>&) {
+void DirectMatchBridge::Destroy(JNIEnv*, const JavaRef<jobject>&) {
   directmatch_service->RemoveObserver(this);
   delete this;
 }
 
 void DirectMatchBridge::AddItemsToDirectMatchItemList(
     JNIEnv* env,
-    const JavaParamRef<jobject>& j_result_obj,
+    const JavaRef<jobject>& j_result_obj,
     const std::vector<const DirectMatchService::DirectMatchUnit*>& nodes) {
   for (const auto* unit : nodes) {
     Java_DirectMatchBridge_addToDirectMatchItemList(
@@ -68,7 +74,7 @@ void DirectMatchBridge::AddItemsToDirectMatchItemList(
 
 void DirectMatchBridge::GetPopularSites(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& j_result_obj) {
+    const base::android::JavaRef<jobject>& j_result_obj) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (directmatch_service != NULL) {
     std::vector<const DirectMatchService::DirectMatchUnit*> direct_match_items =
@@ -80,7 +86,7 @@ void DirectMatchBridge::GetPopularSites(
 void DirectMatchBridge::GetDirectMatchesForCategory(
     JNIEnv* env,
     int category_id,
-    const base::android::JavaParamRef<jobject>& j_result_obj) {
+    const base::android::JavaRef<jobject>& j_result_obj) {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   AddItemsToDirectMatchItemList(env, j_result_obj,
                                 GetDirectMatchItemList(category_id));
@@ -123,14 +129,6 @@ ScopedJavaLocalRef<jobject> DirectMatchBridge::CreateJavaDirectMatchItem(
       ConvertUTF8ToJavaString(env, unit->image_path), 1, 1);
 }
 
-static jlong JNI_DirectMatchBridge_Init(
-    JNIEnv* env,
-    const jni_zero::JavaParamRef<jobject>& caller,
-    const jni_zero::JavaParamRef<jobject>& profile) {
-  DirectMatchBridge* delegate = new DirectMatchBridge(env, caller, profile);
-  return reinterpret_cast<intptr_t>(delegate);
-}
-
 void DirectMatchBridge::OnFinishedDownloadingDirectMatchUnits() {
   JNIEnv* env = AttachCurrentThread();
   jni_zero::ScopedJavaLocalRef<jobject> obj = weak_java_ref_.get(env);
@@ -146,3 +144,5 @@ void DirectMatchBridge::OnFinishedDownloadingDirectMatchUnitsIcon() {
     return;
   Java_DirectMatchBridge_directMatchIconsDownloadFinished(env, obj);
 }
+
+DEFINE_JNI_FOR_DirectMatchBridge_SEE_JNI_ZERO_README()

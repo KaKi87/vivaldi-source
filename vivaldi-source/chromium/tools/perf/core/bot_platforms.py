@@ -198,7 +198,6 @@ class ExecutableConfig(object):
 
 
 class CrossbenchConfig:
-
   def __init__(self,
                name,
                crossbench_name,
@@ -265,11 +264,7 @@ OFFICIAL_BENCHMARK_CONFIGS = PerfSuite(
 OFFICIAL_BENCHMARK_CONFIGS = OFFICIAL_BENCHMARK_CONFIGS.Remove([
     'blink_perf.svg',
     'blink_perf.paint',
-    'jetstream2-minorms',
-    'octane-minorms',
-    'speedometer2-minorms',
     'speedometer2-predictable',
-    'speedometer3-minorms',
     'speedometer3-predictable',
 ])
 # TODO(crbug.com/40628256): Remove OFFICIAL_BENCHMARK_NAMES once sharding
@@ -412,13 +407,9 @@ def _speedometer_main_crossbench(estimated_runtime=60, arguments=()):
 
 def _speedometer3_a11y_crossbench(estimated_runtime=60, arguments=()):
   """Latest Speedometer 3 with accessibility flag enabled."""
-  # TODO(crbug.com/444653101): This configuration runs the same speedometer_3
-  # benchmark as _speedometer3_crossbench, but since the benchmark name is used
-  # as the dict key inside the shard maps, we can't pass 'speedometer_3' to
-  # CrossbenchConfig constructor. We work around this by using alias 'sp3'.
   arguments += ('--extra-browser-args=--force-renderer-accessibility', )
   return CrossbenchConfig('speedometer3.a11y.crossbench',
-                          'sp3',
+                          'speedometer_3',
                           estimated_runtime=estimated_runtime,
                           arguments=arguments)
 
@@ -490,9 +481,30 @@ def _jetstream2_crossbench(estimated_runtime=180, arguments=()):
                           arguments=arguments)
 
 
+def _jetstream3_0_crossbench(estimated_runtime=180, arguments=()):
+  return CrossbenchConfig('jetstream3_0.crossbench',
+                          'jetstream_3.0',
+                          estimated_runtime=estimated_runtime,
+                          arguments=arguments)
+
+
+def _jetstream3_crossbench(estimated_runtime=180, arguments=()):
+  return CrossbenchConfig('jetstream3.crossbench',
+                          'jetstream_3',
+                          estimated_runtime=estimated_runtime,
+                          arguments=arguments)
+
 def _jetstream_main_crossbench(estimated_runtime=180, arguments=()):
   return CrossbenchConfig('jetstream_main.crossbench',
                           'jetstream_main',
+                          estimated_runtime=estimated_runtime,
+                          arguments=arguments)
+
+
+def _jetstream3_turbolev_future_crossbench(estimated_runtime=180, arguments=()):
+  arguments += ('--js-flags=--turbolev-future', )
+  return CrossbenchConfig('jetstream3-turbolev_future.crossbench',
+                          'jetstream_3',
                           estimated_runtime=estimated_runtime,
                           arguments=arguments)
 
@@ -508,6 +520,13 @@ def _loadline_phone_crossbench(estimated_runtime=7000, arguments=()):
 def _loadline_tablet_crossbench(estimated_runtime=3600, arguments=()):
   return CrossbenchConfig('loadline_tablet.crossbench',
                           'loadline-tablet-fast',
+                          estimated_runtime=estimated_runtime,
+                          arguments=arguments)
+
+
+def _loadline2_phone_crossbench(estimated_runtime=1000, arguments=()):
+  return CrossbenchConfig('loadline2_phone.crossbench',
+                          'loadline2-phone',
                           estimated_runtime=estimated_runtime,
                           arguments=arguments)
 
@@ -548,6 +567,8 @@ _CROSSBENCH_BENCHMARKS_ALL = frozenset([
     _speedometer3_crossbench(),
     _motionmark1_3_crossbench(),
     _jetstream2_crossbench(),
+    _jetstream3_crossbench(),
+    _jetstream3_turbolev_future_crossbench(),
 ])
 
 # TODO(crbug.com/338630584): Remove it when other benchmarks can be run on
@@ -570,6 +591,7 @@ _CROSSBENCH_PIXEL9 = frozenset([
         '--cool-down-threshold=moderate',
         '--debug',
     ]),
+    _loadline2_phone_crossbench(arguments=['--debug']),
 ])
 
 _CROSSBENCH_ANDROID_AL_BRYA = frozenset([
@@ -656,13 +678,9 @@ _LINUX_BENCHMARK_CONFIGS = PerfSuite(OFFICIAL_BENCHMARK_CONFIGS).Remove([
     'blink_perf.svg',
     'blink_perf.paint',
 ])
-_LINUX_BENCHMARK_CONFIGS_WITH_MINORMS_PREDICTABLE = PerfSuite(
+_LINUX_BENCHMARK_CONFIGS_WITH_PREDICTABLE = PerfSuite(
     _LINUX_BENCHMARK_CONFIGS).Add([
-        'jetstream2-minorms',
-        'octane-minorms',
-        'speedometer2-minorms',
         'speedometer2-predictable',
-        'speedometer3-minorms',
         'speedometer3-predictable',
     ])
 _LINUX_EXECUTABLE_CONFIGS = frozenset([
@@ -673,7 +691,7 @@ _LINUX_EXECUTABLE_CONFIGS = frozenset([
     _tracing_perftests(5),
 ])
 _LINUX_R350_BENCHMARK_CONFIGS = PerfSuite(
-    _LINUX_BENCHMARK_CONFIGS_WITH_MINORMS_PREDICTABLE).Remove([
+    _LINUX_BENCHMARK_CONFIGS_WITH_PREDICTABLE).Remove([
         'rendering.desktop',
         'rendering.desktop.notracing',
         'system_health.common_desktop',
@@ -699,10 +717,7 @@ _MAC_M1_MINI_2020_BENCHMARK_CONFIGS = PerfSuite(
     OFFICIAL_BENCHMARK_CONFIGS).Remove([
         'v8.runtime_stats.top_25',
     ]).Add([
-        'jetstream2-minorms',
         'jetstream2-no-field-trials',
-        'speedometer2-minorms',
-        'speedometer3-minorms',
         'speedometer3-no-field-trials',
     ]).Repeat([
         'speedometer2',
@@ -739,10 +754,6 @@ _MAC_M1_MINI_2020_EXECUTABLE_CONFIGS = frozenset([
 ])
 _MAC_M2_PRO_BENCHMARK_CONFIGS = PerfSuite(OFFICIAL_BENCHMARK_CONFIGS).Remove([
     'v8.runtime_stats.top_25',
-]).Add([
-    'jetstream2-minorms',
-    'speedometer2-minorms',
-    'speedometer3-minorms',
 ])
 _MAC_M3_PRO_BENCHMARK_CONFIGS = PerfSuite([])
 _MAC_M4_MINI_BENCHMARK_CONFIGS = PerfSuite(OFFICIAL_BENCHMARK_CONFIGS)
@@ -847,33 +858,20 @@ _ANDROID_PIXEL6_PGO_BENCHMARK_CONFIGS = PerfSuite([
     _GetBenchmarkConfig('speedometer3', pageset_repeat=16),
     _GetBenchmarkConfig('speedometer3-predictable'),
 ])
-_ANDROID_PIXEL6_PRO_BENCHMARK_CONFIGS = PerfSuite(
-    OFFICIAL_BENCHMARK_CONFIGS).Add([
-        _GetBenchmarkConfig('jetstream2-minorms'),
-        _GetBenchmarkConfig('speedometer2-minorms'),
-        _GetBenchmarkConfig('speedometer3-minorms'),
-    ])
 # TODO(crbug.com/409326154): Remove these for the crossbench variants when
 # supported.
 _ANDROID_PIXEL9_BENCHMARK_CONFIGS = PerfSuite([
     _GetBenchmarkConfig('jetstream2'),
 ])
-_ANDROID_PIXEL_FOLD_BENCHMARK_CONFIGS = PerfSuite(
-    OFFICIAL_BENCHMARK_CONFIGS).Add([
-        _GetBenchmarkConfig('jetstream2-minorms'),
-        _GetBenchmarkConfig('speedometer2-minorms'),
-        _GetBenchmarkConfig('speedometer3-minorms'),
-    ])
-_ANDROID_PIXEL_TANGOR_BENCHMARK_CONFIGS = PerfSuite(
-    OFFICIAL_BENCHMARK_CONFIGS).Add([
-        _GetBenchmarkConfig('jetstream2-minorms'),
-        _GetBenchmarkConfig('speedometer2-minorms'),
-        _GetBenchmarkConfig('speedometer3-minorms')
-    ])
 # Android Desktop (AL)
 _ANDROID_AL_BRYA_BENCHMARK_CONFIGS = PerfSuite([
     _GetBenchmarkConfig('jetstream2'),
     _GetBenchmarkConfig('speedometer2'),
+])
+_ANDROID_AL_BRYA_EXECUTABLE_CONFIGS = frozenset([
+    ExecutableConfig('web_tests_cuj',
+                     path='../../tools/perf/web_tests_cuj.py',
+                     estimated_runtime=10),
 ])
 _ANDROID_AL_BENCHMARK_CONFIGS = PerfSuite([
     _GetBenchmarkConfig('rendering.mobile'),
@@ -888,14 +886,13 @@ _FUCHSIA_PERF_SMARTDISPLAY_BENCHMARK_CONFIGS = PerfSuite([
 ])
 _LINUX_PERF_FYI_BENCHMARK_CONFIGS = PerfSuite([
     _GetBenchmarkConfig('speedometer2'),
-    _GetBenchmarkConfig('speedometer2-minorms'),
     _GetBenchmarkConfig('speedometer3'),
 ])
 
 
 # Linux
-LINUX = PerfPlatform('linux-perf',
-                     'Ubuntu-22.04, Precision 3930 Rack, NVIDIA GeForce GTX 1660',
+LINUX = PerfPlatform('linux-perf', ('Ubuntu-22.04, Precision 3930 Rack, '
+                                    'NVIDIA GeForce GTX 1660'),
                      _LINUX_GPU_BENCHMARK_CONFIGS,
                      7,
                      'linux',
@@ -918,7 +915,8 @@ LINUX_R350 = PerfPlatform('linux-r350-perf',
                           30,
                           'linux',
                           executables=_LINUX_EXECUTABLE_CONFIGS,
-                          crossbench=_CROSSBENCH_BENCHMARKS_ALL)
+                          crossbench=_CROSSBENCH_BENCHMARKS_ALL
+                          | {_devtools_frontend_crossbench()})
 LINUX_FALCON_RAK_5070 = PerfPlatform('linux-falcon-rak-5070-perf',
                                      'Linux Falcon RAK 5070',
                                      _FALCON_BENCHMARK_CONFIGS,
@@ -942,7 +940,7 @@ MAC_M1_MINI_2020 = PerfPlatform(
     28,
     'mac',
     executables=_MAC_M1_MINI_2020_EXECUTABLE_CONFIGS,
-    crossbench=_CROSSBENCH_BENCHMARKS_ALL)
+    crossbench=_CROSSBENCH_BENCHMARKS_ALL | {_devtools_frontend_crossbench()})
 MAC_M1_MINI_2020_PGO = PerfPlatform('mac-m1_mini_2020-perf-pgo',
                                     'Mac M1 Mini 2020',
                                     _MAC_M1_MINI_2020_PGO_BENCHMARK_CONFIGS,
@@ -1020,14 +1018,16 @@ WIN_10_AMD_LAPTOP_PGO = PerfPlatform('win-10_amd_laptop-perf-pgo',
                                      3,
                                      'win',
                                      pinpoint_only=True)
-WIN_11 = PerfPlatform('win-11-perf',
-                      'Windows Dell PowerEdge R350',
-                      _WIN_11_BENCHMARK_CONFIGS,
-                      20,
-                      'win',
-                      executables=_WIN_11_EXECUTABLE_CONFIGS,
-                      crossbench=_CROSSBENCH_BENCHMARKS_ALL
-                      | {_speedometer3_a11y_crossbench()})
+WIN_11 = PerfPlatform(
+    'win-11-perf',
+    'Windows Dell PowerEdge R350',
+    _WIN_11_BENCHMARK_CONFIGS,
+    20,
+    'win',
+    executables=_WIN_11_EXECUTABLE_CONFIGS,
+    crossbench=_CROSSBENCH_BENCHMARKS_ALL
+    | {_speedometer3_a11y_crossbench(),
+       _devtools_frontend_crossbench()})
 WIN_11_PGO = PerfPlatform('win-11-perf-pgo',
                           'Windows Dell PowerEdge R350',
                           _WIN_11_BENCHMARK_CONFIGS,
@@ -1055,10 +1055,13 @@ WIN_ARM64_SNAPDRAGON_ELITE = PerfPlatform(
 ANDROID_BRYA = PerfPlatform(
     name='android-brya-kano-i5-8gb-perf',
     description='Brya SKU kano_12th_Gen_IntelR_CoreTM_i5_1235U_8GB',
-    num_shards=7,
+    # We have enough resources to run at least 7 shards, but currently only
+    # have enough benchmarks to fill 4 shards, so setting num_shards=4 to
+    # avoid wasting resources.
+    num_shards=4,
     benchmark_configs=_ANDROID_AL_BRYA_BENCHMARK_CONFIGS,
     platform_os='android',
-    executables=None,
+    executables=_ANDROID_AL_BRYA_EXECUTABLE_CONFIGS,
     crossbench=_CROSSBENCH_ANDROID_AL)
 ANDROID_CORSOLA = PerfPlatform(name='android-corsola-steelix-8gb-perf',
                                description='Corsola SKU steelix_MT8186_8GB',
@@ -1114,14 +1117,14 @@ ANDROID_PIXEL6_PGO = PerfPlatform(
 ANDROID_PIXEL6_PRO = PerfPlatform(
     'android-pixel6-pro-perf',
     'Android T',
-    _ANDROID_PIXEL6_PRO_BENCHMARK_CONFIGS,
+    OFFICIAL_BENCHMARK_CONFIGS,
     10,
     'android',
     executables=_ANDROID_DEFAULT_EXECUTABLE_CONFIGS)
 ANDROID_PIXEL6_PRO_PGO = PerfPlatform(
     'android-pixel6-pro-perf-pgo',
     'Android T',
-    _ANDROID_PIXEL6_PRO_BENCHMARK_CONFIGS,
+    OFFICIAL_BENCHMARK_CONFIGS,
     16,
     'android',
     executables=_ANDROID_DEFAULT_EXECUTABLE_CONFIGS,
@@ -1129,14 +1132,14 @@ ANDROID_PIXEL6_PRO_PGO = PerfPlatform(
 ANDROID_PIXEL_FOLD = PerfPlatform(
     'android-pixel-fold-perf',
     'Android U',
-    _ANDROID_PIXEL_FOLD_BENCHMARK_CONFIGS,
+    OFFICIAL_BENCHMARK_CONFIGS,
     10,
     'android',
     executables=_ANDROID_DEFAULT_EXECUTABLE_CONFIGS)
 ANDROID_PIXEL_TANGOR = PerfPlatform(
     'android-pixel-tangor-perf',
     'Android U',
-    _ANDROID_PIXEL_TANGOR_BENCHMARK_CONFIGS,
+    OFFICIAL_BENCHMARK_CONFIGS,
     8,
     'android',
     executables=_ANDROID_DEFAULT_EXECUTABLE_CONFIGS,
@@ -1233,8 +1236,8 @@ LINUX_PERF_FYI = PerfPlatform('linux-perf-fyi',
                               _LINUX_PERF_FYI_BENCHMARK_CONFIGS,
                               1,
                               'linux',
-                              crossbench=_CROSSBENCH_BENCHMARKS_ALL.union(
-                                  [_devtools_frontend_crossbench()]),
+                              crossbench=_CROSSBENCH_BENCHMARKS_ALL
+                              | {_devtools_frontend_crossbench()},
                               is_fyi=True)
 
 ALL_PLATFORMS = {

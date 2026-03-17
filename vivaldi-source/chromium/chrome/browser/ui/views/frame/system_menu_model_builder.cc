@@ -5,26 +5,33 @@
 #include "chrome/browser/ui/views/frame/system_menu_model_builder.h"
 
 #include "base/command_line.h"
+#include "base/feature_list.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
 #include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/ui/views/frame/immersive_mode_controller.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+#include "chrome/browser/user_education/user_education_service.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/strings/grit/components_strings.h"
+#include "components/user_education/common/new_badge/new_badge_controller.h"
 #include "ui/base/accelerators/accelerator.h"
+#include "ui/base/models/menu_model.h"
 #include "ui/menus/simple_menu_model.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
 #include "ash/multi_user/multi_user_window_manager.h"
 #include "ash/shell.h"
+#include "chrome/browser/ash/boca/on_task/on_task_locked_controller.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/ash/multi_user/multi_user_util.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -44,7 +51,7 @@
 #include "ui/ozone/public/ozone_platform.h"
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/public/glic_enabling.h"
 #endif
 
@@ -97,7 +104,7 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
 
   model->AddItemWithStringId(IDC_BOOKMARK_ALL_TABS, IDS_BOOKMARK_ALL_TABS);
   model->AddItemWithStringId(IDC_NAME_WINDOW, IDS_NAME_WINDOW);
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #if BUILDFLAG(IS_WIN)
   // On Windows we can not remove an item when showing the menu. So only add
   // the glic toggle option if glic is enabled when building the menu.
@@ -108,22 +115,41 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
 #if BUILDFLAG(IS_WIN)
   }
 #endif  // BUILDFLAG(IS_WIN)
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
-  if (tabs::IsVerticalTabsFeatureEnabled()) {
-    model->AddSeparator(ui::NORMAL_SEPARATOR);
-    if (browser()
-            ->browser_window_features()
-            ->vertical_tab_strip_state_controller()
-            ->ShouldDisplayVerticalTabs()) {
-      model->AddItemWithStringId(IDC_TOGGLE_VERTICAL_TABS,
-                                 IDS_SWITCH_TO_HORIZONTAL_TAB);
-    } else {
-      model->AddItemWithStringId(IDC_TOGGLE_VERTICAL_TABS,
-                                 IDS_SWITCH_TO_VERTICAL_TAB);
+  if (auto* controller =
+          tabs::VerticalTabStripStateController::From(browser())) {
+    // TODO(crbug.com/475222200): When in immersive, swapping between tab
+    // strip types create duplicate tab strips. Until that is resolved, disable
+    // the ability to swap between tab strips while in immersive.
+    if (!ImmersiveModeController::From(browser())->IsEnabled()) {
+      model->AddSeparator(ui::NORMAL_SEPARATOR);
+      if (controller->ShouldDisplayVerticalTabs()) {
+        model->AddItemWithStringId(IDC_TOGGLE_VERTICAL_TABS,
+                                   IDS_SWITCH_TO_HORIZONTAL_TAB);
+      } else {
+        model->AddItemWithStringId(IDC_TOGGLE_VERTICAL_TABS,
+                                   IDS_SWITCH_TO_VERTICAL_TAB);
+        const bool use_preview_badge =
+            base::FeatureList::IsEnabled(tabs::kVerticalTabsPreviewBadge);
+        const ui::NewBadgeType badge_type = use_preview_badge
+                                                ? ui::NewBadgeType::kPreview
+                                                : ui::NewBadgeType::kNew;
+        const user_education::DisplayNewBadge show_badge =
+            UserEducationService::MaybeShowNewBadge(
+                browser()->GetProfile(), use_preview_badge
+                                             ? tabs::kVerticalTabsPreviewBadge
+                                             : tabs::kVerticalTabsNewBadge);
+        model->SetIsNewFeatureAt(
+            model->GetIndexOfCommandId(IDC_TOGGLE_VERTICAL_TABS).value(),
+            show_badge, badge_type);
+      }
+      model->SetElementIdentifierAt(
+          model->GetIndexOfCommandId(IDC_TOGGLE_VERTICAL_TABS).value(),
+          kToggleVerticalTabsElementId);
+      model->AddItemWithStringId(IDC_VERTICAL_TABS_SEND_FEEDBACK,
+                                 IDS_VERTICAL_TABS_SEND_FEEDBACK);
     }
-    model->SetElementIdentifierAt(model->GetItemCount() - 1,
-                                  kToggleVerticalTabsElementId);
   }
 
   if (chrome::CanOpenTaskManager()) {
@@ -196,7 +222,8 @@ void SystemMenuModelBuilder::BuildSystemMenuForAppOrPopupWindow(
 #if BUILDFLAG(IS_CHROMEOS)
   // Hide TaskManager option for the app if it is locked for OnTask. Only
   // relevant for non-web browser scenarios.
-  if (browser()->IsLockedForOnTask()) {
+  if (ash::boca::OnTaskLockedController::From(browser())
+          ->is_locked_for_on_task()) {
     should_show_task_manager = false;
   }
 #endif
@@ -217,18 +244,19 @@ void SystemMenuModelBuilder::BuildSystemMenuForAppOrPopupWindow(
 #if BUILDFLAG(IS_CHROMEOS)
 void SystemMenuModelBuilder::AppendMoveToDesksMenu(ui::SimpleMenuModel* model) {
   auto* const browser = menu_delegate_.browser();
-  gfx::NativeWindow window = browser->window()->GetNativeWindow();
   // Do not show the move to desks menu if the app is locked for OnTask. Only
   // relevant for non-web browser scenarios.
-  if (browser->IsLockedForOnTask() ||
-      !chromeos::MoveToDesksMenuDelegate::ShouldShowMoveToDesksMenu(window)) {
+  if (ash::boca::OnTaskLockedController::From(browser)
+          ->is_locked_for_on_task() ||
+      !chromeos::MoveToDesksMenuDelegate::ShouldShowMoveToDesksMenu()) {
     return;
   }
 
   model->AddSeparator(ui::NORMAL_SEPARATOR);
   move_to_desks_model_ = std::make_unique<chromeos::MoveToDesksMenuModel>(
       std::make_unique<chromeos::MoveToDesksMenuDelegate>(
-          views::Widget::GetWidgetForNativeWindow(window)));
+          views::Widget::GetWidgetForNativeWindow(
+              browser->window()->GetNativeWindow())));
   model->AddSubMenuWithStringId(chromeos::MoveToDesksMenuModel::kMenuCommandId,
                                 IDS_MOVE_TO_DESKS_MENU,
                                 move_to_desks_model_.get());

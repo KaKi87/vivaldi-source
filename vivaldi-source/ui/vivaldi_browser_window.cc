@@ -44,11 +44,13 @@
 #include "chrome/browser/ui/autofill/save_address_bubble_controller.h"
 #include "chrome/browser/ui/autofill/update_address_bubble_controller.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_list_observer.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/browser_window_state.h"
+#include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
 #include "chrome/browser/ui/passwords/manage_passwords_icon_view.h"
@@ -98,7 +100,7 @@
 #include "extensions/browser/view_type_utils.h"
 #include "extensions/common/manifest_handlers/icons_handler.h"
 #include "extensions/common/mojom/app_window.mojom.h"
-#if BUILDFLAG (IS_WIN)
+#if BUILDFLAG(IS_WIN)
 #include "installer/util/vivaldi_setup_util.h"
 #endif
 #include "services/service_manager/public/cpp/interface_provider.h"
@@ -113,6 +115,7 @@
 #include "ui/views/widget/widget_observer.h"
 
 #include "app/vivaldi_constants.h"
+#include "browser/features/vivaldi_features.h"
 #include "browser/menus/vivaldi_menus.h"
 #include "browser/vivaldi_browser_finder.h"
 #include "extensions/api/events/vivaldi_ui_events.h"
@@ -129,6 +132,7 @@
 #include "ui/infobar_container_web_proxy.h"
 #include "ui/views/vivaldi_native_widget.h"
 #include "ui/views/vivaldi_window_widget_delegate.h"
+#include "ui/vivaldi_browser_ui_data.h"
 #include "ui/vivaldi_location_bar.h"
 #include "ui/vivaldi_quit_confirmation_dialog.h"
 #include "ui/vivaldi_rootdocument_handler.h"
@@ -181,9 +185,9 @@ class UninstallDialogHelper : public ExtensionUninstallDialog::Delegate {
   UninstallDialogHelper& operator=(const UninstallDialogHelper&) = delete;
 
   void BeginUninstall(Browser* browser, const Extension* extension) {
-     uninstall_dialog_ = ExtensionUninstallDialog::Create(
+    uninstall_dialog_ = ExtensionUninstallDialog::Create(
         browser->profile(), browser->window()->GetNativeWindow(), this);
-     uninstall_dialog_->ConfirmUninstall(extension,
+    uninstall_dialog_->ConfirmUninstall(extension,
                                         UNINSTALL_REASON_USER_INITIATED,
                                         UNINSTALL_SOURCE_TOOLBAR_CONTEXT_MENU);
   }
@@ -199,11 +203,11 @@ class UninstallDialogHelper : public ExtensionUninstallDialog::Delegate {
 }  // namespace extensions
 
 // Used by Chrome's send tab to self functionality to pass data as events to JS.
-VivaldiUIRelay::VivaldiUIRelay(Profile* profile)
-  :profile_(profile) {}
+VivaldiUIRelay::VivaldiUIRelay(Profile* profile) : profile_(profile) {}
 
 void VivaldiUIRelay::DisplayNewEntries(
-  const std::vector<const send_tab_to_self::SendTabToSelfEntry*>& new_entries) {
+    const std::vector<const send_tab_to_self::SendTabToSelfEntry*>&
+        new_entries) {
   std::vector<extensions::vivaldi::tabs_private::SendTabToSelfEntry> list;
   for (auto entry : new_entries) {
     extensions::vivaldi::tabs_private::SendTabToSelfEntry item;
@@ -223,20 +227,95 @@ void VivaldiUIRelay::DisplayNewEntries(
 void VivaldiUIRelay::DismissEntries(const std::vector<std::string>& guids) {
   ::vivaldi::BroadcastEvent(
       extensions::vivaldi::tabs_private::OnSendTabToSelfDismissed::kEventName,
-      extensions::vivaldi::tabs_private::OnSendTabToSelfDismissed::Create(guids),
+      extensions::vivaldi::tabs_private::OnSendTabToSelfDismissed::Create(
+          guids),
       profile_);
 }
 
 namespace {
 
-Browser* FindActiveBrowser() {
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->window()->IsActive()) {
-      return browser;
-    }
-  }
-  return nullptr;
+BrowserWindowInterface* FindActiveBrowserWindowInterface() {
+  BrowserWindowInterface* active_browser = nullptr;
+  ForEachCurrentAndNewBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->GetWindow() && browser->GetWindow()->IsActive()) {
+          active_browser = browser;
+          return false;  // stop iterating
+        }
+        return true;  // continue iterating
+      });
+  return active_browser;
 }
+
+bool SegmentIntersectsRect(const gfx::Point& p0,
+                           const gfx::Point& p1,
+                           const gfx::Rect& rect) {
+  // Shortcut: Last mouse position is inside the rect.
+  if (rect.Contains(p1)) {
+    return true;
+  }
+  // Shortcut: The previous mouse position is inside the rect, but the new one
+  // is not - the mouse has left the rect.
+  // Report that the segment is NOT intersecting.
+  if ((rect.Contains(p0)) && !rect.Contains(p1)) {
+    return false;
+  }
+
+  if (p0 == p1) {
+    return false;
+  }
+
+  // Liang–Barsky algorithm - it detects when a line intersects a rectangle.
+  const double x0 = static_cast<double>(p0.x());
+  const double y0 = static_cast<double>(p0.y());
+  const double dx = static_cast<double>(p1.x() - p0.x());
+  const double dy = static_cast<double>(p1.y() - p0.y());
+
+  const double left = rect.x();
+  const double right = rect.right();
+  const double top = rect.y();
+  const double bottom = rect.bottom();
+
+  const auto clip_test = [](double p, double q, double& t0, double& t1) {
+    if (p == 0.0) {
+      return q >= 0.0;
+    }
+
+    const double r = q / p;
+
+    if (p < 0.0) {
+      if (r > t1)
+        return false;
+      if (r > t0)
+        t0 = r;
+    } else {
+      if (r < t0)
+        return false;
+      if (r < t1)
+        t1 = r;
+    }
+
+    return true;
+  };
+
+  double t0 = 0.0;
+  double t1 = 1.0;
+
+  if (
+      // x >= left
+      !clip_test(-dx, x0 - left, t0, t1) ||
+      // x <= right
+      !clip_test(dx, right - x0, t0, t1) ||
+      // y >= top
+      !clip_test(-dy, y0 - top, t0, t1) ||
+      // y <= bottom
+      !clip_test(dy, bottom - y0, t0, t1)) {
+    return false;
+  }
+
+  return t0 <= t1;
+}
+
 }  // namespace
 
 // The document loaded in portal-windows.
@@ -255,7 +334,7 @@ WindowState ConvertToJSWindowState(ui::mojom::WindowShowState state) {
       return WindowState::kNormal;
   }
   NOTREACHED();
-  //return WindowState::kNormal;
+  // return WindowState::kNormal;
 }
 
 class VivaldiBrowserWindow::InterfaceHelper final
@@ -295,9 +374,7 @@ class VivaldiBrowserWindow::InterfaceHelper final
     window_->SetFullscreen(false, display::kInvalidDisplayId);
   }
 
-  bool CanUserEnterFullscreen() const override {
-    return window_->GetCanResizeFromWebAPI().value_or(true);
-  }
+  bool CanUserEnterFullscreen() const override { return true; }
 
   bool CanUserExitFullscreen() const override { return true; }
 
@@ -362,6 +439,13 @@ class VivaldiBrowserWindow::InterfaceHelper final
         web_contents, controller);
   }
 
+  autofill::AutofillBubbleBase* ShowAutofillAiLocalSaveNotification(
+      content::WebContents* web_contents,
+      autofill::AutofillAiImportDataController* controller) override {
+    return GetAutofillBubbleHandler()->ShowAutofillAiLocalSaveNotification(
+        web_contents, controller);
+  }
+
   autofill::AutofillBubbleBase* ShowSaveAddressProfileBubble(
       content::WebContents* web_contents,
       std::unique_ptr<autofill::SaveAddressBubbleController> controller,
@@ -376,8 +460,8 @@ class VivaldiBrowserWindow::InterfaceHelper final
       const autofill::AutofillProfile& autofill_profile) override {
     // This relies on kImprovedSigninUIOnDesktop, currently disabled. Returning
     // false might propegate problems. Leave for now. 134 intake VB-113625
-    return GetAutofillBubbleHandler()->ShowAddressSignInPromo(
-        web_contents, autofill_profile);
+    return GetAutofillBubbleHandler()->ShowAddressSignInPromo(web_contents,
+                                                              autofill_profile);
   }
 #endif  // BUILDFLAG(ENABLE_DICE_SUPPORT)
 
@@ -429,15 +513,15 @@ class VivaldiBrowserWindow::InterfaceHelper final
   }
 
   autofill::AutofillBubbleBase* ShowSaveIbanConfirmationBubble(
-    content::WebContents* web_contents,
-    autofill::IbanBubbleController* controller) override {
+      content::WebContents* web_contents,
+      autofill::IbanBubbleController* controller) override {
     return GetAutofillBubbleHandler()->ShowSaveIbanConfirmationBubble(
         web_contents, controller);
   }
 
   // ExtensionFunctionDispatcher::Delegate overrides
 
-  extensions::WindowController* GetExtensionWindowController() const override {
+  extensions::WindowController* GetExtensionWindowController() override {
     // Workaround for "VB-122900 Tile tab addon crashes Vivaldi"
     if (!window_->browser()) {
       LOG(WARNING) << "GetExtensionWindowController: Expected to find browser";
@@ -445,10 +529,6 @@ class VivaldiBrowserWindow::InterfaceHelper final
     }
     return extensions::BrowserExtensionWindowController::From(
         window_->browser());
-  }
-
-  content::WebContents* GetAssociatedWebContents() const override {
-    return window_->web_contents();
   }
 
   // ExtensionKeybindingRegistry::Delegate overrides
@@ -582,8 +662,7 @@ class VivaldiBrowserWindow::InterfaceHelper final
   // web_modal::WebContentsModalDialogManagerDelegate overrides
 
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHost(
-      content::WebContents* web_contents)
-      override {
+      content::WebContents* web_contents) override {
     return window_->GetWebContentsModalDialogHost();
   }
 
@@ -768,8 +847,7 @@ VivaldiBrowserWindow::VivaldiBrowserWindow()
 VivaldiBrowserWindow::~VivaldiBrowserWindow() {
   // The WindowRegistryService can return null.
   if (vivaldi::WindowRegistryService::Get(profile_)) {
-    vivaldi::WindowRegistryService::Get(profile_)
-        ->RemoveWindow(window_key_);
+    vivaldi::WindowRegistryService::Get(profile_)->RemoveWindow(window_key_);
   }
   DCHECK(root_doc_handler_);
   root_doc_handler_->RemoveObserver(interface_helper_.get());
@@ -793,8 +871,7 @@ VivaldiBrowserWindow* VivaldiBrowserWindow::FromBrowser(
   return static_cast<VivaldiBrowserWindow*>(browser->window());
 }
 
-VivaldiBrowserWindow* VivaldiBrowserWindow::FromId(
-    SessionID::id_type window_id) {
+VivaldiBrowserWindow* VivaldiBrowserWindow::FromId(int32_t window_id) {
   Browser* browser = vivaldi::FindBrowserByWindowId(window_id);
   VivaldiBrowserWindow* window = VivaldiBrowserWindow::FromBrowser(browser);
   if (window && !window->web_contents()) {
@@ -827,8 +904,8 @@ VivaldiBrowserWindow::CreateVivaldiBrowserWindow(Browser* browser) {
   params.native_decorations = browser->profile()->GetPrefs()->GetBoolean(
       vivaldiprefs::kWindowsUseNativeDecoration);
 
-  chrome::GetSavedWindowBoundsAndShowState(
-      browser, &params.content_bounds, &params.state);
+  chrome::GetSavedWindowBoundsAndShowState(browser, &params.content_bounds,
+                                           &params.state);
   params.workspace = browser->initial_workspace();
   params.visible_on_all_workspaces =
       browser->initial_visible_on_all_workspaces_state();
@@ -853,10 +930,29 @@ void VivaldiBrowserWindow::CreateWebContents(
   DCHECK(!browser->window() || browser->window() == this);
   browser_ = browser;
   profile_ = browser_->profile();
-  DCHECK_EQ(window_type_, NORMAL);
-  if (params.settings_window) {
-    window_type_ = SETTINGS;
+
+  vivaldi::VivaldiBrowserUiData* browser_ui_data =
+      vivaldi::VivaldiBrowserUiData::From(browser);
+  CHECK(browser_ui_data);
+
+  std::optional<base::Value> json = base::JSONReader::Read(
+      browser_ui_data->viv_ext_data(), base::JSON_PARSE_RFC);
+  if (json && json->is_dict()) {
+    const std::string* window_type = json->GetDict().FindString("windowType");
+    // window_type_ defaults to NORMAL.
+    if (window_type) {
+      if (*window_type == "normal") {
+        window_type_ = NORMAL;
+      } else if (*window_type == "popup") {
+        window_type_ = POPUP;
+      } else if (*window_type == "settings") {
+        window_type_ = SETTINGS;
+      } else if (*window_type == "mail-composer") {
+        window_type_ = MAIL_COMPOSER;
+      }
+    }
   }
+
   with_native_frame_ = params.native_decorations;
 
   minimum_size_ = params.minimum_size;
@@ -989,8 +1085,10 @@ void VivaldiBrowserWindow::InitWidget(
   init_params.wayland_app_id = init_params.wm_class_class;
   const char kX11WindowRoleBrowser[] = "browser";
   const char kX11WindowRolePopup[] = "pop-up";
+  const int32_t windowType = window_type();
   init_params.wm_role_name =
-      type() == VivaldiBrowserWindow::WindowType::SETTINGS
+      windowType == VivaldiBrowserWindow::WindowType::SETTINGS ||
+              windowType == VivaldiBrowserWindow::WindowType::MAIL_COMPOSER
           ? std::string(kX11WindowRolePopup)
           : std::string(kX11WindowRoleBrowser);
 #elif BUILDFLAG(IS_WIN)
@@ -1176,8 +1274,7 @@ void VivaldiBrowserWindow::ShowForReal() {
     auto* screen = display::Screen::Get();
     auto display = screen->GetDisplayNearestWindow(GetNativeWindow());
     SetFullscreen(true, display.id());
-  }
-  else if (initial_show_state == ui::mojom::WindowShowState::kMaximized)
+  } else if (initial_show_state == ui::mojom::WindowShowState::kMaximized)
     Maximize();
   else if (initial_show_state == ui::mojom::WindowShowState::kMinimized)
     Minimize();
@@ -1321,11 +1418,11 @@ void VivaldiBrowserWindow::MovePersistentTabsToOtherWindowIfNeeded() {
   for (size_t i = 0; i < pinned_tabs_to_move.size(); i++) {
     if (::vivaldi::ui_tools::GetTabById(pinned_tabs_to_move[i], nullptr,
                                         &index)) {
-      if (!::vivaldi::ui_tools::MoveTabToWindow(browser_, candidate,
-                                                index, &new_index, 0,
+      if (!::vivaldi::ui_tools::MoveTabToWindow(browser_, candidate, index,
+                                                &new_index, 0,
                                                 AddTabTypes::ADD_PINNED)) {
         NOTREACHED();
-        //break;
+        // break;
       }
       new_index += 1;
     }
@@ -1334,11 +1431,11 @@ void VivaldiBrowserWindow::MovePersistentTabsToOtherWindowIfNeeded() {
   for (size_t i = 0; i < workspace_tabs_to_move.size(); i++) {
     if (::vivaldi::ui_tools::GetTabById(workspace_tabs_to_move[i], nullptr,
                                         &index)) {
-      if (!::vivaldi::ui_tools::MoveTabToWindow(browser_, candidate,
-                                                index, &new_index, 0,
+      if (!::vivaldi::ui_tools::MoveTabToWindow(browser_, candidate, index,
+                                                &new_index, 0,
                                                 AddTabTypes::ADD_NONE)) {
         NOTREACHED();
-        //break;
+        // break;
       }
       new_index += 1;
     }
@@ -1349,21 +1446,22 @@ void VivaldiBrowserWindow::MovePersistentTabsToOtherWindowIfNeeded() {
 // Saves to session if possible.
 void VivaldiBrowserWindow::AutoSaveSession() {
 #if !BUILDFLAG(IS_MAC)
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->is_vivaldi()) {
-      VivaldiBrowserWindow* window =
-          static_cast<VivaldiBrowserWindow*>(browser->window());
-      Profile* profile = window->GetProfile();
-      // VivaldiBrowserWindow might have a destroyed browser without profile.
-      if (profile && !profile->IsGuestSession()) {
-        if (sessions::IndexServiceFactory::GetForBrowserContextIfExists(
-            profile)) {
-          sessions::AutoSave(profile, true);
-          break;
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->is_vivaldi()) {
+          Profile* profile = browser->GetProfile();
+          // VivaldiBrowserWindow might have a destroyed browser without
+          // profile.
+          if (profile && !profile->IsGuestSession()) {
+            if (sessions::IndexServiceFactory::GetForBrowserContextIfExists(
+                    profile)) {
+              sessions::AutoSave(profile, true);
+              return false;  // stop iterating
+            }
+          }
         }
-      }
-    }
-  }
+        return true;  // continue iterating
+      });
 #endif  // !IS_MAC
 }
 
@@ -1386,7 +1484,8 @@ bool VivaldiBrowserWindow::ConfirmWindowClose() {
         // Only one window (in case there are more) shall open dialog.
         bool show = AcquireQuitDialog();
         if (show) {
-          // We can attempt a close for a non-active window from the window panel.
+          // We can attempt a close for a non-active window from the window
+          // panel.
           if (!IsActive()) {
             this->Activate();
           }
@@ -1517,14 +1616,16 @@ void VivaldiBrowserWindow::ContinueClose(CloseDialogMode mode,
 // (application or window) has been stopped by the user due to beforeunload
 // handling
 void VivaldiBrowserWindow::CancelWindowClose() {
-  for (Browser* b : *BrowserList::GetInstance()) {
-    if (b->is_vivaldi()) {
-      VivaldiBrowserWindow* window =
-          static_cast<VivaldiBrowserWindow*>(b->window());
-      window->quit_dialog_shown_ = false;
-      window->close_dialog_shown_ = false;
-    }
-  }
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->is_vivaldi()) {
+          VivaldiBrowserWindow* window =
+              static_cast<VivaldiBrowserWindow*>(browser->GetWindow());
+          window->quit_dialog_shown_ = false;
+          window->close_dialog_shown_ = false;
+        }
+        return true;  // iterating over all browsers
+      });
 }
 
 VivaldiBrowserWindow::QuitAction VivaldiBrowserWindow::GetQuitAction() {
@@ -1536,7 +1637,8 @@ VivaldiBrowserWindow::QuitAction VivaldiBrowserWindow::GetQuitAction() {
       !GetProfile()->IsGuestSession()) {
     PrefService* prefs = GetProfile()->GetPrefs();
     return prefs->GetBoolean(vivaldiprefs::kSystemShowExitConfirmationDialog)
-        ? QuitAction::ShowDialogOnQuit : QuitAction::SaveSessionOnQuit;
+               ? QuitAction::ShowDialogOnQuit
+               : QuitAction::SaveSessionOnQuit;
   } else {
     return QuitAction::DoNothingOnQuit;
   }
@@ -1567,14 +1669,18 @@ bool VivaldiBrowserWindow::ShouldSavePersistentTabsOnCloseWindow() {
     return false;
   }
   int tabbed_windows_cnt = 0;
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->type() == Browser::TYPE_NORMAL) {
-      if (!browser->profile()->IsGuestSession() &&
-          !browser->profile()->IsOffTheRecord()) {
-        tabbed_windows_cnt++;
-      }
-    }
-  }
+
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) {
+          if (!browser->GetProfile()->IsGuestSession() &&
+              !browser->GetProfile()->IsOffTheRecord()) {
+            tabbed_windows_cnt++;
+          }
+        }
+        return true;  // iterating over all browsers
+      });
+
   if (tabbed_windows_cnt != 1) {
     return false;
   }
@@ -1583,12 +1689,14 @@ bool VivaldiBrowserWindow::ShouldSavePersistentTabsOnCloseWindow() {
 }
 
 void VivaldiBrowserWindow::SetQuitDialogOwner(VivaldiBrowserWindow* owner) {
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->is_vivaldi()) {
-      static_cast<VivaldiBrowserWindow*>(browser->window())
-          ->quit_dialog_owner_ = owner;
-    }
-  }
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->is_vivaldi()) {
+          static_cast<VivaldiBrowserWindow*>(browser->GetWindow())
+              ->quit_dialog_owner_ = owner;
+        }
+        return true;  // iterating over all browsers
+      });
 }
 
 // We may have several windows. They will all call this function almost at the
@@ -1598,8 +1706,8 @@ bool VivaldiBrowserWindow::AcquireQuitDialog() {
     if (vivaldi::GetBrowserCountOfType(Browser::TYPE_NORMAL) == 1) {
       SetQuitDialogOwner(this);
     } else {
-      Browser* browser = FindActiveBrowser();
-      if (!browser || browser == browser_) {
+      BrowserWindowInterface* browser = FindActiveBrowserWindowInterface();
+      if (!browser || browser->GetWindow() == this) {
         SetQuitDialogOwner(this);
       }
     }
@@ -1611,15 +1719,18 @@ bool VivaldiBrowserWindow::AcquireQuitDialog() {
 // dialog.
 void VivaldiBrowserWindow::AcceptQuitForAllWindows() {
   AutoSaveSession();
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->is_vivaldi()) {
-      VivaldiBrowserWindow* window =
-          static_cast<VivaldiBrowserWindow*>(browser->window());
-      window->quit_dialog_shown_ = true;
-      window->CloseCleanup();
-      window->Close();
-    }
-  }
+
+  ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->is_vivaldi()) {
+          VivaldiBrowserWindow* window =
+              static_cast<VivaldiBrowserWindow*>(browser->GetWindow());
+          window->quit_dialog_shown_ = true;
+          window->CloseCleanup();
+          window->Close();
+        }
+        return true;  // iterating over all browsers
+      });
 }
 
 DownloadBubbleUIController*
@@ -1642,12 +1753,12 @@ void VivaldiBrowserWindow::ConfirmBrowserCloseWithPendingDownloads(
 }
 
 void VivaldiBrowserWindow::Activate() {
+  if (browser_) {
+    browser_->DidBecomeActive();
+  }
   if (!widget_)
     return;
   widget_->Activate();
-  if (browser()) {
-    BrowserList::SetLastActive(browser());
-  }
 }
 
 void VivaldiBrowserWindow::Deactivate() {}
@@ -1688,7 +1799,7 @@ gfx::Rect VivaldiBrowserWindow::GetRestoredBounds() const {
     bounds.set_y(bounds.y() + 2);
     bounds.set_height(bounds.height() - 2);
   }
-#endif //IS_WIN
+#endif  // IS_WIN
   return bounds;
 }
 
@@ -1706,7 +1817,7 @@ ui::mojom::WindowShowState VivaldiBrowserWindow::GetRestoredState() const {
   // Use kRestoreShowStateKey in case a window is minimized/hidden.
   ui::mojom::WindowShowState restore_state =
       widget_->GetNativeWindow()->GetProperty(
-      aura::client::kRestoreShowStateKey);
+          aura::client::kRestoreShowStateKey);
 
   // Whitelist states to return so that invalid and transient states
   // are not saved and used to restore windows when they are recreated.
@@ -2081,7 +2192,7 @@ void VivaldiBrowserWindow::OnNativeWindowChanged(bool moved) {
   if (!widget_)
     return;
 
-  if (!browser_) // VB-121571
+  if (!browser_)  // VB-121571
     return;
 
 #if defined(USE_AURA)
@@ -2289,7 +2400,8 @@ int VivaldiBrowserWindow::GetTopControlsHeight() const {
   return 0;
 }
 
-void VivaldiBrowserWindow::OnTabDetached(content::WebContents* contents, bool was_active) {
+void VivaldiBrowserWindow::OnTabDetached(content::WebContents* contents,
+                                         bool was_active) {
   extensions::VivaldiRootDocumentHandler* rootdocument_handler =
       extensions::VivaldiRootDocumentHandlerFactory::GetForBrowserContext(
           browser_->profile());
@@ -2317,10 +2429,6 @@ void VivaldiBrowserWindow::NavigationStateChanged(
           GetProfile());
     }
   }
-}
-
-ExtensionsContainer* VivaldiBrowserWindow::GetExtensionsContainer() {
-  return nullptr;
 }
 
 ui::ZOrderLevel VivaldiBrowserWindow::GetZOrderLevel() const {
@@ -2397,11 +2505,11 @@ VivaldiBrowserWindow::ShowQRCodeGeneratorBubble(content::WebContents* contents,
   // code.
   vivaldi::BroadcastEvent(
       extensions::vivaldi::utilities::OnShowQRCode::kEventName,
-      extensions::vivaldi::utilities::OnShowQRCode::Create(
-        url.spec()), browser_->profile());
+      extensions::vivaldi::utilities::OnShowQRCode::Create(url.spec()),
+      browser_->profile());
 
-  auto *bubble_controler =
-    qrcode_generator::QRCodeGeneratorBubbleController::Get(contents);
+  auto* bubble_controler =
+      qrcode_generator::QRCodeGeneratorBubbleController::Get(contents);
 
   DCHECK(bubble_controler);
   if (bubble_controler) {
@@ -2459,7 +2567,7 @@ void VivaldiBrowserWindow::DraggableRegionsChanged(
   // This is based on RawDraggableRegionsToSkRegion from
   // chromium/extensions/browser/app_window/app_window.cc
   draggable_region_ = std::make_unique<SkRegion>();
-  for (auto& region: regions) {
+  for (auto& region : regions) {
     draggable_region_->op(
         SkIRect::MakeLTRB(region->bounds.x(), region->bounds.y(),
                           region->bounds.right(), region->bounds.bottom()),
@@ -2477,37 +2585,6 @@ bool VivaldiBrowserWindow::IsBorderlessModeEnabled() const {
   return false;
 }
 
-void VivaldiBrowserWindow::OnWebApiWindowResizableChanged() {
-  // NOTE(andre@vivaldi.com) : Lifted from BrowserView.
-  // TODO(laurila, crbug.com/1493617): Support multi-tab apps.
-  // The value can only be set in web apps, where there currently can only be 1
-  // WebContents, the return value can be determined only by looking at the
-  // value set by the active WebContents' primary page.
-  content::WebContents* web_contents = GetActiveWebContents();
-  if (!web_contents || !web_contents->GetPrimaryMainFrame() || !widget_) {
-    return;
-  }
-
-  auto can_resize = web_contents->GetPrimaryPage().GetResizable();
-  if (cached_can_resize_from_web_api_ == can_resize) {
-    return;
-  }
-
-  // Setting it to std::nullopt should never be blocked.
-  if (can_resize.has_value() && browser()->tab_strip_model()->count() > 1) {
-    // This adds a warning to the active tab, even when another tab makes the
-    // call, which also needs to be fixed as part of the multi-apps support.
-    web_contents->GetPrimaryMainFrame()->AddMessageToConsole(
-        blink::mojom::ConsoleMessageLevel::kWarning,
-        base::StringPrintf("window.setResizable blocked due to being called "
-                           "from a multi-tab browser."));
-    return;
-  }
-
-  cached_can_resize_from_web_api_ = can_resize;
-  widget_->OnSizeConstraintsChanged();
-}
-
 bool VivaldiBrowserWindow::GetCanResize() {
   // Will change in the future to handle multi-tab windows.
   // crbug.com/1493617 & SetCanResizeFromWebAPI.
@@ -2515,24 +2592,17 @@ bool VivaldiBrowserWindow::GetCanResize() {
                              ? widget_->widget_delegate()->CanResize()
                              : false;
 
-  return can_ever_resize && GetCanResizeFromWebAPI().value_or(true);
+  return can_ever_resize;
 }
 
-std::optional<bool> VivaldiBrowserWindow::GetCanResizeFromWebAPI() const {
-  // TODO(laurila, crbug.com/1493617): Support multi-tab apps.
-  if (browser()->tab_strip_model()->count() > 1) {
-    return std::nullopt;
-  }
+std::optional<bool> VivaldiBrowserWindow::GetWebApiWindowResizable() const {
+  // The API is allowed only for PWAs and IWAs
+  return false;
+}
 
-  // The value can only be set in web apps, where there currently can only be 1
-  // WebContents, the return value can be determined only by looking at the
-  // value set by the active WebContents' primary page.
-  content::WebContents* web_contents = GetActiveWebContents();
-  if (!web_contents || !web_contents->GetPrimaryMainFrame()) {
-    return std::nullopt;
-  }
-
-  return web_contents->GetPrimaryPage().GetResizable();
+void VivaldiBrowserWindow::SetResizableFromWebApi(
+    std::optional<bool> resizable) {
+  // The API is allowed only for PWAs and IWAs
 }
 
 ui::mojom::WindowShowState VivaldiBrowserWindow::GetWindowShowState() const {
@@ -2560,7 +2630,8 @@ void VivaldiBrowserWindow::ShowToast(
     const ToastSpecification* spec,
     std::vector<std::u16string> body_string_replacement_params) {
   extensions::vivaldi::window_private::ToastParameters params;
-  std::u16string body = l10n_util::GetStringFUTF16(spec->body_string_id(), body_string_replacement_params, nullptr);
+  std::u16string body = l10n_util::GetStringFUTF16(
+      spec->body_string_id(), body_string_replacement_params, nullptr);
   params.body = base::UTF16ToUTF8(body);
 
   ::vivaldi::BroadcastEvent(
@@ -2571,31 +2642,29 @@ void VivaldiBrowserWindow::ShowToast(
 
 void VivaldiBrowserWindow::UninstallExtensionViaDialog(
     const extensions::Extension* extension) {
-  extensions::UninstallDialogHelper::UninstallExtension(browser_,
-                                                        extension);
+  extensions::UninstallDialogHelper::UninstallExtension(browser_, extension);
 }
 
-void VivaldiBrowserWindow::ReportNCMousePosition(const gfx::Point& point) {
+void VivaldiBrowserWindow::ReportMousePosition(const gfx::Point& point) {
   if (!browser_)
     return;
 
-  // |point| is in scaled coordinates.
-  if (!GetProfile()->GetPrefs()->GetBoolean(vivaldiprefs::kAutoHideEnabled)) {
+  // Do not report when autohide feature is disabled.
+  if (!base::FeatureList::IsEnabled(vivaldi_features::kTabsAutoHide)) {
     return;
   }
 
-  // Area in pixels we want reporting from.
-  constexpr int insidebordersize = 10;
+  const bool auto_hide_enabled =
+      GetProfile()->GetPrefs()->GetBoolean(vivaldiprefs::kAutoHideEnabled);
+  const bool auto_hide_enabled_in_fullscreen =
+      GetProfile()->GetPrefs()->GetBoolean(vivaldiprefs::kAutoHideInFullscreen);
 
-  // Check where we are in relation to the window.
-  gfx::Point local_point = point;
-
-  static extensions::vivaldi::window_private::MouseEdgeType
-      last_reported_location =
-          extensions::vivaldi::window_private::MouseEdgeType::kAway;
-
-  extensions::vivaldi::window_private::MouseEdgeType location =
-      extensions::vivaldi::window_private::MouseEdgeType::kAway;
+  // Do not report when autohide is disabled, or window is not in fullscreen and
+  // autohide is not enabled in fullscreen.
+  if (!auto_hide_enabled &&
+      !(widget_->IsFullscreen() && auto_hide_enabled_in_fullscreen)) {
+    return;
+  }
 
   gfx::Rect window_rect = widget_->GetClientAreaBoundsInScreen();
   if (widget_->IsFullscreen()) {
@@ -2605,123 +2674,182 @@ void VivaldiBrowserWindow::ReportNCMousePosition(const gfx::Point& point) {
   window_rect.set_x(0);
   window_rect.set_y(0);
 
-  gfx::Rect toprect(window_rect);
-  toprect.set_height(insidebordersize);
+  constexpr int DEAD_CORNER_SIZE_IN_PX = 34;
+  // Area in pixels we want reporting from.
+  constexpr int THIN_BORDER_SIZE_IN_PX = 10;
 
-  gfx::Rect bottomrect(window_rect);
-  bottomrect.set_y(bottomrect.height() - insidebordersize);
-  bottomrect.set_height(insidebordersize);
+  const gfx::Size dead_corner_size =
+      gfx::Size(DEAD_CORNER_SIZE_IN_PX, DEAD_CORNER_SIZE_IN_PX);
+  const gfx::Rect dead_corner_top_left(window_rect.origin(), dead_corner_size);
+  const gfx::Rect dead_corner_bottom_left(
+      window_rect.bottom_left() - gfx::Vector2d(0, DEAD_CORNER_SIZE_IN_PX),
+      dead_corner_size);
+  const gfx::Rect dead_corner_top_right(
+      window_rect.top_right() - gfx::Vector2d(DEAD_CORNER_SIZE_IN_PX, 0),
+      dead_corner_size);
+  const gfx::Rect dead_corner_bottom_right(
+      window_rect.bottom_right() -
+          gfx::Vector2d(DEAD_CORNER_SIZE_IN_PX, DEAD_CORNER_SIZE_IN_PX),
+      dead_corner_size);
 
-  gfx::Rect leftrect(window_rect);
-  leftrect.set_width(insidebordersize);
-
-  gfx::Rect rightrect(window_rect);
-  rightrect.set_x(rightrect.right() - insidebordersize);
-
-  // Note: If needed we can stretch outside the visible window by WINDOW_BORDER.
-  if (toprect.Contains(local_point.x(), local_point.y())) {
-    location = extensions::vivaldi::window_private::MouseEdgeType::kTop;
-  } else if (leftrect.Contains(local_point.x(), local_point.y())) {
-    location = extensions::vivaldi::window_private::MouseEdgeType::kLeft;
-  } else if (rightrect.Contains(local_point.x(), local_point.y())) {
-    location = extensions::vivaldi::window_private::MouseEdgeType::kRight;
-  } else if (bottomrect.Contains(local_point.x(), local_point.y())) {
-    location = extensions::vivaldi::window_private::MouseEdgeType::kBottom;
-  }
+  const bool point_is_in_screen = window_rect.Contains(point);
+  const auto dispatch_hit_test = [&point_is_in_screen](const gfx::Point& p0,
+                                                       const gfx::Point& p1,
+                                                       const gfx::Rect& rect) {
+    // We only want to interpolate the mouse movement only if the mouse goes
+    // outside the window, for other cases basic rect.Contains() is enough.
+    return point_is_in_screen ? rect.Contains(p1)
+                              : SegmentIntersectsRect(p0, p1, rect);
+  };
 
   // Do not emit if point is inside a 'dead' corner left, right, bottom, top.
-  constexpr int deadcornersize = 16;
-  bool is_in_corner = false;
-  // right upper
-  if (gfx::Rect(window_rect.width() - deadcornersize, window_rect.y(),
-                deadcornersize, deadcornersize)
-          .Contains(local_point.x(), local_point.y())) {
-    is_in_corner = true;
-  }
-  // left upper
-  else if (gfx::Rect(0, 0, deadcornersize, deadcornersize)
-               .Contains(local_point.x(), local_point.y())) {
-    is_in_corner = true;
-  }
-  // left bottom
-  else if (gfx::Rect(0, window_rect.height() - deadcornersize, deadcornersize,
-                     deadcornersize)
-               .Contains(local_point.x(), local_point.y())) {
-    is_in_corner = true;
-  }
-  // right bottom
-  else if (gfx::Rect(window_rect.width() - deadcornersize,
-                     window_rect.height() - deadcornersize, deadcornersize,
-                     deadcornersize)
-               .Contains(local_point.x(), local_point.y())) {
-    is_in_corner = true;
+  if (dispatch_hit_test(last_seen_mouse_pos_, point, dead_corner_top_right) ||
+      dispatch_hit_test(last_seen_mouse_pos_, point, dead_corner_top_left) ||
+      dispatch_hit_test(last_seen_mouse_pos_, point, dead_corner_bottom_left) ||
+      dispatch_hit_test(last_seen_mouse_pos_, point,
+                        dead_corner_bottom_right)) {
+    last_seen_mouse_pos_ = point;
+    return;
   }
 
-  if (last_reported_location != location && !is_in_corner) {
-    last_reported_location = location;
-    extensions::vivaldi::window_private::EdgeMouseParameters params;
-    params.mouse_position = location;
+  const auto get_mouse_edge_type_location = [this, &dispatch_hit_test](
+                                                const auto& top_border,
+                                                const auto& bottom_border,
+                                                const auto& left_border,
+                                                const auto& right_border,
+                                                const auto& point) {
+    extensions::vivaldi::window_private::MouseEdgeType location =
+        extensions::vivaldi::window_private::MouseEdgeType::kNone;
+    if (dispatch_hit_test(last_seen_mouse_pos_, point, top_border)) {
+      location = extensions::vivaldi::window_private::MouseEdgeType::kTop;
+    } else if (dispatch_hit_test(last_seen_mouse_pos_, point, left_border)) {
+      location = extensions::vivaldi::window_private::MouseEdgeType::kLeft;
+    } else if (dispatch_hit_test(last_seen_mouse_pos_, point, right_border)) {
+      location = extensions::vivaldi::window_private::MouseEdgeType::kRight;
+    } else if (dispatch_hit_test(last_seen_mouse_pos_, point, bottom_border)) {
+      location = extensions::vivaldi::window_private::MouseEdgeType::kBottom;
+    }
+    return location;
+  };
 
-    ::vivaldi::BroadcastEvent(
-        extensions::vivaldi::window_private::OnMouseCloseToEdge::kEventName,
-        extensions::vivaldi::window_private::OnMouseCloseToEdge::Create(id(),
-                                                                        params),
-        browser_->profile());
-  }
-
-  static extensions::vivaldi::window_private::HotSpotStatus
-      last_reported_hotrect_pos =
-          extensions::vivaldi::window_private::HotSpotStatus::kAway;
-
-  extensions::vivaldi::window_private::HotSpotStatus hot_location =
-      extensions::vivaldi::window_private::HotSpotStatus::kAway;
-
-  if (hot_spot_.location !=
-      extensions::vivaldi::window_private::HotSpotLocation::kNone) {
-    gfx::Point window_point = point;
-
-// Calculate the rectangle we want to check.
-// Note; we include window border areas to avoid |away| events when leaving
-// the window from the hotspots.
-#define BOGUS_WINDOW_BORDER_SIZE 16
-    gfx::Rect hot_rect(window_rect);
+  const auto get_hot_location_rect = [this, &window_rect]() {
+    // Hotspot size comes from JS that is unaware of the always-present thin
+    // window borders. Hotspots must not overlap thin borders, but must appear
+    // correctly sized relative to the client area. Calculations offset and
+    // extend the hotspot to reconcile these two models.
+    gfx::Rect hot_rect;
     if (hot_spot_.location ==
         extensions::vivaldi::window_private::HotSpotLocation::kLeft) {
-      hot_rect.set_width(hot_spot_.width + BOGUS_WINDOW_BORDER_SIZE);
-      hot_rect.set_height(hot_spot_.height);
+      // X - Starts on the X of the window
+      // Y - Starts in the Y of the window + the thin border size (it cannot
+      //     overlap with it)
+      // W - Dynamic width coming from JS + the thin border
+      // H - Height of the window without top and bottom borders (it cannot
+      //     overlap with it)
+      hot_rect =
+          gfx::Rect(window_rect.x(), window_rect.y() + THIN_BORDER_SIZE_IN_PX,
+                    hot_spot_.width + THIN_BORDER_SIZE_IN_PX,
+                    window_rect.height() - (2 * THIN_BORDER_SIZE_IN_PX));
     } else if (hot_spot_.location ==
                extensions::vivaldi::window_private::HotSpotLocation::kRight) {
-      hot_rect.set_x(window_rect.width() - hot_spot_.width);
-      hot_rect.set_width(hot_spot_.width + BOGUS_WINDOW_BORDER_SIZE);
-      hot_rect.set_height(hot_spot_.height);
+      // Similar to kLeft, but we need to start at different X
+      hot_rect = gfx::Rect(
+          window_rect.right() - hot_spot_.width - THIN_BORDER_SIZE_IN_PX,
+          window_rect.y() + THIN_BORDER_SIZE_IN_PX,
+          hot_spot_.width + THIN_BORDER_SIZE_IN_PX,
+          window_rect.height() - (2 * THIN_BORDER_SIZE_IN_PX));
     } else if (hot_spot_.location ==
                extensions::vivaldi::window_private::HotSpotLocation::kTop) {
-      hot_rect.set_width(hot_spot_.width);
-      hot_rect.set_height(hot_spot_.height + BOGUS_WINDOW_BORDER_SIZE);
+      // X - Starts on the X of the window + the thin border size (it cannot
+      //     overlap with it)
+      // Y - Starts in the Y of the window
+      // W - Width of the window without top and bottom borders (it cannot
+      //     overlap with it)
+      // H - Dynamic height coming from JS + the thin border
+      hot_rect =
+          gfx::Rect(window_rect.x() + THIN_BORDER_SIZE_IN_PX, window_rect.y(),
+                    window_rect.width() - (2 * THIN_BORDER_SIZE_IN_PX),
+                    hot_spot_.height + THIN_BORDER_SIZE_IN_PX);
     } else if (hot_spot_.location ==
                extensions::vivaldi::window_private::HotSpotLocation::kBottom) {
-      hot_rect.set_y(window_rect.height() - hot_spot_.height);
-      hot_rect.set_width(hot_spot_.width);
-      hot_rect.set_height(hot_spot_.height + BOGUS_WINDOW_BORDER_SIZE);
+      // Similar to kTop, but we need to start at different Y
+      hot_rect = gfx::Rect(
+          window_rect.x() + THIN_BORDER_SIZE_IN_PX,
+          window_rect.height() - hot_spot_.height - THIN_BORDER_SIZE_IN_PX,
+          window_rect.width() - (2 * THIN_BORDER_SIZE_IN_PX),
+          hot_spot_.height + THIN_BORDER_SIZE_IN_PX);
     }
+    return hot_rect;
+  };
 
-    if (hot_rect.Contains(window_point.x(), window_point.y())) {
-      hot_location = extensions::vivaldi::window_private::HotSpotStatus::kAbove;
-    }
+  const gfx::Rect top_border(window_rect.x(), window_rect.y(),
+                             window_rect.width(), THIN_BORDER_SIZE_IN_PX);
+  const gfx::Rect bottom_border(window_rect.x(),
+                                window_rect.bottom() - THIN_BORDER_SIZE_IN_PX,
+                                window_rect.width(), THIN_BORDER_SIZE_IN_PX);
+  const gfx::Rect left_border(window_rect.x(), window_rect.y(),
+                              THIN_BORDER_SIZE_IN_PX, window_rect.height());
+  const gfx::Rect right_border(window_rect.width() - THIN_BORDER_SIZE_IN_PX,
+                               window_rect.y(), THIN_BORDER_SIZE_IN_PX,
+                               window_rect.height());
 
-    if (last_reported_hotrect_pos != hot_location) {
-      last_reported_hotrect_pos = hot_location;
+  const extensions::vivaldi::window_private::MouseEdgeType location =
+      get_mouse_edge_type_location(top_border, bottom_border, left_border,
+                                   right_border, point);
+  if (last_reported_thin_edge_location_ != location) {
+    last_reported_thin_edge_location_ = location;
+    if (location != extensions::vivaldi::window_private::MouseEdgeType::kNone) {
+      extensions::vivaldi::window_private::EdgeMouseParameters params;
+      params.mouse_position = location;
+
       ::vivaldi::BroadcastEvent(
-          extensions::vivaldi::window_private::OnMouseInHotSpot::kEventName,
-          extensions::vivaldi::window_private::OnMouseInHotSpot::Create(
-              id(), hot_location),
+          extensions::vivaldi::window_private::OnMouseCloseToEdge::kEventName,
+          extensions::vivaldi::window_private::OnMouseCloseToEdge::Create(
+              id(), params),
           browser_->profile());
     }
   }
+
+  extensions::vivaldi::window_private::HotSpotStatus hot_location =
+      extensions::vivaldi::window_private::HotSpotStatus::kAway;
+  const gfx::Rect hot_rect = get_hot_location_rect();
+  if (dispatch_hit_test(last_seen_mouse_pos_, point, hot_rect)) {
+    hot_location = extensions::vivaldi::window_private::HotSpotStatus::kAbove;
+  }
+
+  if (last_reported_hotspot_location_ != hot_location) {
+    last_reported_hotspot_location_ = hot_location;
+    ::vivaldi::BroadcastEvent(
+        extensions::vivaldi::window_private::OnMouseInHotSpot::kEventName,
+        extensions::vivaldi::window_private::OnMouseInHotSpot::Create(
+            id(), hot_location),
+        browser_->profile());
+  }
+
+  last_seen_mouse_pos_ = point;
 }
 
 void VivaldiBrowserWindow::SetHotSpot(HotSpot hot_spot) {
+  if (hot_spot == hot_spot_) {
+    return;
+  }
+  // In some cases, such as when the window is in the background, not all mouse
+  // movements are recorded (on macOS). As a result, we may lose the kAbove
+  // location and never report kAway again due to the cache. Invalidate the
+  // cache of the last reported location after setting a new HotSpot.
+  last_reported_hotspot_location_ =
+      extensions::vivaldi::window_private::HotSpotStatus::kNone;
+  last_reported_thin_edge_location_ =
+      extensions::vivaldi::window_private::MouseEdgeType::kNone;
+
   hot_spot_ = hot_spot;
+}
+
+bool VivaldiBrowserWindow::TrackInSession() {
+  if (window_type() == VivaldiBrowserWindow::WindowType::NORMAL) {
+    return true;
+  }
+  return false;
 }
 
 /*********************/
@@ -2734,8 +2862,8 @@ VivaldiToolbarButtonProvider::~VivaldiToolbarButtonProvider() {
   window_ = nullptr;
 }
 
-ExtensionsToolbarContainer*
-VivaldiToolbarButtonProvider::GetExtensionsToolbarContainer() {
+ExtensionsToolbarDesktop*
+VivaldiToolbarButtonProvider::GetExtensionsToolbarDesktop() {
   return nullptr;
 }
 
@@ -2790,7 +2918,7 @@ views::View* VivaldiToolbarButtonProvider::GetAnchorView(
 
 views::BubbleAnchor VivaldiToolbarButtonProvider::GetBubbleAnchor(
     std::optional<actions::ActionId> action_id) {
-  return {};
+  return GetAnchorView(action_id);
 }
 
 void VivaldiToolbarButtonProvider::ZoomChangedForActiveTab(
@@ -2816,6 +2944,11 @@ ToolbarButton* VivaldiToolbarButtonProvider::GetDownloadButton() {
   return nullptr;
 }
 
-//SidePanelToolbarButton* VivaldiToolbarButtonProvider::GetSidePanelButton() {
-//  return nullptr;
-//}
+WebUIToolbarWebView*
+VivaldiToolbarButtonProvider::GetWebUIToolbarViewForTesting() {
+  return nullptr;
+}
+
+// SidePanelToolbarButton* VivaldiToolbarButtonProvider::GetSidePanelButton() {
+//   return nullptr;
+// }

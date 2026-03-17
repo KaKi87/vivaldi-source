@@ -121,6 +121,17 @@ cc_test(
     }),
     linkopts = ynn_binary_linkopts(),
     malloc = ynn_binary_malloc(),
+    deps = TEST_DEPS + [
+        "//ynnpack/kernels/ternary",
+        "//ynnpack/subgraph",
+    ],
+)
+
+cc_test(
+    name = "subgraphs",
+    srcs = ["subgraphs.cc"],
+    linkopts = ynn_binary_linkopts(),
+    malloc = ynn_binary_malloc(),
     deps = TEST_DEPS + ["//ynnpack/subgraph"],
 )
 

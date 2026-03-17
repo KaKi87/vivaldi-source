@@ -24,34 +24,43 @@ class SessionsPrivateAPI : public BrowserContextKeyedAPI,
   ~SessionsPrivateAPI() override;
 
   // BrowserContextKeyedAPI implementation.
-  static BrowserContextKeyedAPIFactory<SessionsPrivateAPI>* GetFactoryInstance();
+  static BrowserContextKeyedAPIFactory<SessionsPrivateAPI>*
+  GetFactoryInstance();
 
   // ::sessions::IndexModelObserver
   void IndexModelNodeAdded(sessions::Index_Model* model,
-                           sessions::Index_Node* node, int64_t parent_id,
-                           size_t index, const std::string& owner) override;
-  void IndexModelNodeMoved(sessions::Index_Model* model, int64_t id,
-                           int64_t parent_id, size_t index) override;
+                           sessions::Index_Node* node,
+                           int64_t parent_id,
+                           size_t index,
+                           const std::string& owner) override;
+  void IndexModelNodeMoved(sessions::Index_Model* model,
+                           int64_t id,
+                           int64_t parent_id,
+                           size_t index) override;
   void IndexModelNodeChanged(sessions::Index_Model* model,
                              sessions::Index_Node* node) override;
   void IndexModelNodeRemoved(sessions::Index_Model* model, int64_t id) override;
   void IndexModelBeingDeleted(sessions::Index_Model* model) override;
 
   // Functions that will send events to JS.
-  static void SendAdded(
-    content::BrowserContext* browser_context, sessions::Index_Node* node,
-    int parent_id, int index, const std::string& owner);
-  static void SendMoved(
-    content::BrowserContext* browser_context, int id, int parent_id, int index);
-  static void SendChanged(
-    content::BrowserContext* browser_context, sessions::Index_Node* node);
-  static void SendDeleted(
-    content::BrowserContext* browser_context, int id);
+  static void SendAdded(content::BrowserContext* browser_context,
+                        sessions::Index_Node* node,
+                        int parent_id,
+                        int index,
+                        const std::string& owner);
+  static void SendMoved(content::BrowserContext* browser_context,
+                        int id,
+                        int parent_id,
+                        int index);
+  static void SendChanged(content::BrowserContext* browser_context,
+                          sessions::Index_Node* node);
+  static void SendDeleted(content::BrowserContext* browser_context, int id);
   static void SendContentChanged(
-    content::BrowserContext* browser_context, int id,
-    vivaldi::sessions_private::ContentModel& content_model);
-  static void SendOnPersistentLoad(
-    content::BrowserContext* browser_context, bool state);
+      content::BrowserContext* browser_context,
+      int id,
+      vivaldi::sessions_private::ContentModel& content_model);
+  static void SendOnPersistentLoad(content::BrowserContext* browser_context,
+                                   bool state);
 
  private:
   friend class BrowserContextKeyedAPIFactory<SessionsPrivateAPI>;
@@ -99,7 +108,8 @@ class SessionsPrivateGetAllFunction : public ExtensionFunction,
 
 class SessionsPrivateGetAutosaveIdsFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("sessionsPrivate.getAutosaveIds", SESSIONS_GET_AUTOSAVE_IDS)
+  DECLARE_EXTENSION_FUNCTION("sessionsPrivate.getAutosaveIds",
+                             SESSIONS_GET_AUTOSAVE_IDS)
   SessionsPrivateGetAutosaveIdsFunction() = default;
 
  private:
@@ -123,7 +133,8 @@ class SessionsPrivateGetContentFunction : public ExtensionFunction {
 
 class SessionsPrivateModifyContentFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("sessionsPrivate.modifyContent", SESSIONS_MODIFY_CONTENT)
+  DECLARE_EXTENSION_FUNCTION("sessionsPrivate.modifyContent",
+                             SESSIONS_MODIFY_CONTENT)
   SessionsPrivateModifyContentFunction() = default;
 
  private:
@@ -145,7 +156,6 @@ class SessionsPrivateUpdateFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
-
 class SessionsPrivateOpenFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("sessionsPrivate.open", SESSIONS_OPEN)
@@ -160,7 +170,8 @@ class SessionsPrivateOpenFunction : public ExtensionFunction {
 
 class SessionsPrivateMakeContainerFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("sessionsPrivate.makeContainer", SESSIONS_MAKE_CONTAINER)
+  DECLARE_EXTENSION_FUNCTION("sessionsPrivate.makeContainer",
+                             SESSIONS_MAKE_CONTAINER)
   SessionsPrivateMakeContainerFunction() = default;
 
  private:
@@ -169,7 +180,6 @@ class SessionsPrivateMakeContainerFunction : public ExtensionFunction {
   // ExtensionFunction:
   ResponseAction Run() override;
 };
-
 
 class SessionsPrivateMoveFunction : public ExtensionFunction {
  public:
@@ -182,7 +192,6 @@ class SessionsPrivateMoveFunction : public ExtensionFunction {
   // ExtensionFunction:
   ResponseAction Run() override;
 };
-
 
 class SessionsPrivateRenameFunction : public ExtensionFunction {
  public:
@@ -233,7 +242,6 @@ class SessionsPrivateRestoreLastClosedFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
-
 class SessionsPrivateRestoreSyncTabsFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("sessionsPrivate.restoreSyncTabs",
@@ -246,8 +254,6 @@ class SessionsPrivateRestoreSyncTabsFunction : public ExtensionFunction {
   // ExtensionFunction:
   ResponseAction Run() override;
 };
-
-
 
 }  // namespace extensions
 

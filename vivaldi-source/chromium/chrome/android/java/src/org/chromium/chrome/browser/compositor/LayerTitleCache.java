@@ -46,8 +46,7 @@ import java.util.HashSet;
 import java.util.Map;
 
 // Vivaldi
-import org.chromium.chrome.browser.ChromeApplicationImpl;
-import org.vivaldi.browser.common.VivaldiUtils;
+import org.chromium.build.BuildConfig;
 
 /**
  * A version of the {@link LayerTitleCache} that builds native cc::Layer objects that represent the
@@ -189,15 +188,6 @@ public class LayerTitleCache {
         // we will fetch favicons asynchronously from database.
         String titleString = getTitleForTab(tab, defaultTitle);
 
-        // Note(david@vivaldi.com): Retrieve group title if applicable.
-        if (VivaldiUtils.hasRelatedTabs(mTabModelSelector, tab.getId()) && !mIsStackStrip) {
-            int rootId = tab.getRootId();
-            String rootString =
-                    mContext.getSharedPreferences("tab_group_titles", Context.MODE_PRIVATE)
-                            .getString(String.valueOf(rootId), null);
-            if (rootString != null && !mIsStackStrip) titleString = rootString;
-        }
-
         Bitmap tabFavicon = TabFavicon.getBitmap(tab);
         getUpdatedTitleInternal(tab, titleString, tabFavicon);
         if (tabFavicon == null) fetchFaviconForTab(tab);
@@ -210,12 +200,7 @@ public class LayerTitleCache {
         boolean isDarkTheme = tab.isIncognito();
 
         // Note(david@vivaldi.com): We always use the dark theme but not for the selected tab.
-        if (ChromeApplicationImpl.isVivaldi())
-            isDarkTheme = true;
-        Tab currentTab = mTabModelSelector.getCurrentTab();
-        if (currentTab != null && currentTab.getId() == tab.getId() && !tab.isIncognito())
-            isDarkTheme = false;
-        // End Vivaldi
+        isDarkTheme |= !tab.isActivated();
 
         boolean fetchFaviconFromHistory = tabFavicon == null;
 
@@ -223,16 +208,6 @@ public class LayerTitleCache {
             tabFavicon = getDefaultFavicon(tab);
         }
         assert tabFavicon != null;
-
-        // Note(david@vivaldi.com): Fetching the favicon with taking the current theme into account.
-        if (ChromeApplicationImpl.isVivaldi())
-            tabFavicon = TabFavicon.getBitmap(tab);
-        if (tabFavicon == null) {
-            tabFavicon = mDefaultFaviconHelper.getDefaultFaviconBitmap(
-                    mContext, tab.getUrl(), !isDarkTheme, false);
-        }
-        // End Vivaldi
-
         TitleBitmapFactory titleBitmapFactory =
                 isDarkTheme ? mDarkTitleBitmapFactory : mStandardTitleBitmapFactory;
 
@@ -243,9 +218,24 @@ public class LayerTitleCache {
             title.register();
         }
 
-        // Note(david@vivaldi.com): Apply current density to the image.
-        tabFavicon.setDensity(mContext.getResources().getDisplayMetrics().densityDpi);
+        if (BuildConfig.IS_VIVALDI) {
+            // Note(david@vivaldi.com): Apply current density to the image.
+            // NOTE(jarle@vivaldi.com): Only if needed.
+            final int densityDpi = mContext.getResources().getDisplayMetrics().densityDpi;
+            if (tabFavicon.getDensity() != densityDpi) tabFavicon.setDensity(densityDpi);
 
+            @Nullable Bitmap titleBitmap = null;
+
+            // NOTE(jarle@vivaldi.com): Only when title or theme changed.
+            if (!title.canReuseTitle(titleString, isDarkTheme)) {
+                titleBitmap = titleBitmapFactory.getTabTitleBitmap(titleString);
+                title.noteTitleUpdated(titleString, isDarkTheme);
+            }
+            title.set(
+                    titleBitmap,
+                    titleBitmapFactory.getFaviconBitmap(tabFavicon),
+                    fetchFaviconFromHistory);
+        } else
         title.set(
                 titleBitmapFactory.getTabTitleBitmap(titleString),
                 titleBitmapFactory.getFaviconBitmap(tabFavicon),
@@ -273,10 +263,7 @@ public class LayerTitleCache {
 
     @CalledByNative
     private void buildUpdatedGroupTitle(Token groupId, boolean incognito) {
-        TabGroupModelFilter filter =
-                mTabModelSelector
-                        .getTabGroupModelFilterProvider()
-                        .getTabGroupModelFilter(incognito);
+        TabGroupModelFilter filter = mTabModelSelector.getTabGroupModelFilter(incognito);
         assumeNonNull(filter);
         if (!filter.tabGroupExists(groupId)) return;
 
@@ -304,8 +291,7 @@ public class LayerTitleCache {
             title.register();
         }
 
-        TabGroupModelFilter filter =
-                mTabModelSelector.getTabGroupModelFilterProvider().getCurrentTabGroupModelFilter();
+        TabGroupModelFilter filter = mTabModelSelector.getCurrentTabGroupModelFilter();
         assert filter != null;
         Bitmap titleBitmap =
                 titleBitmapFactory.getGroupTitleBitmap(filter, mContext, groupId, titleString);
@@ -421,6 +407,14 @@ public class LayerTitleCache {
                 }
             }
         }
+
+        // Note(david@vivaldi.com): Retrieve group title if applicable.
+        if (tab.getTabGroupId() != null && !mIsStackStrip && mTabModelSelector != null) {
+            TabGroupModelFilter filter = mTabModelSelector.getCurrentTabGroupModelFilter();
+            assumeNonNull(filter);
+            title = TabGroupTitleUtils.getDisplayableTitle(mContext, filter, tab.getTabGroupId());
+        }
+
         return title;
     }
 
@@ -513,13 +507,21 @@ public class LayerTitleCache {
         // fetched from history. You can set this to true / false to control that.
         private boolean mExpectUpdateFromHistory;
 
+        // Vivaldi
+        private String mLastTitleString = "";
+        private boolean mLastIsDarkTheme;
+        private boolean mHasRenderedTitle;
+
         public FaviconTitle() {}
 
         public void set(
                 @Nullable Bitmap titleBitmap,
                 @Nullable Bitmap faviconBitmap,
                 boolean expectUpdateFromHistory) {
-            set(titleBitmap);
+
+            // Vivaldi: Only update title bitmap when a new bitmap is provided.
+            if (titleBitmap != null) set(titleBitmap);
+
             mFavicon.setBitmap(faviconBitmap);
             mExpectUpdateFromHistory = expectUpdateFromHistory;
         }
@@ -547,6 +549,20 @@ public class LayerTitleCache {
 
         public int getFaviconResId() {
             return mFavicon.getResId();
+        }
+
+        // Vivaldi
+        boolean canReuseTitle(String titleString, boolean isDarkTheme) {
+            return mHasRenderedTitle
+                    && mLastIsDarkTheme == isDarkTheme
+                    && TextUtils.equals(mLastTitleString, titleString);
+        }
+
+        // Vivaldi
+        void noteTitleUpdated(String titleString, boolean isDarkTheme) {
+            mLastTitleString = titleString;
+            mLastIsDarkTheme = isDarkTheme;
+            mHasRenderedTitle = true;
         }
     }
 

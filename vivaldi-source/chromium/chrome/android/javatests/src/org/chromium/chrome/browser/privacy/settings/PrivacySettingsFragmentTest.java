@@ -28,7 +28,6 @@ import android.text.TextUtils;
 import android.view.View;
 import android.widget.TextView;
 
-import androidx.preference.Preference;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.espresso.contrib.RecyclerViewActions;
@@ -180,13 +179,6 @@ public class PrivacySettingsFragmentTest {
                                 .getBoolean(Pref.PRIVACY_GUIDE_VIEWED));
     }
 
-    private void setShowTrackingProtection(boolean show) {
-        ThreadUtils.runOnUiThreadBlocking(
-                () ->
-                        UserPrefs.get(ProfileManager.getLastUsedRegularProfile())
-                                .setBoolean(Pref.TRACKING_PROTECTION3PCD_ENABLED, show));
-    }
-
     @Before
     public void setUp() {
         NativeLibraryTestUtils.loadNativeLibraryAndInitBrowserProcess();
@@ -329,27 +321,6 @@ public class PrivacySettingsFragmentTest {
 
     @Test
     @LargeTest
-    public void testTrackingProtection() throws IOException {
-        setShowTrackingProtection(true);
-        mSettingsActivityTestRule.startSettingsActivity();
-
-        // Verify that the 3PC and DNT rows are shown instead of Tracking Protection.
-        PrivacySettings fragment = mSettingsActivityTestRule.getFragment();
-        Preference trackingProtectionPreference =
-                fragment.findPreference(PrivacySettings.PREF_TRACKING_PROTECTION);
-        assertTrue(trackingProtectionPreference.isVisible());
-        onView(withText(R.string.third_party_cookies_link_row_label)).check(matches(isDisplayed()));
-
-        Preference dntPreference = fragment.findPreference(PrivacySettings.PREF_DO_NOT_TRACK);
-        assertTrue(dntPreference.isVisible());
-
-        Preference thirdPartyCookiesPreference =
-                fragment.findPreference(PrivacySettings.PREF_THIRD_PARTY_COOKIES);
-        assertFalse(thirdPartyCookiesPreference.isVisible());
-    }
-
-    @Test
-    @LargeTest
     @Feature({"RenderTest"})
     @DisableFeatures(ChromeFeatureList.SETTINGS_MULTI_COLUMN)
     public void testRenderIncognitoLockView_DeviceScreenLockDisabled() throws IOException {
@@ -460,7 +431,8 @@ public class PrivacySettingsFragmentTest {
                         .toString();
         onView(withText(containsString(footerWithoutSpans))).perform(clickOnClickableSpan(0));
 
-        verify(mSettingsNavigation).startSettings(any(), eq(GoogleServicesSettings.class));
+        verify(mSettingsNavigation)
+                .startSettings(any(), eq(GoogleServicesSettings.class), eq(null), eq(true));
     }
 
     @Test
@@ -615,6 +587,7 @@ public class PrivacySettingsFragmentTest {
                                             fragmentArgs.getString(
                                                     SingleCategorySettings.EXTRA_CATEGORY);
                                     return "javascript_optimizer".equals(category);
-                                }));
+                                }),
+                        eq(true));
     }
 }

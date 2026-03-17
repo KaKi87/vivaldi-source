@@ -26,9 +26,28 @@
 #import "components/rlz/rlz_tracker.h"  // nogncheck
 #endif
 
+// Vivaldi
+#import <WebKit/WebKit.h>
+
+#import "base/strings/sys_string_conversions.h"
+#import "components/prefs/pref_service.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
+#import "ios/web/web_state/ui/wk_web_view_configuration_provider.h"
+#import "prefs/vivaldi_pref_names.h"
+
+namespace {
+constexpr char kKagiCookieName[] = "kagi_session";
+}  // namespace
+// End Vivaldi
+
 namespace ios {
 
+#if defined(VIVALDI_BUILD)
+UIThreadSearchTermsData::UIThreadSearchTermsData(ProfileIOS* profile)
+    : profile_(profile) {
+#else
 UIThreadSearchTermsData::UIThreadSearchTermsData() {
+#endif  // End Vivaldi
   DCHECK(!web::WebThread::IsThreadInitialized(web::WebThread::UI) ||
          web::WebThread::CurrentlyOn(web::WebThread::UI));
 }
@@ -82,6 +101,42 @@ std::string UIThreadSearchTermsData::GoogleImageSearchSource() const {
                        version_info::IsOfficialBuild() ? " (Official) " : " ",
                        version_info::GetOSType(),
                        channel_name.empty() ? "" : " ", channel_name});
+}
+
+std::string_view UIThreadSearchTermsData::VivaldiGetKagiToken() const {
+  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+#if defined(VIVALDI_BUILD)
+  if (!profile_) {
+    return "";
+  }
+  PrefService* prefs = profile_->GetPrefs();
+#else
+  PrefService* prefs = nullptr;
+#endif  // End Vivaldi
+  if (!prefs) {
+    return "";
+  }
+
+  WKWebsiteDataStore* data_store =
+      web::WKWebViewConfigurationProvider::FromBrowserState(&*profile_)
+          .GetWebsiteDataStore();
+
+  [data_store.httpCookieStore getAllCookies:^(NSArray<NSHTTPCookie*>* cookies) {
+    for (NSHTTPCookie* cookie in cookies) {
+      if ([cookie.name
+              isEqualToString:base::SysUTF8ToNSString(kKagiCookieName)]) {
+        prefs->SetString(vivaldiprefs::kVivaldiSearchEnginesKagiToken,
+                         base::SysNSStringToUTF8(cookie.value));
+        return;
+      }
+    }
+  }];
+
+  if (prefs->HasPrefPath(vivaldiprefs::kVivaldiSearchEnginesKagiToken)) {
+    return prefs->GetString(vivaldiprefs::kVivaldiSearchEnginesKagiToken);
+  }
+
+  return "";
 }
 
 }  // namespace ios

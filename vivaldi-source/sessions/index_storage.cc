@@ -17,19 +17,19 @@
 #include "base/strings/string_split.h"
 #include "base/uuid.h"
 #include "base/values.h"
+#include "components/datasource/resource_reader.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
-#include "components/datasource/resource_reader.h"
 #include "sessions/index_codec.h"
 #include "sessions/index_model.h"
 #include "sessions/index_node.h"
 
 namespace sessions {
 
-const base::FilePath::CharType kSessionsFolder[] = FILE_PATH_LITERAL("Sessions");
-const base::FilePath::CharType kFileName[] =
-    FILE_PATH_LITERAL("sessions.json");
+const base::FilePath::CharType kSessionsFolder[] =
+    FILE_PATH_LITERAL("Sessions");
+const base::FilePath::CharType kFileName[] = FILE_PATH_LITERAL("sessions.json");
 const base::FilePath::CharType kBackupExtension[] = FILE_PATH_LITERAL("bak");
 
 // How often we save.
@@ -64,8 +64,7 @@ void OnLoad(const base::FilePath& directory,
   if (!exists) {
     IndexCodec codec;
     if (!codec.Decode(details->items_node(), directory, filename)) {
-      LOG(ERROR)
-          << "Session Index Storage: Failed to set up from file list";
+      LOG(ERROR) << "Session Index Storage: Failed to set up from file list";
       details->SetLoadingFailed(true);
     }
     details->SetLoadedFromFileScan(true);
@@ -85,8 +84,8 @@ void OnLoad(const base::FilePath& directory,
       if (!codec.Decode(details->items_node(), details->backup_node(),
                         details->persistent_node(), *root.get())) {
         LOG(ERROR)
-          << "Session Index Storage: Failed to decode JSON content from: "
-          << file;
+            << "Session Index Storage: Failed to decode JSON content from: "
+            << file;
         details->SetLoadingFailed(true);
       }
     }
@@ -100,11 +99,11 @@ void OnLoad(const base::FilePath& directory,
 IndexLoadDetails::IndexLoadDetails(Index_Node* items_node,
                                    Index_Node* backup_node,
                                    Index_Node* persistent_node)
-  : items_node_(items_node), backup_node_(backup_node),
-    persistent_node_(persistent_node) {}
+    : items_node_(items_node),
+      backup_node_(backup_node),
+      persistent_node_(persistent_node) {}
 
 IndexLoadDetails::~IndexLoadDetails() {}
-
 
 IndexStorage::IndexStorage(content::BrowserContext* context,
                            Index_Model* model,
@@ -134,7 +133,7 @@ void IndexStorage::Load(std::unique_ptr<IndexLoadDetails> details) {
   DCHECK(details);
   sequenced_task_runner_->PostTask(
       FROM_HERE,
-      base::BindRepeating(&OnLoad, directory_/*writer_.path()*/, kFileName,
+      base::BindRepeating(&OnLoad, directory_ /*writer_.path()*/, kFileName,
                           weak_factory_.GetWeakPtr(), base::Passed(&details)));
 }
 
@@ -193,7 +192,7 @@ bool IndexStorage::SaveNow() {
     // We should only get here if we have a valid model and it's finished
     // loading.
     NOTREACHED();
-    //return false;
+    // return false;
   }
 
   std::optional<std::string> data = SerializeData();

@@ -14,14 +14,13 @@
 #include "chrome/browser/contextual_cueing/contextual_cueing_service.h"
 #include "chrome/browser/contextual_cueing/contextual_cueing_service_factory.h"
 #include "chrome/browser/contextual_cueing/zero_state_suggestions_page_data.h"
-#include "chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h"
+#include "chrome/browser/glic/public/features.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service.h"
 #include "chrome/browser/optimization_guide/optimization_guide_keyed_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/glic_nudge_controller.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
@@ -31,6 +30,7 @@
 #include "components/optimization_guide/core/hints/optimization_metadata.h"
 #include "components/optimization_guide/core/model_execution/model_execution_features_controller.h"
 #include "components/optimization_guide/proto/contextual_cueing_metadata.pb.h"
+#include "components/pdf/common/constants.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
@@ -41,11 +41,20 @@
 #include "url/gurl.h"
 #include "url/origin.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h"
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window.h"
+#endif
+
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
-#include "chrome/browser/ui/views/side_panel/glic/glic_side_panel_coordinator.h"
+#endif
+
+#if BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+#include "chrome/browser/glic/public/glic_side_panel_coordinator.h"
 #endif
 
 namespace contextual_cueing {
@@ -101,6 +110,7 @@ ContextualCueingHelper::ContextualCueingHelper(
 ContextualCueingHelper::~ContextualCueingHelper() = default;
 
 tabs::GlicNudgeController* ContextualCueingHelper::GetGlicNudgeController() {
+#if !BUILDFLAG(IS_ANDROID)
   if (!IsContextualCueingEnabled()) {
     return nullptr;
   }
@@ -110,6 +120,9 @@ tabs::GlicNudgeController* ContextualCueingHelper::GetGlicNudgeController() {
     return nullptr;
   }
   return browser->browser_window_features()->glic_nudge_controller();
+#else  // NEEDS_ANDROID_IMPL
+  return nullptr;
+#endif
 }
 
 void ContextualCueingHelper::PrimaryPageChanged(content::Page& page) {
@@ -136,6 +149,10 @@ void ContextualCueingHelper::DidFinishNavigation(
                                ui::PAGE_TRANSITION_RELOAD)) {
     return;
   }
+  if (navigation_handle->GetPreviousPrimaryMainFrameURL() ==
+      navigation_handle->GetURL()) {
+    return;
+  }
 
   // Reset FCP state.
   has_first_contentful_paint_ = false;
@@ -148,7 +165,7 @@ void ContextualCueingHelper::DidFinishNavigation(
         web_contents()->GetPrimaryPage());
   }
 
-  // Ignore fragment changes.
+  // Ignore fragment changes for cueing only.
   if (navigation_handle->GetPreviousPrimaryMainFrameURL().GetWithoutRef() ==
       navigation_handle->GetURL().GetWithoutRef()) {
     return;
@@ -287,7 +304,13 @@ bool ContextualCueingHelper::IsBrowserBlockingNudges(
     return false;
   }
 
-  auto* browser_window_interface = tab_interface->GetBrowserWindowInterface();
+  BrowserWindowInterface* browser_window_interface =
+#if !BUILDFLAG(IS_ANDROID)
+      tab_interface->GetBrowserWindowInterface();
+#else
+      // NEEDS_ANDROID_IMPL: GetBrowserWindowInterface will be available later
+      nullptr;
+#endif
   if (!browser_window_interface) {
     return false;
   }
@@ -298,13 +321,16 @@ bool ContextualCueingHelper::IsBrowserBlockingNudges(
     return false;
   }
 
+#if !BUILDFLAG(IS_ANDROID)  // NEEDS_ANDROID_IMPL
   if (user_education_interface->IsFeaturePromoActive(
           feature_engagement::kIPHGlicPromoFeature)) {
     recorder->set_nudge_decision(NudgeDecision::kNudgeNotShownIPH);
     return true;
   }
+#endif
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+  // NEEDS_ANDROID_IMPL
   Profile* profile =
       Profile::FromBrowserContext(web_contents()->GetBrowserContext());
 
@@ -321,10 +347,7 @@ bool ContextualCueingHelper::IsBrowserBlockingNudges(
   }
 
   auto* glic_side_panel_coordinator =
-      tab_interface->GetTabFeatures() &&
-              tab_interface->GetTabFeatures()->glic_side_panel_coordinator()
-          ? tab_interface->GetTabFeatures()->glic_side_panel_coordinator()
-          : nullptr;
+      glic::GlicSidePanelCoordinator::GetForTab(tab_interface);
   if (glic_side_panel_coordinator && glic_side_panel_coordinator->IsShowing()) {
     recorder->set_nudge_decision(
         NudgeDecision::kNudgeNotShownSidePanelForTabShowing);
@@ -338,13 +361,12 @@ bool ContextualCueingHelper::IsBrowserBlockingNudges(
     return true;
   }
 
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
 #if !BUILDFLAG(IS_ANDROID)
-  auto* coordinator =
-      contextual_tasks::ContextualTasksSidePanelCoordinator::From(
-          browser_window_interface);
-  if (coordinator && coordinator->IsSidePanelOpenForContextualTask()) {
+  auto* controller = contextual_tasks::ContextualTasksPanelController::From(
+      browser_window_interface);
+  if (controller && controller->IsPanelOpenForContextualTask()) {
     recorder->set_nudge_decision(
         NudgeDecision::kNudgeNotShownContextualTasksSidePanelForTabShowing);
     return true;
@@ -374,11 +396,62 @@ void ContextualCueingHelper::OnCueingDecision(
     return;
   }
 
-  const GURL& url = web_contents()->GetLastCommittedURL();
-  auto can_show_decision = contextual_cueing_service_->CanShowNudge(url);
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+  const bool should_open_side_panel =
+      decision_result->auto_open_eligible &&
+      base::FeatureList::IsEnabled(kEnableAutoOpenGlicSidePanel);
+
+  const bool is_auto_open_pdf_side_panel_cue =
+      should_open_side_panel &&
+      web_contents()->GetContentsMimeType() == pdf::kPDFMimeType // &&
+      base::FeatureList::IsEnabled(features::kAutoOpenGlicForPdf);
+
+  // Check nudge rate-limiting/backoff caps. Auto-open PDF side panel bypasses
+  // this check for a more detemrinistic feel.
+  NudgeDecision can_show_decision;
+  if (is_auto_open_pdf_side_panel_cue) {
+    can_show_decision = NudgeDecision::kSuccess;
+  } else {
+    const GURL& url = web_contents()->GetLastCommittedURL();
+    can_show_decision = contextual_cueing_service_->CanShowNudge(url);
+  }
   decision_recorder->set_nudge_decision(can_show_decision);
   if (can_show_decision != NudgeDecision::kSuccess) {
     return;
+  }
+#endif // BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+  // Handle side panel auto-open case: bypass nudge and open panel directly.
+  // If auto-open fails or is disabled, falls through to standard nudge.
+  if (should_open_side_panel) {
+    auto* tab_interface = tabs::TabInterface::GetFromContents(web_contents());
+    auto* browser_window_interface = tab_interface->GetBrowserWindowInterface();
+    Profile* profile =
+        Profile::FromBrowserContext(web_contents()->GetBrowserContext());
+    auto* glic_service =
+        glic::GlicKeyedServiceFactory::GetGlicKeyedService(profile);
+    if (glic_service && browser_window_interface) {
+      const bool auto_send_prompt =
+          decision_result->auto_send_params.has_value() &&
+          decision_result->auto_send_params->auto_send_eligible &&
+          !prompt_suggestion.empty();
+
+      glic::mojom::InvocationSource invocation_source =
+          glic::mojom::InvocationSource::kAutoOpenedByContextualCue;
+      if (is_auto_open_pdf_side_panel_cue) {
+        invocation_source = glic::mojom::InvocationSource::kAutoOpenedForPdf;
+      }
+
+      glic_service->ToggleUI(browser_window_interface,
+                             /*prevent_close=*/true, invocation_source,
+                             prompt_suggestion.empty()
+                                 ? std::nullopt
+                                 : std::make_optional(prompt_suggestion),
+                             auto_send_prompt);
+      return;
+    }
+    // Fall through to nudge if side panel open fails.
   }
 
   GetGlicNudgeController()->UpdateNudgeLabel(
@@ -390,18 +463,17 @@ void ContextualCueingHelper::OnCueingDecision(
                           contextual_cueing_service_->GetWeakPtr(),
                           web_contents(), document_available_time,
                           decision_result->is_dynamic));
+#endif
 }
 
 // static
 void ContextualCueingHelper::MaybeCreateForWebContents(
     content::WebContents* web_contents) {
-  if (!base::FeatureList::IsEnabled(contextual_cueing::kContextualCueing) &&
-      !base::FeatureList::IsEnabled(
-          contextual_cueing::kGlicZeroStateSuggestions)) {
+  if (!IsContextualCueingEnabled() && !IsZeroStateSuggestionsEnabled()) {
     return;
   }
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   Profile* profile =
       Profile::FromBrowserContext(web_contents->GetBrowserContext());
   if (!glic::GlicEnabling::IsProfileEligible(profile)) {
@@ -423,7 +495,7 @@ void ContextualCueingHelper::MaybeCreateForWebContents(
   ContextualCueingHelper::CreateForWebContents(web_contents,
                                                optimization_guide_keyed_service,
                                                contextual_cueing_service);
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 }
 
 WEB_CONTENTS_USER_DATA_KEY_IMPL(ContextualCueingHelper);

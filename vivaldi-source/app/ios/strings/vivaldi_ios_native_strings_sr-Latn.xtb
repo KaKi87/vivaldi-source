@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Upravljanje izvorima blokiranja reklama</translation>
 <translation id="1577761519530347814">Sinhronizacija sačuvanih lozinki za veb sajtove</translation>
 <translation id="1620921465699122417">Unesite tekst za prevod</translation>
+<translation id="1624621765073396937">Zatvori karticu prevlačenjem u upravljaču karticama</translation>
 <translation id="1631998297781042533">Popularni sajtovi</translation>
 <translation id="1644574205037202324">Istorija</translation>
 <translation id="1655816024544228768">Sport</translation>
@@ -106,6 +107,7 @@
 <translation id="2330644510603114741">Ponašanje kartica</translation>
 <translation id="233493642829799329">Može dovesti do ponovnog učitavanja nekih kartica</translation>
 <translation id="2336309953058658733">Isprazni otpad</translation>
+<translation id="2336679896177818431">Otvara upravljač karticama prevlačenjem nagore ili nadole od adresne trake</translation>
 <translation id="2359808026110333948">Nastavi</translation>
 <translation id="2386793615875593361">1 izabrana</translation>
 <translation id="2387049655823108978">Sinhronizacija otvorenih kartica sa drugih uređaja</translation>
@@ -127,6 +129,7 @@
 <translation id="261264557609353020">Početna stranica</translation>
 <translation id="2619628557366098325">Portugalski (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">Sistem</translation>
+<translation id="2638305832232696831">Omogući pokret prevlačenja od adresne trake</translation>
 <translation id="2653659639078652383">Prosledi</translation>
 <translation id="2666092431469916601">Vrh</translation>
 <translation id="2677862276555105603">blokirana
@@ -153,6 +156,7 @@ reklama</translation>
 <translation id="2862504765180635001">Žao nam je što to čujemo!</translation>
 <translation id="2878511608894704031">Itbriši sve</translation>
 <translation id="2884735088411646852">Sortiranje</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (blokira razna ometanja)</translation>
 <translation id="2898963176829412617">Nova fascikla…</translation>
 <translation id="2918704853620385162">Otvori novu karticu pri zatvaranju poslednje kartice</translation>
 <translation id="2924890236896835588">Ime grupe</translation>
@@ -172,6 +176,7 @@ reklama</translation>
 <translation id="3142562627629111859">Nova grupa</translation>
 <translation id="3157931365184549694">Vrati</translation>
 <translation id="3159285901314605198">Slika pozadine</translation>
+<translation id="317084213044777332">Postavi kao podrazumevanu pretragu</translation>
 <translation id="3177673846235066154">Server je odbio vaše podatke za prijavljivanje.</translation>
 <translation id="3180057018690062250">Strimovanje</translation>
 <translation id="3180358318770512945">Roditeljstvo</translation>
@@ -594,6 +599,7 @@ praćenje</translation>
 <translation id="8066170816074394954">Greška servera.</translation>
 <translation id="8076492880354921740">Kartice</translation>
 <translation id="8077675488769462025">Neaktivne kartice</translation>
+<translation id="8079925180539182073">Podrazumevani pretraživač ne može biti uklonjen.</translation>
 <translation id="8112996065264879835">Ovaj kod se ne podudara sa onim koji smo vam poslali.
         Dostigli ste maksimalno ograničenje pogrešnih pokušaja. Zatražite novi kod koristeći opciju za ponovno slanje ispod.</translation>
 <translation id="8131740175452115882">Potvrdi</translation>
@@ -639,6 +645,7 @@ praćenje</translation>
 <translation id="856439694359429369">Dodirnite za više opcija ili dva puta dodirnite za otvaranje.</translation>
 <translation id="8591818185775466306">Izbriši <ph name="ITEM_TYPE" /></translation>
 <translation id="8605953154325672921">Potrebno je korisničko ime</translation>
+<translation id="861259508026988871">Dodaj kao pretraživač</translation>
 <translation id="8675578805254882416">Dobavljanje</translation>
 <translation id="8677007239430848917">Dodajte svoju prvu belešku dodirom na ikonicu plus ispod</translation>
 <translation id="8684294196284714094">Spremni da postavite Vivaldi kao podrazumevani pretraživač?</translation>

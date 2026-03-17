@@ -4,8 +4,11 @@
 
 package org.chromium.chrome.browser.tabmodel;
 
+import androidx.annotation.IntDef;
+
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -16,6 +19,8 @@ import org.chromium.chrome.browser.tab.TabLaunchType;
 import org.chromium.chrome.browser.tab.TabSelectionType;
 import org.chromium.components.tabs.TabStripCollection;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +32,26 @@ import java.util.Set;
  */
 @NullMarked
 public interface TabModel extends SupportsTabModelObserver, TabList {
+    static final long INVALID_TIMESTAMP = -1L;
     Map<Integer, Long> sTabPinTimestampMap = new HashMap<>();
+
+    @IntDef({
+        RecentlyClosedEntryType.NONE,
+        RecentlyClosedEntryType.TAB,
+        RecentlyClosedEntryType.TABS,
+        RecentlyClosedEntryType.GROUP
+    })
+    @Retention(RetentionPolicy.SOURCE)
+    @interface RecentlyClosedEntryType {
+        int NONE = 0;
+        int TAB = 1;
+        int TABS = 2;
+        int GROUP = 3;
+    }
+
+    /** Returns the {@link TabModelType} of this tab model. */
+    @TabModelType
+    int getTabModelType();
 
     /** Returns the profile associated with the current model. */
     @Nullable Profile getProfile();
@@ -97,6 +121,18 @@ public interface TabModel extends SupportsTabModelObserver, TabList {
      */
     void openMostRecentlyClosedEntry();
 
+    /** Returns the type of the most recently closed entry. */
+    @RecentlyClosedEntryType
+    int getMostRecentlyClosedEntryType();
+
+    /**
+     * Gets the timestamp of the most recent tab closure event. If a valid, non-zero timestamp is
+     * not available, this should return {@link TabModel#INVALID_TIMESTAMP}.
+     *
+     * @return The closure timestamp, in millis.
+     */
+    long getMostRecentClosureTime();
+
     /**
      * @return The complete {@link TabList} this {@link TabModel} represents. Note that this may be
      *     different than this actual {@link TabModel} if it supports pending closures {@link
@@ -109,7 +145,7 @@ public interface TabModel extends SupportsTabModelObserver, TabList {
      * the model or selected. The contained tab should always match the result of {@code
      * getTabAt(index())}.
      */
-    ObservableSupplier<@Nullable Tab> getCurrentTabSupplier();
+    NullableObservableSupplier<Tab> getCurrentTabSupplier();
 
     /**
      * Selects a tab by its index.
@@ -169,7 +205,7 @@ public interface TabModel extends SupportsTabModelObserver, TabList {
      * Returns a supplier for the number of tabs in this tab model. This does not count tabs that
      * are pending closure.
      */
-    ObservableSupplier<Integer> getTabCountSupplier();
+    NonNullObservableSupplier<Integer> getTabCountSupplier();
 
     /** Returns the tab creator for this tab model. */
     TabCreator getTabCreator();
@@ -296,4 +332,7 @@ public interface TabModel extends SupportsTabModelObserver, TabList {
 
     /** Duplicates the given tab. */
     @Nullable Tab duplicateTab(Tab tab);
+
+    /** Whether the model is currently in the process of closing all of its tabs. */
+    boolean isClosingAllTabs();
 }

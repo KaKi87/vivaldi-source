@@ -59,7 +59,12 @@ std::unique_ptr<KeyedService> BuildTemplateURLService(ProfileIOS* profile) {
           ios::SearchEngineChoiceServiceFactory::GetForProfile(profile)),
       CHECK_DEREF(ios::TemplateURLPrepopulateDataResolverFactory::GetForProfile(
           profile)),
+#if defined(VIVALDI_BUILD)
+      std::make_unique<ios::UIThreadSearchTermsData>(
+          profile->GetOriginalProfile()),
+#else
       std::make_unique<ios::UIThreadSearchTermsData>(),
+#endif  // End Vivaldi
       ios::WebDataServiceFactory::GetKeywordWebDataForProfile(
           profile, ServiceAccessType::EXPLICIT_ACCESS),
       std::make_unique<ios::TemplateURLServiceClientImpl>(

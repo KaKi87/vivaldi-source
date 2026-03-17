@@ -8,16 +8,16 @@
 class Browser;
 
 // The Panel Controller
-@interface PanelViewController : UIViewController<UIPageViewControllerDelegate>
+@interface PanelViewController : UIViewController <UIPageViewControllerDelegate>
 - (instancetype)init NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithNibName:(NSString*)name
                          bundle:(NSBundle*)bundle NS_UNAVAILABLE;
 - (instancetype)initWithCoder:(NSCoder*)coder NS_UNAVAILABLE;
 - (void)setupControllers:(UINavigationController*)nvc
       withBookmarkController:(UINavigationController*)bvc
-          andReadinglistController:(UINavigationController*)rvc
-              andHistoryController:(UINavigationController*)hc
-                  andTranslateController:(UINavigationController*)tc;
+    andReadinglistController:(UINavigationController*)rvc
+        andHistoryController:(UINavigationController*)hc
+      andTranslateController:(UINavigationController*)tc;
 - (void)panelDismissed;
 - (void)setIndexForControl:(int)index;
 
@@ -26,4 +26,3 @@ class Browser;
 @end
 
 #endif  // IOS_PANEL_PANEL_VIEW_CONTROLLER_H_
-

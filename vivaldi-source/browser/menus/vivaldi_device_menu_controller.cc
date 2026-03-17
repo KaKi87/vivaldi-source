@@ -35,13 +35,15 @@ bool DeviceMenuController::HasSupport(content::WebContents* web_contents) {
   // code will open a dialog that allows the user to set up sync if it is not
   // ready to be used. We will send to the device right away.
   std::optional<send_tab_to_self::EntryPointDisplayReason> displayReason =
-    send_tab_to_self::GetEntryPointDisplayReason(web_contents);
-  return displayReason.has_value() && displayReason.value() ==
-          send_tab_to_self::EntryPointDisplayReason::kOfferFeature;
+      send_tab_to_self::GetEntryPointDisplayReason(web_contents);
+  return displayReason.has_value() &&
+         displayReason.value() ==
+             send_tab_to_self::EntryPointDisplayReason::kOfferFeature;
 }
 
 DeviceMenuController::DeviceMenuController(
-    VivaldiRenderViewContextMenu* rv_context_menu, GURL& url,
+    VivaldiRenderViewContextMenu* rv_context_menu,
+    GURL& url,
     std::string url_title)
     : rv_context_menu_(rv_context_menu), url_(url), url_title_(url_title) {}
 
@@ -61,11 +63,10 @@ void DeviceMenuController::Populate(
 
   browser_ = browser;
   send_tab_to_self::SendTabToSelfSyncService* service =
-    SendTabToSelfSyncServiceFactory::GetForProfile(browser->profile());
+      SendTabToSelfSyncServiceFactory::GetForProfile(browser->profile());
   int index = 0;
   for (auto device :
        service->GetSendTabToSelfModel()->GetTargetDeviceInfoSortedList()) {
-
 // for debugging
 #if 0
     printf("guid: %s\n", device.cache_guid.c_str());
@@ -86,33 +87,31 @@ void DeviceMenuController::Populate(
       int idx;
       if (device.form_factor == syncer::DeviceInfo::FormFactor::kPhone) {
         idx = 1;
-      } else if (
-          device.form_factor == syncer::DeviceInfo::FormFactor::kTablet) {
+      } else if (device.form_factor ==
+                 syncer::DeviceInfo::FormFactor::kTablet) {
         idx = 2;
       } else {
-        idx = 0; // Desktop and unknowns.
+        idx = 0;  // Desktop and unknowns.
       }
       if (images[idx].IsEmpty()) {
         if (icons && icons->size() == 6) {
           const std::string icon =
-            icons->at(idx * 2 + (dark_text_color ? 0 : 1));
+              icons->at(idx * 2 + (dark_text_color ? 0 : 1));
           images[idx] = GetImageModel(icon);
         }
       }
       menu_model->AddItemWithIcon(
-          command_id,
-          base::UTF8ToUTF16(device.full_name),
-          images[idx]);
+          command_id, base::UTF8ToUTF16(device.full_name), images[idx]);
 #endif
       last_updated_map_[command_id] = device.last_updated_timestamp;
     }
-    index ++;
+    index++;
   }
   if (!GetHasInstalledDevices()) {
     // Add a entry that allows people to download another device.
     int command_id = index + IDC_VIV_SEND_TO_DEVICE_FIRST;
     menu_model->AddItem(
-      command_id, l10n_util::GetStringUTF16(IDS_VIV_GET_VIVALDI_FOR_MOBILE));
+        command_id, l10n_util::GetStringUTF16(IDS_VIV_GET_VIVALDI_FOR_MOBILE));
   }
 }
 
@@ -125,11 +124,11 @@ bool DeviceMenuController::HandleCommand(int command_id, int event_flags) {
       command_id <= IDC_VIV_SEND_TO_DEVICE_LAST) {
     if (GetHasInstalledDevices()) {
       send_tab_to_self::SendTabToSelfSyncService* service =
-        SendTabToSelfSyncServiceFactory::GetForProfile(browser_->profile());
+          SendTabToSelfSyncServiceFactory::GetForProfile(browser_->profile());
       int index = command_id - IDC_VIV_SEND_TO_DEVICE_FIRST;
-      std::string guid =
-        service->GetSendTabToSelfModel()->
-            GetTargetDeviceInfoSortedList()[index].cache_guid;
+      std::string guid = service->GetSendTabToSelfModel()
+                             ->GetTargetDeviceInfoSortedList()[index]
+                             .cache_guid;
       service->GetSendTabToSelfModel()->AddEntry(url_, url_title_, guid);
     } else {
       rv_context_menu_->OnGetMobile();
@@ -172,7 +171,5 @@ bool DeviceMenuController::GetHighlightText(int command_id, std::string& text) {
   }
   return false;
 }
-
-
 
 }  // namespace vivaldi

@@ -5,10 +5,9 @@
 package org.chromium.chrome.browser.customtabs;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeNtpUrl;
 
 import android.app.Activity;
-import android.app.ActivityManager;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ResolveInfo;
 import android.graphics.Rect;
@@ -16,8 +15,10 @@ import android.text.TextUtils;
 
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.CallbackUtils;
 import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.base.supplier.SupplierUtils;
 import org.chromium.blink.mojom.DisplayMode;
 import org.chromium.blink.mojom.DisplayMode.EnumType;
 import org.chromium.build.annotations.NullMarked;
@@ -62,7 +63,6 @@ import org.chromium.components.browser_ui.util.ComposedBrowserControlsVisibility
 import org.chromium.components.embedder_support.contextmenu.ContextMenuPopulatorFactory;
 import org.chromium.components.embedder_support.delegate.WebContentsDelegateAndroid;
 import org.chromium.components.embedder_support.util.Origin;
-import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.external_intents.ExternalNavigationHandler;
 import org.chromium.components.external_intents.ExternalNavigationParams;
@@ -127,11 +127,27 @@ public class CustomTabDelegateFactory implements TabDelegateFactory {
         @Override
         public boolean shouldDisableExternalIntentRequestsForUrl(
                 ExternalNavigationParams params, Intent intent) {
+            if (shouldSelfNavigationLaunchAsMultipleTask(params)) {
+                return false;
+            }
+
             // TODO(crbug.com/40549331): Migrate verifier hierarchy to GURL.
-            boolean shouldIgnore =
-                    mVerifier != null
-                            && mVerifier.shouldIgnoreExternalIntentHandlers(
-                                    params.getUrl().getSpec());
+            boolean isUrlInVerifiedScope =
+                    mVerifier != null && mVerifier.isUrlInVerifiedScope(params.getUrl().getSpec());
+
+            // http://crbug.com/647569 : Do not forward URL requests to external intents for URLs
+            // within the Webapp/TWA's scope.
+            return isUrlInVerifiedScope;
+        }
+
+        @Override
+        public boolean shouldSelfNavigationLaunchAsMultipleTask(ExternalNavigationParams params) {
+            boolean isUrlInVerifiedScope =
+                    mVerifier != null && mVerifier.isUrlInVerifiedScope(params.getUrl().getSpec());
+
+            if (isUrlInVerifiedScope && shouldLaunchNewWindow(params) && params.isTabInPWA()) {
+                return true;
+            }
 
             // Launch Handler Web API requires for an app to be opened in multiple instances. The
             // logic to achieve this is defined in the Android app layer and an intent must be
@@ -143,14 +159,11 @@ public class CustomTabDelegateFactory implements TabDelegateFactory {
                     && params.isTabInPWA()
                     && params.isInitialNavigationInFrame()
                     && wasTabLaunchedFromLinkCreatingNewForegroundTab()
-                    && shouldIgnore) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
-                return false;
+                    && isUrlInVerifiedScope) {
+                return true;
             }
 
-            // http://crbug.com/647569 : Do not forward URL requests to external intents for URLs
-            // within the Webapp/TWA's scope.
-            return shouldIgnore;
+            return false;
         }
 
         @Override
@@ -226,8 +239,8 @@ public class CustomTabDelegateFactory implements TabDelegateFactory {
                 FullscreenManager fullscreenManager,
                 TabCreatorManager tabCreatorManager,
                 Supplier<TabModelSelector> tabModelSelectorSupplier,
-                Supplier<CompositorViewHolder> compositorViewHolderSupplier,
-                Supplier<ModalDialogManager> modalDialogManagerSupplier,
+                Supplier<@Nullable CompositorViewHolder> compositorViewHolderSupplier,
+                Supplier<@Nullable ModalDialogManager> modalDialogManagerSupplier,
                 Supplier<Boolean> headerControlsVisibilitySupplier,
                 Supplier<Boolean> headerAsOverlaySupplier,
                 @Nullable ExclusiveAccessManager exclusiveAccessManager,
@@ -263,8 +276,7 @@ public class CustomTabDelegateFactory implements TabDelegateFactory {
         @Override
         protected void bringActivityToForeground() {
             assert mActivity != null;
-            ((ActivityManager) mActivity.getSystemService(Context.ACTIVITY_SERVICE))
-                    .moveTaskToFront(mActivity.getTaskId(), 0);
+            ApiCompatibilityUtils.moveTaskToFront(mActivity, mActivity.getTaskId(), 0);
         }
 
         @Override
@@ -362,11 +374,11 @@ public class CustomTabDelegateFactory implements TabDelegateFactory {
     private final TabCreatorManager mTabCreatorManager;
     private final BrowserControlsManager mBrowserControlsManager;
     private final Supplier<TabModelSelector> mTabModelSelectorSupplier;
-    private final Supplier<CompositorViewHolder> mCompositorViewHolderSupplier;
-    private final Supplier<ModalDialogManager> mModalDialogManagerSupplier;
+    private final Supplier<@Nullable CompositorViewHolder> mCompositorViewHolderSupplier;
+    private final Supplier<@Nullable ModalDialogManager> mModalDialogManagerSupplier;
     // Should only be used after inflation.
     private final Supplier<SnackbarManager> mSnackbarManager;
-    private final Supplier<ShareDelegate> mShareDelegateSupplier;
+    private final Supplier<@Nullable ShareDelegate> mShareDelegateSupplier;
     // Should only be used after inflation.
     private final Supplier<BottomSheetController> mBottomSheetController;
     private final AuthTabVerifier mAuthTabVerifier;
@@ -418,10 +430,10 @@ public class CustomTabDelegateFactory implements TabDelegateFactory {
             FullscreenManager fullscreenManager,
             TabCreatorManager tabCreatorManager,
             Supplier<TabModelSelector> tabModelSelectorSupplier,
-            Supplier<CompositorViewHolder> compositorViewHolderSupplier,
-            Supplier<ModalDialogManager> modalDialogManagerSupplier,
+            Supplier<@Nullable CompositorViewHolder> compositorViewHolderSupplier,
+            Supplier<@Nullable ModalDialogManager> modalDialogManagerSupplier,
             Supplier<SnackbarManager> snackbarManager,
-            Supplier<ShareDelegate> shareDelegateSupplier,
+            Supplier<@Nullable ShareDelegate> shareDelegateSupplier,
             @ActivityType int activityType,
             Supplier<BottomSheetController> bottomSheetController,
             AuthTabVerifier authTabVerifier,
@@ -486,17 +498,17 @@ public class CustomTabDelegateFactory implements TabDelegateFactory {
                 null,
                 null,
                 null,
-                () -> null,
-                () -> null,
-                () -> null,
+                SupplierUtils.ofNull(),
+                SupplierUtils.ofNull(),
+                SupplierUtils.ofNull(),
                 null,
-                null,
+                SupplierUtils.ofNull(),
                 ActivityType.CUSTOM_TAB,
                 null,
                 null,
                 null,
-                () -> false,
-                () -> false,
+                SupplierUtils.of(false),
+                SupplierUtils.of(false),
                 null,
                 null);
     }
@@ -597,7 +609,7 @@ public class CustomTabDelegateFactory implements TabDelegateFactory {
             String url, @Nullable NativePage candidatePage, Tab tab, @Nullable PdfInfo pdfInfo) {
         // Navigation comes from user pressing "Back to safety" on an interstitial so close the tab.
         // See crbug.com/1270695
-        if (UrlConstants.NTP_URL.equals(url) && tab.isShowingErrorPage()) {
+        if (getOriginalNativeNtpUrl().equals(url) && tab.isShowingErrorPage()) {
             mActivity.finish();
         }
 

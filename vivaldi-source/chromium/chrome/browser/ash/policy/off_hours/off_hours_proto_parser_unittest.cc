@@ -2,16 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "chrome/browser/ash/policy/off_hours/off_hours_proto_parser.h"
 
 #include <optional>
 #include <utility>
 
+#include "base/compiler_specific.h"
 #include "base/test/simple_test_clock.h"
 #include "base/values.h"
 #include "chromeos/ash/components/policy/weekly_time/weekly_time.h"
@@ -64,9 +60,11 @@ em::WeeklyTimeIntervalProto ConvertWeeklyTimeIntervalToProto(
   em::WeeklyTimeIntervalProto interval_proto;
   em::WeeklyTimeProto* start = interval_proto.mutable_start();
   em::WeeklyTimeProto* end = interval_proto.mutable_end();
-  start->set_day_of_week(kWeekdays[weekly_time_interval.start().day_of_week()]);
+  start->set_day_of_week(
+      UNSAFE_TODO(kWeekdays[weekly_time_interval.start().day_of_week()]));
   start->set_time(weekly_time_interval.start().milliseconds());
-  end->set_day_of_week(kWeekdays[weekly_time_interval.end().day_of_week()]);
+  end->set_day_of_week(
+      UNSAFE_TODO(kWeekdays[weekly_time_interval.end().day_of_week()]));
   end->set_time(weekly_time_interval.end().milliseconds());
   return interval_proto;
 }
@@ -129,16 +127,16 @@ TEST_F(OffHoursParserTest, ConvertOffHoursProtoToValue) {
   SetOffHoursPolicyToProto(
       &proto, OffHoursPolicy(kGmtTimezone, intervals, kDefaultIgnoredPolicies));
 
-  std::optional<base::Value::Dict> off_hours_value =
+  std::optional<base::DictValue> off_hours_value =
       ConvertOffHoursProtoToValue(proto.device_off_hours());
 
-  base::Value::Dict off_hours_expected;
+  base::DictValue off_hours_expected;
   off_hours_expected.Set("timezone", kGmtTimezone);
-  base::Value::List intervals_value;
+  base::ListValue intervals_value;
   for (const auto& interval : intervals)
     intervals_value.Append(interval.ToValue());
   off_hours_expected.Set("intervals", std::move(intervals_value));
-  base::Value::List ignored_policies_value;
+  base::ListValue ignored_policies_value;
   for (const auto& policy : kDefaultIgnoredPolicies)
     ignored_policies_value.Append(policy);
   off_hours_expected.Set("ignored_policy_proto_tags",

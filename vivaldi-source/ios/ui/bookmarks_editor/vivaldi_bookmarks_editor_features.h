@@ -5,7 +5,7 @@
 
 #import <Foundation/Foundation.h>
 
-@interface VivaldiBookmarksEditorFeatures: NSObject
+@interface VivaldiBookmarksEditorFeatures : NSObject
 // Whether top sites are visible in bookmarks editor.
 + (BOOL)shouldShowTopSites;
 @end

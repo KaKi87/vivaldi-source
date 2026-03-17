@@ -37,10 +37,12 @@
 #include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_constants.h"
 #include "chrome/browser/web_applications/web_app_database.h"
+#include "chrome/browser/web_applications/web_app_filter.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_install_manager.h"
 #include "chrome/browser/web_applications/web_app_management_type.h"
 #include "chrome/browser/web_applications/web_app_proto_utils.h"
+#include "chrome/browser/web_applications/web_app_registrar.h"
 #include "chrome/browser/web_applications/web_app_registry_update.h"
 #include "chrome/browser/web_applications/web_app_utils.h"
 #include "chrome/common/channel_info.h"
@@ -190,6 +192,14 @@ void ApplySyncDataToApp(const sync_pb::WebAppSpecifics& sync_proto,
     auto udm = ResolvePlatformSpecificUserDisplayMode(modified_sync_proto);
     SetPlatformSpecificUserDisplayMode(udm, &modified_sync_proto);
   }
+
+  // Ensure that incoming sync proto that does not have the manifest id of the
+  // source app set does not clear the existing metadata stored on disk.
+  if (app->sync_proto().has_migrated_from_manifest_id() &&
+      !modified_sync_proto.has_migrated_from_manifest_id()) {
+    modified_sync_proto.set_migrated_from_manifest_id(
+        app->sync_proto().migrated_from_manifest_id());
+  }
   app->SetSyncProto(std::move(modified_sync_proto));
   CHECK(HasCurrentPlatformUserDisplayMode(app->sync_proto()));
 }
@@ -221,13 +231,14 @@ WebAppSyncBridge::WebAppSyncBridge(
 
 WebAppSyncBridge::~WebAppSyncBridge() = default;
 
-void WebAppSyncBridge::SetProvider(base::PassKey<WebAppProvider>,
+void WebAppSyncBridge::SetProvider(base::PassKey<WebAppProvider> pass_key,
                                    WebAppProvider& provider) {
   database_ = std::make_unique<WebAppDatabase>(
       &(provider.database_factory()),
       base::BindRepeating(&WebAppSyncBridge::ReportErrorToChangeProcessor,
                           base::Unretained(this)));
   provider_ = &provider;
+  database_->SetProvider(pass_key, *provider_);
 }
 
 [[nodiscard]] ScopedRegistryUpdate WebAppSyncBridge::BeginUpdate(
@@ -369,7 +380,9 @@ void WebAppSyncBridge::SetUserPageOrdinal(const webapps::AppId& app_id,
   // called before the app is installed in the web apps system. Until apps are
   // no longer double-installed on both systems, ignore this case.
   // https://crbug.com/1101781
-  if (!registrar_->IsInRegistrar(app_id)) {
+  // TODO(crbug.com/379136842): This is likely too 'permissive' of a check, and
+  // different more restrictive filter should likely be used instead.
+  if (!registrar_->AppMatches(app_id, WebAppFilter::IsAppSurfaceableToUser())) {
     return;
   }
   if (web_app) {
@@ -388,7 +401,9 @@ void WebAppSyncBridge::SetUserLaunchOrdinal(
   // called before the app is installed in the web apps system. Until apps are
   // no longer double-installed on both systems, ignore this case.
   // https://crbug.com/1101781
-  if (!registrar_->IsInRegistrar(app_id)) {
+  // TODO(crbug.com/379136842): This is likely too 'permissive' of a check, and
+  // different more restrictive filter should likely be used instead.
+  if (!registrar_->AppMatches(app_id, WebAppFilter::IsAppSurfaceableToUser())) {
     return;
   }
   WebApp* web_app = update->UpdateApp(app_id);
@@ -404,10 +419,9 @@ void WebAppSyncBridge::SetUserLaunchOrdinal(
 void WebAppSyncBridge::SetAlwaysShowToolbarInFullscreen(
     const webapps::AppId& app_id,
     bool show) {
-  if (!registrar_->IsInstallState(
-          app_id, {proto::InstallState::SUGGESTED_FROM_ANOTHER_DEVICE,
-                   proto::InstallState::INSTALLED_WITHOUT_OS_INTEGRATION,
-                   proto::InstallState::INSTALLED_WITH_OS_INTEGRATION})) {
+  // TODO(crbug.com/379136842): This is likely too 'permissive' of a check, and
+  // different more restrictive filter should likely be used instead.
+  if (!registrar_->AppMatches(app_id, WebAppFilter::IsAppSurfaceableToUser())) {
     return;
   }
   {
@@ -695,9 +709,18 @@ ManifestIdParseResult WebAppSyncBridge::PrepareLocalUpdateFromSyncChange(
   if (!existing_web_app) {
     // Any remote entities that don’t exist locally must be written to local
     // storage.
-    web_app = std::make_unique<WebApp>(app_id);
-    web_app->SetStartUrl(GURL(specifics.start_url()));
-    web_app->SetManifestId(manifest_id.value());
+    // Validate scope, and fix it if it is incorrect.
+    GURL scope = GURL(specifics.scope());
+    GURL start_url = GURL(specifics.start_url());
+    if (!scope.is_valid() || !url::IsSameOriginWith(scope, start_url) ||
+        !base::StartsWith(start_url.spec(), scope.spec(),
+                          base::CompareCase::SENSITIVE)) {
+      scope = start_url.GetWithoutFilename();
+    }
+    web_app = std::make_unique<WebApp>(manifest_id.value(),
+                                       GURL(specifics.start_url()), scope,
+                                       /*parent_app_id=*/std::nullopt,
+                                       /*parent_manifest_id=*/std::nullopt);
 
     // Request a followup sync-initiated install for this stub app to fetch
     // full local data and all the icons.
@@ -943,6 +966,10 @@ bool WebAppSyncBridge::IsEntityDataValid(
   DLOG(ERROR) << "Cannot parse sync entity: "
               << base::ToString(manifest_id.error());
   return false;
+}
+
+const PersistableLog* WebAppSyncBridge::database_log() const {
+  return database_->log();
 }
 
 void WebAppSyncBridge::SetAppNotLocallyInstalledForTesting(

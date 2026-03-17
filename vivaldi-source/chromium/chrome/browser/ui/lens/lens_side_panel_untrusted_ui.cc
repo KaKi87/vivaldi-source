@@ -38,7 +38,9 @@
 namespace lens {
 
 LensSidePanelUntrustedUI::LensSidePanelUntrustedUI(content::WebUI* web_ui)
-    : UntrustedTopChromeWebUIController(web_ui) {
+    : UntrustedTopChromeWebUIController(web_ui,
+                                        /*enable_chrome_send=*/false,
+                                        /*enable_chrome_histograms=*/true) {
   // Set up the chrome-untrusted://lens/ source.
   content::WebUIDataSource* html_source =
       content::WebUIDataSource::CreateAndAdd(
@@ -256,7 +258,6 @@ LensSidePanelUntrustedUI::LensSidePanelUntrustedUI(content::WebUI* web_ui)
   html_source->AddBoolean("composeboxContextDragAndDropEnabled", false);
   html_source->AddBoolean("steadyComposeboxShowVoiceSearch", false);
   html_source->AddBoolean("expandedComposeboxShowVoiceSearch", false);
-  html_source->AddBoolean("expandedSearchboxShowVoiceSearch", false);
 
   // If the ThemeSource isn't added here, since this WebUI is
   // chrome-untrusted, it will be unable to load stylesheets until a new tab

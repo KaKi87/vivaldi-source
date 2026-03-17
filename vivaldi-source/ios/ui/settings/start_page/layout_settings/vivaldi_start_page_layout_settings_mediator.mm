@@ -7,11 +7,11 @@
 #import "components/prefs/pref_service.h"
 #import "ios/ui/settings/start_page/layout_settings/vivaldi_start_page_layout_column.h"
 #import "ios/ui/settings/start_page/layout_settings/vivaldi_start_page_layout_style.h"
-#import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
-@interface VivaldiStartPageLayoutSettingsMediator ()<PrefObserverDelegate>
+@interface VivaldiStartPageLayoutSettingsMediator () <PrefObserverDelegate>
 @end
 
 @implementation VivaldiStartPageLayoutSettingsMediator {
@@ -31,10 +31,9 @@
     _prefObserverBridge.reset(new PrefObserverBridge(self));
 
     _prefObserverBridge->ObserveChangesForPreference(
-          vivaldiprefs::kVivaldiStartPageLayoutStyle, &_prefChangeRegistrar);
+        vivaldiprefs::kVivaldiStartPageLayoutStyle, &_prefChangeRegistrar);
     _prefObserverBridge->ObserveChangesForPreference(
-          vivaldiprefs::kVivaldiStartPageSDMaximumColumns,
-              &_prefChangeRegistrar);
+        vivaldiprefs::kVivaldiStartPageSDMaximumColumns, &_prefChangeRegistrar);
 
     [VivaldiStartPagePrefs setPrefService:_prefs];
   }
@@ -52,7 +51,7 @@
 - (void)setConsumer:(id<VivaldiStartPageSettingsConsumer>)consumer {
   _consumer = consumer;
 
-  [self.consumer setPreferenceSpeedDialLayout: [self currentLayoutStyle]];
+  [self.consumer setPreferenceSpeedDialLayout:[self currentLayoutStyle]];
   [self.consumer setPreferenceSpeedDialColumn:[self currentLayoutColumn]];
 }
 
@@ -83,6 +82,10 @@
 
 - (void)setPreferenceStartPageReopenWithItem:
     (VivaldiStartPageStartItemType)item {
+  // No op.
+}
+
+- (void)setPreferenceDailyMixEnabled:(BOOL)enabled {
   // No op.
 }
 

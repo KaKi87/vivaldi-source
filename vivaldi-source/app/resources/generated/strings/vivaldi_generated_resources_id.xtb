@@ -196,7 +196,7 @@
 <translation id="3909791450649380159">Po&amp;tong</translation>
 <translation id="3927932062596804919">Tolak</translation>
 <translation id="3936390757709632190">&amp;Buka audio di tab baru</translation>
-<translation id="3943582379552582368">&amp;Mundur</translation>
+<translation id="3943582379552582368">&amp;Kembali</translation>
 <translation id="3948116654032448504">&amp;Telusuri <ph name="SEARCH_ENGINE" /> untuk Gambar</translation>
 <translation id="3979395879372752341">Ekstensi baru ditambahkan (<ph name="EXTENSION_NAME" />)</translation>
 <translation id="398477389655464998">Salin Tautan ke Sorotan</translation>
@@ -303,7 +303,6 @@
 <translation id="5624959475330585145">Tanyakan sebelum menggunakan koneksi yang tidak aman</translation>
 <translation id="5638309510554459422">Temukan ekstensi dan tema di <ph name="BEGIN_LINK" />Chrome Web Store<ph name="END_LINK" /></translation>
 <translation id="5677928146339483299">Diblokir</translation>
-<translation id="5707185214361380026">Gagal memuat ekstensi dari:</translation>
 <translation id="5713171467967533494">Buka di peramban Vivaldi</translation>
 <translation id="5746169159649715125">Simpan sebagai PDF</translation>
 <translation id="5747809636523347288">Te&amp;mpel dan buka <ph name="URL" /></translation>
@@ -351,7 +350,7 @@
 <translation id="6419546358665792306">Muat yang dibongkar</translation>
 <translation id="6445450263907939268">Jika anda tidak menginginkan semua perubahan ini, pulihkan semua pengaturan sebelumnya.</translation>
 <translation id="6447842834002726250">Kuki</translation>
-<translation id="6498249116389603658">&amp;Semua bahasa anda</translation>
+<translation id="6498249116389603658">&amp;Semua bahasa Anda</translation>
 <translation id="6503077044568424649">Sering dibuka</translation>
 <translation id="6508261954199872201">Aplikasi: <ph name="APP_NAME" /></translation>
 <translation id="6516243500644829484">Jendela &amp;pribadi baru</translation>

@@ -4,19 +4,18 @@
 
 #import "components/pref_registry/pref_registry_syncable.h"
 #import "components/prefs/pref_service.h"
-#import "prefs/vivaldi_pref_names.h"
-
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 @implementation VivaldiBookmarkPrefs
 
-static PrefService *_prefService = nil;
+static PrefService* _prefService = nil;
 
 + (PrefService*)prefService {
-    return _prefService;
+  return _prefService;
 }
 
 + (void)setPrefService:(PrefService*)pref {
-    _prefService = pref;
+  _prefService = pref;
 }
 
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry {
@@ -26,13 +25,15 @@ static PrefService *_prefService = nil;
                                 VivaldiBookmarksSortingOrderAscending);
   registry->RegisterBooleanPref(vivaldiprefs::kVivaldiBookmarkFoldersViewMode,
                                 false);
+  registry->RegisterBooleanPref(
+      vivaldiprefs::kVivaldiSafariImportEntryPointShown, false);
 }
 
 #pragma mark - Getters
 + (const VivaldiBookmarksSortingMode)getBookmarksSortingMode {
-  PrefService *prefService = [VivaldiBookmarkPrefs prefService];
+  PrefService* prefService = [VivaldiBookmarkPrefs prefService];
   int modeIndex =
-    prefService->GetInteger(vivaldiprefs::kVivaldiBookmarksSortingMode);
+      prefService->GetInteger(vivaldiprefs::kVivaldiBookmarksSortingMode);
 
   switch (modeIndex) {
     case VivaldiBookmarksSortingModeManual:
@@ -55,7 +56,7 @@ static PrefService *_prefService = nil;
 }
 
 + (const VivaldiBookmarksSortingOrder)getBookmarksSortingOrder {
-  PrefService *prefService = [VivaldiBookmarkPrefs prefService];
+  PrefService* prefService = [VivaldiBookmarkPrefs prefService];
   int orderIndex =
       prefService->GetInteger(vivaldiprefs::kVivaldiBookmarksSortingOrder);
   switch (orderIndex) {
@@ -69,26 +70,44 @@ static PrefService *_prefService = nil;
 }
 
 + (BOOL)getFolderViewMode {
-  PrefService *prefService = [VivaldiBookmarkPrefs prefService];
+  PrefService* prefService = [VivaldiBookmarkPrefs prefService];
   return prefService->GetBoolean(vivaldiprefs::kVivaldiBookmarkFoldersViewMode);
+}
+
++ (BOOL)getSafariImportEntryPointShown {
+  PrefService* prefService = [VivaldiBookmarkPrefs prefService];
+  if (!prefService) {
+    return NO;
+  }
+  return prefService->GetBoolean(
+      vivaldiprefs::kVivaldiSafariImportEntryPointShown);
 }
 
 #pragma mark - Setters
 
 + (void)setBookmarksSortingMode:(const VivaldiBookmarksSortingMode)mode {
-  PrefService *prefService = [VivaldiBookmarkPrefs prefService];
+  PrefService* prefService = [VivaldiBookmarkPrefs prefService];
   prefService->SetInteger(vivaldiprefs::kVivaldiBookmarksSortingMode, mode);
 }
 
 + (void)setBookmarksSortingOrder:(const VivaldiBookmarksSortingOrder)order {
-  PrefService *prefService = [VivaldiBookmarkPrefs prefService];
+  PrefService* prefService = [VivaldiBookmarkPrefs prefService];
   prefService->SetInteger(vivaldiprefs::kVivaldiBookmarksSortingOrder, order);
 }
 
 + (void)setFolderViewMode:(BOOL)showOnlySpeedDials {
-  PrefService *prefService = [VivaldiBookmarkPrefs prefService];
+  PrefService* prefService = [VivaldiBookmarkPrefs prefService];
   prefService->SetBoolean(vivaldiprefs::kVivaldiBookmarkFoldersViewMode,
                           showOnlySpeedDials);
+}
+
++ (void)setSafariImportEntryPointShown:(BOOL)shown {
+  PrefService* prefService = [VivaldiBookmarkPrefs prefService];
+  if (!prefService) {
+    return;
+  }
+  prefService->SetBoolean(vivaldiprefs::kVivaldiSafariImportEntryPointShown,
+                          shown);
 }
 
 @end

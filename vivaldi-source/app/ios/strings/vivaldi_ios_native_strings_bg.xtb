@@ -7,9 +7,9 @@
 <translation id="1041637248958093184">Vivaldi не пази търсения, посетени сайтове, бисквитки и временни файлове, когато ползвате частни раздели.</translation>
 <translation id="104766043551382253">иконичен</translation>
 <translation id="1062373127858055283">Моля, въведете адреса на картината</translation>
-<translation id="1066692930984703744">Разрешете блокера на тракери и реклами за по-бързо и безопасно сърфиране.</translation>
+<translation id="1066692930984703744">Разрешете блокера на реклами и тракери за по-бързо и безопасно сърфиране.</translation>
 <translation id="1116694919640316211">За Vivaldi</translation>
-<translation id="1123707809902612118">Блокирай тракери и реклами</translation>
+<translation id="1123707809902612118">Блокирай реклами и тракери</translation>
 <translation id="1134179431044204911">Жестовете или придвижването са трудни за ползване</translation>
 <translation id="1151972924205500581">Задължително въведете парола</translation>
 <translation id="1166425484559430538">Сверените данни са шифровани. Изисква се да предоставите шифроваща парола, за да ги разшифровате.</translation>
@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Организирай блокиращите реклама източници</translation>
 <translation id="1577761519530347814">Сверяване на съхранените пароли за сайтовете.</translation>
 <translation id="1620921465699122417">Въведете текст за превод.</translation>
+<translation id="1624621765073396937">Затваряй раздела с плъзгане</translation>
 <translation id="1631998297781042533">Популярни сайтове</translation>
 <translation id="1644574205037202324">История</translation>
 <translation id="1655816024544228768">Спорт</translation>
@@ -73,7 +74,7 @@
 <translation id="1771605894228673800">Искам възможност с вградена VPN</translation>
 <translation id="1800685789463945995">Vivaldi продължава да забива или замръзва</translation>
 <translation id="1804522390855853698">китайски (<ph name="ORIGIN" />)</translation>
-<translation id="1807246157184219062">Светла</translation>
+<translation id="1807246157184219062">светла</translation>
 <translation id="1809939268435598390">Изтрий папката</translation>
 <translation id="1813686536470127172">Друга папка</translation>
 <translation id="1828800626900562968">Докоснете иконата с плюс по-долу, за да създадете нов раздел.</translation>
@@ -106,20 +107,21 @@
 <translation id="2330644510603114741">Поведение на разделите</translation>
 <translation id="233493642829799329">Промяната на настройката може да доведе до презареждане на някои от разделите.</translation>
 <translation id="2336309953058658733">Изпразни кошчето</translation>
+<translation id="2336679896177818431">Отваряне на превключвача на раздели с плъзгане нагоре или надолу в лентата с адреси.</translation>
 <translation id="2359808026110333948">Напред</translation>
 <translation id="2386793615875593361">1 избран</translation>
 <translation id="2387049655823108978">Сверяване на отворените раздели от други устройства.</translation>
 <translation id="2388224692799337242">Щом разгледате интернет, историята ще се покаже тук.</translation>
 <translation id="2391028308389203648">турски (<ph name="ORIGIN" />)</translation>
 <translation id="2392369802118427583">Активирай</translation>
-<translation id="2414886740292270097">Тъмна</translation>
+<translation id="2414886740292270097">тъмна</translation>
 <translation id="2434910957904013691">Сверявай всички</translation>
 <translation id="2448144008809286557">Забравен <ph name="BEGIN_LINK" />потребител<ph name="END_LINK" /> или <ph name="BEGIN_LINK" />парола<ph name="END_LINK" />?</translation>
 <translation id="2478478121390627077">Текущо избран цвят</translation>
 <translation id="2496616243169085015">Фотография</translation>
 <translation id="2536780277491102902">ИЗКЛЮЧЕНИЯ</translation>
 <translation id="2558801801411970131">Блокиране на тракери</translation>
-<translation id="2562040727226360285">Премахвай дразнещи елементи: някои сайтове могат да не работят (<ph name="ORIGIN" />)</translation>
+<translation id="2562040727226360285">Премахвай дразнещи неща: някои сайтове могат да не работят (<ph name="ORIGIN" />)</translation>
 <translation id="2563886993995570961">Пределен брой колони</translation>
 <translation id="257674075312929031">Каталог</translation>
 <translation id="2577446409661931381">Създай записка</translation>
@@ -127,6 +129,7 @@
 <translation id="261264557609353020">като пускова решетка</translation>
 <translation id="2619628557366098325">португалски (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">от системата</translation>
+<translation id="2638305832232696831">Разреши жестове с плъзгане в лентата с адреси</translation>
 <translation id="2653659639078652383">Предай</translation>
 <translation id="2666092431469916601">отгоре</translation>
 <translation id="2677862276555105603">блокирана
@@ -153,6 +156,7 @@
 <translation id="2862504765180635001">Съжаляваме да го научим!</translation>
 <translation id="2878511608894704031">Изтрий всичко</translation>
 <translation id="2884735088411646852">Подреди</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (блокира различни дразнещи неща)</translation>
 <translation id="2898963176829412617">Създай папка…</translation>
 <translation id="2918704853620385162">Отваряй нов раздел при затваряне на последния раздел</translation>
 <translation id="2924890236896835588">Име на каталога</translation>
@@ -172,6 +176,7 @@
 <translation id="3142562627629111859">Създай нов каталог</translation>
 <translation id="3157931365184549694">Възстанови</translation>
 <translation id="3159285901314605198">Фонова картина</translation>
+<translation id="317084213044777332">Задай като основна</translation>
 <translation id="3177673846235066154">Сървърът отказа вписващите данни.</translation>
 <translation id="3180057018690062250">Поточни услуги</translation>
 <translation id="3180358318770512945">Възпитание</translation>
@@ -205,7 +210,7 @@
 <translation id="3597069850377878155">Поставете %s в адреса там, където следва да се вмъкне заявката за търсене.</translation>
 <translation id="3601414719864711130">Подреди по дата</translation>
 <translation id="3602290021589620013">Прегледай</translation>
-<translation id="3607176258839749451">Регистрирането се провали поради грешка. Моля, по-късно опитайте отново.</translation>
+<translation id="3607176258839749451">Регистрирането се провали поради грешка. Моля, опитайте отново по-късно.</translation>
 <translation id="3628734956995390149">{count, plural,
           =1 {отметка е преместена към „{title}“}
           other {{count} отметки са преместени към „{title}“}}</translation>
@@ -345,7 +350,7 @@
 <translation id="4943266325467647391">Вграденият блокер на реклами и тракери на Vivaldi защитава от злонамерен софтуер и реклами.</translation>
 <translation id="4950266778127803750">Показвай бутон Х към фоновите раздели</translation>
 <translation id="495421405224926623">Прочетох и приемам Условия на ползване и Политика на поверителност</translation>
-<translation id="497942794017668482">Блокиране на тракери и реклами</translation>
+<translation id="497942794017668482">Блокиране на реклами и тракери</translation>
 <translation id="4983968022327077496">Вашата организация изисква да сърфирате поверително. Разделите не се записват в частен режим. <ph name="BEGIN_LINK" />Повече<ph name="END_LINK" /></translation>
 <translation id="4993477362660748586">Сверяване</translation>
 <translation id="500392125908657603">Настройки на адресното поле</translation>
@@ -378,7 +383,7 @@
 <translation id="5415265829033764921">Допуск блокиращите правила да блокират определени страници.</translation>
 <translation id="5421638721143596928">Провалено разшифроване на вписващите данни. Моля, впишете се отново.</translation>
 <translation id="5439599923922718668">Често посещавани</translation>
-<translation id="5439835075346716808">Регистрирането от този адрес IP временно се блокира. Моля, по-късно опитайте отново.</translation>
+<translation id="5439835075346716808">Регистрирането от този адрес IP временно се блокира. Моля, опитайте отново по-късно.</translation>
 <translation id="5475116651001049780">Скрий мобилната версия</translation>
 <translation id="5486261815000869482">Повторена парола</translation>
 <translation id="5493100027274177356">Изходният текст е <ph name="SOURCE_TEXT" />, а преведеният текст е <ph name="TRANSLATED_TEXT" /></translation>
@@ -462,7 +467,7 @@
 <translation id="6609906162587123522">Не отваряй препратки във външни приложения</translation>
 <translation id="6614744450826097546">За рекламите</translation>
 <translation id="6631760746795162665">колумбийски (<ph name="ORIGIN" />)</translation>
-<translation id="6639866709520319699">Блокират се тракери и реклами. Някои сайтове могат да не работят.</translation>
+<translation id="6639866709520319699">Блокират се реклами и тракери. Някои сайтове могат да не работят.</translation>
 <translation id="6642196070615520677">Изтриване на отдалечено сверени данни</translation>
 <translation id="6645228090427373820">Блокират се тракери, без реклами. Някои сайтове могат да не работят.</translation>
 <translation id="6656103420185847513">Редактирай папката</translation>
@@ -478,7 +483,7 @@
 <translation id="6798469570047202628">Въведена е грешна парола.</translation>
 <translation id="6807791860691150411">Образование</translation>
 <translation id="681368974849482173">Създаден елемент</translation>
-<translation id="6830986331692390764">Моля, изчакайте — изчистване на сверени данни.</translation>
+<translation id="6830986331692390764">Моля, изчакайте — изчистване на сверени данни.</translation>
 <translation id="6831043979455480757">Преведи</translation>
 <translation id="6838968771741416244">Допълнителни подробности за вашия отзив</translation>
 <translation id="6850275739048136176">Размени изходния и целевия език на превода</translation>
@@ -558,7 +563,7 @@
 <translation id="7593546601395782810">Скрий записките</translation>
 <translation id="7600840048521751013">История на преводите</translation>
 <translation id="7602336701644200880">Провалено изпращане на писмо. Моля, опитайте отново.</translation>
-<translation id="7606108789437688910">Отвори адреса на записката в частен раздел</translation>
+<translation id="7606108789437688910">Отвори адресите на записката в частен раздел</translation>
 <translation id="7616284412875773842">Разочарован</translation>
 <translation id="7622661618259256505">Моля, посочете парола с дължина поне 12 знака.</translation>
 <translation id="7658239707568436148">Отказ</translation>
@@ -594,6 +599,7 @@
 <translation id="8066170816074394954">Грешка в сървъра.</translation>
 <translation id="8076492880354921740">Раздели</translation>
 <translation id="8077675488769462025">Бездейни раздели</translation>
+<translation id="8079925180539182073">Премахване на основна търсачка е невъзможно.</translation>
 <translation id="8112996065264879835">Кодът не съвпада с изпратения до вас.
         Достигнахте пределният брой грешни опити. Моля, заявете нов код чрез възможността за препращане по-долу.</translation>
 <translation id="8131740175452115882">Потвърди</translation>
@@ -611,18 +617,18 @@
 <translation id="8304044605002588416">Показвай бутон за нагласяване</translation>
 <translation id="8304538706952727936">Освободете се от техгантите</translation>
 <translation id="8323167517179506834">Въведете адрес</translation>
-<translation id="8326104954595890674">Създай частен раздел</translation>
+<translation id="8326104954595890674">Нов частен раздел</translation>
 <translation id="8329813750766387010">обновен на: <ph name="DATE" /></translation>
 <translation id="8339701072035560935">като празна страница</translation>
 <translation id="8347535536909603600">Премахвай предупреждения за бисквитки (<ph name="TYPE" />)</translation>
 <translation id="8359194106448244241">Трябва да разрешите Свер, за да видите разделите от други устройства.</translation>
-<translation id="8366175803122817174">Отвори адресите на всички записки</translation>
+<translation id="8366175803122817174">Отвори всички адреси на записката</translation>
 <translation id="8372721116225477180">Социални мрежи</translation>
 <translation id="8395378633507873708">Лента с адреси</translation>
 <translation id="839736845446313156">Регистрирай</translation>
 <translation id="8404556771547317369">Моля, въведете адреса</translation>
 <translation id="8414685983518053656">Записки</translation>
-<translation id="8423076545503792640">Заявката се провали поради грешка. Моля, по-късно опитайте отново.</translation>
+<translation id="8423076545503792640">Заявката се провали поради грешка. Моля, опитайте отново по-късно.</translation>
 <translation id="8427509694325373907">Параметри POST за картини</translation>
 <translation id="8428213095426709021">Настройки</translation>
 <translation id="8458397775385147834">1 изтрит елемент</translation>
@@ -639,6 +645,7 @@
 <translation id="856439694359429369">Докоснете за още настройки или докоснете 2-кратно за отваряне.</translation>
 <translation id="8591818185775466306">Изтрий <ph name="ITEM_TYPE" /></translation>
 <translation id="8605953154325672921">Задължително въведете потребител</translation>
+<translation id="861259508026988871">Добави като търсачка</translation>
 <translation id="8675578805254882416">Извличане</translation>
 <translation id="8677007239430848917">Докоснете иконата с плюс по-долу, за да добавите първата записка.</translation>
 <translation id="8684294196284714094">Готов ли сте да зададете Vivaldi като водещ браузър?</translation>

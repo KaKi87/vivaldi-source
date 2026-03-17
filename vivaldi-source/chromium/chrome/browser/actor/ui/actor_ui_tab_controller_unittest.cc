@@ -14,12 +14,13 @@
 #include "chrome/browser/actor/actor_keyed_service_factory.h"
 #include "chrome/browser/actor/actor_keyed_service_fake.h"
 #include "chrome/browser/actor/ui/actor_border_view_controller.h"
+#include "chrome/browser/actor/ui/actor_ui_metrics_types.h"
 #include "chrome/browser/actor/ui/actor_ui_tab_controller_interface.h"
 #include "chrome/browser/actor/ui/actor_ui_window_controller.h"
-#include "chrome/browser/actor/ui/mocks/mock_actor_ui_state_manager.h"
-#include "chrome/browser/actor/ui/mocks/mock_handoff_button_controller.h"
 #include "chrome/browser/actor/ui/states/actor_overlay_state.h"
 #include "chrome/browser/actor/ui/states/handoff_button_state.h"
+#include "chrome/browser/actor/ui/test_support/mock_actor_ui_state_manager.h"
+#include "chrome/browser/actor/ui/test_support/mock_handoff_button_controller.h"
 #include "chrome/browser/ui/browser_window/test/mock_browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/test_tab_strip_model_delegate.h"
@@ -27,6 +28,7 @@
 #include "chrome/browser/ui/views/frame/mock_immersive_mode_controller.h"
 #include "chrome/common/actor/action_result.h"
 #include "chrome/common/chrome_features.h"
+#include "chrome/test/base/chrome_render_view_host_test_harness.h"
 #include "chrome/test/base/testing_profile.h"
 #include "components/tabs/public/mock_tab_interface.h"
 #include "content/public/test/test_renderer_host.h"
@@ -75,27 +77,29 @@ ACTION(ReturnNewScopedClosureRunner) {
   return base::ScopedClosureRunner(base::DoNothing());
 }
 
-class ActorUiTabControllerTest : public content::RenderViewHostTestHarness {
+class ActorUiTabControllerTest : public ChromeRenderViewHostTestHarness {
  public:
   ActorUiTabControllerTest()
-      : content::RenderViewHostTestHarness(
-            base::test::TaskEnvironment::TimeSource::MOCK_TIME) {}
+      : ChromeRenderViewHostTestHarness(
+            base::test::TaskEnvironment::TimeSource::MOCK_TIME) {
+    scoped_feature_list_.InitWithFeaturesAndParameters(
+        /*enabled_features=*/{{features::kGlicActorUi,
+                               {{features::kGlicActorUiHandoffButtonName,
+                                 "true"},
+                                {features::kGlicActorUiOverlayName, "true"}}},
+                              {features::kGlicActor,
+                               {{features::kGlicActorPolicyControlExemption
+                                     .name,
+                                 "true"}}}},
+        /*disabled_features=*/{});
+  }
   ~ActorUiTabControllerTest() override = default;
 
   // testing::Test:
   void SetUp() override {
-    content::RenderViewHostTestHarness::SetUp();
-    tab_strip_model_ = std::make_unique<TabStripModel>(
-        &delegate_, static_cast<TestingProfile*>(browser_context()));
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        /*enabled_features=*/{{features::kGlicHandoffButtonHiddenClientControl,
-                               {}},
-                              {features::kGlicActorUi,
-                               {{features::kGlicActorUiHandoffButtonName,
-                                 "true"},
-                                {features::kGlicActorUiOverlayName, "true"}}}},
-        /*disabled_features=*/{});
+    ChromeRenderViewHostTestHarness::SetUp();
 
+    tab_strip_model_ = std::make_unique<TabStripModel>(&delegate_, profile());
     ON_CALL(mock_tab_, GetBrowserWindowInterface())
         .WillByDefault(Return(&mock_browser_window_interface_));
     ON_CALL(mock_tab_, GetUnownedUserDataHost())
@@ -112,11 +116,9 @@ class ActorUiTabControllerTest : public content::RenderViewHostTestHarness {
     ON_CALL(*immersive_mode_controller(), IsEnabled())
         .WillByDefault(Return(false));
 
-    actor_keyed_service_ = std::make_unique<ActorKeyedServiceFake>(
-        static_cast<TestingProfile*>(browser_context()));
     std::unique_ptr<MockActorUiStateManager> ausm =
         std::make_unique<MockActorUiStateManager>();
-    actor_keyed_service_->SetActorUiStateManagerForTesting(std::move(ausm));
+    actor_keyed_service()->SetActorUiStateManagerForTesting(std::move(ausm));
 
     window_controller_ = std::make_unique<ActorUiWindowController>(
         &mock_browser_window_interface_,
@@ -135,8 +137,7 @@ class ActorUiTabControllerTest : public content::RenderViewHostTestHarness {
         .WillByDefault(ReturnNewScopedClosureRunner());
 
     actor_ui_tab_controller_ = std::make_unique<ActorUiTabController>(
-        mock_tab_, actor_keyed_service(),
-        std::make_unique<ActorUiTabControllerFactory>());
+        mock_tab_, actor_keyed_service());
 
     mock_handoff_button_controller_ =
         std::make_unique<MockHandoffButtonController>(
@@ -148,7 +149,7 @@ class ActorUiTabControllerTest : public content::RenderViewHostTestHarness {
     // Creates task for testing.
     task_id_ = actor_keyed_service()->CreateTaskForTesting();
     base::RunLoop loop;
-    actor_keyed_service_->GetTask(task_id_)->AddTab(
+    actor_keyed_service()->GetTask(task_id_)->AddTab(
         mock_tab_.GetHandle(),
         base::BindLambdaForTesting([&](::actor::mojom::ActionResultPtr result) {
           EXPECT_TRUE(IsOk(*result));
@@ -160,8 +161,22 @@ class ActorUiTabControllerTest : public content::RenderViewHostTestHarness {
     SetUpDefaultOverlayExpectations();
   }
 
+  TestingProfile::TestingFactories GetTestingFactories() const override {
+    return {TestingProfile::TestingFactory{
+        ActorKeyedServiceFactory::GetInstance(),
+        base::BindOnce(&ActorUiTabControllerTest::BuildActorKeyedService,
+                       base::Unretained(this))}};
+  }
+
   ActorKeyedServiceFake* actor_keyed_service() {
-    return actor_keyed_service_.get();
+    return static_cast<ActorKeyedServiceFake*>(
+        ActorKeyedService::Get(profile()));
+  }
+
+  std::unique_ptr<KeyedService> BuildActorKeyedService(
+      content::BrowserContext* context) const {
+    Profile* profile = Profile::FromBrowserContext(context);
+    return std::make_unique<ActorKeyedServiceFake>(profile);
   }
 
   ActorUiTabControllerInterface* tab_controller() {
@@ -186,17 +201,11 @@ class ActorUiTabControllerTest : public content::RenderViewHostTestHarness {
     mock_handoff_button_controller_.reset();
     window_controller_.reset();
     immersive_mode_controller_.reset();
-    actor_keyed_service_->Shutdown();
-    actor_keyed_service_.reset();
     tab_strip_model_.reset();
 
     testing::Mock::VerifyAndClear(&mock_tab_);
     mock_web_contents_ = nullptr;
     content::RenderViewHostTestHarness::TearDown();
-  }
-
-  std::unique_ptr<content::BrowserContext> CreateBrowserContext() override {
-    return TestingProfile::Builder().Build();
   }
 
   TaskId task_id() { return task_id_; }
@@ -246,7 +255,6 @@ class ActorUiTabControllerTest : public content::RenderViewHostTestHarness {
       mock_overlay_callback_;
 
  private:
-  std::unique_ptr<ActorKeyedServiceFake> actor_keyed_service_;
   ::ui::UnownedUserDataHost user_data_host_;
   MockTabInterface mock_tab_;
   MockBrowserWindowInterface mock_browser_window_interface_;
@@ -289,22 +297,6 @@ TEST_F(ActorUiTabControllerTest,
 
   UiTabState ui_tab_state(ActorOverlayState(), handoff_button_state);
   tab_controller()->OnUiTabStateChange(ui_tab_state, base::DoNothing());
-}
-
-TEST_F(
-    ActorUiTabControllerTest,
-    UpdateButtonVisibility_ButtonStaysVisibleWhenClientIsInControlAndFeatureDisabled) {
-  base::test::ScopedFeatureList local_list;
-  local_list.InitAndDisableFeature(
-      features::kGlicHandoffButtonHiddenClientControl);
-
-  EXPECT_CALL(*handoff_button_controller(),
-              UpdateState(_, /*is_visible=*/true, _));
-
-  HandoffButtonState client_control_state(
-      true, HandoffButtonState::ControlOwnership::kClient);
-  UiTabState new_ui_tab_state(ActorOverlayState(), client_control_state);
-  tab_controller()->OnUiTabStateChange(new_ui_tab_state, base::DoNothing());
 }
 
 TEST_F(ActorUiTabControllerTest,
@@ -557,6 +549,27 @@ TEST_F(ActorUiTabControllerTest, RegisterCallbackWhileRegisteredDeathTest) {
       (void)tab_controller()->RegisterActorTabIndicatorStateChangedCallback(
           valid_tab_indicator_cb),
       "");
+}
+
+TEST_F(ActorUiTabControllerTest, PropagatesMouseTargetToCallback) {
+  ActorOverlayState actor_overlay_state;
+  actor_overlay_state.is_active = true;
+  actor_overlay_state.mouse_target = gfx::Point(123, 456);
+
+  HandoffButtonState handoff_button_state;
+  UiTabState ui_tab_state(actor_overlay_state, handoff_button_state);
+
+  EXPECT_CALL(mock_overlay_callback_, Call(/*visibility=*/true, _, _))
+      .WillOnce([](bool visibility, ActorOverlayState state,
+                   base::OnceClosure callback) {
+        EXPECT_TRUE(state.mouse_target.has_value());
+        EXPECT_EQ(state.mouse_target.value(), gfx::Point(123, 456));
+        std::move(callback).Run();
+      });
+
+  base::test::TestFuture<bool> future;
+  tab_controller()->OnUiTabStateChange(ui_tab_state, future.GetCallback());
+  EXPECT_TRUE(future.Wait());
 }
 
 }  // namespace

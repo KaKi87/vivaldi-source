@@ -11,15 +11,14 @@
 #include "chrome/browser/accessibility/tree_fixing/pref_names.h"
 #include "chrome/browser/promos/promos_pref_names.h"
 #include "chrome/browser/subscription_eligibility/subscription_eligibility_prefs.h"
+#include "chrome/browser/ui/read_anything/read_anything_prefs.h"
 #include "chrome/browser/ui/toolbar/toolbar_pref_names.h"
-#include "chrome/browser/ui/webui/side_panel/read_anything/read_anything_prefs.h"
 #include "chrome/common/pref_names.h"
 #include "components/desktop_to_mobile_promos/pref_names.h"
 #include "components/language/core/browser/pref_names.h"
 #include "components/live_caption/pref_names.h"
 #include "components/performance_manager/public/user_tuning/prefs.h"
 #include "components/privacy_sandbox/privacy_sandbox_prefs.h"
-#include "components/privacy_sandbox/tracking_protection_prefs.h"
 #include "components/spellcheck/browser/pref_names.h"
 #include "components/sync/base/data_type.h"
 #include "components/sync_preferences/syncable_prefs_database.h"
@@ -43,7 +42,7 @@
 #include "extensions/browser/pref_names.h"  // nogncheck
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/glic_pref_names.h"
 #endif
 
@@ -290,7 +289,7 @@ enum {
   kGrayscaleThemeEnabled = 100221,
   kUserColor = 100222,
   kBlockAll3pcToggleEnabled = 100223,
-  kTrackingProtectionLevel = 100224,
+  // kTrackingProtectionLevel = 100224, (deprecated)
   kUserSpeakOnMuteDetectionEnabled = 100225,
   kShouldShowSpeakOnMuteOptInNudge = 100226,
   kSpeakOnMuteOptInNudgeShownCount = 100227,
@@ -315,7 +314,7 @@ enum {
   // kAccessibilityReadAnythingOmniboxIconLabelShownCount = 100246, (deprecated)
   kApplicationLocale = 100247,
   kListenToThisPageEnabled = 100248,
-  kIpProtectionEnabled = 100249,
+  // kIpProtectionEnabled = 100249, (deprecated)
   kAccessibilityReadAnythingLinksEnabled = 100250,
   kProfileContentSettingsPartitionedExceptionsAntiAbuse = 100251,
   kProfileContentSettingsPartitionedExceptionsAutomaticDownloads = 100252,
@@ -397,7 +396,7 @@ enum {
   kPinSplitTabButton = 100327,
   kGlicRolloutEligibility = 100328,
   kShelfNotebookLmAppPinRolls = 100329,
-  kVerticalTabsEnabled = 100330,
+  // kVerticalTabsEnabled = 100330, (no longer synced)
   kSplitViewDragAndDropEnabled = 100331,
   kDesktopToiOSEnhancedBrowsingPromoLastImpressionTimestamp = 100332,
   kDesktopToiOSEnhancedBrowsingPromoImpressionsCounter = 100333,
@@ -437,6 +436,15 @@ enum {
   kClassManagementToolsOOBEAccessCountSetting = 100367,
   kClassManagementToolsKioskReceiverCodes = 100368,
   kPinContextualTaskButton = 100369,
+  kAccessibilityReadAnythingOmniboxChipIgnoredCount = 100370,
+  kAccessibilityReadAnythingLineFocus = 100371,
+  kProjectsPanelEntrypointEnabled = 100372,
+  kDesktopToiOSTabGroupsPromoLastImpressionTimestamp = 100373,
+  kDesktopToiOSTabGroupsPromoImpressionsCounter = 100374,
+  kDesktopToiOSTabGroupsPromoOptOut = 100375,
+  kDesktopToiOSPriceTrackingPromoLastImpressionTimestamp = 100376,
+  kDesktopToiOSPriceTrackingPromoImpressionsCounter = 100377,
+  kDesktopToiOSPriceTrackingPromoOptOut = 100378,
   // See components/sync_preferences/README.md about adding new entries here.
   // vvvvv IMPORTANT! vvvvv
   // Note to the reviewer: IT IS YOUR RESPONSIBILITY to ensure that new syncable
@@ -545,6 +553,14 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
      {syncable_prefs_ids::kAccessibilityReadAnythingLanguagesEnabled,
       syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
       sync_preferences::MergeBehavior::kNone}},
+    {prefs::kAccessibilityReadAnythingOmniboxChipIgnoredCount,
+     {syncable_prefs_ids::kAccessibilityReadAnythingOmniboxChipIgnoredCount,
+      syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+      sync_preferences::MergeBehavior::kNone}},
+    {prefs::kAccessibilityReadAnythingLineFocus,
+     {syncable_prefs_ids::kAccessibilityReadAnythingLineFocus,
+      syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+      sync_preferences::MergeBehavior::kNone}},
     {prefs::kLensRegionSearchEnabled,
      {syncable_prefs_ids::kLensRegionSearchEnabled, syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kNone,
@@ -625,8 +641,8 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
      {syncable_prefs_ids::kTabSearchMigrationComplete, syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kNone,
       sync_preferences::MergeBehavior::kNone}},
-    {prefs::kVerticalTabsEnabled,
-     {syncable_prefs_ids::kVerticalTabsEnabled, syncer::PREFERENCES,
+    {prefs::kProjectsPanelEntrypointEnabled,
+     {syncable_prefs_ids::kProjectsPanelEntrypointEnabled, syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kNone,
       sync_preferences::MergeBehavior::kNone}},
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -1795,14 +1811,6 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
      {syncable_prefs_ids::kBlockAll3pcToggleEnabled, syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kNone,
       sync_preferences::MergeBehavior::kNone}},
-    {prefs::kTrackingProtectionLevel,
-     {syncable_prefs_ids::kTrackingProtectionLevel, syncer::PREFERENCES,
-      sync_preferences::PrefSensitivity::kNone,
-      sync_preferences::MergeBehavior::kNone}},
-    {prefs::kIpProtectionEnabled,
-     {syncable_prefs_ids::kIpProtectionEnabled, syncer::PREFERENCES,
-      sync_preferences::PrefSensitivity::kNone,
-      sync_preferences::MergeBehavior::kNone}},
     {prefs::kHttpsFirstModeIncognito,
      {syncable_prefs_ids::kHttpsFirstModeIncognito, syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kNone,
@@ -1868,12 +1876,37 @@ constexpr auto kChromeSyncablePrefsAllowlist = base::MakeFixedFlatMap<
      {syncable_prefs_ids::kDesktopToiOSLensPromoOptOut, syncer::PREFERENCES,
       sync_preferences::PrefSensitivity::kNone,
       sync_preferences::MergeBehavior::kNone}},
-#if BUILDFLAG(ENABLE_GLIC)
+    {promos_prefs::kDesktopToiOSTabGroupsPromoLastImpressionTimestamp,
+     {syncable_prefs_ids::kDesktopToiOSTabGroupsPromoLastImpressionTimestamp,
+      syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+      sync_preferences::MergeBehavior::kNone}},
+    {promos_prefs::kDesktopToiOSTabGroupsPromoImpressionsCounter,
+     {syncable_prefs_ids::kDesktopToiOSTabGroupsPromoImpressionsCounter,
+      syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+      sync_preferences::MergeBehavior::kNone}},
+    {promos_prefs::kDesktopToiOSTabGroupsPromoOptOut,
+     {syncable_prefs_ids::kDesktopToiOSTabGroupsPromoOptOut,
+      syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+      sync_preferences::MergeBehavior::kNone}},
+    {promos_prefs::kDesktopToiOSPriceTrackingPromoLastImpressionTimestamp,
+     {syncable_prefs_ids::
+          kDesktopToiOSPriceTrackingPromoLastImpressionTimestamp,
+      syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+      sync_preferences::MergeBehavior::kNone}},
+    {promos_prefs::kDesktopToiOSPriceTrackingPromoImpressionsCounter,
+     {syncable_prefs_ids::kDesktopToiOSPriceTrackingPromoImpressionsCounter,
+      syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+      sync_preferences::MergeBehavior::kNone}},
+    {promos_prefs::kDesktopToiOSPriceTrackingPromoOptOut,
+     {syncable_prefs_ids::kDesktopToiOSPriceTrackingPromoOptOut,
+      syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,
+      sync_preferences::MergeBehavior::kNone}},
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
     {glic::prefs::kGlicRolloutEligibility,
      {syncable_prefs_ids::kGlicRolloutEligibility, syncer::PRIORITY_PREFERENCES,
       sync_preferences::PrefSensitivity::kExemptFromUserControlWhileSignedIn,
       sync_preferences::MergeBehavior::kNone}},
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
     {subscription_eligibility::prefs::kAiSubscriptionTier,
      {syncable_prefs_ids::kSubscriptionEligibilityAiSubscriptionTier,
       syncer::PRIORITY_PREFERENCES,

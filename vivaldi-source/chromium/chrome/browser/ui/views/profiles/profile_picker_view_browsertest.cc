@@ -6,6 +6,7 @@
 
 #include <optional>
 #include <set>
+#include <string>
 
 #include "base/barrier_closure.h"
 #include "base/cfi_buildflags.h"
@@ -17,6 +18,7 @@
 #include "base/scoped_multi_source_observation.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
+#include "base/strings/to_string.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/current_thread.h"
 #include "base/test/bind.h"
@@ -98,6 +100,7 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/common/webui_url_constants.h"
+#include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/profile_deletion_observer.h"
 #include "chrome/test/base/profile_destruction_waiter.h"
@@ -149,6 +152,7 @@
 #include "services/network/test/test_url_loader_factory.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/base/accelerators/accelerator.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/base/ozone_buildflags.h"
 #include "ui/events/event_constants.h"
 #include "ui/views/accessibility/view_accessibility.h"
@@ -196,7 +200,63 @@ const char16_t kWork[] = u"Work";
 
 #if !BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CHROMEOS)
 const char kReauthResultHistogramName[] = "ProfilePicker.ReauthResult";
-#endif
+#endif  // !BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CHROMEOS)
+
+// 'signinErrorDialog' custom element node.
+static constexpr char kSigninErrorDialogPath[] =
+    "document.body.getElementsByTagName('profile-picker-app')[0]."
+    "shadowRoot.getElementById('mainView').shadowRoot."
+    "getElementById('signinErrorDialog').shadowRoot."
+    "getElementById('dialog')";
+
+bool IsSigninErrorDialogShown(content::WebContents* web_contents) {
+  return content::EvalJs(web_contents,
+                         // Check the `open` field
+                         base::StrCat({kSigninErrorDialogPath, ".open"}))
+      .ExtractBool();
+}
+
+std::u16string GetSigninErrorDialogTitleText(
+    content::WebContents* web_contents) {
+  return std::u16string(base::TrimWhitespace(
+      base::UTF8ToUTF16(
+          content::EvalJs(
+              web_contents,
+              // Get the title text content of the dialog.
+              base::StrCat({kSigninErrorDialogPath,
+                            ".querySelector('#dialog-title').textContent"}))
+              .ExtractString()),
+      base::TRIM_ALL));
+}
+
+std::u16string GetSigninErrorDialogBodyText(
+    content::WebContents* web_contents) {
+  return std::u16string(base::TrimWhitespace(
+      base::UTF8ToUTF16(
+          content::EvalJs(
+              web_contents,
+              // Get the title text content of the dialog.
+              base::StrCat({kSigninErrorDialogPath,
+                            ".querySelector('#dialog-body').textContent"}))
+              .ExtractString()),
+      base::TRIM_ALL));
+}
+
+::testing::AssertionResult ClickSigninErrorDialogOkButton(
+    content::WebContents* web_contents) {
+  const std::string button_selector = base::StrCat(
+      {kSigninErrorDialogPath,
+       ".querySelector('.button-container').querySelector('#ok-button')"});
+
+  // Assert that the button exists before trying to click it.
+  EXPECT_TRUE(
+      content::EvalJs(web_contents, base::StrCat({"!!", button_selector}))
+          .ExtractBool())
+      << "OK button not found in sign-in error dialog.";
+
+  return content::ExecJs(web_contents,
+                         base::StrCat({button_selector, ".click()"}));
+}
 
 AccountInfo FillAccountInfo(
     const CoreAccountInfo& core_info,
@@ -612,7 +672,8 @@ class ProfilePickerCreationFlowBrowserTest
     // Simulate the Dice "ENABLE_SYNC" header parameter.
     auto process_dice_header_delegate_impl =
         ProcessDiceHeaderDelegateImpl::Create(contents);
-    process_dice_header_delegate_impl->EnableSync(account_info);
+    process_dice_header_delegate_impl->CompleteChromeSignInAfterGaiaSignin(
+        account_info);
   }
 
   AccountInfo FinishDiceSignIn(
@@ -677,20 +738,20 @@ class ProfilePickerCreationFlowBrowserTest
   // opened.
   void OpenProfileFromPicker(const base::FilePath& profile_path,
                              bool open_settings) {
-    base::Value::List args;
+    base::ListValue args;
     args.Append(base::FilePathToValue(profile_path));
     profile_picker_handler()->HandleLaunchSelectedProfile(open_settings, args);
   }
 
   // Simulates a click on "Browse as Guest".
   void OpenGuestFromPicker() {
-    base::Value::List args;
+    base::ListValue args;
     profile_picker_handler()->HandleLaunchGuestProfile(args);
   }
 
   // Simulates a click on "Open all profiles".
   void OpenAllProfilesFromPicker() {
-    base::Value::List args;
+    base::ListValue args;
     for (const base::Value& profile :
          profile_picker_handler()->GetProfilesList()) {
       const std::optional<base::FilePath> profile_path =
@@ -730,7 +791,7 @@ class ProfilePickerCreationFlowBrowserTest
   // Simulates a click on "Continue without an account" to create a local
   // profile and open the profile customization dialog.
   void CreateLocalProfile() {
-    base::Value::List args;
+    base::ListValue args;
     args.Append(base::Value());
     profile_picker_handler()->HandleContinueWithoutAccount(args);
   }
@@ -738,7 +799,7 @@ class ProfilePickerCreationFlowBrowserTest
   // Simulates a click on "Done" on the Profile Customization to confirm the
   // creation of the local profile.
   void ConfirmLocalProfileCreation(content::WebContents* dialog_web_contents) {
-    base::Value::List args;
+    base::ListValue args;
     args.Append(base::Value(kLocalProfileName));
     dialog_web_contents->GetWebUI()
         ->GetController()
@@ -754,7 +815,7 @@ class ProfilePickerCreationFlowBrowserTest
         ->GetController()
         ->GetAs<ProfileCustomizationUI>()
         ->GetProfileCustomizationHandlerForTesting()
-        ->HandleDeleteProfile(base::Value::List());
+        ->HandleDeleteProfile(base::ListValue());
   }
 
   // Returns profile picker webUI handler. Profile picker must be opened before
@@ -1017,12 +1078,12 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
 }
 
 // TODO(https://crbug.com/447636989): Flaky on Linux Wayland
-#if BUILDFLAG(IS_LINUX) && BUILDFLAG(IS_OZONE_WAYLAND)
+#if BUILDFLAG(IS_LINUX) && BUILDFLAG(SUPPORTS_OZONE_WAYLAND)
 #define MAYBE_CreateSignedInProfileClosePicker \
   DISABLED_CreateSignedInProfileClosePicker
 #else
 #define MAYBE_CreateSignedInProfileClosePicker CreateSignedInProfileClosePicker
-#endif  // BUILDFLAG(IS_LINUX) && BUILDFLAG(IS_OZONE_WAYLAND)
+#endif  // BUILDFLAG(IS_LINUX) && BUILDFLAG(SUPPORTS_OZONE_WAYLAND)
 // Regression test for https://crbug.com/1431342
 IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
                        MAYBE_CreateSignedInProfileClosePicker) {
@@ -1185,40 +1246,6 @@ class ForceSigninProfilePickerCreationFlowBrowserTest
     signin::MakeAccountAvailable(identity_manager, email);
   }
 
-  bool IsForceSigninErrorDialogShown() {
-    CheckMainProfilePickerUrlOpened();
-    return content::EvalJs(web_contents(),
-                           // Check the `open` field
-                           base::StrCat({kForceSigninErrorDialogPath, ".open"}))
-        .ExtractBool();
-  }
-
-  std::u16string GetForceSigninErrorDialogTitleText() {
-    CheckMainProfilePickerUrlOpened();
-    return std::u16string(base::TrimWhitespace(
-        base::UTF8ToUTF16(
-            content::EvalJs(
-                web_contents(),
-                // Get the title text content of the dialog.
-                base::StrCat({kForceSigninErrorDialogPath,
-                              ".querySelector(\'#dialog-title\').textContent"}))
-                .ExtractString()),
-        base::TRIM_ALL));
-  }
-
-  std::u16string GetForceSigninErrorDialogBodyText() {
-    CheckMainProfilePickerUrlOpened();
-    return std::u16string(base::TrimWhitespace(
-        base::UTF8ToUTF16(
-            content::EvalJs(
-                web_contents(),
-                // Get the body text content of the dialog.
-                base::StrCat({kForceSigninErrorDialogPath,
-                              ".querySelector(\'#dialog-body\').textContent"}))
-                .ExtractString()),
-        base::TRIM_ALL));
-  }
-
   base::HistogramTester* histogram_tester() { return &histogram_tester_; }
   ProfileManagementCounter& profile_management_counter() {
     return profile_management_counter_;
@@ -1234,12 +1261,6 @@ class ForceSigninProfilePickerCreationFlowBrowserTest
               main_profile_picker_url);
     WaitForLoadStop(main_profile_picker_url);
   }
-
-  // 'forceSigninErrorDialog' cr-dialog node.
-  static constexpr char kForceSigninErrorDialogPath[] =
-      "document.body.getElementsByTagName('profile-picker-app')[0]."
-      "shadowRoot.getElementById('mainView').shadowRoot."
-      "getElementById(\'forceSigninErrorDialog\')";
 
   signin_util::ScopedForceSigninSetterForTesting force_signin_setter_;
   base::HistogramTester histogram_tester_;
@@ -1568,7 +1589,8 @@ IN_PROC_BROWSER_TEST_P(ForceSigninProfilePickerCreationFlowBrowserTest,
 
   EXPECT_CALL(mock_callback, Run(_)).Times(0);
   ASSERT_TRUE(ProfilePicker::IsOpen());
-  ASSERT_FALSE(IsForceSigninErrorDialogShown());
+  WaitForLoadStop(GURL("chrome://profile-picker"));
+  ASSERT_FALSE(IsSigninErrorDialogShown(web_contents()));
 
   // Attempt to open the locked profile that can be reauthed.
   OpenProfileFromPicker(entry->GetPath(), false);
@@ -1576,12 +1598,12 @@ IN_PROC_BROWSER_TEST_P(ForceSigninProfilePickerCreationFlowBrowserTest,
   // Profile remains locked and an error message is displayed as Glic does not
   // support the reauth step.
   EXPECT_TRUE(ProfilePicker::IsOpen());
-  EXPECT_TRUE(IsForceSigninErrorDialogShown());
+  EXPECT_TRUE(IsSigninErrorDialogShown(web_contents()));
   // Check error dialog content.
   ForceSigninUIError::UiTexts errors =
       ForceSigninUIError::ReauthNotSupportedByGlicFlow().GetErrorTexts();
-  EXPECT_EQ(GetForceSigninErrorDialogTitleText(), errors.first);
-  EXPECT_EQ(GetForceSigninErrorDialogBodyText(), errors.second);
+  EXPECT_EQ(GetSigninErrorDialogTitleText(web_contents()), errors.first);
+  EXPECT_EQ(GetSigninErrorDialogBodyText(web_contents()), errors.second);
   EXPECT_EQ(chrome::GetTotalBrowserCount(), initial_browser_count);
   EXPECT_TRUE(entry->IsSigninRequired());
 
@@ -1607,7 +1629,8 @@ IN_PROC_BROWSER_TEST_P(ForceSigninProfilePickerCreationFlowBrowserTest,
 
   ASSERT_TRUE(entry->IsSigninRequired());
   ASSERT_TRUE(ProfilePicker::IsOpen());
-  ASSERT_FALSE(IsForceSigninErrorDialogShown());
+  WaitForLoadStop(GURL("chrome://profile-picker"));
+  ASSERT_FALSE(IsSigninErrorDialogShown(web_contents()));
 
   signin::IdentityManager* identity_manager =
       IdentityManagerFactory::GetForProfile(profile);
@@ -1644,12 +1667,12 @@ IN_PROC_BROWSER_TEST_P(ForceSigninProfilePickerCreationFlowBrowserTest,
   // profile to be still locked.
   WaitForLoadStop(GURL("chrome://profile-picker"));
   EXPECT_TRUE(ProfilePicker::IsOpen());
-  EXPECT_TRUE(IsForceSigninErrorDialogShown());
+  EXPECT_TRUE(IsSigninErrorDialogShown(web_contents()));
   // Check error dialog content.
   ForceSigninUIError::UiTexts errors =
       ForceSigninUIError::ReauthWrongAccount(email).GetErrorTexts();
-  EXPECT_EQ(GetForceSigninErrorDialogTitleText(), errors.first);
-  EXPECT_EQ(GetForceSigninErrorDialogBodyText(), errors.second);
+  EXPECT_EQ(GetSigninErrorDialogTitleText(web_contents()), errors.first);
+  EXPECT_EQ(GetSigninErrorDialogBodyText(web_contents()), errors.second);
   EXPECT_EQ(chrome::GetTotalBrowserCount(), initial_browser_count);
   EXPECT_TRUE(entry->IsSigninRequired());
   histogram_tester()->ExpectUniqueSample(
@@ -1848,12 +1871,13 @@ IN_PROC_BROWSER_TEST_P(
   // Created profile is destroyed.
   destruction_waiter.Wait();
   EXPECT_EQ(profile_manager->GetNumberOfProfiles(), initial_number_of_profiles);
-  EXPECT_TRUE(IsForceSigninErrorDialogShown());
+  EXPECT_TRUE(IsSigninErrorDialogShown(web_contents()));
+  EXPECT_TRUE((web_contents()));
   // Check error dialog content.
   ForceSigninUIError::UiTexts errors =
       ForceSigninUIError::SigninPatternNotMatching(email).GetErrorTexts();
-  EXPECT_EQ(GetForceSigninErrorDialogTitleText(), errors.first);
-  EXPECT_EQ(GetForceSigninErrorDialogBodyText(), errors.second);
+  EXPECT_EQ(GetSigninErrorDialogTitleText(web_contents()), errors.first);
+  EXPECT_EQ(GetSigninErrorDialogBodyText(web_contents()), errors.second);
 }
 
 INSTANTIATE_FEATURE_OVERRIDE_TEST_SUITE(
@@ -1902,8 +1926,9 @@ IN_PROC_BROWSER_TEST_P(ForceSigninProfilePickerCreationFlowBrowserTestWithPRE,
   ASSERT_TRUE(existing_entry->IsSigninRequired());
   ASSERT_EQ(existing_entry->GetSigninState(), SigninState::kNotSignedIn);
 
+  WaitForLoadStop(GURL("chrome://profile-picker"));
   ASSERT_TRUE(ProfilePicker::IsOpen());
-  ASSERT_FALSE(IsForceSigninErrorDialogShown());
+  ASSERT_FALSE(IsSigninErrorDialogShown(web_contents()));
 
   // Attempting to open this profile, profile was previously active and not
   // signed in.
@@ -1912,12 +1937,12 @@ IN_PROC_BROWSER_TEST_P(ForceSigninProfilePickerCreationFlowBrowserTestWithPRE,
   // Should not succeed.
   EXPECT_EQ(initial_browser_count, chrome::GetTotalBrowserCount());
   // Error dialog is shown on top of the ProfilePicker.
-  EXPECT_TRUE(IsForceSigninErrorDialogShown());
+  EXPECT_TRUE(IsSigninErrorDialogShown(web_contents()));
   // Check error dialog content.
   ForceSigninUIError::UiTexts errors =
       ForceSigninUIError::ReauthNotAllowed().GetErrorTexts();
-  EXPECT_EQ(GetForceSigninErrorDialogTitleText(), errors.first);
-  EXPECT_EQ(GetForceSigninErrorDialogBodyText(), errors.second);
+  EXPECT_EQ(GetSigninErrorDialogTitleText(web_contents()), errors.first);
+  EXPECT_EQ(GetSigninErrorDialogBodyText(web_contents()), errors.second);
   // Profile is still locked.
   EXPECT_TRUE(existing_entry->IsSigninRequired());
 }
@@ -2462,7 +2487,8 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   IdentityManagerFactory::GetForProfile(default_profile)
       ->GetPrimaryAccountMutator()
       ->SetPrimaryAccount(default_account_info.account_id,
-                          signin::ConsentLevel::kSync);
+                          signin::ConsentLevel::kSync,
+                          signin_metrics::AccessPoint::kStartPage);
 
   // Create a second profile.
   base::RunLoop run_loop;
@@ -2480,7 +2506,8 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   IdentityManagerFactory::GetForProfile(second_profile)
       ->GetPrimaryAccountMutator()
       ->SetPrimaryAccount(second_profile_info.account_id,
-                          signin::ConsentLevel::kSync);
+                          signin::ConsentLevel::kSync,
+                          signin_metrics::AccessPoint::kStartPage);
 
   // The first profile should use default name.
   ProfileAttributesEntry* default_profile_entry =
@@ -2750,8 +2777,9 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
   WaitForLoadStop(GURL("chrome://profile-picker"));
 
   // Close the browser window.
-  BrowserList::GetInstance()->CloseAllBrowsersWithProfile(browser()->profile());
-  ui_test_utils::WaitForBrowserToClose(browser());
+  ui_test_utils::BrowserDestroyedObserver observer(browser());
+  chrome::CloseAllBrowsersWithProfile(browser()->profile());
+  observer.Wait();
   base::RunLoop().RunUntilIdle();
   ASSERT_EQ(0u, chrome::GetTotalBrowserCount());
 
@@ -2889,7 +2917,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest, DeleteProfile) {
 
   // Simulate profile deletion from the picker.
   ProfileDestructionWaiter waiter(profile);
-  base::Value::List args;
+  base::ListValue args;
   args.Append(base::FilePathToValue(other_path));
   handler->HandleGetProfileStatistics(args);
   handler->HandleRemoveProfile(args);
@@ -2913,7 +2941,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerCreationFlowBrowserTest,
 
   // Simulate profile deletion from the picker.
   ProfileDestructionWaiter waiter(profile);
-  base::Value::List args;
+  base::ListValue args;
   args.Append(base::FilePathToValue(profile->GetPath()));
   handler->HandleGetProfileStatistics(args);
   handler->HandleRemoveProfile(args);
@@ -3208,6 +3236,10 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
 
 IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
                        LoginErrorWhenProfileNotAllowsCookies) {
+  constexpr char kEmail[] = "joe.consumer@gmail.com";
+  constexpr char16_t kEmailU16[] = u"joe.consumer@gmail.com";
+  base::HistogramTester histogram_tester;
+
   ASSERT_EQ(1u, chrome::GetTotalBrowserCount());
 
   Profile* profile_being_created = StartDiceSignIn(false);
@@ -3221,18 +3253,34 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
 
   bool should_have_primary_account =
       !base::FeatureList::IsEnabled(syncer::kReplaceSyncPromosWithSignInPromos);
-  FinishDiceSignIn(profile_being_created, "joe.consumer@gmail.com", "Joe",
-                   kNoHostedDomainFound, false, should_have_primary_account);
+  FinishDiceSignIn(profile_being_created, kEmail, "Joe", kNoHostedDomainFound,
+                   false, should_have_primary_account);
+  if (!base::FeatureList::IsEnabled(
+          syncer::kReplaceSyncPromosWithSignInPromos)) {
+    BrowserWindowInterface* const new_browser = browser_waiter.Wait();
+    WaitForLoadStop(GURL("chrome://newtab/"),
+                    new_browser->GetTabStripModel()->GetActiveWebContents());
 
-  BrowserWindowInterface* const new_browser = browser_waiter.Wait();
-  WaitForLoadStop(GURL("chrome://newtab/"),
-                  new_browser->GetTabStripModel()->GetActiveWebContents());
-
-  const SigninUIError& error =
-      LoginUIServiceFactory::GetForProfile(profile_being_created)
-          ->GetLastLoginError();
-  EXPECT_EQ(error.type(), SigninUIError::Type::kOther);
-  EXPECT_EQ(base::UTF16ToUTF8(error.email()), "joe.consumer@gmail.com");
+    const SigninUIError& error =
+        LoginUIServiceFactory::GetForProfile(profile_being_created)
+            ->GetLastLoginError();
+    EXPECT_EQ(error.type(), SigninUIError::Type::kSigninCookiesDisallowed);
+    EXPECT_EQ(base::UTF16ToUTF8(error.email()), kEmail);
+  } else {
+    content::WebContents* picker_web_contents =
+        ProfilePicker::GetWebViewForTesting()->GetWebContents();
+    // The picker shows an error dialog.
+    EXPECT_TRUE(ProfilePicker::IsOpen());
+    WaitForLoadStop(GURL("chrome://profile-picker"));
+    EXPECT_TRUE(IsSigninErrorDialogShown(picker_web_contents));
+    SigninUIError signin_error = SigninUIError::SigninCookiesDisallowed(kEmail);
+    EXPECT_EQ(
+        l10n_util::GetStringFUTF16(IDS_SIGNIN_ERROR_EMAIL_TITLE, kEmailU16),
+        GetSigninErrorDialogTitleText(picker_web_contents));
+    histogram_tester.ExpectBucketCount(
+        "ProfilePicker.ProfilePickerFlow.SignInError",
+        static_cast<int>(SigninUIError::Type::kSigninCookiesDisallowed), 1);
+  }
 }
 
 IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
@@ -3279,7 +3327,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
 
   // Simulate clicking on the confirm switch button.
   ProfilePickerHandler* handler = profile_picker_handler();
-  base::Value::List args;
+  base::ListValue args;
   args.Append(base::FilePathToValue(other_path));
   handler->HandleConfirmProfileSwitch(args);
 
@@ -3347,7 +3395,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
   // Simulate clicking on the cancel button.
   ProfileDeletionObserver observer;
   ProfilePickerHandler* handler = profile_picker_handler();
-  base::Value::List args;
+  base::ListValue args;
   handler->HandleCancelProfileSwitch(args);
 
   // Check expectations when the profile creation flow is done.
@@ -3392,7 +3440,7 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
       /*account_info=*/FillAccountInfo(account_info, "Joe", "acme.com"));
   identity_manager->GetPrimaryAccountMutator()->SetPrimaryAccount(
       account_info.account_id, signin::ConsentLevel::kSignin,
-      signin_metrics::AccessPoint::kWebSignin);
+      signin_metrics::AccessPoint::kUserManager);
 
   // Redirect the web contents to a the two factor intersitial authentication
   // page.
@@ -3443,9 +3491,6 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerEnterpriseCreationFlowBrowserTest,
       SyncServiceFactory::GetForProfile(profile_being_created);
   EXPECT_FALSE(entry->IsAuthenticated());
   EXPECT_FALSE(sync_service->HasSyncConsent());
-  EXPECT_EQ(
-      ThemeServiceFactory::GetForProfile(profile_being_created)->GetUserColor(),
-      kProfileColor);
 }
 
 // TODO(crbug.com/40197102): Extend this test to support mirror.
@@ -3974,7 +4019,7 @@ IN_PROC_BROWSER_TEST_P(ProfilePickerWithGlicParamBrowserTest,
   ProfilePicker::Show(ProfilePicker::Params::ForGlicManager(base::DoNothing()));
   WaitForLoadStop(GURL("chrome://profile-picker/"));
 
-  profile_picker_handler()->HandleOnLearnMoreClicked(base::Value::List());
+  profile_picker_handler()->HandleOnLearnMoreClicked(base::ListValue());
   Browser* new_browser = ui_test_utils::WaitForBrowserToOpen();
   EXPECT_TRUE(new_browser);
   EXPECT_EQ(new_browser->profile()->GetPath(), initial_profile_path);
@@ -4196,21 +4241,22 @@ IN_PROC_BROWSER_TEST_F(
 
 class ProfilePickerOpenAllProfilesButtonExperimentBrowserTest
     : public ProfilePickerCreationFlowBrowserTest {
+ public:
+  ProfilePickerOpenAllProfilesButtonExperimentBrowserTest() {
+    // Since `OpenAllProfilesAfterSimulatingButtonClick` depends on the order
+    // of profiles, need to enable `kProfilesReordering`.
+    feature_list_.InitWithFeatures(
+        {switches::kOpenAllProfilesFromProfilePickerExperiment,
+         switches::kProfilesReordering},
+        {});
+  }
+
  private:
-  base::test::ScopedFeatureList feature_list_{
-      switches::kOpenAllProfilesFromProfilePickerExperiment};
+  base::test::ScopedFeatureList feature_list_;
 };
 
-// Failing on Windows linux cross: https://crbug.com/464956659.
-#if BUILDFLAG(IS_WIN)
-#define MAYBE_OpenAllProfilesAfterSimulatingButtonClick \
-  DISABLED_OpenAllProfilesAfterSimulatingButtonClick
-#else
-#define MAYBE_OpenAllProfilesAfterSimulatingButtonClick \
-  OpenAllProfilesAfterSimulatingButtonClick
-#endif
 IN_PROC_BROWSER_TEST_F(ProfilePickerOpenAllProfilesButtonExperimentBrowserTest,
-                       MAYBE_OpenAllProfilesAfterSimulatingButtonClick) {
+                       OpenAllProfilesAfterSimulatingButtonClick) {
   base::HistogramTester histogram_tester;
   base::FilePath profile_path1 = browser()->profile()->GetPath();
   base::FilePath profile_path2 = CreateNewProfileWithoutBrowser();
@@ -4247,4 +4293,63 @@ IN_PROC_BROWSER_TEST_F(ProfilePickerOpenAllProfilesButtonExperimentBrowserTest,
   histogram_tester.ExpectBucketCount(
       "ProfilePicker.OpenAllProfilesButtonAction",
       ProfilePickerOpenAllProfilesButtonAction::kClicked, 1);
+}
+
+class SigninErrorProfilePickerBrowserTest
+    : public ProfilePickerCreationFlowBrowserTest {
+ public:
+  SigninErrorProfilePickerBrowserTest() {
+    scoped_feature_list_.InitWithFeatures(
+        {syncer::kReplaceSyncPromosWithSignInPromos,
+         switches::kSupportErrorsInProfilePicker},
+        {});
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
+// Tests that a signin error from a GoogleServiceAuthError shows the error
+// dialog in the picker.
+IN_PROC_BROWSER_TEST_F(SigninErrorProfilePickerBrowserTest,
+                       FromGoogleServiceAuthError) {
+  constexpr char kEmail[] = "test@gmail.com";
+  base::HistogramTester histogram_tester;
+
+  // Start the sign in.
+  StartDiceSignIn();
+  ASSERT_TRUE(ProfilePicker::IsOpen());
+
+  content::WebContents* signin_web_contents = web_contents();
+  auto auth_error =
+      GoogleServiceAuthError(GoogleServiceAuthError::INVALID_GAIA_CREDENTIALS);
+
+  {
+    // Simulate Dice token exchange failure in a scope, to avoid having
+    // `process_dice_header_delegate_impl` point to a dangling
+    // `signin_web_contents` after the latter is destroyed.
+    std::unique_ptr<ProcessDiceHeaderDelegateImpl>
+        process_dice_header_delegate_impl =
+            ProcessDiceHeaderDelegateImpl::Create(signin_web_contents);
+    process_dice_header_delegate_impl->HandleTokenExchangeFailure(kEmail,
+                                                                  auth_error);
+  }
+
+  content::WebContents* picker_web_contents =
+      ProfilePicker::GetWebViewForTesting()->GetWebContents();
+  // The picker shows an error dialog.
+  EXPECT_TRUE(ProfilePicker::IsOpen());
+  EXPECT_TRUE(IsSigninErrorDialogShown(picker_web_contents));
+  SigninUIError signin_error =
+      SigninUIError::FromGoogleServiceAuthError(kEmail, auth_error);
+  EXPECT_EQ(l10n_util::GetStringFUTF16(IDS_SIGNIN_ERROR_EMAIL_TITLE,
+                                       u"test@gmail.com"),
+            GetSigninErrorDialogTitleText(picker_web_contents));
+  EXPECT_EQ(signin_error.message(),
+            GetSigninErrorDialogBodyText(picker_web_contents));
+  EXPECT_TRUE(ClickSigninErrorDialogOkButton(picker_web_contents));
+  EXPECT_FALSE(IsSigninErrorDialogShown(picker_web_contents));
+  histogram_tester.ExpectBucketCount(
+      "ProfilePicker.ProfilePickerFlow.SignInError",
+      static_cast<int>(SigninUIError::Type::kFromGoogleServiceAuthError), 1);
 }

@@ -11,12 +11,7 @@
 #include "base/memory/ptr_util.h"
 #include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/common/pref_names.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
-#include "components/keyed_service/core/service_access_type.h"
-#include "components/prefs/pref_service.h"
-
-#include "prefs/vivaldi_pref_names.h"
 #include "update/vivaldi_update_service.h"
 
 namespace update {

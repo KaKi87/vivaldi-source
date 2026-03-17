@@ -73,10 +73,10 @@ void AddToParent(Index_Node* parent,
 
     // The map contains a <workspace id><number of tabs> mapping. We only use
     // the workspace id.
-    base::Value::List workspaces;
+    base::ListValue workspaces;
     for (IndexCodec::StringToIntMap::iterator it = map.begin(); it != map.end();
          ++it) {
-      base::Value::Dict dict;
+      base::DictValue dict;
       dict.Set("id", std::stod(it->first));
       dict.Set("name", "Recovered workspace");
       workspaces.Append(std::move(dict));
@@ -203,7 +203,7 @@ bool IndexCodec::DecodeNode(Index_Node* parent, const base::Value& value) {
 #if defined(OFFICIAL_BUILD)
         return false;
 #else
-        return true;    // Do not stop parsing in devel mode.
+        return true;  // Do not stop parsing in devel mode.
 #endif
       }
       guids_[*guid] = true;
@@ -261,9 +261,9 @@ void IndexCodec::SetNodeFields(Index_Node* node,
   const int tabs_count = value.GetDict().FindInt("tabscount").value_or(0);
   const int quarantine_count =
       value.GetDict().FindInt("quarantinecount").value_or(0);
-  const base::Value::List* workspaces =
+  const base::ListValue* workspaces =
       value.GetIfDict() ? value.GetIfDict()->FindList("workspaces") : nullptr;
-  const base::Value::Dict* group_names =
+  const base::DictValue* group_names =
       value.GetIfDict() ? value.GetIfDict()->FindDict("groupnames") : nullptr;
   if (filename) {
     node->SetFilename(*filename);
@@ -279,11 +279,11 @@ void IndexCodec::SetNodeFields(Index_Node* node,
   node->SetTabsCount(tabs_count);
   node->SetQuarantineCount(quarantine_count);
   if (workspaces) {
-    base::Value::List list(workspaces->Clone());
+    base::ListValue list(workspaces->Clone());
     node->SetWorkspaces(std::move(list));
   }
   if (group_names) {
-    base::Value::Dict dict(group_names->Clone());
+    base::DictValue dict(group_names->Clone());
     node->SetGroupNames(std::move(dict));
   }
 }
@@ -320,9 +320,9 @@ base::Value IndexCodec::EncodeNode(Index_Node* node) {
       dict.GetDict().Set("tabscount", base::Value(node->tabs_count()));
       dict.GetDict().Set("quarantinecount",
                          base::Value(node->quarantine_count()));
-      base::Value::List workspaces(node->workspaces().Clone());
+      base::ListValue workspaces(node->workspaces().Clone());
       dict.GetDict().Set("workspaces", base::Value(std::move(workspaces)));
-      base::Value::Dict group_names(node->group_names().Clone());
+      base::DictValue group_names(node->group_names().Clone());
       dict.GetDict().Set("groupnames", base::Value(std::move(group_names)));
     }
     base::Value list(base::Value::Type::LIST);
@@ -344,9 +344,9 @@ base::Value IndexCodec::EncodeNode(Index_Node* node) {
   dict.GetDict().Set("windowscount", base::Value(node->windows_count()));
   dict.GetDict().Set("tabscount", base::Value(node->tabs_count()));
   dict.GetDict().Set("quarantinecount", base::Value(node->quarantine_count()));
-  base::Value::List workspaces(node->workspaces().Clone());
+  base::ListValue workspaces(node->workspaces().Clone());
   dict.GetDict().Set("workspaces", base::Value(std::move(workspaces)));
-  base::Value::Dict group_names(node->group_names().Clone());
+  base::DictValue group_names(node->group_names().Clone());
   dict.GetDict().Set("groupnames", base::Value(std::move(group_names)));
 
   return dict;

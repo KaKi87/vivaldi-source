@@ -7,6 +7,8 @@ const imageUtil = require('imageUtil');
 const SetIconCommon = requireNative('setIcon').SetIconCommon;
 const inServiceWorker = requireNative('utils').isInServiceWorker();
 
+var GuestViewInternalNatives = requireNative('guest_view_internal');
+
 function loadImagePathForServiceWorker(path, callback, failureCallback) {
   let fetchPromise = fetch(path);
 
@@ -141,7 +143,10 @@ function setIcon(details, callback, failureCallback) {
       details.imageData = {__proto__: null};
       loadImagePath(details.path, function(imageData) {
         details.imageData[imageData.width.toString()] = imageData;
+        if (!GuestViewInternalNatives.IsVivaldi()) {
+          // Vivaldi wants path.
         delete details.path;
+        }
         callback(SetIconCommon(details));
       }, failureCallback);
     }

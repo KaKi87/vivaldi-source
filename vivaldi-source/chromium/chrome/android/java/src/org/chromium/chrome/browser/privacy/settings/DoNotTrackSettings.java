@@ -6,8 +6,9 @@ package org.chromium.chrome.browser.privacy.settings;
 
 import android.os.Bundle;
 
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.build.NullUtil;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -15,7 +16,7 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.settings.ChromeBaseSettingsFragment;
-import org.chromium.chrome.browser.settings.search.BaseSearchIndexProvider;
+import org.chromium.chrome.browser.settings.search.ChromeBaseSearchIndexProvider;
 import org.chromium.components.browser_ui.settings.ChromeSwitchPreference;
 import org.chromium.components.browser_ui.settings.SettingsFragment;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
@@ -30,7 +31,8 @@ public class DoNotTrackSettings extends ChromeBaseSettingsFragment {
     private static final String PREF_DO_NOT_TRACK_SWITCH = "do_not_track_switch";
     private static final String PREF_DO_NOT_TRACK_DESCRIPTION = "do_not_track_description";
 
-    private final ObservableSupplierImpl<String> mPageTitle = new ObservableSupplierImpl<>();
+    private final SettableMonotonicObservableSupplier<String> mPageTitle =
+            ObservableSuppliers.createMonotonic();
 
     @Override
     public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
@@ -61,7 +63,7 @@ public class DoNotTrackSettings extends ChromeBaseSettingsFragment {
     }
 
     @Override
-    public ObservableSupplier<String> getPageTitle() {
+    public MonotonicObservableSupplier<String> getPageTitle() {
         return mPageTitle;
     }
 
@@ -70,7 +72,7 @@ public class DoNotTrackSettings extends ChromeBaseSettingsFragment {
         return SettingsFragment.AnimationType.PROPERTY;
     }
 
-    public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
-            new BaseSearchIndexProvider(
+    public static final ChromeBaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+            new ChromeBaseSearchIndexProvider(
                     DoNotTrackSettings.class.getName(), R.xml.do_not_track_preferences);
 }

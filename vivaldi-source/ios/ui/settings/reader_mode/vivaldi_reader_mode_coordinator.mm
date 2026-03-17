@@ -13,12 +13,12 @@
 namespace {
 const CGFloat kPreferredCornerRadius = 20.0;
 const CGSize kPreferredPopoverSize = {420.0, 420.0};
-}
+}  // namespace
 
-@interface VivaldiReaderModeCoordinator ()
-              <UISheetPresentationControllerDelegate,
-               UIPopoverPresentationControllerDelegate,
-               UIAdaptivePresentationControllerDelegate>
+@interface VivaldiReaderModeCoordinator () <
+    UISheetPresentationControllerDelegate,
+    UIPopoverPresentationControllerDelegate,
+    UIAdaptivePresentationControllerDelegate>
 @property(nonatomic, strong) VivaldiReaderModeViewProvider* viewProvider;
 // View controller for the reader mode setting.
 @property(nonatomic, strong) UIViewController* viewController;
@@ -46,11 +46,11 @@ const CGSize kPreferredPopoverSize = {420.0, 420.0};
   self.viewController.navigationItem.largeTitleDisplayMode =
       UINavigationItemLargeTitleDisplayModeNever;
   // Create the mediator
-  self.mediator = [[VivaldiReaderModeMediator alloc]
-                      initWithBrowser:self.browser];
+  self.mediator =
+      [[VivaldiReaderModeMediator alloc] initWithBrowser:self.browser];
   self.mediator.consumer = self.viewProvider;
   [self.viewProvider setConsumer:self.mediator];
-    // Present the bottom sheet
+  // Present the bottom sheet
   [self presentBottomSheet];
 }
 
@@ -83,9 +83,8 @@ const CGSize kPreferredPopoverSize = {420.0, 420.0};
   [presentingVC presentViewController:self.viewController
                              animated:YES
                            completion:^{
-                              [self assignAdaptiveDelegateAfterPresentation];
-                            }
-  ];
+                             [self assignAdaptiveDelegateAfterPresentation];
+                           }];
 }
 
 - (BOOL)isIPad {
@@ -114,7 +113,7 @@ const CGSize kPreferredPopoverSize = {420.0, 420.0};
 }
 
 - (void)configureSheet:(UISheetPresentationController*)sheetPc
-      forPresentingVC:(UIViewController*)presentingVC {
+       forPresentingVC:(UIViewController*)presentingVC {
   sheetPc.detents = @[ UISheetPresentationControllerDetent.mediumDetent ];
   sheetPc.selectedDetentIdentifier = sheetPc.detents.firstObject.identifier;
   sheetPc.preferredCornerRadius = kPreferredCornerRadius;
@@ -130,15 +129,15 @@ const CGSize kPreferredPopoverSize = {420.0, 420.0};
 
 #pragma mark - UISheetPresentationControllerDelegate
 
-- (void)presentationControllerDidDismiss:(UIPresentationController*)
-                                            presentationController {
+- (void)presentationControllerDidDismiss:
+    (UIPresentationController*)presentationController {
   [self stop];
 }
 
 #pragma mark - UIPopoverPresentationControllerDelegate
 
 - (void)popoverPresentationControllerDidDismissPopover:
-    (UIPopoverPresentationController *)popoverPresentationController {
+    (UIPopoverPresentationController*)popoverPresentationController {
   [self stop];
 }
 

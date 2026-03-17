@@ -1143,7 +1143,7 @@ IN_PROC_BROWSER_TEST_P(PrerenderFileSystemAccessBrowserTest,
 
   // Load a page in the prerender.
   GURL prerender_url = embedded_test_server()->GetURL("/title2.html");
-  content::FrameTreeNodeId host_id =
+  content::PrerenderHostId host_id =
       prerender_helper_.AddPrerender(prerender_url);
   content::test::PrerenderHostObserver host_observer(*web_contents, host_id);
   EXPECT_FALSE(host_observer.was_activated());
@@ -1386,6 +1386,13 @@ class FileSystemAccessBrowserTestForWebUI
     CHECK(temp_dir_.CreateUniqueTempDirUnderPath(base::GetTempDirForTesting()));
   }
 
+  void SetUpOnMainThread() override {
+    InProcessBrowserTest::SetUpOnMainThread();
+    factory_registration_ =
+        std::make_unique<content::ScopedWebUIControllerFactoryRegistration>(
+            &factory_);
+  }
+
   content::WebContents* SetUpAndNavigateToTestWebUI() {
     const GURL kWebUITestUrl = content::GetWebUIURL("webui/title1.html");
     WebUIAllowlist::GetOrCreate(browser()->profile())
@@ -1474,8 +1481,8 @@ class FileSystemAccessBrowserTestForWebUI
 
  private:
   content::TestWebUIControllerFactory factory_;
-  content::ScopedWebUIControllerFactoryRegistration factory_registration_{
-      &factory_};
+  std::unique_ptr<content::ScopedWebUIControllerFactoryRegistration>
+      factory_registration_;
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 

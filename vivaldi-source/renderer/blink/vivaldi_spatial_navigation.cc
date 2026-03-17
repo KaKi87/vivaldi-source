@@ -14,6 +14,7 @@
 #include "third_party/blink/renderer/core/events/web_input_event_conversion.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/visual_viewport.h"
+#include "third_party/blink/renderer/core/html/forms/html_label_element.h"
 #include "third_party/blink/renderer/core/html/html_all_collection.h"
 #include "third_party/blink/renderer/core/html/html_frame_owner_element.h"
 #include "third_party/blink/renderer/core/html/html_image_element.h"
@@ -29,7 +30,6 @@ namespace vivaldi {
 
 namespace {
 
-
 // Borrowed from chromium spatnav code, but cannot be #included
 // because it is private.
 bool IsUnobscured(const blink::Element* element) {
@@ -39,7 +39,7 @@ bool IsUnobscured(const blink::Element* element) {
   }
   const blink::LocalFrame* local_main_frame =
       blink::DynamicTo<blink::LocalFrame>(
-      node->GetDocument().GetPage()->MainFrame());
+          node->GetDocument().GetPage()->MainFrame());
   if (!local_main_frame)
     return false;
 
@@ -64,7 +64,7 @@ bool IsUnobscured(const blink::Element* element) {
                         blink::HitTestRequest::kAllowChildFrameContent);
 
   const blink::HTMLFrameOwnerElement* frame_owner =
-    blink::DynamicTo<blink::HTMLFrameOwnerElement>(node);
+      blink::DynamicTo<blink::HTMLFrameOwnerElement>(node);
 
   const blink::HitTestResult::NodeSet& nodes = result.ListBasedTestResult();
   for (auto hit_node = nodes.rbegin(); hit_node != nodes.rend(); ++hit_node) {
@@ -72,9 +72,8 @@ bool IsUnobscured(const blink::Element* element) {
       return true;
 
     if (frame_owner &&
-        frame_owner
-            ->contentDocument()
-            ->ContainsIncludingHostElements(**hit_node))
+        frame_owner->contentDocument()->ContainsIncludingHostElements(
+            **hit_node))
       return true;
   }
   return false;
@@ -132,17 +131,25 @@ bool HasNavigableTag(blink::WebElement& element) {
   }
   if (element.HasHTMLTagName("a")) {
     if (!element.GetAttribute("href").IsEmpty() || element.IsLink()) {
-      return true;;
+      return true;
+      ;
     }
   } else if (element.HasHTMLTagName("input") ||
              element.HasHTMLTagName("button") ||
              element.HasHTMLTagName("select") ||
              element.HasHTMLTagName("textarea")) {
     return true;
+    //<label> elements are Navigable if they label Navigable elements
+  } else if (element.HasHTMLTagName("label")) {
+    blink::Element* elm = element.Unwrap<blink::Element>();
+    blink::HTMLLabelElement* label =
+        blink::DynamicTo<blink::HTMLLabelElement>(elm);
+    if (label->Control() && elm != label->Control() &&
+        label->Control()->IsFocusable())
+      return true;
   }
   return false;
 }
-
 
 bool IsTooSmallOrBig(blink::Document* document, gfx::Rect& rect) {
   int clientWidth = document->documentElement()->clientWidth();
@@ -187,7 +194,7 @@ void DispatchMouseMoveAt(blink::Element* element, gfx::PointF event_position) {
   DCHECK(local_main_frame);
   local_main_frame->GetEventHandler().HandleMouseMoveEvent(
       blink::TransformWebMouseEvent(local_main_frame->View(),
-      fake_mouse_move_event),
+                                    fake_mouse_move_event),
       coalesced_events, predicted_events);
 }
 
@@ -219,6 +226,13 @@ bool IsDateTimeOrFile(blink::WebElement element) {
 }
 
 bool IsRadioButton(blink::Element* element) {
+  // Need to treat interactable labels on radio buttons as the radio button.
+  blink::HTMLLabelElement* label =
+      blink::DynamicTo<blink::HTMLLabelElement>(element);
+  if (label && element != label->Control()) {
+    if (IsRadioButton(label->Control()))
+      return true;
+  }
   return element->getAttribute(blink::html_names::kTypeAttr).Utf8() == "radio";
 }
 
@@ -226,7 +240,6 @@ void HoverElement(blink::Element* element) {
   gfx::PointF event_position(-1, -1);
   if (element) {
     event_position = blink::RectInViewport(*element).origin();
-    event_position.Offset(1, 1);
   }
   DispatchMouseMoveAt(element, event_position);
 }
@@ -300,7 +313,6 @@ std::vector<blink::WebElement> GetSpatialNavigationElements(
     float scale,
     blink::Element* current,
     std::vector<blink::WebElement>& spatnav_elements) {
-
   blink::WebElementCollection all_elements = document->all();
 
   for (blink::WebElement element = all_elements.FirstItem(); !element.IsNull();
@@ -311,9 +323,8 @@ std::vector<blink::WebElement> GetSpatialNavigationElements(
       spatnav_elements.push_back(element);
       continue;
     }
-    if (elm &&
-        (elm->IsFocusable() || HasNavigableListeners(element) ||
-         HasNavigableTag(element))) {
+    if (elm && (elm->IsFocusable() || HasNavigableListeners(element) ||
+                HasNavigableTag(element))) {
       if (elm->IsFrameOwnerElement()) {
         auto* owner = blink::To<blink::HTMLFrameOwnerElement>(elm);
         blink::LocalFrame* subframe =

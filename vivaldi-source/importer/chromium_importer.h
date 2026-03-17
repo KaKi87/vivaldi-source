@@ -6,11 +6,11 @@
 #include <vector>
 
 #include "base/values.h"
+#include "chrome/utility/importer/importer.h"
+#include "components/password_manager/core/browser/password_form.h"
 #include "components/user_data_importer/common/importer_data_types.h"
 #include "components/user_data_importer/common/importer_type.h"
 #include "components/user_data_importer/common/importer_url_row.h"
-#include "chrome/utility/importer/importer.h"
-#include "components/password_manager/core/browser/password_form.h"
 
 #include "importer/viv_import_result.h"
 
@@ -39,14 +39,16 @@ class ChromiumImporter : public Importer {
   ImportResult ImportExtensions();
   ImportResult ImportTabs(user_data_importer::ImporterType importer_type);
 
-  /// Tries to decrypt and set sign-ons (pwds), if even one fails decrypting, we report failure (but set what we can)
+  /// Tries to decrypt and set sign-ons (pwds), if even one fails decrypting, we
+  /// report failure (but set what we can)
   ImportResult ReadAndParseSignons(
       const base::FilePath& sqlite_file,
       std::vector<user_data_importer::ImportedPasswordForm>* forms,
       user_data_importer::ImporterType importer_type,
       bool* failed_decrypt);
 
-  ImportResult ReadAndParseHistory(const base::FilePath& sqlite_file,
+  ImportResult ReadAndParseHistory(
+      const base::FilePath& sqlite_file,
       std::vector<user_data_importer::ImporterURLRow>* forms);
 };
 

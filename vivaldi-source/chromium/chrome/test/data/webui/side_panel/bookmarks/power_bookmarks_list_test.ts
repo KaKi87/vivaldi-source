@@ -17,12 +17,14 @@ import type {CrButtonElement} from 'chrome://resources/cr_elements/cr_button/cr_
 import type {CrInputElement} from 'chrome://resources/cr_elements/cr_input/cr_input.js';
 import type {CrUrlListItemElement} from 'chrome://resources/cr_elements/cr_url_list_item/cr_url_list_item.js';
 import {loadTimeData} from 'chrome://resources/js/load_time_data.js';
+import {PluralStringProxyImpl} from 'chrome://resources/js/plural_string_proxy.js';
 import {flush} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 import {assertEquals, assertFalse, assertNotEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import type {MetricsTracker} from 'chrome://webui-test/metrics_test_support.js';
 import {fakeMetricsPrivate} from 'chrome://webui-test/metrics_test_support.js';
 import {flushTasks, waitAfterNextRender} from 'chrome://webui-test/polymer_test_util.js';
 import {TestMock} from 'chrome://webui-test/test_mock.js';
+import {TestPluralStringProxy} from 'chrome://webui-test/test_plural_string_proxy.js';
 import {eventToPromise, microtasksFinished} from 'chrome://webui-test/test_util.js';
 
 import {createTestBookmarks, getBookmarks, getBookmarksInList, getBookmarkWithId, getPowerBookmarksRowElement, initializeUi} from './power_bookmarks_list_test_util.js';
@@ -32,6 +34,7 @@ suite('General', () => {
   const FOLDERS = createTestBookmarks();
   let powerBookmarksList: PowerBookmarksListElement;
   let bookmarksApi: TestBookmarksApiProxy;
+  let pluralStringProxy: TestPluralStringProxy;
   const priceTrackingProxy = TestMock.fromClass(PriceTrackingBrowserProxyImpl);
   let callbackRouterRemote: PageRemote;
   let imageServiceHandler: TestMock<PageImageServiceHandlerRemote>&
@@ -105,6 +108,9 @@ suite('General', () => {
     bookmarksApi.setAllBookmarks(structuredClone(FOLDERS));
     BookmarksApiProxyImpl.setInstance(bookmarksApi);
 
+    pluralStringProxy = new TestPluralStringProxy();
+    PluralStringProxyImpl.setInstance(pluralStringProxy);
+
     priceTrackingProxy.reset();
     const callbackRouter = new PageCallbackRouter();
     priceTrackingProxy.setResultFor('getCallbackRouter', callbackRouter);
@@ -124,7 +130,7 @@ suite('General', () => {
     PageImageServiceBrowserProxy.setInstance(
         new PageImageServiceBrowserProxy(imageServiceHandler));
     imageServiceHandler.setResultFor('getPageImageUrl', Promise.resolve({
-      result: {imageUrl: {url: 'https://example.com/image.png'}},
+      result: {imageUrl: 'https://example.com/image.png'},
     }));
 
     loadTimeData.overrideValues({
@@ -138,7 +144,6 @@ suite('General', () => {
       emptyBodyGuest: 'guest body',
       bookmarksTreeViewEnabled: false,
       isBookmarksInTransportModeEnabled: false,
-      splitViewEnabled: false,
     });
 
     powerBookmarksList = await initializeUi(bookmarksApi);
@@ -688,6 +693,32 @@ suite('General', () => {
           getBookmarks(powerBookmarksList).length);
     });
 
+    test('ContextMenuClosesOnBookmarkDeletion', async () => {
+      const bookmark = getBookmarkWithId(powerBookmarksList, '3')!;
+      const contextMenu = powerBookmarksList.$.contextMenu;
+
+      // Open the context menu for bookmark '3'.
+      contextMenu.showAtPosition(
+          new MouseEvent('click'), [bookmark], false, false, false, 1);
+
+      await waitAfterNextRender(contextMenu);
+      assertTrue(contextMenu.isOpen());
+
+      // Delete bookmark '4'.
+      bookmarksApi.callbackRouterRemote.onBookmarkNodesRemoved(['4']);
+      await flushTasks();
+
+      // Context menu should still be open.
+      assertTrue(contextMenu.isOpen());
+
+      // Delete bookmark '3'.
+      bookmarksApi.callbackRouterRemote.onBookmarkNodesRemoved(['3']);
+      await flushTasks();
+
+      // Context menu should be closed.
+      assertFalse(contextMenu.isOpen());
+    });
+
     test('SetsCompactDescription', () => {
       const folder = getBookmarkWithId(powerBookmarksList, '5');
       assertTrue(!!folder);
@@ -828,6 +859,84 @@ suite('General', () => {
       assertEquals('5', bookmarksApi.getArgs('deleteBookmarks')[0][1]);
     });
 
+    test('DeletedBookmarksCount', async () => {
+      // Add a folder with 2 urls and 1 empty folder.
+      bookmarksApi.callbackRouterRemote.onBookmarkNodeAdded({
+        id: '100',
+        parentId: FOLDERS[1]!.id,
+        url: null,
+        index: 0,
+        title: 'Parent folder',
+        dateAdded: null,
+        dateLastUsed: null,
+        unmodifiable: false,
+        children: [
+          {
+            id: '101',
+            parentId: '100',
+            index: 0,
+            title: 'Nested bookmark',
+            url: 'http://nested/bookmark/',
+            dateAdded: null,
+            dateLastUsed: null,
+            unmodifiable: false,
+            children: null,
+          },
+          {
+            id: '102',
+            parentId: '100',
+            index: 1,
+            title: 'Second Nested bookmark',
+            url: 'http://nested/bookmark/2',
+            dateAdded: null,
+            dateLastUsed: null,
+            unmodifiable: false,
+            children: null,
+          },
+          {
+            id: '103',
+            parentId: '100',
+            index: 2,
+            title: 'Empty nested folder',
+            url: null,
+            dateAdded: null,
+            dateLastUsed: null,
+            unmodifiable: false,
+            children: null,
+          },
+        ],
+      });
+
+      await flushTasks();
+
+      const editButton: HTMLElement =
+          powerBookmarksList.shadowRoot!.querySelector('#editButton')!;
+      editButton.click();
+
+      flush();
+
+      await selectBookmark('100');
+
+      flush();
+
+      const deleteButton: HTMLButtonElement =
+          powerBookmarksList.shadowRoot!.querySelector('#deleteButton')!;
+      assertFalse(deleteButton.disabled);
+      deleteButton.click();
+
+      flush();
+
+      assertEquals(1, bookmarksApi.getCallCount('deleteBookmarks'));
+      assertEquals('100', bookmarksApi.getArgs('deleteBookmarks')[0][0]);
+
+      const args = await pluralStringProxy.whenCalled('getPluralString');
+      assertEquals('bookmarkDeletionCount', args.messageName);
+
+      // Total count should be 2 because the empty folder is not counted.
+      assertEquals(2, args.itemCount);
+    });
+
+
     test('EditBookmarkWithBookmarksInTransportModeDisabled', async () => {
       const bookmark = getBookmarkWithId(powerBookmarksList, '3')!;
       const contextMenu = powerBookmarksList.$.contextMenu;
@@ -835,18 +944,17 @@ suite('General', () => {
 
       // Open the context menu.
       contextMenu.showAtPosition(
-          new MouseEvent('click'), [bookmark], false, false, false);
+          new MouseEvent('click'), [bookmark], false, false, false, 1);
       await waitAfterNextRender(contextMenu);
 
       // Get the edit option in the menu.
       const menuItems =
           contextMenu.shadowRoot!.querySelectorAll('.dropdown-item');
-      assertEquals(
-          menuItems[3]!.textContent.includes(
-              loadTimeData.getString('menuEdit')),
-          true);
+      assertTrue(
+          menuItems[4]!.textContent.includes(
+              loadTimeData.getString('menuEdit')));
       const editItem = contextMenu.shadowRoot!.querySelectorAll<HTMLElement>(
-          '.dropdown-item')[3]!;
+          '.dropdown-item')[4]!;
 
       // Click on edit and wait for the call to propagate.
       editItem.click();
@@ -870,7 +978,7 @@ suite('General', () => {
 
       // Open the context menu.
       contextMenu.showAtPosition(
-          new MouseEvent('click'), bookmarks, false, false, false);
+          new MouseEvent('click'), bookmarks, false, false, false, 1);
       await waitAfterNextRender(contextMenu);
 
       // Get the move option in the menu.
@@ -963,8 +1071,8 @@ suite('General', () => {
           title: 'Product Baz',
           clusterTitle: 'Product Cluster Baz',
           domain: 'baz.com',
-          imageUrl: {url: 'https://baz.com/image'},
-          productUrl: {url: 'https://baz.com/product'},
+          imageUrl: 'https://baz.com/image',
+          productUrl: 'https://baz.com/product',
           currentPrice: '$56',
           previousPrice: '$78',
           clusterId: BigInt(12345),

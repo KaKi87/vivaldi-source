@@ -10,6 +10,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import android.content.Context;
 import android.os.Looper;
@@ -33,8 +34,9 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.lifetime.Destroyable;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplier;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.task.AsyncTask;
 import org.chromium.base.test.util.AdvancedMockContext;
 import org.chromium.base.test.util.CallbackHelper;
@@ -43,7 +45,6 @@ import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.Matchers;
@@ -105,7 +106,6 @@ import java.util.concurrent.TimeoutException;
 // parameterized tests caused cross-talk between tests.
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add(ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE)
-@DisableFeatures({ChromeFeatureList.ANDROID_TAB_DECLUTTER_RESCUE_KILLSWITCH})
 @EnableFeatures({ChromeFeatureList.ANDROID_TAB_SKIP_SAVE_TABS_TASK_KILLSWITCH})
 public class TabPersistentStoreTest {
     // Test activity type that does not restore tab on cold restart.
@@ -180,7 +180,8 @@ public class TabPersistentStoreTest {
                                                     TestTabModelSelector.this,
                                                     getTabCreatorManager(),
                                                     TabWindowManagerSingleton.getInstance(),
-                                                    sCipherFactory);
+                                                    sCipherFactory,
+                                                    /* recordLegacyTabCountMetrics= */ true);
                                     tabPersistentStore.addObserver(mTabPersistentStoreObserver);
                                     return tabPersistentStore;
                                 }
@@ -279,7 +280,9 @@ public class TabPersistentStoreTest {
 
                 @Override
                 public Pair<TabModelSelector, Destroyable> buildHeadlessSelector(
-                        @WindowId int windowId, Profile profile) {
+                        @WindowId int windowId,
+                        Profile profile,
+                        PersistentStoreMigrationManager migrationManager) {
                     return Pair.create(null, null);
                 }
             };
@@ -398,6 +401,10 @@ public class TabPersistentStoreTest {
 
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
+                    TabModelSelector mockArchived = mock(TabModelSelector.class);
+                    when(mockArchived.isTabStateInitialized()).thenReturn(true);
+                    TabWindowManagerSingleton.getInstance()
+                            .setArchivedTabModelSelector(mockArchived);
                     ApplicationStatus.registerStateListenerForActivity(
                             mActivityStateListener, mChromeActivity);
                 });
@@ -407,6 +414,7 @@ public class TabPersistentStoreTest {
     public void tearDown() {
         ThreadUtils.runOnUiThreadBlocking(
                 () -> {
+                    TabWindowManagerSingleton.getInstance().setArchivedTabModelSelector(null);
                     ApplicationStatus.onStateChangeForTesting(
                             mChromeActivity, ActivityState.DESTROYED);
                     ApplicationStatus.unregisterActivityStateListener(mActivityStateListener);
@@ -426,7 +434,8 @@ public class TabPersistentStoreTest {
                             modelSelector,
                             creatorManager,
                             TabWindowManagerSingleton.getInstance(),
-                            sCipherFactory);
+                            sCipherFactory,
+                            /* recordLegacyTabCountMetrics= */ true);
                 });
     }
 
@@ -914,9 +923,8 @@ public class TabPersistentStoreTest {
                         () -> {
                             MockTab newTab =
                                     new MockTab(tabId, ProfileManager.getLastUsedRegularProfile());
-                            ObservableSupplierImpl<Boolean> observableSupplier =
-                                    new ObservableSupplierImpl<>();
-                            observableSupplier.set(true);
+                            SettableNonNullObservableSupplier<Boolean> observableSupplier =
+                                    ObservableSuppliers.createNonNull(true);
                             ShoppingPersistedTabData.from(newTab)
                                     .registerIsTabSaveEnabledSupplier(observableSupplier);
                             ShoppingPersistedTabData.from(newTab).save();

@@ -245,7 +245,6 @@
 <translation id="5623842676595125836">Têketin</translation>
 <translation id="5624959475330585145">Berî bikaranîna girêdanên neewle pirs bike</translation>
 <translation id="5677928146339483299">Astengkirî</translation>
-<translation id="5707185214361380026">Barkirina pêvekê biserneket:</translation>
 <translation id="5713171467967533494">Di geroka Vivaldi de veke</translation>
 <translation id="5746169159649715125">Tomar bike wekî PDF</translation>
 <translation id="5747809636523347288">Pêve bike û biçe <ph name="URL" /></translation>
@@ -363,8 +362,8 @@ Pelê xwe yê kilîdê li cihekî ewle biparêze. Ji bo afirandina gohertoyekê 
 <translation id="8018313076035239964">Kontrol bike ka malper çi zanyariyan dikarin bi kar bînin û ew dikarin kîjan naverokê nîşanî te bidin</translation>
 <translation id="8071432093239591881">Wekî wêne çap bike</translation>
 <translation id="8135557862853121765"><ph name="NUM_KILOBYTES" />K</translation>
-<translation id="8212008074015601248">{NUM_DOWNLOAD, plural
-        =1 {Tê daxistin} other {Tên daxistin}</translation>
+<translation id="8212008074015601248">{NUM_DOWNLOAD, plural,
+        =1 {Tê daxistin} other {Tên daxistin}}</translation>
 <translation id="8230134520748321204">Bila pêborîna te were tomarkirin bo<ph name="ORIGIN" />?</translation>
 <translation id="8248050856337841185">&amp;Pêve bike</translation>
 <translation id="8261378640211443080">Ev pêvek di <ph name="IDS_EXTENSION_WEB_STORE_TITLE" />ê de ne rêzokkirî ye û dibe ku bêyî zanîna te tevlî bûye.</translation>

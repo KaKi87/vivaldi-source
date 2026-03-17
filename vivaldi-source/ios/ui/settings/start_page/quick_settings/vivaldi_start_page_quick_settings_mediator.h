@@ -12,8 +12,8 @@ class PrefService;
 @protocol VivaldiStartPageSettingsConsumer;
 
 // The Mediator for start page quick setting.
-@interface VivaldiStartPageQuickSettingsMediator:
-    NSObject<VivaldiStartPageSettingsConsumer>
+@interface VivaldiStartPageQuickSettingsMediator
+    : NSObject <VivaldiStartPageSettingsConsumer>
 
 - (instancetype)initWithOriginalPrefService:(PrefService*)originalPrefService
     NS_DESIGNATED_INITIALIZER;

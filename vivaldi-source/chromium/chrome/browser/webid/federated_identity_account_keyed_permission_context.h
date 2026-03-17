@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ref.h"
 #include "components/content_settings/core/common/content_settings_types.h"
 #include "components/permissions/object_permission_context_base.h"
 #include "components/webid/federated_identity_data_model.h"
@@ -114,7 +115,7 @@ class FederatedIdentityAccountKeyedPermissionContext
                                   base::OnceClosure callback);
 
   // permissions::ObjectPermissionContextBase:
-  std::string GetKeyForObject(const base::Value::Dict& object) override;
+  std::string GetKeyForObject(const base::DictValue& object) override;
 
   void GetAllDataKeys(
       base::OnceCallback<void(
@@ -130,15 +131,15 @@ class FederatedIdentityAccountKeyedPermissionContext
 
  private:
   // permissions::ObjectPermissionContextBase:
-  bool IsValidObject(const base::Value::Dict& object) override;
-  std::u16string GetObjectDisplayName(const base::Value::Dict& object) override;
+  bool IsValidObject(const base::DictValue& object) override;
+  std::u16string GetObjectDisplayName(const base::DictValue& object) override;
 
   // Sends the current FEDERATED_IDENTITY_SHARING permissions to the network
   // service, for use when choosing which cookies to include or exclude for a
   // given network request or `document.cookie` evaluation.
   void SyncSharingPermissionGrantsToNetworkService(base::OnceClosure callback);
 
-  void AddToAccountList(base::Value::Dict& dict, const std::string& account_id);
+  void AddToAccountList(base::DictValue& dict, const std::string& account_id);
 
   // The BrowserContext associated with this permission context.
   base::raw_ref<content::BrowserContext> browser_context_;

@@ -13,7 +13,7 @@
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-@interface VivaldiGeneralSettingsCoordinator ()<
+@interface VivaldiGeneralSettingsCoordinator () <
     VivaldiHostingControllerPresentationDelegate> {
   // Profile for the browser
   raw_ptr<ProfileIOS> _profile;  // weak
@@ -30,7 +30,8 @@
 @synthesize baseNavigationController = _baseNavigationController;
 
 - (instancetype)initWithBaseNavigationController:
-    (UINavigationController*)navigationController browser:(Browser*)browser {
+                    (UINavigationController*)navigationController
+                                         browser:(Browser*)browser {
   self = [super initWithBaseViewController:navigationController
                                    browser:browser];
   if (self) {
@@ -45,27 +46,26 @@
 - (void)start {
   self.viewProvider = [[VivaldiGeneralSettingsViewProvider alloc] init];
   self.viewController =
-    [self.viewProvider makeViewControllerWithPresentationDelegate:self];
+      [self.viewProvider makeViewControllerWithPresentationDelegate:self];
   self.viewController.title =
       l10n_util::GetNSString(IDS_IOS_GENERAL_SETTING_TITLE);
   self.viewController.navigationItem.largeTitleDisplayMode =
       UINavigationItemLargeTitleDisplayModeNever;
 
   self.mediator = [[VivaldiGeneralSettingsMediator alloc]
-                   initWithOriginalPrefService:self.browser->GetProfile()
-                   ->GetOriginalProfile()
-                   ->GetPrefs()];
+      initWithOriginalPrefService:self.browser->GetProfile()
+                                      ->GetOriginalProfile()
+                                      ->GetPrefs()];
   self.mediator.consumer = self.viewProvider;
   self.viewProvider.settingsStateConsumer = self.mediator;
 
   [self observeTapAndNavigationEvents];
 
   // Add Done button
-  UIBarButtonItem* doneItem =
-  [[UIBarButtonItem alloc]
-    initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                         target:self
-                         action:@selector(handleDoneButtonTap)];
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
   self.viewController.navigationItem.rightBarButtonItem = doneItem;
   [self.baseNavigationController pushViewController:self.viewController
                                            animated:YES];
@@ -104,13 +104,12 @@
       initWithLanguageModelManager:languageModelManager
                        prefService:_profile->GetPrefs()];
   LanguageSettingsTableViewController* languageSettingsTableViewController =
-      [[LanguageSettingsTableViewController alloc]
-          initWithDataSource:mediator
-              commandHandler:mediator];
+      [[LanguageSettingsTableViewController alloc] initWithDataSource:mediator
+                                                       commandHandler:mediator];
   mediator.consumer = languageSettingsTableViewController;
   [self.baseNavigationController
       pushViewController:languageSettingsTableViewController
-            animated:YES];
+                animated:YES];
 }
 
 #pragma mark - VivaldiHostingControllerPresentationDelegate

@@ -9,6 +9,7 @@ namespace vivaldi {
 
 namespace {
 
+// clang-format off
 // This must be sorted.
 const char *const vivaldi_extra_locales_array[] = {
   "af",
@@ -36,6 +37,7 @@ const char *const vivaldi_extra_locales_array[] = {
   "sc",
   "sq",
 };
+// clang-format on
 
 }  // namespace
 

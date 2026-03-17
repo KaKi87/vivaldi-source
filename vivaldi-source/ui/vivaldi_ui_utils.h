@@ -52,8 +52,9 @@ extern content::WebContents* CloneTab(Browser* source_browser,
                                       std::string* error_out);
 extern bool GetTabById(int tab_id, content::WebContents** contents, int* index);
 
-// Detects if the current thread can show UI elements. Used to detect if we can safely
-// display Dialog boxes in case the code may run before main window shows up.
+// Detects if the current thread can show UI elements. Used to detect if we can
+// safely display Dialog boxes in case the code may run before main window shows
+// up.
 extern bool IsUIAvailable();
 
 }  // namespace ui_tools

@@ -90,7 +90,7 @@ jobs:
           key: bazel-centipede-cache-${{ matrix.config }}-${{ github.run_id }}
   run_tests_mac:
     name: Run Centipede tests (MacOS)
-    runs-on: macos-13
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       - name: Checkout repository
@@ -103,14 +103,16 @@ jobs:
           restore-keys: bazel-centipede-cache-mac-
       - name: Add LLVM symbolizer to path
         run: |
-          ln -s $(brew --prefix llvm@15)/bin/llvm-symbolizer /usr/local/bin
+          ln -s $(brew --prefix llvm@18)/bin/llvm-symbolizer /usr/local/bin
       - name: Run unit tests
         if: ${{ !cancelled() }}
         run: |
-          # Timed wait is delayed for unknown reasons in MacOS for a few testing
+          # Timed wait and rusage is inaccurate for unknown reasons in MacOS for a few testing
           # environments, thus disabling a few related non-critical tests.
-          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli -- centipede:all -centipede:periodic_action_test -centipede:rusage_profiler_test && \
-          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-*ValidateTimelapseSnapshots' -- centipede:rusage_profiler_test
+          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli -- centipede:all \
+                -centipede:periodic_action_test -centipede:rusage_profiler_test -centipede:rusage_stats_test && \
+          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-*ValidateTimelapseSnapshots' -- centipede:rusage_profiler_test && \
+          bazel --output_user_root="${HOME}/.cache/bazel" test --local_test_jobs=1 --test_output=errors --no//fuzztest:use_riegeli --test_filter='-RUsageMemoryTest.Accuracy' -- centipede:rusage_stats_test
       - name: Run e2e tests without Riegeli
         if: ${{ !cancelled() }}
         run: |

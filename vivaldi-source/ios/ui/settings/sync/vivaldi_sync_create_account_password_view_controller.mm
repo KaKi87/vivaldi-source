@@ -42,11 +42,11 @@ typedef NS_ENUM(NSInteger, ItemType) {
 @interface VivaldiSyncCreateAccountPasswordViewController () <
     UITextFieldDelegate,
     UITextViewDelegate> {
-NSString *username;
-int age;
-NSString* recoveryEmailAddress;
-BOOL termsOfUseAccepted;
-BOOL subscribeToNewsletter;
+  NSString* username;
+  int age;
+  NSString* recoveryEmailAddress;
+  BOOL termsOfUseAccepted;
+  BOOL subscribeToNewsletter;
 }
 
 @property(nonatomic, strong) VivaldiTableViewTextEditItem* passwordItem;
@@ -129,8 +129,7 @@ BOOL subscribeToNewsletter;
       [[VivaldiTableViewIllustratedItem alloc] initWithType:ItemTypeTitle];
   title.image = [UIImage imageNamed:kVivaldiIcon];
   title.title = l10n_util::GetNSString(IDS_VIVALDI_SYNC_CREATE_ACCOUNT_TITLE);
-  [model addItem:title
-      toSectionWithIdentifier:SectionIdentifierHeader];
+  [model addItem:title toSectionWithIdentifier:SectionIdentifierHeader];
 
   self.passwordItem =
       [[VivaldiTableViewTextEditItem alloc] initWithType:ItemTypePassword];
@@ -145,8 +144,8 @@ BOOL subscribeToNewsletter;
   self.passwordItem.textFieldEnabled = YES;
   self.passwordItem.textFieldSecureTextEntry = YES;
   self.passwordItem.autoCapitalizationType = UITextAutocapitalizationTypeNone;
-  self.passwordItem.identifyingIconAccessibilityLabel = l10n_util::GetNSString(
-      IDS_VIVALDI_ACCOUNT_PASSWORD);
+  self.passwordItem.identifyingIconAccessibilityLabel =
+      l10n_util::GetNSString(IDS_VIVALDI_ACCOUNT_PASSWORD);
   self.passwordItem.textContentType = UITextContentTypePassword;
   self.passwordItem.keyboardType = UIKeyboardTypeDefault;
   [model addItem:self.passwordItem
@@ -189,8 +188,7 @@ BOOL subscribeToNewsletter;
   self.termsOfUseSwitch =
       [[TableViewSwitchItem alloc] initWithType:ItemTypeTOSSwitch];
   self.termsOfUseSwitch.on = NO;
-  self.termsOfUseSwitch.text =
-      l10n_util::GetNSString(IDS_VIVALDI_SYNC_TC);
+  self.termsOfUseSwitch.text = l10n_util::GetNSString(IDS_VIVALDI_SYNC_TC);
   self.termsOfUseSwitch.target = self;
   self.termsOfUseSwitch.selector = @selector(switchAction:);
   self.termsOfUseSwitch.tag = ItemTypeTOSSwitch;
@@ -212,11 +210,12 @@ BOOL subscribeToNewsletter;
   [model addItem:self.subscribeToNewsletterSwitch
       toSectionWithIdentifier:SectionIdentifierTermsAndNewsletter];
 
-
   VivaldiTableViewIllustratedItem* externalLinks =
-    [[VivaldiTableViewIllustratedItem alloc] initWithType:ItemTypeExternalLinks];
+      [[VivaldiTableViewIllustratedItem alloc]
+          initWithType:ItemTypeExternalLinks];
 
-  NSString* text = l10n_util::GetNSString(IDS_VIVALDI_TOS_AND_PP_EXTERNAL_LINKS);
+  NSString* text =
+      l10n_util::GetNSString(IDS_VIVALDI_TOS_AND_PP_EXTERNAL_LINKS);
   StringWithTags parsedString = ParseStringWithLinks(text);
 
   NSMutableParagraphStyle* paragraphStyle =
@@ -249,9 +248,8 @@ BOOL subscribeToNewsletter;
   [model addItem:externalLinks
       toSectionWithIdentifier:SectionIdentifierExternalLinks];
 
-  self.createButton =
-      [[VivaldiTableViewTextSpinnerButtonItem alloc]
-          initWithType:ItemTypeCreateButton];
+  self.createButton = [[VivaldiTableViewTextSpinnerButtonItem alloc]
+      initWithType:ItemTypeCreateButton];
   self.createButton.buttonText =
       l10n_util::GetNSString(IDS_VIVALDI_CREATE_ACCOUNT_CREATE);
   self.createButton.buttonBackgroundColor = [UIColor colorNamed:kBlueColor];
@@ -262,18 +260,18 @@ BOOL subscribeToNewsletter;
   self.createButton.disableButtonIntrinsicWidth = YES;
 
   [self.tableViewModel addItem:self.createButton
-      toSectionWithIdentifier:SectionIdentifierCreateButton];
+       toSectionWithIdentifier:SectionIdentifierCreateButton];
 }
 
 #pragma mark - UITableViewDelegate
 
 - (CGFloat)tableView:(UITableView*)tableView
-heightForFooterInSection:(NSInteger)section {
+    heightForFooterInSection:(NSInteger)section {
   return 0;
 }
 
 - (CGFloat)tableView:(UITableView*)tableView
-heightForHeaderInSection:(NSInteger)section {
+    heightForHeaderInSection:(NSInteger)section {
   return kCommonHeaderSectionHeight;
 }
 
@@ -290,12 +288,11 @@ heightForHeaderInSection:(NSInteger)section {
   switch (itemType) {
     case ItemTypeCreateButton: {
       VivaldiTableViewTextSpinnerButtonCell* tableViewTextButtonCell =
-          base::apple::ObjCCastStrict<VivaldiTableViewTextSpinnerButtonCell>
-                                                                        (cell);
-      [tableViewTextButtonCell.button
-                 addTarget:self
-                    action:@selector(createButtonPressed:)
-          forControlEvents:UIControlEventTouchUpInside];
+          base::apple::ObjCCastStrict<VivaldiTableViewTextSpinnerButtonCell>(
+              cell);
+      [tableViewTextButtonCell.button addTarget:self
+                                         action:@selector(createButtonPressed:)
+                               forControlEvents:UIControlEventTouchUpInside];
       [tableViewTextButtonCell
           setActivityIndicatorEnabled:self.createButton.activityInProgress];
       break;
@@ -311,9 +308,10 @@ heightForHeaderInSection:(NSInteger)section {
     case ItemTypeConfirmPassword: {
       VivaldiTableViewTextEditCell* editCell =
           base::apple::ObjCCast<VivaldiTableViewTextEditCell>(cell);
-      [editCell.identifyingIconButton addTarget:self
-                                  action:@selector(toggleConfirmPasswordMasking)
-                        forControlEvents:UIControlEventTouchUpInside];
+      [editCell.identifyingIconButton
+                 addTarget:self
+                    action:@selector(toggleConfirmPasswordMasking)
+          forControlEvents:UIControlEventTouchUpInside];
       editCell.textField.delegate = self;
       break;
     }
@@ -345,20 +343,23 @@ heightForHeaderInSection:(NSInteger)section {
 
 #pragma mark - UITextViewDelegate
 
-- (UIAction*)textView:(UITextView*) textView
-primaryActionForTextItem:(UITextItem*)textItem
-        defaultAction:(UIAction*) defaultAction {
+- (UIAction*)textView:(UITextView*)textView
+    primaryActionForTextItem:(UITextItem*)textItem
+               defaultAction:(UIAction*)defaultAction {
   __weak __typeof__(self) weakSelf = self;
   return [UIAction actionWithHandler:^(UIAction* action) {
     __strong __typeof(self) strongSelf = weakSelf;
-    if (!strongSelf) return;
+    if (!strongSelf)
+      return;
     NSString* URLString = textItem.link.absoluteString;
     if (URLString == vVivaldiTermsOfServiceUrl) {
-      [self.modalPageHandler showModalPage:textItem.link
-            title:l10n_util::GetNSString(IDS_VIVALDI_TOS_TITLE)];
+      [self.modalPageHandler
+          showModalPage:textItem.link
+                  title:l10n_util::GetNSString(IDS_VIVALDI_TOS_TITLE)];
     } else if (URLString == vVivaldiCommunityPrivacyUrl) {
-      [self.modalPageHandler showModalPage:textItem.link
-            title:l10n_util::GetNSString(IDS_VIVALDI_PRIVACY_TITLE)];
+      [self.modalPageHandler
+          showModalPage:textItem.link
+                  title:l10n_util::GetNSString(IDS_VIVALDI_PRIVACY_TITLE)];
     }
   }];
 }
@@ -377,9 +378,9 @@ primaryActionForTextItem:(UITextItem*)textItem
   self.passwordItem.textFieldSecureTextEntry =
       !self.passwordItem.textFieldSecureTextEntry;
   self.passwordItem.identifyingIcon =
-      self.passwordItem.textFieldSecureTextEntry ?
-        [UIImage systemImageNamed:kShowPasswordIcon] :
-        [UIImage systemImageNamed:kHidePasswordIcon];
+      self.passwordItem.textFieldSecureTextEntry
+          ? [UIImage systemImageNamed:kShowPasswordIcon]
+          : [UIImage systemImageNamed:kHidePasswordIcon];
   [self reconfigureCellsForItems:@[ self.passwordItem ]];
 }
 
@@ -387,9 +388,9 @@ primaryActionForTextItem:(UITextItem*)textItem
   self.confirmPasswordItem.textFieldSecureTextEntry =
       !self.confirmPasswordItem.textFieldSecureTextEntry;
   self.confirmPasswordItem.identifyingIcon =
-      self.confirmPasswordItem.textFieldSecureTextEntry ?
-        [UIImage systemImageNamed:kShowPasswordIcon] :
-        [UIImage systemImageNamed:kHidePasswordIcon];
+      self.confirmPasswordItem.textFieldSecureTextEntry
+          ? [UIImage systemImageNamed:kShowPasswordIcon]
+          : [UIImage systemImageNamed:kHidePasswordIcon];
   [self reconfigureCellsForItems:@[ self.confirmPasswordItem ]];
 }
 
@@ -399,17 +400,16 @@ primaryActionForTextItem:(UITextItem*)textItem
   if ([self.passwordItem.textFieldValue length] < vUserMinimumPasswordLength) {
     errorMessage = l10n_util::GetNSString(IDS_SYNC_PASSWORD_LENGTH_ERROR);
   } else if (![self.confirmPasswordItem.textFieldValue
-                          isEqualToString:self.passwordItem.textFieldValue]) {
+                 isEqualToString:self.passwordItem.textFieldValue]) {
     errorMessage = l10n_util::GetNSString(IDS_SYNC_PASSWORD_MATCH_ERROR);
   } else if (!termsOfUseAccepted) {
     errorMessage = l10n_util::GetNSString(IDS_SYNC_TC_NOT_ACCEPTED_ERROR);
   }
 
-  [self removeErrorCell:SectionIdentifierUserDetails
-               itemType:ItemTypeError];
+  [self removeErrorCell:SectionIdentifierUserDetails itemType:ItemTypeError];
   if (errorMessage) {
     [self showErrorCellWithMessage:errorMessage
-                          section:SectionIdentifierUserDetails
+                           section:SectionIdentifierUserDetails
                           itemType:ItemTypeError];
     return;
   }

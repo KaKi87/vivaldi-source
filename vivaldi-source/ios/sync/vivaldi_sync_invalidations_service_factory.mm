@@ -15,9 +15,9 @@ namespace vivaldi {
 
 syncer::SyncInvalidationsService*
 VivaldiSyncInvalidationsServiceFactory::GetForProfile(ProfileIOS* profile) {
-  return static_cast<syncer::SyncInvalidationsService*>(GetInstance()
-     ->GetServiceForProfileAs<syncer::SyncInvalidationsService>(
-         profile, /*create=*/true));
+  return static_cast<syncer::SyncInvalidationsService*>(
+      GetInstance()->GetServiceForProfileAs<syncer::SyncInvalidationsService>(
+          profile, /*create=*/true));
 }
 
 VivaldiSyncInvalidationsServiceFactory*

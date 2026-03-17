@@ -35,10 +35,10 @@
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_manager_ios.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/browser_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/popup_menu_commands.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/settings_commands.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -118,7 +118,7 @@ class SettingsTableViewControllerTest
             GetApplicationContext()->GetSystemIdentityManager());
     system_identity_manager->AddIdentity(fake_identity_);
     auth_service_->SignIn(fake_identity_,
-                          signin_metrics::AccessPoint::kUnknown);
+                          signin_metrics::AccessPoint::kStartPage);
     sync_service_->SetSignedIn(signin::ConsentLevel::kSignin);
 
     // Make sure there is no pre-existing policy present.
@@ -140,15 +140,14 @@ class SettingsTableViewControllerTest
     // Create mock command handlers. These are just for initializing the view
     // controller; because the handlers are local to this methdd, they will not
     // exist during tests, so if the tests call any commands they will fail.
-    id mock_application_handler =
-        OCMProtocolMock(@protocol(ApplicationCommands));
+    id mock_application_handler = OCMProtocolMock(@protocol(SceneCommands));
     id mock_settings_handler = OCMProtocolMock(@protocol(SettingsCommands));
     id mock_snackbar_handler = OCMProtocolMock(@protocol(SnackbarCommands));
     mock_popup_menu_handler_ = OCMProtocolMock(@protocol(PopupMenuCommands));
 
     CommandDispatcher* dispatcher = browser_->GetCommandDispatcher();
     [dispatcher startDispatchingToTarget:mock_application_handler
-                             forProtocol:@protocol(ApplicationCommands)];
+                             forProtocol:@protocol(SceneCommands)];
     [dispatcher startDispatchingToTarget:mock_settings_handler
                              forProtocol:@protocol(SettingsCommands)];
     [dispatcher startDispatchingToTarget:mock_settings_handler
@@ -167,8 +166,7 @@ class SettingsTableViewControllerTest
         initWithRootViewController:controller
                            browser:browser_.get()
                           delegate:nil];
-    controller.applicationHandler =
-        HandlerForProtocol(dispatcher, ApplicationCommands);
+    controller.sceneHandler = HandlerForProtocol(dispatcher, SceneCommands);
     controller.settingsHandler =
         HandlerForProtocol(dispatcher, SettingsCommands);
     controller.snackbarHandler =
@@ -243,7 +241,8 @@ TEST_F(SettingsTableViewControllerTest, SigninDisabled) {
 // Verifies that for a signed-in user, the account section shows 2 items: the
 // one with the name/email, and the "Google Services" one.
 TEST_F(SettingsTableViewControllerTest, AccountSectionIfSignedIn) {
-  auth_service_->SignIn(fake_identity_, signin_metrics::AccessPoint::kUnknown);
+  auth_service_->SignIn(fake_identity_,
+                        signin_metrics::AccessPoint::kStartPage);
   sync_service_->SetSignedIn(signin::ConsentLevel::kSignin);
 
   CreateController();
@@ -290,7 +289,8 @@ TEST_F(SettingsTableViewControllerTest, SigninDisabledByPolicy) {
 // error.
 TEST_F(SettingsTableViewControllerTest, HoldAccountStorageErrorWhenEligible) {
   // Set account error.
-  auth_service_->SignIn(fake_identity_, signin_metrics::AccessPoint::kUnknown);
+  auth_service_->SignIn(fake_identity_,
+                        signin_metrics::AccessPoint::kStartPage);
   sync_service_->SetSignedIn(signin::ConsentLevel::kSignin);
   sync_service_->GetUserSettings()->SetPassphraseRequired();
 
@@ -305,14 +305,16 @@ TEST_F(SettingsTableViewControllerTest, HoldAccountStorageErrorWhenEligible) {
   // Verify that the account item is in an error state.
   TableViewAccountItem* identityAccountItem =
       base::apple::ObjCCast<TableViewAccountItem>(account_items[0]);
-  EXPECT_TRUE(identityAccountItem.shouldDisplayError);
+  ASSERT_EQ(TableViewAccountDetailImage::kError,
+            identityAccountItem.detailImage);
 }
 
 // Verifies that the error is removed from the model when the Account Storage
 // error is resolved. Triggers the model update by firing a Sync State change.
 TEST_F(SettingsTableViewControllerTest, ClearAccountStorageErrorWhenResolved) {
   // Set account error to resolve.
-  auth_service_->SignIn(fake_identity_, signin_metrics::AccessPoint::kUnknown);
+  auth_service_->SignIn(fake_identity_,
+                        signin_metrics::AccessPoint::kStartPage);
   sync_service_->SetSignedIn(signin::ConsentLevel::kSignin);
   const char kSyncPassphrase[] = "passphrase";
   sync_service_->GetUserSettings()->SetPassphraseRequired(kSyncPassphrase);
@@ -328,7 +330,8 @@ TEST_F(SettingsTableViewControllerTest, ClearAccountStorageErrorWhenResolved) {
   // Verify that the account item is in an error state.
   TableViewAccountItem* identityAccountItem =
       base::apple::ObjCCast<TableViewAccountItem>(account_items[0]);
-  ASSERT_TRUE(identityAccountItem.shouldDisplayError);
+  ASSERT_EQ(TableViewAccountDetailImage::kError,
+            identityAccountItem.detailImage);
 
   // Resolve the account error.
   sync_service_->GetUserSettings()->SetDecryptionPassphrase(kSyncPassphrase);
@@ -343,14 +346,16 @@ TEST_F(SettingsTableViewControllerTest, ClearAccountStorageErrorWhenResolved) {
   identityAccountItem =
       base::apple::ObjCCast<TableViewAccountItem>(account_items[0]);
   ASSERT_TRUE(identityAccountItem != nil);
-  EXPECT_FALSE(identityAccountItem.shouldDisplayError);
+  ASSERT_EQ(TableViewAccountDetailImage::kNone,
+            identityAccountItem.detailImage);
 }
 
 // Verifies that when eligible the account item model doesn't have the Account
 // Storage error when there is no error.
 TEST_F(SettingsTableViewControllerTest, DontHoldAccountErrorWhenNoError) {
   // Set no account error state.
-  auth_service_->SignIn(fake_identity_, signin_metrics::AccessPoint::kUnknown);
+  auth_service_->SignIn(fake_identity_,
+                        signin_metrics::AccessPoint::kStartPage);
   sync_service_->SetSignedIn(signin::ConsentLevel::kSignin);
 
   CreateController();
@@ -365,7 +370,8 @@ TEST_F(SettingsTableViewControllerTest, DontHoldAccountErrorWhenNoError) {
   TableViewAccountItem* identityAccountItem =
       base::apple::ObjCCast<TableViewAccountItem>(account_items[0]);
   ASSERT_TRUE(identityAccountItem != nil);
-  EXPECT_FALSE(identityAccountItem.shouldDisplayError);
+  ASSERT_EQ(TableViewAccountDetailImage::kNone,
+            identityAccountItem.detailImage);
 }
 
 // Verifies that if the Save to Photos flag is enabled and Save to Photos is

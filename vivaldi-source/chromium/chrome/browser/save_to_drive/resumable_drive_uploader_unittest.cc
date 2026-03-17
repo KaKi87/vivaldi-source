@@ -13,6 +13,7 @@
 #include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/json/json_writer.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/bind.h"
 #include "base/test/mock_callback.h"
@@ -134,9 +135,9 @@ class ResumableDriveUploaderTest : public testing::Test {
     auto& elements = *request.request_body->elements();
     ASSERT_EQ(elements.size(), 1u);
     EXPECT_EQ(elements[0].As<network::DataElementBytes>().AsStringView(),
-              *base::WriteJson(base::Value::Dict()
+              *base::WriteJson(base::DictValue()
                                    .Set("name", kTestTitle)
-                                   .Set("parents", base::Value::List().Append(
+                                   .Set("parents", base::ListValue().Append(
                                                        "test_folder_id"))));
 
     std::optional<std::string> content_length =
@@ -211,7 +212,7 @@ TEST_F(ResumableDriveUploaderTest, UploadSuccess) {
                     kTestContent);
           content::URLLoaderInterceptor::WriteResponse(
               kSuccessFulFinalResponseHeader,
-              *base::WriteJson(base::Value::Dict()
+              *base::WriteJson(base::DictValue()
                                    .Set("id", kTestFileId)
                                    .Set("name", kTestTitle)),
               params->client.get());
@@ -281,7 +282,7 @@ TEST_F(ResumableDriveUploaderTest, UploadSuccessInChunks) {
             EXPECT_EQ(*upload_command, "upload, finalize");
             content::URLLoaderInterceptor::WriteResponse(
                 kSuccessFulFinalResponseHeader,
-                *base::WriteJson(base::Value::Dict()
+                *base::WriteJson(base::DictValue()
                                      .Set("id", kTestFileId)
                                      .Set("name", kTestTitle)),
                 params->client.get());
@@ -497,7 +498,7 @@ TEST_F(ResumableDriveUploaderTest, UploadResumesAfterNotFound) {
           // Second attempt succeeds.
           content::URLLoaderInterceptor::WriteResponse(
               kSuccessFulFinalResponseHeader,
-              *base::WriteJson(base::Value::Dict()
+              *base::WriteJson(base::DictValue()
                                    .Set("id", kTestFileId)
                                    .Set("name", kTestTitle)),
               params->client.get());

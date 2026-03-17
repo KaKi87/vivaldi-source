@@ -6,8 +6,8 @@
 
 #include "components/prefs/pref_service.h"
 #include "prefs/native_settings_helper_mac.h"
-#include "vivaldi/prefs/vivaldi_gen_prefs.h"
 #include "vivaldi/prefs/vivaldi_gen_pref_enums.h"
+#include "vivaldi/prefs/vivaldi_gen_prefs.h"
 
 namespace vivaldi {
 
@@ -21,9 +21,8 @@ void NoRedisplayChanged(CFNotificationCenterRef center,
                         CFStringRef name,
                         const void* object,
                         CFDictionaryRef userInfo) {
-  reinterpret_cast<NativeSettingsObserver*>(observer)
-      ->SetPref(vivaldiprefs::kSystemMacActionOnDoubleClick,
-        getActionOnDoubleClick());
+  reinterpret_cast<NativeSettingsObserver*>(observer)->SetPref(
+      vivaldiprefs::kSystemMacActionOnDoubleClick, getActionOnDoubleClick());
 }
 
 void SwipeDirectionChanged(CFNotificationCenterRef center,
@@ -31,9 +30,8 @@ void SwipeDirectionChanged(CFNotificationCenterRef center,
                            CFStringRef name,
                            const void* object,
                            CFDictionaryRef userInfo) {
-  reinterpret_cast<NativeSettingsObserver*>(observer)
-      ->SetPref(vivaldiprefs::kSystemMacSwipeScrollDirection,
-        getSwipeDirection());
+  reinterpret_cast<NativeSettingsObserver*>(observer)->SetPref(
+      vivaldiprefs::kSystemMacSwipeScrollDirection, getSwipeDirection());
 }
 
 void SystemDarkModeChanged(CFNotificationCenterRef center,
@@ -55,37 +53,63 @@ void KeyboardUIModeChanged(CFNotificationCenterRef center,
 }
 
 void ColorPreferencesChanged(CFNotificationCenterRef center,
+                             void* observer,
+                             CFStringRef name,
+                             const void* object,
+                             CFDictionaryRef userInfo) {
+  reinterpret_cast<NativeSettingsObserver*>(observer)->SetPref(
+      vivaldiprefs::kSystemAccentColor, getSystemAccentColor());
+
+  reinterpret_cast<NativeSettingsObserver*>(observer)->SetPref(
+      vivaldiprefs::kSystemHighlightColor, getSystemHighlightColor());
+}
+
+void MenubarSettingChanged(CFNotificationCenterRef center,
                            void* observer,
                            CFStringRef name,
                            const void* object,
                            CFDictionaryRef userInfo) {
-  reinterpret_cast<NativeSettingsObserver*>(observer)
-    ->SetPref(vivaldiprefs::kSystemAccentColor, getSystemAccentColor());
+  if (!observer) {
+    return;
+  }
 
-  reinterpret_cast<NativeSettingsObserver*>(observer)
-    ->SetPref(vivaldiprefs::kSystemHighlightColor, getSystemHighlightColor());
+  reinterpret_cast<NativeSettingsObserver*>(observer)->SetPref(
+      vivaldiprefs::kSystemMacMenubarVisibleInFullscreen,
+      getMenubarVisibleInFullscreen());
 }
 
 NativeSettingsObserverMac::NativeSettingsObserverMac(Profile* profile)
     : NativeSettingsObserver(profile) {
-
   SwipeDirectionChanged(CFNotificationCenterGetDistributedCenter(), this,
-    CFSTR("SwipeScrollDirectionDidChangeNotification"), nullptr, nullptr);
+                        CFSTR("SwipeScrollDirectionDidChangeNotification"),
+                        nullptr, nullptr);
 
   NoRedisplayChanged(CFNotificationCenterGetDistributedCenter(), this,
-    CFSTR("AppleNoRedisplayAppearancePreferenceChanged"), nullptr, nullptr);
+                     CFSTR("AppleNoRedisplayAppearancePreferenceChanged"),
+                     nullptr, nullptr);
 
   SystemDarkModeChanged(CFNotificationCenterGetDistributedCenter(), this,
-    CFSTR("AppleInterfaceThemeChangedNotification"), nullptr, nullptr);
+                        CFSTR("AppleInterfaceThemeChangedNotification"),
+                        nullptr, nullptr);
 
   SystemDarkModeChanged(CFNotificationCenterGetDistributedCenter(), this,
-    CFSTR("KeyboardUIModeDidChangeNotification"), nullptr, nullptr);
+                        CFSTR("KeyboardUIModeDidChangeNotification"), nullptr,
+                        nullptr);
 
   if (@available(macOS 10.14, *)) {
     SystemDarkModeChanged(CFNotificationCenterGetDistributedCenter(), this,
-      CFSTR("AppleColorPreferencesChangedNotification"), nullptr, nullptr);
+                          CFSTR("AppleColorPreferencesChangedNotification"),
+                          nullptr, nullptr);
     ColorPreferencesChanged(CFNotificationCenterGetDistributedCenter(), this,
-      CFSTR("AppleColorPreferencesChangedNotification"), nullptr, nullptr);
+                            CFSTR("AppleColorPreferencesChangedNotification"),
+                            nullptr, nullptr);
+  }
+
+  if (@available(macos 12.0.1, *)) {
+    MenubarSettingChanged(
+        CFNotificationCenterGetLocalCenter(), this,
+        CFSTR("NSApplicationDidChangeSafeVisibleFrameNotification"), nullptr,
+        nullptr);
   }
 
   // NOTE(tomas@vivaldi.com): fix for VB-39486
@@ -93,9 +117,9 @@ NativeSettingsObserverMac::NativeSettingsObserverMac(Profile* profile)
       CFNotificationCenterGetDistributedCenter(), this);
 
   CFNotificationCenterAddObserver(
-      CFNotificationCenterGetDistributedCenter(), this,
-      SwipeDirectionChanged, CFSTR("SwipeScrollDirectionDidChangeNotification"),
-      NULL, CFNotificationSuspensionBehaviorDeliverImmediately);
+      CFNotificationCenterGetDistributedCenter(), this, SwipeDirectionChanged,
+      CFSTR("SwipeScrollDirectionDidChangeNotification"), NULL,
+      CFNotificationSuspensionBehaviorDeliverImmediately);
   CFNotificationCenterAddObserver(
       CFNotificationCenterGetDistributedCenter(), this, NoRedisplayChanged,
       CFSTR("AppleNoRedisplayAppearancePreferenceChanged"), NULL,
@@ -110,13 +134,19 @@ NativeSettingsObserverMac::NativeSettingsObserverMac(Profile* profile)
       CFNotificationSuspensionBehaviorDeliverImmediately);
   if (@available(macOS 10.14, *)) {
     CFNotificationCenterAddObserver(
-      CFNotificationCenterGetDistributedCenter(), this, ColorPreferencesChanged,
-      CFSTR("AppleColorPreferencesChangedNotification"), NULL,
-      CFNotificationSuspensionBehaviorDeliverImmediately);
+        CFNotificationCenterGetDistributedCenter(), this,
+        ColorPreferencesChanged,
+        CFSTR("AppleColorPreferencesChangedNotification"), NULL,
+        CFNotificationSuspensionBehaviorDeliverImmediately);
   }
   if (@available(macos 12.0.1, *)) {
     CFNotificationCenterRemoveEveryObserver(
         CFNotificationCenterGetLocalCenter(), this);
+
+    CFNotificationCenterAddObserver(
+        CFNotificationCenterGetLocalCenter(), this, MenubarSettingChanged,
+        CFSTR("NSApplicationDidChangeSafeVisibleFrameNotification"), NULL,
+        CFNotificationSuspensionBehaviorDeliverImmediately);
   }
 }
 

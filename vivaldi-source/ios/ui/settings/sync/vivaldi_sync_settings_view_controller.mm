@@ -6,8 +6,8 @@
 #import "base/strings/sys_string_conversions.h"
 #import "components/sync/base/user_selectable_type.h"
 #import "ios/chrome/browser/net/model/crurl.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_text_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_button_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_text_item.h"
@@ -22,15 +22,15 @@
 #import "url/gurl.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-@interface VivaldiSyncSettingsViewController()
-    <VivaldiTableViewSyncUserInfoViewDelegate> {}
+@interface VivaldiSyncSettingsViewController () <
+    VivaldiTableViewSyncUserInfoViewDelegate> {
+}
 @end
 
 @implementation VivaldiSyncSettingsViewController
 
 - (instancetype)initWithStyle:(UITableViewStyle)style {
   if ((self = [super initWithStyle:style])) {
-
   }
   return self;
 }
@@ -76,7 +76,7 @@
   ItemType itemType =
       static_cast<ItemType>([model itemTypeForIndexPath:indexPath]);
   UITableViewCell* cell = [super tableView:tableView
-                cellForRowAtIndexPath:indexPath];
+                     cellForRowAtIndexPath:indexPath];
   switch (itemType) {
     case ItemTypeStartSyncingButton: {
       [self startSyncingAllButtonPressed];
@@ -109,24 +109,25 @@
   switch (itemType) {
     case ItemTypeSyncWhatSegmentedControl: {
       VivaldiTableViewSegmentedControlCell* segmentedControlCell =
-          base::apple::ObjCCastStrict<VivaldiTableViewSegmentedControlCell>(cell);
-      [segmentedControlCell.segmentedControl addTarget:self
+          base::apple::ObjCCastStrict<VivaldiTableViewSegmentedControlCell>(
+              cell);
+      [segmentedControlCell.segmentedControl
+                 addTarget:self
                     action:@selector(syncAllOptionChanged:)
           forControlEvents:UIControlEventValueChanged];
       // This is the top cell and we want to hide the separator line
       segmentedControlCell.separatorInset =
-          UIEdgeInsetsMake(0,0,0,tableView.frame.size.width);
+          UIEdgeInsetsMake(0, 0, 0, tableView.frame.size.width);
       break;
     }
     case ItemTypeEncryptionPasswordButton: {
       cell.selectionStyle = UITableViewCellSelectionStyleNone;
       UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc]
           initWithTarget:self
-          action:@selector(encryptionInfoButtonPressed)];
+                  action:@selector(encryptionInfoButtonPressed)];
       [cell.accessoryView addGestureRecognizer:tap];
       [cell.accessoryView setUserInteractionEnabled:YES];
-      cell.accessoryView.tintColor =
-          [UIColor colorNamed:kBlueColor];
+      cell.accessoryView.tintColor = [UIColor colorNamed:kBlueColor];
       break;
     }
     case ItemTypeBackupRecoveryKeyButton: {
@@ -138,13 +139,29 @@
       [label sizeToFit];
       label.textColor = [UIColor colorNamed:kBlueColor];
       cell.accessoryView = label;
-      cell.accessoryView.tintColor =
-          [UIColor colorNamed:kBlueColor];
+      cell.accessoryView.tintColor = [UIColor colorNamed:kBlueColor];
       UITapGestureRecognizer* tap = [[UITapGestureRecognizer alloc]
           initWithTarget:self
-          action:@selector(backupEncryptionKeyButtonPressed)];
+                  action:@selector(backupEncryptionKeyButtonPressed)];
       [cell.accessoryView addGestureRecognizer:tap];
       [cell.accessoryView setUserInteractionEnabled:YES];
+      break;
+    }
+    case ItemTypeLogOutButton: {
+      TableViewTextButtonCell* tableViewTextButtonCell =
+          base::apple::ObjCCastStrict<TableViewTextButtonCell>(cell);
+      [tableViewTextButtonCell.button addTarget:self
+                                         action:@selector(logOutButtonPressed)
+                               forControlEvents:UIControlEventTouchUpInside];
+      break;
+    }
+    case ItemTypeDeleteDataButton: {
+      TableViewTextButtonCell* tableViewTextButtonCell =
+          base::apple::ObjCCastStrict<TableViewTextButtonCell>(cell);
+      [tableViewTextButtonCell.button
+                 addTarget:self
+                    action:@selector(deleteDataButtonPressed)
+          forControlEvents:UIControlEventTouchUpInside];
       break;
     }
     default:
@@ -202,13 +219,12 @@
     // No need to reload since the model has not been loaded yet.
     return;
   }
-  if (![self.tableViewModel
-          hasSectionForSectionIdentifier:sectionIdentifier]) {
+  if (![self.tableViewModel hasSectionForSectionIdentifier:sectionIdentifier]) {
     // No need to reload if the section is not there
     return;
   }
-  NSUInteger index = [self.tableViewModel
-      sectionForSectionIdentifier:sectionIdentifier];
+  NSUInteger index =
+      [self.tableViewModel sectionForSectionIdentifier:sectionIdentifier];
   [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:index]
                 withRowAnimation:UITableViewRowAnimationNone];
 }
@@ -243,10 +259,10 @@
                           IDS_VIVALDI_SYNC_DEVICE_NAME_EDIT_CONFIRM_TITLE)
                 style:UIAlertActionStyleDefault
               handler:^(UIAlertAction* _Nonnull action) {
-                  NSString* newName = dialog.textFields[0].text;
-                  if ([newName length] > 0) {
-                    [self.delegate updateDeviceName:newName];
-                  }
+                NSString* newName = dialog.textFields[0].text;
+                if ([newName length] > 0) {
+                  [self.delegate updateDeviceName:newName];
+                }
               }];
 
   UIAlertAction* cancelAction = [UIAlertAction
@@ -263,8 +279,8 @@
 
 - (void)didTapProfilePhoto {
   OpenNewTabCommand* command =
-      [OpenNewTabCommand commandWithURLFromChrome:
-          GURL(base::SysNSStringToUTF8(vVivaldiProfileUrl))];
+      [OpenNewTabCommand commandWithURLFromChrome:GURL(base::SysNSStringToUTF8(
+                                                      vVivaldiProfileUrl))];
   [self.applicationCommandsHandler closePresentedViewsAndOpenURL:command];
 }
 
@@ -277,41 +293,43 @@
   NSURL* fileURL = [NSURL fileURLWithPath:filePath];
 
   // Create an array containing the items to share
-  NSArray* itemsToShare = @[fileURL];
+  NSArray* itemsToShare = @[ fileURL ];
 
-  UIActivityViewController* activityVC = [[UIActivityViewController alloc]
-      initWithActivityItems:itemsToShare applicationActivities:nil];
+  UIActivityViewController* activityVC =
+      [[UIActivityViewController alloc] initWithActivityItems:itemsToShare
+                                        applicationActivities:nil];
 
   NSArray* excludedActivityTypes = @[
-    UIActivityTypeAddToReadingList,
-    UIActivityTypeCopyToPasteboard, UIActivityTypeOpenInIBooks,
-    UIActivityTypePostToFacebook, UIActivityTypePostToFlickr,
-    UIActivityTypePostToTencentWeibo, UIActivityTypePostToTwitter,
-    UIActivityTypePostToVimeo, UIActivityTypePostToWeibo, UIActivityTypePrint
+    UIActivityTypeAddToReadingList, UIActivityTypeCopyToPasteboard,
+    UIActivityTypeOpenInIBooks, UIActivityTypePostToFacebook,
+    UIActivityTypePostToFlickr, UIActivityTypePostToTencentWeibo,
+    UIActivityTypePostToTwitter, UIActivityTypePostToVimeo,
+    UIActivityTypePostToWeibo, UIActivityTypePrint
   ];
   activityVC.excludedActivityTypes = excludedActivityTypes;
 
   __weak __typeof(self) weakSelf = self;
   activityVC.completionWithItemsHandler =
-      ^(NSString *activityType, BOOL completed,
-        NSArray *returnedItems, NSError *activityError) {
-    [weakSelf.serviceDelegate removeTempBackupEncryptionKeyFile:filePath];
-  };
+      ^(NSString* activityType, BOOL completed, NSArray* returnedItems,
+        NSError* activityError) {
+        [weakSelf.serviceDelegate removeTempBackupEncryptionKeyFile:filePath];
+      };
 
   // Configure the popover presentation controller for iPad
   if ([VivaldiGlobalHelpers isDeviceTablet]) {
     activityVC.popoverPresentationController.sourceView = self.view;
     activityVC.popoverPresentationController.sourceRect = self.view.bounds;
     activityVC.popoverPresentationController.permittedArrowDirections =
-      UIPopoverArrowDirectionLeft;
+        UIPopoverArrowDirectionLeft;
   }
 
   [self presentViewController:activityVC animated:YES completion:nil];
 }
 
 - (void)encryptionInfoButtonPressed {
-  OpenNewTabCommand* command = [OpenNewTabCommand commandWithURLFromChrome:
-      GURL(l10n_util::GetStringUTF8(IDS_VIVALDI_IOS_ENCRYPTION_INFO_URL))];
+  OpenNewTabCommand* command = [OpenNewTabCommand
+      commandWithURLFromChrome:GURL(l10n_util::GetStringUTF8(
+                                   IDS_VIVALDI_IOS_ENCRYPTION_INFO_URL))];
   [self.applicationCommandsHandler closePresentedViewsAndOpenURL:command];
 }
 
@@ -321,11 +339,13 @@
 
 - (void)deleteDataButtonPressed {
   UIAlertController* alertController = [UIAlertController
-      alertControllerWithTitle:l10n_util::GetNSString(
-          IDS_VIVALDI_SYNC_CONFIRM_CLEAR_SERVER_DATA_TITLE)
-        message:l10n_util::GetNSString(
-          IDS_VIVALDI_SYNC_CONFIRM_CLEAR_SERVER_DATA_MESSAGE)
-        preferredStyle:UIAlertControllerStyleAlert];
+      alertControllerWithTitle:
+          l10n_util::GetNSString(
+              IDS_VIVALDI_SYNC_CONFIRM_CLEAR_SERVER_DATA_TITLE)
+                       message:
+                           l10n_util::GetNSString(
+                               IDS_VIVALDI_SYNC_CONFIRM_CLEAR_SERVER_DATA_MESSAGE)
+                preferredStyle:UIAlertControllerStyleAlert];
   __weak __typeof(self) weakSelf = self;
 
   UIAlertAction* deleteAction = [UIAlertAction
@@ -338,7 +358,7 @@
 
   UIAlertAction* cancelAction = [UIAlertAction
       actionWithTitle:l10n_util::GetNSString(
-          IDS_VIVALDI_SYNC_CANCEL_CLEAR_SERVER_DATA_MESSAGE)
+                          IDS_VIVALDI_SYNC_CANCEL_CLEAR_SERVER_DATA_MESSAGE)
                 style:UIAlertActionStyleCancel
               handler:^(UIAlertAction* action){
               }];
@@ -356,9 +376,7 @@
 }
 
 - (void)clearExistingTarget:(UIButton*)button {
-  [button removeTarget:nil
-                action:nil
-      forControlEvents:UIControlEventAllEvents];
+  [button removeTarget:nil action:nil forControlEvents:UIControlEventAllEvents];
 }
 
 @end

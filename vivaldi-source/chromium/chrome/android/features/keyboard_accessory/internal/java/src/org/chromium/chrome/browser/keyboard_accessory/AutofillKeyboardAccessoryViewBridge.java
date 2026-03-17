@@ -5,11 +5,11 @@
 package org.chromium.chrome.browser.keyboard_accessory;
 
 import android.app.Activity;
+import android.graphics.RectF;
 import android.net.Uri;
 import android.text.style.ClickableSpan;
 import android.view.View;
 
-import androidx.annotation.Nullable;
 import androidx.browser.customtabs.CustomTabsIntent;
 
 import org.jni_zero.CalledByNative;
@@ -18,7 +18,8 @@ import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.Callback;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.components.autofill.AutofillDelegate;
 import org.chromium.components.autofill.AutofillSuggestion;
 import org.chromium.components.autofill.AutofillSuggestion.Payload;
@@ -36,7 +37,8 @@ import java.util.List;
 public class AutofillKeyboardAccessoryViewBridge implements AutofillDelegate {
     private long mNativeAutofillKeyboardAccessory;
     private WeakReference<Activity> mActivity;
-    private @Nullable ObservableSupplier<ManualFillingComponent> mManualFillingComponentSupplier;
+    private @Nullable MonotonicObservableSupplier<ManualFillingComponent>
+            mManualFillingComponentSupplier;
     private @Nullable ManualFillingComponent mManualFillingComponent;
     private final Callback<ManualFillingComponent> mFillingComponentObserver =
             this::connectToFillingComponent;
@@ -138,12 +140,20 @@ public class AutofillKeyboardAccessoryViewBridge implements AutofillDelegate {
      * Shows an Autofill view with specified suggestions.
      *
      * @param suggestions Autofill suggestions to be displayed.
+     * @param bounds Bounds of the focused field given in device-independent pixels.
      */
     @CalledByNative
-    private void show(@JniType("std::vector") List<AutofillSuggestion> suggestions) {
+    private void show(@JniType("std::vector") List<AutofillSuggestion> suggestions, RectF bounds) {
         if (mManualFillingComponent != null) {
+            mManualFillingComponent.setFieldBounds(bounds);
             mManualFillingComponent.setSuggestions(suggestions, this);
         }
+    }
+
+    /** Helper function used to create RectF object on the c++ side. */
+    @CalledByNative
+    private static RectF createFieldBounds(float left, float top, float right, float bottom) {
+        return new RectF(left, top, right, bottom);
     }
 
     /**

@@ -7,11 +7,11 @@
 #include "base/observer_list.h"
 
 namespace safe_browsing {
-  class RendererURLLoaderThrottle;
+class RendererURLLoaderThrottle;
 }
 
 namespace blink {
-  class URLLoaderThrottle;
+class URLLoaderThrottle;
 }
 
 namespace vivaldi {
@@ -20,8 +20,8 @@ class ThrottleGuard {
  public:
   ThrottleGuard();
   virtual ~ThrottleGuard();
-  void AddObserver(blink::URLLoaderThrottle *);
-  void RemoveObserver(blink::URLLoaderThrottle *);
+  void AddObserver(blink::URLLoaderThrottle*);
+  void RemoveObserver(blink::URLLoaderThrottle*);
   base::WeakPtr<ThrottleGuard> GetWeakPtr();
 
  private:
@@ -29,5 +29,5 @@ class ThrottleGuard {
   base::ObserverList<blink::URLLoaderThrottle>::Unchecked observers_;
 };
 
-} // namespace vivaldi
+}  // namespace vivaldi
 #endif

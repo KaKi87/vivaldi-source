@@ -24,7 +24,6 @@
 #import "ios/chrome/browser/policy/model/policy_util.h"
 #import "ios/chrome/browser/reading_list/ui_bundled/reading_list_egtest_utils.h"
 #import "ios/chrome/browser/settings/ui_bundled/google_services/bulk_upload/bulk_upload_constants.h"
-#import "ios/chrome/browser/settings/ui_bundled/google_services/features.h"
 #import "ios/chrome/browser/settings/ui_bundled/google_services/google_services_settings_constants.h"
 #import "ios/chrome/browser/settings/ui_bundled/google_services/manage_accounts/manage_accounts_table_view_controller_constants.h"
 #import "ios/chrome/browser/settings/ui_bundled/google_services/manage_sync_settings_constants.h"
@@ -158,20 +157,23 @@ void ExpectBatchUploadConfirmationSnackbar(int count, NSString* email) {
 @interface ManageSyncSettingsTestCase : WebHttpServerChromeTestCase
 @end
 
+// TODO(crbug.com/460742017): Test is flaky on a simulator.
+#if TARGET_OS_SIMULATOR
+#define MAYBE_testPersonalizeGoogleServicesSettingsDismissedOnSignOut \
+  FLAKY_testPersonalizeGoogleServicesSettingsDismissedOnSignOut
+#else
+#define MAYBE_testPersonalizeGoogleServicesSettingsDismissedOnSignOut \
+  testPersonalizeGoogleServicesSettingsDismissedOnSignOut
+#endif  // TARGET_OS_SIMULATOR
+
 @implementation ManageSyncSettingsTestCase
 
 - (AppLaunchConfiguration)appConfigurationForTestCase {
   AppLaunchConfiguration config;
   if ([self isRunningTest:@selector
-            (testPersonalizeGoogleServicesSettingsDismissedOnSignOut)]) {
+            (MAYBE_testPersonalizeGoogleServicesSettingsDismissedOnSignOut)]) {
     config.additional_args.push_back(
         std::string("--") + switches::kSearchEngineChoiceCountry + "=BE");
-    config.features_enabled.push_back(kLinkedServicesSettingIos);
-  }
-
-  if ([self isRunningTest:@selector(testSwitchAccountFromAccountMenu)] ||
-      [self isRunningTest:@selector(testSignOutFromAccountFromAccountMenu)]) {
-    config.features_enabled.push_back(kSeparateProfilesForManagedAccounts);
   }
 
   return config;
@@ -518,7 +520,7 @@ void ExpectBatchUploadConfirmationSnackbar(int count, NSString* email) {
 // Tests the account settings is reflecting the SyncTypesListDisabled
 // policy.
 - (void)testAccountSettingsWithSyncTypesListDisabled {
-  base::Value::List list;
+  base::ListValue list;
   list.Append("passwords");
   policy_test_utils::SetPolicy(base::Value(std::move(list)),
                                policy::key::kSyncTypesListDisabled);
@@ -540,7 +542,7 @@ void ExpectBatchUploadConfirmationSnackbar(int count, NSString* email) {
 // SyncTypesListDisabled policy when the policy is lifted.
 - (void)testAccountSettingsWithSyncTypesListDisabledLifted {
   // Apply policy.
-  base::Value::List list;
+  base::ListValue list;
   list.Append("passwords");
   policy_test_utils::SetPolicy(base::Value(std::move(list)),
                                policy::key::kSyncTypesListDisabled);
@@ -595,7 +597,7 @@ void ExpectBatchUploadConfirmationSnackbar(int count, NSString* email) {
   [SigninEarlGrey signinWithFakeIdentity:fakeIdentity];
 
   // Apply policy dynamically.
-  base::Value::List list;
+  base::ListValue list;
   list.Append("passwords");
   policy_test_utils::SetPolicy(base::Value(std::move(list)),
                                policy::key::kSyncTypesListDisabled);
@@ -767,7 +769,7 @@ void ExpectBatchUploadConfirmationSnackbar(int count, NSString* email) {
 // Tests the "History and Tabs" toggle manages both types. When both types
 // are disabled by policy their toggle should be off.
 - (void)testAccountSettingsWithHistoryAndTabsDisabledByPolicy {
-  base::Value::List list;
+  base::ListValue list;
   list.Append("typedUrls");
   list.Append("tabs");
   policy_test_utils::SetPolicy(base::Value(std::move(list)),
@@ -791,7 +793,7 @@ void ExpectBatchUploadConfirmationSnackbar(int count, NSString* email) {
 // Tests the "History and Tabs" toggle manages both types. When History
 // is only disabled by policy their toggle should be active.
 - (void)testAccountSettingsWithHistoryDisabledByPolicy {
-  base::Value::List list;
+  base::ListValue list;
   list.Append("typedUrls");
   policy_test_utils::SetPolicy(base::Value(std::move(list)),
                                policy::key::kSyncTypesListDisabled);
@@ -814,7 +816,7 @@ void ExpectBatchUploadConfirmationSnackbar(int count, NSString* email) {
 // Tests the "History and Tabs" toggle manages both types. When Tabs
 // is only disabled by policy their toggle should be active.
 - (void)testAccountSettingsWithTabsDisabledByPolicy {
-  base::Value::List list;
+  base::ListValue list;
   list.Append("tabs");
   policy_test_utils::SetPolicy(base::Value(std::move(list)),
                                policy::key::kSyncTypesListDisabled);
@@ -1197,7 +1199,9 @@ void ExpectBatchUploadConfirmationSnackbar(int count, NSString* email) {
 // Tests that bulk upload moves the following data types to account:
 // - Bookmarks
 // - Reading List
-- (void)testBulkUploadForBookmarksAndReadingList {
+//
+// TODO(crbug.com/468296957): This test is flaky.
+- (void)FLAKY_testBulkUploadForBookmarksAndReadingList {
   // Add local data.
   password_manager_test_utils::SavePasswordFormToProfileStore(
       @"password", @"user", @"https://example.com");
@@ -1487,7 +1491,12 @@ void ExpectBatchUploadConfirmationSnackbar(int count, NSString* email) {
 
 // Tests the account settings and the encryption view are dismissed
 // on account removal.
+#if TARGET_OS_SIMULATOR
+// TODO(crbug.com/460742017): Test is flaky on a simulator.
+- (void)FLAKY_testAccountSettingsAndEncryptionDismissed {
+#else
 - (void)testAccountSettingsAndEncryptionDismissed {
+#endif  // TARGET_OS_SIMULATOR
   FakeSystemIdentity* fakeIdentity = [FakeSystemIdentity fakeIdentity1];
   [SigninEarlGrey addFakeIdentity:fakeIdentity];
 
@@ -1525,15 +1534,11 @@ void ExpectBatchUploadConfirmationSnackbar(int count, NSString* email) {
 
 // Tests the custom passphrase is remembered per account, kept across signout,
 // and cleared when account is removed from device.
-// TODO(crbug.com/384646508): This test is flaky on the iPad simulator.
-#if TARGET_OS_SIMULATOR
-#define MAYBE_testRememberCustomPassphraseAfterSignout \
-  FLAKY_testRememberCustomPassphraseAfterSignout
-#else
-#define MAYBE_testRememberCustomPassphraseAfterSignout \
-  testRememberCustomPassphraseAfterSignout
-#endif  // TARGET_OS_SIMULATOR
-- (void)MAYBE_testRememberCustomPassphraseAfterSignout {
+// TODO(crbug.com/384646508): Re-enable after the fix on iOS 17.
+- (void)testRememberCustomPassphraseAfterSignout {
+  if (!@available(iOS 18.0, *)) {
+    EARL_GREY_TEST_SKIPPED(@"Failed on iOS 17");
+  }
   // Enable custom passphrase.
   [ChromeEarlGrey addSyncPassphrase:kPassphrase];
   FakeSystemIdentity* fakeIdentity = [FakeSystemIdentity fakeIdentity1];
@@ -1610,7 +1615,8 @@ void ExpectBatchUploadConfirmationSnackbar(int count, NSString* email) {
 
 // Test that the Personalize Google Services page is dismissed when the user
 // signs out.
-- (void)testPersonalizeGoogleServicesSettingsDismissedOnSignOut {
+// TODO(crbug.com/460742017): Test is flaky on a simulator.
+- (void)MAYBE_testPersonalizeGoogleServicesSettingsDismissedOnSignOut {
   FakeSystemIdentity* fakeIdentity = [FakeSystemIdentity fakeIdentity1];
   [SigninEarlGrey addFakeIdentity:fakeIdentity];
 

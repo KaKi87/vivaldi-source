@@ -8,8 +8,7 @@ namespace vivaldi {
 // Validates profile's secure key storage status.
 // true == keystore is locked or has other problems, and user requested to quit
 // profile loading operation.
-bool HasLockedKeystore(Profile *prof);
-
+bool HasLockedKeystore(Profile* prof);
 
 /** Initializes oscrypt on windows and returns true if init went ok.
  * If the keystore encryption key changed and user requested to safely
@@ -22,8 +21,8 @@ bool HasLockedKeystore(Profile *prof);
  * For non-windows platforms, this function will just return true and
  * do nothing.
  */
-bool InitOSCrypt(PrefService *local_state, bool *should_exit);
+bool InitOSCrypt(PrefService* local_state, bool* should_exit);
 
-} // namespace vivaldi
+}  // namespace vivaldi
 
 #endif  // EXTRAPARTS_VIVALDI_BROWSER_MAIN_EXTRA_PARTS_LINUX_H_

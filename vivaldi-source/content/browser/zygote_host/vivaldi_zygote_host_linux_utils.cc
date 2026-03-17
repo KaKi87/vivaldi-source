@@ -30,7 +30,8 @@ void HandleLdPreloadEnvVar(
   if (!ld_preload.has_value())
     return;
 
-  VLOG(3) << "Propagating LD_PRELOAD into flatpak sandbox: " << ld_preload.value();
+  VLOG(3) << "Propagating LD_PRELOAD into flatpak sandbox: "
+          << ld_preload.value();
 
   // Propagate LD_PRELOAD.
   options->environment[kLdPreloadEnvVar] = ld_preload.value();
@@ -43,9 +44,9 @@ void HandleLdPreloadEnvVar(
   }
 }
 
-} // namespace
+}  // namespace
 
-base::Process LaunchFlatpakZygote(const base::CommandLine &cmd_line,
+base::Process LaunchFlatpakZygote(const base::CommandLine& cmd_line,
                                   base::LaunchOptions* options) {
   // Based on code by refi64 (chromium flatpak patches).
   // Original code to be found here:

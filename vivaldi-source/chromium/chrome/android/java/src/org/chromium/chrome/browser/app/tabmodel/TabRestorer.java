@@ -5,9 +5,11 @@
 package org.chromium.chrome.browser.app.tabmodel;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.tabmodel.TabPersistenceUtils.shouldSkipTab;
 
 import androidx.annotation.IntDef;
 
+import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.build.annotations.NullMarked;
@@ -18,7 +20,8 @@ import org.chromium.chrome.browser.tab.StorageLoadedData.LoadedTabState;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabId;
 import org.chromium.chrome.browser.tab.TabState;
-import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
+import org.chromium.chrome.browser.tab.WebContentsState;
+import org.chromium.chrome.browser.tabmodel.TabCreator;
 import org.chromium.chrome.browser.tabmodel.TabGroupVisualDataStore;
 
 import java.lang.annotation.ElementType;
@@ -63,11 +66,30 @@ class TabRestorer {
     }
 
     interface TabRestorerDelegate {
-        /** Called when the tab restorer is cancelled. */
-        void onCancelled();
+        /**
+         * Called when all the data is loaded. This is guaranteed to be called before onCancelled or
+         * onFinished.
+         *
+         * @param incognito Whether the data is for incognito tabs.
+         * @param restoredTabCount The number of tabs that were restored.
+         */
+        void onDataLoaded(boolean incognito, int restoredTabCount);
 
-        /** Called when all tabs have been created. */
-        void onFinished();
+        /**
+         * Called when the tab restorer is cancelled. It is guaranteed that only one of onCancelled
+         * or onFinished will be called.
+         *
+         * @param incognito Whether the tab restorer is for incognito tabs.
+         */
+        void onCancelled(boolean incognito);
+
+        /**
+         * Called when all tabs have been created. It is guaranteed that only one of onCancelled or
+         * onFinished will be called.
+         *
+         * @param incognito Whether the tab restorer is for incognito tabs.
+         */
+        void onFinished(boolean incognito);
 
         /**
          * Called when the details of a tab have been read {@see
@@ -83,13 +105,15 @@ class TabRestorer {
                 boolean fromMerge);
     }
 
+    private final boolean mIncognito;
     private final TabRestorerDelegate mDelegate;
-    private final TabCreatorManager mTabCreatorManager;
+    private final TabCreator mTabCreator;
     private final List<Integer> mTabIdsToIgnore = new ArrayList<>();
 
     private @State int mState = State.EMPTY;
     private @Nullable StorageLoadedData mData;
     private boolean mRestoreActiveTabImmediately;
+    private int mRestoreFilteredTabCount;
 
     /**
      * Track the index we are restoring the next tab from. This is done globally so that {@link
@@ -99,12 +123,14 @@ class TabRestorer {
     private int mIndex;
 
     /**
+     * @param incognito Whether the tab restorer is for incognito tabs.
      * @param delegate The delegate to notify when the tab restorer for certain events.
-     * @param tabCreatorManager The tab creator manager to use to create tabs.
+     * @param tabCreator The tab creator to use to create tabs.
      */
-    TabRestorer(TabRestorerDelegate delegate, TabCreatorManager tabCreatorManager) {
+    TabRestorer(boolean incognito, TabRestorerDelegate delegate, TabCreator tabCreator) {
+        mIncognito = incognito;
         mDelegate = delegate;
-        mTabCreatorManager = tabCreatorManager;
+        mTabCreator = tabCreator;
     }
 
     /**
@@ -114,10 +140,12 @@ class TabRestorer {
      */
     public void onDataLoaded(StorageLoadedData data) {
         mData = data;
+        int restoredTabCount = data.getLoadedTabStates().length;
 
         // Special case for when cancellation happened during loading. In this case we cancel as
         // soon as loading has finished.
         if (mState == State.CANCELLED) {
+            mDelegate.onDataLoaded(mIncognito, restoredTabCount);
             cancelInternal();
             return;
         }
@@ -125,12 +153,14 @@ class TabRestorer {
         // Start was already called before the load finished. Start immediately.
         if (mState == State.RESTORE_ONCE_LOADED) {
             mState = State.LOADED;
+            mDelegate.onDataLoaded(mIncognito, restoredTabCount);
             start(mRestoreActiveTabImmediately);
             return;
         }
 
         assert mState == State.EMPTY;
         mState = State.LOADED;
+        mDelegate.onDataLoaded(mIncognito, restoredTabCount);
     }
 
     /**
@@ -182,9 +212,10 @@ class TabRestorer {
      * second time.
      *
      * @param url The URL to restore the tab state for.
+     * @return Whether a tab was restored.
      */
-    public void restoreTabStateForUrl(String url) {
-        restoreTabStateByPredicate(
+    public boolean restoreTabStateForUrl(String url) {
+        return restoreTabStateByPredicate(
                 loadedTabState -> {
                     var contentsState = loadedTabState.tabState.contentsState;
                     return contentsState != null
@@ -199,9 +230,10 @@ class TabRestorer {
      * a second time.
      *
      * @param tabId The tab ID to restore the tab state for.
+     * @return Whether a tab was restored.
      */
-    public void restoreTabStateForId(@TabId int tabId) {
-        restoreTabStateByPredicate(loadedTabState -> loadedTabState.tabId == tabId);
+    public boolean restoreTabStateForId(@TabId int tabId) {
+        return restoreTabStateByPredicate(loadedTabState -> loadedTabState.tabId == tabId);
     }
 
     /**
@@ -222,7 +254,7 @@ class TabRestorer {
     private void cancelInternal() {
         if (mData != null) {
             cleanupStorageLoadedData();
-            mDelegate.onCancelled();
+            mDelegate.onCancelled(mIncognito);
         }
     }
 
@@ -238,7 +270,10 @@ class TabRestorer {
         assert mState == State.FINISHING;
         mState = State.FINISHED;
         cleanupStorageLoadedData();
-        mDelegate.onFinished();
+        mDelegate.onFinished(mIncognito);
+
+        RecordHistogram.recordCount1000Histogram(
+                "Tabs.TabStateStore.FilteredTabCount", mRestoreFilteredTabCount);
     }
 
     /** Cleans up the {@link StorageLoadedData}. */
@@ -251,12 +286,12 @@ class TabRestorer {
         mData = null;
     }
 
-    private void restoreTabStateByPredicate(Predicate<LoadedTabState> predicate) {
+    private boolean restoreTabStateByPredicate(Predicate<LoadedTabState> predicate) {
         if (mData == null
                 || mState == State.CANCELLED
                 || mState == State.FINISHING
                 || mState == State.FINISHED) {
-            return;
+            return false;
         }
 
         LoadedTabState[] loadedTabStates = mData.getLoadedTabStates();
@@ -264,10 +299,11 @@ class TabRestorer {
             LoadedTabState loadedTabState = loadedTabStates[i];
             if (!mTabIdsToIgnore.contains(loadedTabState.tabId) && predicate.test(loadedTabState)) {
                 mTabIdsToIgnore.add(loadedTabState.tabId);
-                restoreTab(loadedTabState, i, /* isIncognito= */ false, /* isActive= */ false);
-                return;
+                restoreTab(loadedTabState, i, /* isActive= */ false);
+                return true;
             }
         }
+        return false;
     }
 
     /**
@@ -288,11 +324,9 @@ class TabRestorer {
                         ? activeTabIndex
                         : 0;
         LoadedTabState activeTabState = loadedTabStates[restoredActiveTabIndex];
-        // TODO(https://crbug.com/451614469): Handle incognito.
         restoreTab(
                 activeTabState,
                 restoredActiveTabIndex,
-                /* isIncognito= */ false,
                 /* isActive= */ true);
 
         if (loadedTabStates.length == 1) {
@@ -308,16 +342,19 @@ class TabRestorer {
      *
      * @param loadedTabState The tab state to restore.
      * @param index The index of the tab to restore.
-     * @param isIncognito Whether the tab is in incognito mode.
      * @param isActive Whether the tab is the active tab.
      */
-    private void restoreTab(
-            LoadedTabState loadedTabState, int index, boolean isIncognito, boolean isActive) {
+    private void restoreTab(LoadedTabState loadedTabState, int index, boolean isActive) {
         assert mState == State.RESTORING;
         @TabId int tabId = loadedTabState.tabId;
-        Tab tab = resolveTab(loadedTabState.tabState, tabId, index, isIncognito);
-        if (tab == null) return;
+        Tab tab = resolveTab(loadedTabState.tabState, tabId, index);
+        if (tab == null) {
+            WebContentsState state = loadedTabState.tabState.contentsState;
+            if (state != null) state.destroy();
+            return;
+        }
 
+        boolean isIncognito = mIncognito;
         mDelegate.onDetailsRead(
                 index,
                 tabId,
@@ -345,8 +382,7 @@ class TabRestorer {
         while (batchSize > 0 && mIndex < finalIndex) {
             LoadedTabState loadedTabState = loadedTabStates[mIndex];
             if (!mTabIdsToIgnore.contains(loadedTabState.tabId)) {
-                // TODO(https://crbug.com/451614469): Handle incognito.
-                restoreTab(loadedTabState, mIndex, /* isIncognito= */ false, /* isActive= */ false);
+                restoreTab(loadedTabState, mIndex, /* isActive= */ false);
             }
 
             mIndex++;
@@ -360,14 +396,12 @@ class TabRestorer {
         }
     }
 
-    private @Nullable Tab resolveTab(
-            TabState tabState, @TabId int tabId, int index, boolean isIncognito) {
-        if (tabState.contentsState == null || tabState.contentsState.buffer().limit() <= 0) {
+    private @Nullable Tab resolveTab(TabState tabState, @TabId int tabId, int index) {
+        assert mData != null;
+        if (mData.getActiveTabIndex() != index && shouldSkipTab(tabState)) {
+            mRestoreFilteredTabCount++;
             return null;
         }
-
-        return mTabCreatorManager
-                .getTabCreator(isIncognito)
-                .createFrozenTab(tabState, tabId, index);
+        return mTabCreator.createFrozenTab(tabState, tabId, index);
     }
 }

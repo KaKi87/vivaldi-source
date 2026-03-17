@@ -12,7 +12,6 @@
 
 #include "base/files/file.h"
 #include "base/files/file_util.h"
-#include "base/strings/string_split.h"
 #include "components/ad_blocker/content/index/adblock_rules_index.h"
 #include "components/ad_blocker/content/index/index_utils.h"
 #include "components/ad_blocker/content/index/stylesheet_builder.h"
@@ -50,8 +49,13 @@ using MutableRulesList =
 using SourceChecksums = std::vector<SourceChecksumOffset>;
 
 using ContentInjectionTreeNodeOffset =
-    flatbuffers::Offset<flat::ContentInjectionRulesNode>;
-using ContentInjectionRuleTree = std::vector<ContentInjectionTreeNodeOffset>;
+    flatbuffers::Offset<flat::ContentInjectionRulesTreeNode>;
+using ContentInjectionRuleTreeNodes =
+    std::vector<ContentInjectionTreeNodeOffset>;
+using ContentInjectionRuleForDomainOffset =
+    flatbuffers::Offset<flat::ContentInjectionRuleForDomain>;
+using ContentInjectionRuleForDomainOffsets = flatbuffers::Offset<
+    flatbuffers::Vector<ContentInjectionRuleForDomainOffset>>;
 
 using MutableNGramMap = url_pattern_index::
     ClosedHashMap<NGram, MutableRulesList, NGramHashTableProber>;
@@ -93,7 +97,7 @@ struct RuleType<flat::ScriptletInjectionRule> {
       flat::ContentInjectionRuleType_SCRIPTLET_INJECTION;
 };
 
-struct ContentInjectionRuleTreeNode {
+struct ContentInjectionRuleTreeNodeContent {
   std::map<const flat::CosmeticRule*,
            ContentInjectionRuleForDomain,
            ContentInjectionRuleBodyCompare>
@@ -102,7 +106,6 @@ struct ContentInjectionRuleTreeNode {
            ContentInjectionRuleForDomain,
            ContentInjectionRuleBodyCompare>
       rule_from_scriptlet_injection_rule_body;
-  std::map<std::string, ContentInjectionRuleTreeNode> subdomains;
 
   std::map<const flat::CosmeticRule*,
            ContentInjectionRuleForDomain,
@@ -117,6 +120,18 @@ struct ContentInjectionRuleTreeNode {
   GetMap(const flat::ScriptletInjectionRule* rule) {
     return rule_from_scriptlet_injection_rule_body;
   }
+};
+
+struct ContentInjectionRuleTreeNode {
+  std::map<std::string, ContentInjectionRuleTreeNode> subdomains;
+  ContentInjectionRuleTreeNodeContent content;
+};
+
+struct ContentInjectionRuleTreeRoot {
+  ContentInjectionRuleTreeNodeContent content;
+  ContentInjectionRuleTreeNode hostname_tree;
+  ContentInjectionRuleTreeNode entity_tree;
+  std::map<std::string, ContentInjectionRuleTreeNodeContent> regexes;
 };
 
 std::string GetNGramSearchString(const flat::RequestFilterRule& rule) {
@@ -279,76 +294,120 @@ template <class T>
 void AddRuleToContentInjectionRulesTreeNode(
     const T* rule,
     const RuleId& rule_id,
-    bool allow,
+    bool already_included,
+    const flat::DomainConstraintsNode* rule_domain_constraint_node,
     ContentInjectionRuleTreeNode& node) {
-  auto& map = node.GetMap(rule);
-  // If we have two rules for the same body+domain combination, allow rules take
-  // precedence. Otherwise, avoid duplicates.
-  const auto& existing_rule = map.find(rule);
+  auto& map = node.content.GetMap(rule);
+  // The given rule is already excluded for this domain. This has priority over
+  // any subdomain inclusion and implies any subdomain exclusion.
+  auto existing_rule = map.find(rule);
   if (existing_rule != map.end()) {
-    if (!allow || existing_rule->second.allow_for_domain)
+    if (existing_rule->second.allow_for_domain) {
       return;
-    map.erase(existing_rule);
+    }
+    already_included = true;
   }
 
-  map.insert({rule, ContentInjectionRuleForDomain(rule_id, allow)});
+  if (rule_domain_constraint_node->type() ==
+          flat::DomainConstraintNodeType_INCLUDED &&
+      !already_included) {
+    map.insert({rule, ContentInjectionRuleForDomain(rule_id, false)});
+  }
+
+  if (rule_domain_constraint_node->type() ==
+      flat::DomainConstraintNodeType_EXCLUDED) {
+    if (existing_rule != map.end()) {
+      map.erase(existing_rule);
+    }
+    map.insert({rule, ContentInjectionRuleForDomain(rule_id, true)});
+
+    CHECK(rule_domain_constraint_node->subdomains()->empty());
+  }
+
+  for (auto subdomain = rule_domain_constraint_node->subdomains()->begin();
+       subdomain != rule_domain_constraint_node->subdomains()->end();
+       subdomain++) {
+    AddRuleToContentInjectionRulesTreeNode(
+        rule, rule_id, already_included,
+        rule->core()->domain_constraints()->nodes()->Get(
+            *rule_domain_constraint_node->first_child_node_index() +
+            (subdomain - rule_domain_constraint_node->subdomains()->begin())),
+        node.subdomains[subdomain->c_str()]);
+  }
 }
 
 template <class T>
-void AddRuleToContentInjectionRuleTreeNodeSubdomain(
-    std::vector<std::string_view>::const_reverse_iterator domain_piece,
-    std::vector<std::string_view>::const_reverse_iterator domain_end,
-    const T* rule,
-    const RuleId& rule_id,
-    bool allow,
-    ContentInjectionRuleTreeNode& node) {
-  if (domain_piece == domain_end) {
-    AddRuleToContentInjectionRulesTreeNode(rule, rule_id, allow, node);
-    return;
-  }
-
-  std::string domain_piece_str = std::string(*(domain_piece++));
-  AddRuleToContentInjectionRuleTreeNodeSubdomain(
-      domain_piece, domain_end, rule, rule_id, allow,
-      node.subdomains[domain_piece_str]);
-}
-
-template <class T>
-void AddRuleToContentInjectionRulesTree(const T* rule,
-                                        const RuleId& rule_id,
-                                        ContentInjectionRuleTreeNode& root) {
+void AddRuleToContentInjectionRulesIndex(const T* rule,
+                                         const RuleId& rule_id,
+                                         ContentInjectionRuleTreeRoot& root) {
   flat::ContentInjectionRuleType rule_type = RuleType<T>::value;
-  // Rules without included domains are generic
-  if (!rule->core()->domains_included()) {
-    AddRuleToContentInjectionRulesTreeNode(rule, rule_id,
-                                           rule->core()->is_allow_rule(), root);
+
+  const flat::DomainConstraintsTree* domain_constraints =
+      rule->core()->domain_constraints();
+
+  // Generic scriptlet injection rules should have been removed at parsing time.
+  CHECK(rule_type != flat::ContentInjectionRuleType_SCRIPTLET_INJECTION ||
+        domain_constraints->type() != flat::DomainConstraintNodeType_INCLUDED);
+
+  {
+    auto& map = root.content.GetMap(rule);
+    auto existing_rule = map.find(rule);
+    if (existing_rule != map.end() && existing_rule->second.allow_for_domain) {
+      // Generic allow overrides everything
+      return;
+    }
+
+    if (IsGeneric(*domain_constraints)) {
+      bool allow =
+          domain_constraints->type() == flat::DomainConstraintNodeType_EXCLUDED;
+      // If we have two rules for the same body, the allow rule takes
+      // precedence.
+      if (existing_rule != map.end() && allow) {
+        map.erase(existing_rule);
+      }
+
+      map.insert({rule, ContentInjectionRuleForDomain(rule_id, allow)});
+
+      if (allow) {
+        // Generic allow overrides everything
+        return;
+      }
+    }
+
+    AddRuleToContentInjectionRulesTreeNode(
+        rule, rule_id, existing_rule != map.end(),
+        domain_constraints->nodes()->Get(
+            domain_constraints->hostnames_node_index()),
+        root.hostname_tree);
+    AddRuleToContentInjectionRulesTreeNode(
+        rule, rule_id, existing_rule != map.end(),
+        domain_constraints->nodes()->Get(
+            domain_constraints->entities_node_index()),
+        root.entity_tree);
   }
 
-  if (rule->core()->domains_excluded()) {
-    // Excluded domains for scriptlet injection allow rules should be discarded
-    // at parsing time.
-    DCHECK(rule_type != flat::ContentInjectionRuleType_SCRIPTLET_INJECTION ||
-           !rule->core()->is_allow_rule());
-    for (const auto* domain : *rule->core()->domains_excluded()) {
-      std::string domain_str(domain->str());  // NOTE(jarle): Needed to fix
-                                              // VB-65773.
-      const auto domain_pieces = base::SplitStringPiece(
-          domain_str, ".", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
-      AddRuleToContentInjectionRuleTreeNodeSubdomain(
-          domain_pieces.rbegin(), domain_pieces.rend(), rule, rule_id,
-          !rule->core()->is_allow_rule(), root);
+  if (domain_constraints->included_regexes()) {
+    for (auto regex : *domain_constraints->included_regexes()) {
+      auto& map = root.regexes[regex->c_str()].GetMap(rule);
+      if (map.contains(rule)) {
+        continue;
+      }
+
+      map.insert({rule, ContentInjectionRuleForDomain(rule_id, false)});
     }
   }
 
-  if (rule->core()->domains_included()) {
-    for (const auto* domain : *rule->core()->domains_included()) {
-      std::string domain_str(domain->str());  // NOTE(jarle): Needed to fix
-                                              // VB-65773.
-      const auto domain_pieces = base::SplitStringPiece(
-          domain_str, ".", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
-      AddRuleToContentInjectionRuleTreeNodeSubdomain(
-          domain_pieces.rbegin(), domain_pieces.rend(), rule, rule_id,
-          rule->core()->is_allow_rule(), root);
+  if (domain_constraints->excluded_regexes()) {
+    for (auto regex : *domain_constraints->excluded_regexes()) {
+      auto& map = root.regexes[regex->c_str()].GetMap(rule);
+      auto existing_rule = map.find(rule);
+      if (existing_rule != map.end()) {
+        if (existing_rule->second.allow_for_domain)
+          continue;
+        map.erase(existing_rule);
+      }
+
+      map.insert({rule, ContentInjectionRuleForDomain(rule_id, true)});
     }
   }
 }
@@ -361,28 +420,32 @@ void AddRuleIdsToList(
                    ContentInjectionRuleBodyCompare>& ids_map,
     std::vector<flatbuffers::Offset<flat::ContentInjectionRuleForDomain>>&
         rules_for_domain) {
-  for (const auto& rule : ids_map) {
-    RuleIdOffset rule_id = flat::CreateRuleId(
-        *builder, rule.second.rule_id.source_id, rule.second.rule_id.rule_nr);
+  for (const auto& [_, rule] : ids_map) {
+    RuleIdOffset rule_id = flat::CreateRuleId(*builder, rule.rule_id.source_id,
+                                              rule.rule_id.rule_nr);
     rules_for_domain.push_back(flat::CreateContentInjectionRuleForDomain(
-        *builder, rule_id, RuleType<T>::value, rule.second.allow_for_domain));
+        *builder, rule_id, RuleType<T>::value, rule.allow_for_domain));
   }
+}
+
+ContentInjectionRuleForDomainOffsets BuildFlatNodeContent(
+    flatbuffers::FlatBufferBuilder* builder,
+    const ContentInjectionRuleTreeNodeContent content) {
+  std::vector<ContentInjectionRuleForDomainOffset> rules_for_domain;
+
+  AddRuleIdsToList(builder, content.rule_from_cosmetic_rule_body,
+                   rules_for_domain);
+  AddRuleIdsToList(builder, content.rule_from_scriptlet_injection_rule_body,
+                   rules_for_domain);
+  return builder->CreateVector(rules_for_domain);
 }
 
 void AddNodeToFlatContentInjectionRuleTree(
     flatbuffers::FlatBufferBuilder* builder,
     const ContentInjectionRuleTreeNode& node,
     std::optional<size_t> first_child_node_index,
-    ContentInjectionRuleTree& tree) {
-  std::vector<flatbuffers::Offset<flat::ContentInjectionRuleForDomain>>
-      rules_for_domain;
-
+    ContentInjectionRuleTreeNodes& nodes) {
   std::vector<flatbuffers::Offset<flatbuffers::String>> subdomains;
-
-  AddRuleIdsToList(builder, node.rule_from_cosmetic_rule_body,
-                   rules_for_domain);
-  AddRuleIdsToList(builder, node.rule_from_scriptlet_injection_rule_body,
-                   rules_for_domain);
 
   DCHECK(first_child_node_index || node.subdomains.empty());
 
@@ -390,36 +453,34 @@ void AddNodeToFlatContentInjectionRuleTree(
     subdomains.push_back(builder->CreateSharedString(subdomain.first));
   }
 
-  auto rules_for_domain_offset = builder->CreateVector(rules_for_domain);
   auto subdomains_offset = builder->CreateVector(subdomains);
 
-  tree.push_back(flat::CreateContentInjectionRulesNode(
-      *builder, rules_for_domain_offset,
-      first_child_node_index ? first_child_node_index.value() : UINT32_MAX,
-      subdomains_offset));
+  nodes.push_back(flat::CreateContentInjectionRulesTreeNode(
+      *builder, BuildFlatNodeContent(builder, node.content),
+      first_child_node_index, subdomains_offset));
 }
 
-size_t AddNodeDescendantsToFlatContentInjectionRuleTree(
+std::optional<size_t> AddNodeDescendantsToFlatContentInjectionRuleTree(
     flatbuffers::FlatBufferBuilder* builder,
     const ContentInjectionRuleTreeNode& node,
-    ContentInjectionRuleTree& tree) {
-  std::map<const ContentInjectionRuleTreeNode*, std::optional<size_t>>
-      first_child_node_index_for_children;
-  for (const auto& child : node.subdomains) {
-    if (!child.second.subdomains.empty())
-      first_child_node_index_for_children.insert(
-          {&child.second, AddNodeDescendantsToFlatContentInjectionRuleTree(
-                              builder, child.second, tree)});
-    else
-      first_child_node_index_for_children.insert({&child.second, std::nullopt});
+    ContentInjectionRuleTreeNodes& nodes) {
+  if (node.subdomains.empty()) {
+    return std::nullopt;
   }
 
-  size_t first_child_node_index = tree.size();
+  std::map<const ContentInjectionRuleTreeNode*, std::optional<size_t>>
+      first_child_node_index_for_children;
+  for (const auto& [_, child] : node.subdomains) {
+    first_child_node_index_for_children.insert(
+        {&child, AddNodeDescendantsToFlatContentInjectionRuleTree(
+                     builder, child, nodes)});
+  }
 
-  for (const auto& child : node.subdomains) {
+  size_t first_child_node_index = nodes.size();
+
+  for (const auto& [_, child] : node.subdomains) {
     AddNodeToFlatContentInjectionRuleTree(
-        builder, child.second,
-        first_child_node_index_for_children.at(&child.second), tree);
+        builder, child, first_child_node_index_for_children.at(&child), nodes);
   }
 
   return first_child_node_index;
@@ -427,132 +488,133 @@ size_t AddNodeDescendantsToFlatContentInjectionRuleTree(
 
 size_t BuildFlatContentInjectionRuleTree(
     flatbuffers::FlatBufferBuilder* builder,
-    const ContentInjectionRuleTreeNode& root,
-    ContentInjectionRuleTree& tree) {
-  size_t first_child_node_index =
-      AddNodeDescendantsToFlatContentInjectionRuleTree(builder, root, tree);
-  size_t root_node_index = tree.size();
-  AddNodeToFlatContentInjectionRuleTree(builder, root, first_child_node_index,
-                                        tree);
-  return root_node_index;
+    const ContentInjectionRuleTreeNode& node,
+    ContentInjectionRuleTreeNodes& nodes) {
+  std::optional<size_t> first_child_node_index =
+      AddNodeDescendantsToFlatContentInjectionRuleTree(builder, node, nodes);
+  size_t node_index = nodes.size();
+  AddNodeToFlatContentInjectionRuleTree(builder, node, first_child_node_index,
+                                        nodes);
+  return node_index;
 }
 
 // The goal of this comparator is to provide some sort of order as fast as
 // possible to make inserting into a map or set fast. We don't care about
-// whether the order makes any logical sense. The various parts of the rules are
-// compared in an order that loosely aims to check the items that are more
+// whether the order makes any logical sense. The various parts of the rules
+// are compared in an order that loosely aims to check the items that are more
 // likely to be different first.
 struct RequestFilterRuleCompare {
+  static std::weak_ordering CompareDomainConstraintsNode(
+      const flat::DomainConstraintsTree* lhs_tree,
+      const flat::DomainConstraintsNode* lhs,
+      const flat::DomainConstraintsTree* rhs_tree,
+      const flat::DomainConstraintsNode* rhs) {
+    if (lhs->type() != rhs->type()) {
+      return lhs->type() < rhs->type() ? std::weak_ordering::less
+                                       : std::weak_ordering::greater;
+    }
+
+    if (!lhs->first_child_node_index() && !rhs->first_child_node_index()) {
+      return std::weak_ordering::equivalent;
+    }
+
+    if (!lhs->first_child_node_index()) {
+      return std::weak_ordering::less;
+    }
+
+    if (!rhs->first_child_node_index()) {
+      return std::weak_ordering::greater;
+    }
+
+    if (*lhs->first_child_node_index() != *rhs->first_child_node_index()) {
+      return *lhs->first_child_node_index() < *rhs->first_child_node_index()
+                 ? std::weak_ordering::less
+                 : std::weak_ordering::greater;
+    }
+
+    auto subdomains_ordering =
+        FastCompareFlatStringVector(lhs->subdomains(), rhs->subdomains());
+
+    if (subdomains_ordering != 0) {
+      return subdomains_ordering;
+    }
+
+    for (size_t i = 0; i < lhs->subdomains()->size(); i++) {
+      auto child_ordering = CompareDomainConstraintsNode(
+          lhs_tree, lhs_tree->nodes()->Get(*lhs->first_child_node_index() + i),
+          rhs_tree, rhs_tree->nodes()->Get(*rhs->first_child_node_index() + i));
+
+      if (child_ordering != 0) {
+        return child_ordering;
+      }
+    }
+
+    return std::weak_ordering::equivalent;
+  }
+
+  static std::weak_ordering CompareDomainConstraintsTree(
+      const flat::DomainConstraintsTree* lhs,
+      const flat::DomainConstraintsTree* rhs) {
+    if (lhs->nodes()->size() < rhs->nodes()->size())
+      return std::weak_ordering::less;
+    if (lhs->nodes()->size() > rhs->nodes()->size())
+      return std::weak_ordering::greater;
+
+    auto included_regexes_ordering = FastCompareFlatStringVector(
+        lhs->included_regexes(), rhs->included_regexes());
+    if (included_regexes_ordering != 0) {
+      return included_regexes_ordering;
+    }
+
+    auto excluded_regexes_ordering = FastCompareFlatStringVector(
+        lhs->excluded_regexes(), rhs->excluded_regexes());
+    if (excluded_regexes_ordering != 0) {
+      return excluded_regexes_ordering;
+    }
+
+    auto hostnames_ordering = CompareDomainConstraintsNode(
+        lhs, lhs->nodes()->Get(lhs->hostnames_node_index()), rhs,
+        rhs->nodes()->Get(rhs->hostnames_node_index()));
+    if (hostnames_ordering != 0) {
+      return hostnames_ordering;
+    }
+
+    auto entities_ordering = CompareDomainConstraintsNode(
+        lhs, lhs->nodes()->Get(lhs->entities_node_index()), rhs,
+        rhs->nodes()->Get(rhs->entities_node_index()));
+    if (entities_ordering != 0) {
+      return entities_ordering;
+    }
+    if (lhs->type() != rhs->type()) {
+      return lhs->type() < rhs->type() ? std::weak_ordering::less
+                                       : std::weak_ordering::greater;
+    }
+
+    if (lhs->has_exclusions() == rhs->has_exclusions()) {
+      return std::weak_ordering::equivalent;
+    }
+    return lhs->has_exclusions() ? std::weak_ordering::less
+                                 : std::weak_ordering::greater;
+  }
+
   bool operator()(const flat::RequestFilterRule* lhs,
                   const flat::RequestFilterRule* rhs) const {
-    auto pattern_ordering =
-        FastCompareFlatString(lhs->pattern(), rhs->pattern());
-
-    if (pattern_ordering < 0) {
-      return true;
-    }
-
-    if (pattern_ordering > 0) {
-      return false;
-    }
-
-    auto host_ordering = FastCompareFlatString(lhs->host(), rhs->host());
-
-    if (host_ordering < 0) {
-      return true;
-    }
-
-    if (host_ordering > 0) {
-      return false;
-    }
-
-    if (lhs->anchor_type() < rhs->anchor_type())
-      return true;
-    if (lhs->anchor_type() > rhs->anchor_type())
-      return false;
-
-    auto domains_included_ordering = FastCompareFlatStringVector(
-        lhs->domains_included(), rhs->domains_included());
-
-    if (domains_included_ordering < 0) {
-      return true;
-    }
-
-    if (domains_included_ordering > 0) {
-      return false;
-    }
-
-    auto domains_excluded_ordering = FastCompareFlatStringVector(
-        lhs->domains_excluded(), rhs->domains_excluded());
-
-    if (domains_excluded_ordering < 0) {
-      return true;
-    }
-
-    if (domains_excluded_ordering > 0) {
-      return false;
-    }
-
-    if (lhs->decision() < rhs->decision())
-      return true;
-    if (lhs->decision() > rhs->decision())
-      return false;
-
-    if (lhs->options() < rhs->options())
-      return true;
-    if (lhs->options() > rhs->options())
-      return false;
-
-    if (lhs->party() < rhs->party())
-      return true;
-    if (lhs->party() > rhs->party())
-      return false;
-
-    if (lhs->resource_types() < rhs->resource_types())
-      return true;
-    if (lhs->resource_types() > rhs->resource_types())
-      return false;
-
-    if (lhs->activation_types() < rhs->activation_types())
-      return true;
-    if (lhs->activation_types() > rhs->activation_types())
-      return false;
-
-    if (lhs->pattern_type() < rhs->pattern_type())
-      return true;
-    if (lhs->pattern_type() > rhs->pattern_type())
-      return false;
-
-    if (lhs->modifier() < rhs->modifier())
-      return true;
-    if (lhs->modifier() > rhs->modifier())
-      return false;
-
-    auto modifier_ordering = FastCompareFlatStringVector(
-        lhs->modifier_values(), rhs->modifier_values());
-
-    if (modifier_ordering < 0) {
-      return true;
-    }
-
-    if (modifier_ordering > 0) {
-      return false;
-    }
-
-    auto ad_domains_and_query_triggers_ordering =
-        FastCompareFlatStringVector(lhs->ad_domains_and_query_triggers(),
-                                    rhs->ad_domains_and_query_triggers());
-
-    if (ad_domains_and_query_triggers_ordering < 0) {
-      return true;
-    }
-
-    if (ad_domains_and_query_triggers_ordering > 0) {
-      return false;
-    }
-
-    // The rules are the same
-    return false;
+    return FastCompareFlatString(lhs->pattern(), rhs->pattern()) < 0 ||
+           FastCompareFlatString(lhs->host(), rhs->host()) < 0 ||
+           lhs->anchor_type() < rhs->anchor_type() ||
+           CompareDomainConstraintsTree(lhs->from_domain_constraints(),
+                                        rhs->from_domain_constraints()) < 0 ||
+           lhs->decision() < rhs->decision() ||
+           lhs->options() < rhs->options() || lhs->party() < rhs->party() ||
+           lhs->resource_types() < rhs->resource_types() ||
+           lhs->activation_types() < rhs->activation_types() ||
+           lhs->pattern_type() < rhs->pattern_type() ||
+           lhs->modifier() < rhs->modifier() ||
+           FastCompareFlatStringVector(lhs->modifier_values(),
+                                       rhs->modifier_values()) < 0 ||
+           FastCompareFlatStringVector(lhs->ad_domains_and_query_triggers(),
+                                       rhs->ad_domains_and_query_triggers()) <
+               0;
   }
 };
 }  // namespace
@@ -583,7 +645,7 @@ void BuildAndSaveIndex(
   // domains, used to build |default_cosmetic_block_rules|.
   std::set<const flat::CosmeticRule*, ContentInjectionRuleBodyCompare>
       cosmetic_allow_selectors;
-  ContentInjectionRuleTreeNode content_injection_rules_tree;
+  ContentInjectionRuleTreeRoot content_injection_rules_tree_root;
 
   for (const auto& [source_id, rules_buffer] : rules_buffers) {
     source_checksums.push_back(flat::CreateSourceChecksum(
@@ -647,26 +709,36 @@ void BuildAndSaveIndex(
       const auto* rule =
           rules_buffer->rules_list()->cosmetic_rules_list()->Get(i);
 
-      // Domain exclusions on block rules have the same effect as allow rules.
-      if (rule->core()->is_allow_rule() || rule->core()->domains_excluded()) {
-        auto matching_block = default_cosmetic_block_rules.find(rule);
-        if (matching_block != default_cosmetic_block_rules.end()) {
-          AddRuleToContentInjectionRulesTree(matching_block->first,
-                                             matching_block->second,
-                                             content_injection_rules_tree);
-          default_cosmetic_block_rules.erase(matching_block);
-        }
-        cosmetic_allow_selectors.insert(rule);
-      } else if (!rule->core()->is_allow_rule() &&
-                 !rule->core()->domains_included() &&
-                 !rule->core()->domains_excluded() &&
-                 !cosmetic_allow_selectors.count(rule)) {
+      const flat::DomainConstraintsTree* domain_constraints =
+          rule->core()->domain_constraints();
+
+      // Pure generic block rules that are not matched by any exclusion are
+      // placed in the default list
+      if (!domain_constraints->has_exclusions() &&
+          domain_constraints->type() ==
+              flat::DomainConstraintNodeType_INCLUDED &&
+          !cosmetic_allow_selectors.count(rule)) {
         default_cosmetic_block_rules.insert({rule, rule_id});
         continue;
       }
+      AddRuleToContentInjectionRulesIndex(rule, rule_id,
+                                          content_injection_rules_tree_root);
 
-      AddRuleToContentInjectionRulesTree(rule, rule_id,
-                                         content_injection_rules_tree);
+      // If a rule was earlier placed in the default list, but an allow rule now
+      // matches it, remove it from the list and add it to the tree. We do this
+      // after adding the allow rule because currently, generic allow rules only
+      // trigger pruning of matching block rules that are added after
+      // themselves.
+      if (domain_constraints->has_exclusions()) {
+        auto matching_block = default_cosmetic_block_rules.find(rule);
+        if (matching_block != default_cosmetic_block_rules.end()) {
+          AddRuleToContentInjectionRulesIndex(
+              matching_block->first, matching_block->second,
+              content_injection_rules_tree_root);
+          default_cosmetic_block_rules.erase(matching_block);
+        }
+        cosmetic_allow_selectors.insert(rule);
+      }
     }
 
     for (flatbuffers::uoffset_t i = 0;
@@ -676,8 +748,8 @@ void BuildAndSaveIndex(
       RuleId rule_id(source_id, i);
       const auto* rule =
           rules_buffer->rules_list()->scriptlet_injection_rules_list()->Get(i);
-      AddRuleToContentInjectionRulesTree(rule, rule_id,
-                                         content_injection_rules_tree);
+      AddRuleToContentInjectionRulesIndex(rule, rule_id,
+                                          content_injection_rules_tree_root);
     }
   }
 
@@ -697,20 +769,39 @@ void BuildAndSaveIndex(
   auto default_stylesheet_offset =
       builder->CreateString(BuildStyleSheet(default_cosmetic_block_rules));
 
-  ContentInjectionRuleTree flat_content_injection_rules_tree;
-  size_t root_index = BuildFlatContentInjectionRuleTree(
-      builder.get(), content_injection_rules_tree,
-      flat_content_injection_rules_tree);
-  CHECK(flat_content_injection_rules_tree.size() > 0);
-  auto flat_content_injection_rule_tree_offset =
-      builder->CreateVector(flat_content_injection_rules_tree);
+  ContentInjectionRuleTreeNodes flat_content_injection_rules_tree_nodes;
+  size_t hostnames_index = BuildFlatContentInjectionRuleTree(
+      builder.get(), content_injection_rules_tree_root.hostname_tree,
+      flat_content_injection_rules_tree_nodes);
+  size_t entities_index = BuildFlatContentInjectionRuleTree(
+      builder.get(), content_injection_rules_tree_root.entity_tree,
+      flat_content_injection_rules_tree_nodes);
+  CHECK(flat_content_injection_rules_tree_nodes.size() > 0);
+  auto root_content_offset = BuildFlatNodeContent(
+      builder.get(), content_injection_rules_tree_root.content);
+  auto flat_content_injection_rule_nodes_offset =
+      builder->CreateVector(flat_content_injection_rules_tree_nodes);
+  std::vector<flatbuffers::Offset<flat::ContentInjectionRuleRegex>>
+      flat_content_injection_rule_regexes;
+  for (const auto& [regex, content] :
+       content_injection_rules_tree_root.regexes) {
+    flat_content_injection_rule_regexes.push_back(
+        flat::CreateContentInjectionRuleRegex(
+            *builder, builder->CreateSharedString(regex),
+            BuildFlatNodeContent(builder.get(), content)));
+  }
+
+  auto flat_content_injection_rules_tree =
+      flat::CreateContentInjectionRulesTreeRoot(
+          *builder, hostnames_index, entities_index, root_content_offset,
+          flat_content_injection_rule_nodes_offset,
+          builder->CreateVector(flat_content_injection_rule_regexes));
 
   auto rule_index_offset = flat::CreateRulesIndex(
       *builder, source_checksums_offset, activation_rules_map_offset,
       before_request_map_offset, modify_blocked_request_map_offset,
       modify_allowed_request_map_offset, headers_received_map_offset,
-      default_stylesheet_offset, root_index,
-      flat_content_injection_rule_tree_offset);
+      default_stylesheet_offset, flat_content_injection_rules_tree);
 
   flat::FinishRulesIndexBuffer(*builder, rule_index_offset);
 

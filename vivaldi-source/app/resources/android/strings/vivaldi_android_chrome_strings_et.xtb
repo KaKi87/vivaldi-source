@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">Ava uues kaardivirnas</translation>
 <translation id="1925021887439448749">Sisesta kohandatud veebiaadress</translation>
 <translation id="2038563949887743358">Lülita saitide arvutiversiooni taotlemine sisse</translation>
+<translation id="2072027001582274150">Kasutamata või dubleeritud kaardid</translation>
 <translation id="208033313373016095">Lugemisvaade veebilehtedele</translation>
 <translation id="2149973817440762519">Muuda järjehoidjat</translation>
 <translation id="2306442503286132111">Järjehoidja salvestatud kausta „<ph name="FOLDER_NAME" />”</translation>
@@ -46,6 +47,10 @@
 <translation id="385051799172605136">Tagasi</translation>
 <translation id="3987993985790029246">Kopeeri link</translation>
 <translation id="399014816462153200">Loetud:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> kaart}
+          other {<ph name="TAB_COUNT_MANY" /> kaarti, neist privaatseid <ph name="TAB_COUNT_INCOGNITO" />}}</translation>
+<translation id="408336132633586393">Privaatne aken</translation>
 <translation id="4121750346708795461">Seda rakendust kasutades nõustud Vivaldi <ph name="BEGIN_LINK1" />litsentsilepingu<ph name="END_LINK1" /> ja <ph name="BEGIN_LINK2" />privaatsuspõhimõtetega<ph name="END_LINK2" />.</translation>
 <translation id="4137746084635924146">Seadme praegune keel</translation>
 <translation id="4167670741834902166">Uus privaatne kaart</translation>
@@ -55,9 +60,7 @@
 <translation id="4269820728363426813">Kopeeri lingi aadress</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Esmalt tuleb ekraanilukk Androidi seadetes sisse lülitada.<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Paroolihaldur</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {Kaardid ja kaardivirnad, mida pole vaadatud vähemalt 1 päev}
-          other {Kaardid ja kaardivirnad, mida pole vaadatud vähemalt # päeva}}</translation>
+<translation id="441100617989818073">Kasutamata või dubleeritud kaardid ja kaardivirnad</translation>
 <translation id="451872707440238414">Otsi järjehoidjatest</translation>
 <translation id="4526803704855831732">Privaatsed kaardid</translation>
 <translation id="4532845899244822526">Kausta valimine</translation>
@@ -71,6 +74,9 @@ Puute peale otsimise funktsioon on saadaval vaid siis, kui Vivaldi vaikimisi ots
 <translation id="4883379392681899581">Välju privaatsest režiimist</translation>
 <translation id="4943872375798546930">Tulemusi pole</translation>
 <translation id="49576331685473090">Sisublokeerija</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> privaatne kaart}
+          other {<ph name="TAB_COUNT_NORMAL" /> privaatset kaarti}}</translation>
 <translation id="5079259810715830221">Kui mõni Google’i sait palub lehel olevad lingid privaatselt eellaadida, siis Vivaldi krüptib ja eellaadib lehed Google’i serverite kaudu ilma küpsiseid kasutamata. See peidab sinu identiteedi eellaaditava saidi eest.</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" /> salvestusruum</translation>
 <translation id="5144385790872094440">Mõned külastatavad lehed eellaaditakse. Kui lehele lingitakse Google’i saidilt või rakendusest, võidakse see eellaadida Google’i serverite kaudu.</translation>
@@ -103,6 +109,7 @@ Otsimiseks puuduta pikalt mõnd sõna. Otsingu täpsustamiseks libista paneel t�
 <translation id="6909589135458168665">Lehtede eellaadimine</translation>
 <translation id="7029995644714925509">Kui mõni sait palub lehel olevad lingid privaatselt eellaadida, siis Vivaldi krüptib ja eellaadib lehed Google’i serverite kaudu ilma küpsiseid kasutamata. See peidab sinu identiteedi eellaaditava saidi eest.</translation>
 <translation id="706339621163631076">Brauseri privaatsuspõhimõtted</translation>
+<translation id="7100573672995171864">Vivaldi kohandamine ja juhtimine</translation>
 <translation id="732145680195464316">Järjehoidja salvestatud <ph name="PRODUCT_NAME" />s</translation>
 <translation id="7324354302972299151">Mittejälgimistaotluse saatmine</translation>
 <translation id="7359002509206457351">Juurdepääs makseviisidele</translation>
@@ -124,14 +131,11 @@ Otsimiseks puuduta pikalt mõnd sõna. Otsingu täpsustamiseks libista paneel t�
 <translation id="8348430946834215779">Võimaluse korral kasutatakse HTTPS-i ning kui sait seda ei toeta, näidatakse enne laadimist hoiatust.</translation>
 <translation id="8560602726703398413">Lugemisnimekirja leiad järjehoidjate alt.</translation>
 <translation id="85991616550051997">Mine kodulehele</translation>
-<translation id="8693232767599693749">Kas lülituda lugemisvaatesse?</translation>
+<translation id="8738163682604285902">Kas lülituda lugemisvaatesse?</translation>
 <translation id="8820817407110198400">Järjehoidjad</translation>
 <translation id="9042893549633094279">Privaatsus ja turvalisus</translation>
 <translation id="9063523880881406963">Lülita saitide arvutiversiooni taotlemine välja</translation>
 <translation id="9080642952018487277">Sisene privaatsesse režiimi</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {Pole vaadatud vähemalt 1 päev}
-          other {Pole vaadatud vähemalt # päeva}}</translation>
 <translation id="930124987204876019">Võimaldab kustutada ajaloo, küpsised, saidiandmed, vahemälu sisu, …</translation>
 <translation id="961856697154696964">Sirvimisandmete kustutamine</translation>
 </translationbundle>

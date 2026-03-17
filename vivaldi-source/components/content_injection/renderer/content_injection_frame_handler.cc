@@ -253,9 +253,12 @@ void FrameHandler::RemoveInjectedCSS(const std::string& key,
       style_sheet_key, blink_css_origin);
 }
 
-void FrameHandler::InjectJS(const std::string& key, const std::string& content, int world_id) {
+void FrameHandler::InjectJS(const std::string& key,
+                            const std::string& content,
+                            int world_id) {
   std::vector<blink::WebScriptSource> sources(
-      1, blink::WebScriptSource(blink::WebString::FromUTF8(content), GURL(key)));
+      1,
+      blink::WebScriptSource(blink::WebString::FromUTF8(content), GURL(key)));
 
   render_frame()->GetWebFrame()->RequestExecuteScript(
       world_id, sources, blink::mojom::UserActivationOption::kDoNotActivate,

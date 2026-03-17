@@ -5,7 +5,6 @@
 
 #include <set>
 
-#include "base/files/file_path.h"
 #include "components/ad_blocker/core/parse_result.h"
 
 namespace adblock_filter {

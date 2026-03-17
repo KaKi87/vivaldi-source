@@ -20,7 +20,7 @@ std::string PatternTypeToString(RequestFilterRule::PatternType pattern_type) {
 }
 }  // namespace
 
-RequestFilterRule::RequestFilterRule() = default;
+RequestFilterRule::RequestFilterRule() : from_domain_constraints(false) {}
 RequestFilterRule::~RequestFilterRule() = default;
 RequestFilterRule::RequestFilterRule(RequestFilterRule&& request_filter_rule) =
     default;
@@ -46,6 +46,8 @@ std::ostream& operator<<(std::ostream& os, const RequestFilterRule& rule) {
     }
     os.seekp(-kAlignemntPosition, std::ios_base::cur);
   };
+
+  rule.from_domain_constraints.set_print_indent_(kAlignemntPositionNoColon);
 
   os << "\n"
      << std::setw(kAlignemntPosition) << "Rule text:" << rule.original_rule_text
@@ -82,10 +84,8 @@ std::ostream& operator<<(std::ostream& os, const RequestFilterRule& rule) {
      << "Case sensitive:" << rule.is_case_sensitive << "\n"
      << std::setw(kAlignemntPosition) << "Host:" << rule.host.value_or("<NULL>")
      << "\n"
-     << std::setw(kAlignemntPositionNoColon) << "Included domains";
-  print_strings(rule.included_domains);
-  os << std::setw(kAlignemntPositionNoColon) << "Excluded domains";
-  print_strings(rule.excluded_domains);
+     << std::setw(kAlignemntPositionNoColon)
+     << "From domain constraints:" << rule.from_domain_constraints;
 
   os << std::setw(kAlignemntPositionNoColon)
      << "Ad domains and id query params";

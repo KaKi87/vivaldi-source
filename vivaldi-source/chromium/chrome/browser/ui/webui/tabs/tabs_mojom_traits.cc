@@ -4,6 +4,8 @@
 
 #include "chrome/browser/ui/webui/tabs/tabs_mojom_traits.h"
 
+#include "base/notreached.h"
+
 namespace mojo {
 
 MojoTabNetworkState
@@ -77,10 +79,12 @@ MojoTabAlertState EnumTraits<MojoTabAlertState, NativeTabAlertState>::ToMojom(
       return MojoTabAlertState::kActorAccessing;
     case mojo::NativeTabAlertState::kActorWaitingOnUser:
       return MojoTabAlertState::kActorWaitingOnUser;
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
     case NativeTabAlertState::kGlicAccessing:
       return MojoTabAlertState::kGlicAccessing;
     case NativeTabAlertState::kGlicSharing:
       return MojoTabAlertState::kGlicSharing;
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
   }
   NOTREACHED();
 }
@@ -137,12 +141,16 @@ bool EnumTraits<MojoTabAlertState, NativeTabAlertState>::FromMojom(
     case MojoTabAlertState::kActorWaitingOnUser:
       *out = NativeTabAlertState::kActorWaitingOnUser;
       return true;
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
     case MojoTabAlertState::kGlicAccessing:
       *out = NativeTabAlertState::kGlicAccessing;
       return true;
     case MojoTabAlertState::kGlicSharing:
       *out = NativeTabAlertState::kGlicSharing;
       return true;
+#else
+    default:
+#endif
   }
   NOTREACHED();
 }

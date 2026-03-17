@@ -80,7 +80,8 @@ bool EntryIsForCountry(const net::DohProviderEntry* entry,
 
 }  // namespace
 
-ExtensionFunction::ResponseAction DnsOverHttpsPrivateDataFetcherFunction::Run() {
+ExtensionFunction::ResponseAction
+DnsOverHttpsPrivateDataFetcherFunction::Run() {
   // Copied/adapted from ProvidersForCountry() in
   // //chrome/browser/net/secure_dns_util.cc
   country_codes::CountryId country_id = country_codes::GetCurrentCountryID();
@@ -101,7 +102,7 @@ ExtensionFunction::ResponseAction DnsOverHttpsPrivateDataFetcherFunction::Run() 
   std::vector<DohEntry> resolvers;
   for (const net::DohProviderEntry* entry : local_providers) {
     net::DnsOverHttpsConfig doh_config({entry->doh_server_config});
-    base::Value::Dict dict;
+    base::DictValue dict;
     dict.Set("name", entry->ui_name);
     dict.Set("value", doh_config.ToString());
     dict.Set("policy", entry->privacy_policy);
@@ -116,7 +117,7 @@ ExtensionFunction::ResponseAction DnsOverHttpsPrivateDataFetcherFunction::Run() 
 }
 
 DnsOverHttpsPrivateConfigTestFunction::
-~DnsOverHttpsPrivateConfigTestFunction() {
+    ~DnsOverHttpsPrivateConfigTestFunction() {
   if (runner_) {
     runner_.reset();
 
@@ -152,9 +153,12 @@ ExtensionFunction::ResponseAction DnsOverHttpsPrivateConfigTestFunction::Run() {
   }
 
   runner_ = chrome_browser_net::secure_dns::MakeProbeRunner(
-      std::move(*parsed), base::BindRepeating([](content::BrowserContext *context) {
-        return context->GetDefaultStoragePartition()->GetNetworkContext();
-      }, browser_context()));
+      std::move(*parsed),
+      base::BindRepeating(
+          [](content::BrowserContext* context) {
+            return context->GetDefaultStoragePartition()->GetNetworkContext();
+          },
+          browser_context()));
   runner_->RunProbe(base::BindOnce(
       &DnsOverHttpsPrivateConfigTestFunction::TestCompleted,
       scoped_refptr<DnsOverHttpsPrivateConfigTestFunction>(this)));

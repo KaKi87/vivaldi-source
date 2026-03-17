@@ -137,7 +137,7 @@ void AddOrCreateVersionedEngines(
 class RegulatoryExtensionStorage {
  public:
   static std::optional<RegulatoryExtensionStorage> FromDict(
-      base::Value::Dict& dict,
+      base::DictValue& dict,
       std::string& error) {
     return Build(dict.FindString(kVariant), dict.FindString(kSearchParams),
                  dict.FindString(kSuggestParams), error);
@@ -249,9 +249,9 @@ std::optional<ParsedSearchEngines::EnginesListWithDefaults>
 GetEnginesListWithDefaultsForLocale(
     std::string locale,
     const ParsedSearchEngines::EnginesMap& engines,
-    base::Value::Dict& engines_for_locale,
+    base::DictValue& engines_for_locale,
     std::string& error) {
-  base::Value::List* engines_list = engines_for_locale.FindList(locale);
+  base::ListValue* engines_list = engines_for_locale.FindList(locale);
   if (!engines_list) {
     error =
         base::StrCat({"Locale ", locale, " not found in ", kEngines, " list"});
@@ -305,8 +305,8 @@ GetEnginesListWithDefaultsForLocale(
 #if defined(OEM_POLESTAR_BUILD)
     is_default = search_engine_name == kGoogle;
 #elif defined(OEM_LYNKCO_BUILD)
-    is_default = search_engine_name == kEcosia ||
-                 search_engine_name == kEcosiaNoPrompt;
+    is_default =
+        search_engine_name == kEcosia || search_engine_name == kEcosiaNoPrompt;
 #endif
     if (is_default) {
       if (default_index) {
@@ -355,8 +355,8 @@ GetEnginesListWithDefaultsForLocale(
 
 bool BuildLocaleMaps(const std::string& version_key,
                      const ParsedSearchEngines::EnginesMap& engines,
-                     base::Value::Dict& engines_for_locale,
-                     base::Value::List& country_list,
+                     base::DictValue& engines_for_locale,
+                     base::ListValue& country_list,
                      std::string& error,
                      LocaleMaps& locale_maps) {
   for (auto& country_list_entry : country_list) {
@@ -366,7 +366,7 @@ bool BuildLocaleMaps(const std::string& version_key,
       return false;
     }
 
-    base::Value::List& country_and_language = country_list_entry.GetList();
+    base::ListValue& country_and_language = country_list_entry.GetList();
 
     if (country_and_language.size() != 2) {
       error =
@@ -436,7 +436,7 @@ bool BuildLocaleMaps(const std::string& version_key,
 class ParsedSearchEngines::PrepopulatedEngineStorage {
  public:
   static std::optional<PrepopulatedEngineStorage> FromDict(
-      base::Value::Dict& dict,
+      base::DictValue& dict,
       std::string& error) {
     return Build(
         dict.FindString(kName), dict.FindString(kKeyword),
@@ -464,54 +464,52 @@ class ParsedSearchEngines::PrepopulatedEngineStorage {
   PrepopulatedEngineStorage& operator=(PrepopulatedEngineStorage&&) = default;
 
   const TemplateURLPrepopulateData::PrepopulatedEngine MakePrepopulateEngine() {
-    return TemplateURLPrepopulateData::PrepopulatedEngine
-        {.name = name_ ? name_->c_str() : nullptr,
-         .keyword = keyword_ ? keyword_->c_str() : nullptr,
-         .favicon_url = favicon_url_ ? favicon_url_->c_str() : nullptr,
-         .search_url = search_url_ ? search_url_->c_str() : nullptr,
-         .encoding = encoding_ ? encoding_->c_str() : nullptr,
-         .suggest_url = suggest_url_ ? suggest_url_->c_str() : nullptr,
-         .image_url = image_url_ ? image_url_->c_str() : nullptr,
-         .image_translate_url =
-             image_translate_url_ ? image_translate_url_->c_str() : nullptr,
-         .new_tab_url = new_tab_url_ ? new_tab_url_->c_str() : nullptr,
-         .contextual_search_url =
-             contextual_search_url_ ? contextual_search_url_->c_str() : nullptr,
-         .logo_url = logo_url_ ? logo_url_->c_str() : nullptr,
-         .doodle_url = doodle_url_ ? doodle_url_->c_str() : nullptr,
-         .search_url_post_params = search_url_post_params_
-                                       ? search_url_post_params_->c_str()
+    return TemplateURLPrepopulateData::PrepopulatedEngine{
+        .name = name_ ? name_->c_str() : nullptr,
+        .keyword = keyword_ ? keyword_->c_str() : nullptr,
+        .favicon_url = favicon_url_ ? favicon_url_->c_str() : nullptr,
+        .search_url = search_url_ ? search_url_->c_str() : nullptr,
+        .encoding = encoding_ ? encoding_->c_str() : nullptr,
+        .suggest_url = suggest_url_ ? suggest_url_->c_str() : nullptr,
+        .image_url = image_url_ ? image_url_->c_str() : nullptr,
+        .image_translate_url =
+            image_translate_url_ ? image_translate_url_->c_str() : nullptr,
+        .new_tab_url = new_tab_url_ ? new_tab_url_->c_str() : nullptr,
+        .contextual_search_url =
+            contextual_search_url_ ? contextual_search_url_->c_str() : nullptr,
+        .logo_url = logo_url_ ? logo_url_->c_str() : nullptr,
+        .doodle_url = doodle_url_ ? doodle_url_->c_str() : nullptr,
+        .search_url_post_params = search_url_post_params_
+                                      ? search_url_post_params_->c_str()
+                                      : nullptr,
+        .suggest_url_post_params = suggest_url_post_params_
+                                       ? suggest_url_post_params_->c_str()
                                        : nullptr,
-         .suggest_url_post_params = suggest_url_post_params_
-                                        ? suggest_url_post_params_->c_str()
-                                        : nullptr,
-         .image_url_post_params =
-             image_url_post_params_ ? image_url_post_params_->c_str() : nullptr,
-         .image_translate_source_language_param_key =
-             image_translate_source_language_param_key_
-                 ? image_translate_source_language_param_key_->c_str()
-                 : nullptr,
-         .image_translate_target_language_param_key =
-             image_translate_target_language_param_key_
-                 ? image_translate_target_language_param_key_->c_str()
-                 : nullptr,
-         .image_search_branding_label =
-             image_search_branding_label_
-                 ? image_search_branding_label_->c_str()
-                 : nullptr,
-         .search_intent_params = search_intent_params_ptr_,
-         .alternate_urls = alternate_urls_ptr_,
-         .type = type_,
-         .preconnect_to_search_url = preconnect_to_search_url_
-                                         ? preconnect_to_search_url_->c_str()
+        .image_url_post_params =
+            image_url_post_params_ ? image_url_post_params_->c_str() : nullptr,
+        .image_translate_source_language_param_key =
+            image_translate_source_language_param_key_
+                ? image_translate_source_language_param_key_->c_str()
+                : nullptr,
+        .image_translate_target_language_param_key =
+            image_translate_target_language_param_key_
+                ? image_translate_target_language_param_key_->c_str()
+                : nullptr,
+        .image_search_branding_label =
+            image_search_branding_label_ ? image_search_branding_label_->c_str()
                                          : nullptr,
-         .prefetch_likely_navigations =
-             prefetch_likely_navigations_
-                 ? prefetch_likely_navigations_->c_str()
-                 : nullptr,
-         .id = id_,
-         .regulatory_extensions = regulatory_extensions_,
-         .is_partner = is_partner_};
+        .search_intent_params = search_intent_params_ptr_,
+        .alternate_urls = alternate_urls_ptr_,
+        .type = type_,
+        .preconnect_to_search_url = preconnect_to_search_url_
+                                        ? preconnect_to_search_url_->c_str()
+                                        : nullptr,
+        .prefetch_likely_navigations =
+            prefetch_likely_navigations_ ? prefetch_likely_navigations_->c_str()
+                                         : nullptr,
+        .id = id_,
+        .regulatory_extensions = regulatory_extensions_,
+        .is_partner = is_partner_};
   }
 
  private:
@@ -536,13 +534,13 @@ class ParsedSearchEngines::PrepopulatedEngineStorage {
       std::string* image_translate_source_language_param_key,
       std::string* image_translate_target_language_param_key,
       std::string* image_search_branding_label,
-      base::Value::List* search_intent_params_list,
-      base::Value::List* alternate_urls_list,
+      base::ListValue* search_intent_params_list,
+      base::ListValue* alternate_urls_list,
       std::string* type,
       std::string* preconnect_to_search_url,
       std::string* prefetch_likely_navigations,
       std::optional<int> id,
-      base::Value::List* regulatory_extensions_list,
+      base::ListValue* regulatory_extensions_list,
       std::optional<int> is_partner,
       std::string& error) {
     if (!name) {
@@ -744,16 +742,16 @@ std::unique_ptr<ParsedSearchEngines> ParsedSearchEngines::FromJsonString(
     return nullptr;
   }
 
-  base::Value::Dict& root = json->GetDict();
+  base::DictValue& root = json->GetDict();
 
-  base::Value::Dict* elements = root.FindDict(kElements);
+  base::DictValue* elements = root.FindDict(kElements);
 
   if (!elements) {
     error = base::StrCat({"Missing key: ", kElements});
     return nullptr;
   }
 
-  base::Value::Dict* int_variables = root.FindDict(kIntVariables);
+  base::DictValue* int_variables = root.FindDict(kIntVariables);
 
   if (!int_variables) {
     error = base::StrCat({"Missing key: ", kIntVariables});
@@ -801,7 +799,7 @@ std::unique_ptr<ParsedSearchEngines> ParsedSearchEngines::FromJsonString(
     engines[entry_name] = all_engines.back().get();
   }
 
-  base::Value::List* country_list = root.FindList(kEnginesByCountry);
+  base::ListValue* country_list = root.FindList(kEnginesByCountry);
   if (!country_list) {
     error = base::StrCat({"Missing key: ", kEnginesByCountry});
     return nullptr;

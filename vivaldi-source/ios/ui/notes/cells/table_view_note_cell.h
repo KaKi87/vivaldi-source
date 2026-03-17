@@ -7,15 +7,15 @@
 
 // TableViewCell that displays NoteItem data.
 // Used in note home table view
-@interface TableViewNoteCell: LegacyTableViewCell
+@interface TableViewNoteCell : LegacyTableViewCell
 
 // Getter
 - (NSString*)accessibilityLabelString;
 
 // Setter
--(void)configureNoteWithTitle:(NSString*)title
-                    createdAt:(NSDate*)createdAt
-                   modifiedAt:(NSDate*)modifiedAt;
+- (void)configureNoteWithTitle:(NSString*)title
+                     createdAt:(NSDate*)createdAt
+                    modifiedAt:(NSDate*)modifiedAt;
 
 @end
 

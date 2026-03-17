@@ -25,4 +25,14 @@
           Եթե դա չլուծի խնդիրը, խորհուրդ ենք տալիս կրկին նշել այն՝
           ավելի լավ կատարողականության համար։</translation>
 <translation id="7496505986576158197">Vivaldi-ի իրագործումը հնարավոր է դարձել շնորհիվ <ph name="BEGIN_LINK_CHROMIUM" />Chromium<ph name="END_LINK_CHROMIUM" /> բաց կոդով նախագծի և այլ <ph name="BEGIN_LINK_OSS" />բաց կոդով ծրագրերի<ph name="END_LINK_OSS" />։</translation>
+<translation id="89559930087159128">Բացեք
+          Vivaldi-ի մենյուն &gt;
+          <ph name="SETTINGS_TITLE" />
+          &gt;
+          <ph name="SYSTEM_TITLE" />
+          &gt;
+          <ph name="PROXIES_TITLE" />
+          &gt;
+          Ցանց և ինտերնետ &gt; Պրոքսի
+          և անջատեք «Ավտոմատ հայտնաբերել կարգավորումները»։</translation>
 </translationbundle>

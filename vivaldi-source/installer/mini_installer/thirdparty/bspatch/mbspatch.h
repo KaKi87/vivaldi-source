@@ -75,7 +75,7 @@ typedef struct MBSPatchHeader_ {
  * @param fd Must have been opened for reading, and be at the beginning
  *           of the file.
  */
-int MBS_ReadHeader(int fd, MBSPatchHeader *header);
+int MBS_ReadHeader(int fd, MBSPatchHeader* header);
 
 /**
  * Apply a patch. This method does not validate the checksum of the original
@@ -88,13 +88,15 @@ int MBS_ReadHeader(int fd, MBSPatchHeader *header);
  *                to header->dlen if it is an existing file. The offset
  *                should be at the beginning of the file.
  */
-int MBS_ApplyPatch(const MBSPatchHeader *header, int patchfd,
-                   unsigned char *fbuffer, int filefd);
+int MBS_ApplyPatch(const MBSPatchHeader* header,
+                   int patchfd,
+                   unsigned char* fbuffer,
+                   int filefd);
 
 typedef struct MBSPatchTriple_ {
   unsigned int x; /* add x bytes from oldfile to x bytes from the diff block */
   unsigned int y; /* copy y bytes from the extra block */
-  int z; /* seek forwards in oldfile by z bytes */
+  int z;          /* seek forwards in oldfile by z bytes */
 } MBSPatchTriple;
 
 /**
@@ -102,11 +104,12 @@ typedef struct MBSPatchTriple_ {
  * the CRC of the original file stored in the patch file, before applying the
  * patch to it.
  */
-int ApplyBinaryPatch(const wchar_t *old_file, const wchar_t *patch_file,
-                     const wchar_t *new_file);
+int ApplyBinaryPatch(const wchar_t* old_file,
+                     const wchar_t* patch_file,
+                     const wchar_t* new_file);
 
 /**
-  * Calculates Crc of the given buffer by calling CRC method in LZMA SDK
-  */
-int CalculateCrc(const unsigned char *buf, int size);
+ * Calculates Crc of the given buffer by calling CRC method in LZMA SDK
+ */
+int CalculateCrc(const unsigned char* buf, int size);
 #endif  // bspatch_h__

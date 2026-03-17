@@ -23,6 +23,7 @@
 <translation id="2565593432251168402">通过创建标签栈来保持井井有条</translation>
 <translation id="2783161812871838616">请求切换到桌面版网站</translation>
 <translation id="2806957659107692459">创建标签栈</translation>
+<translation id="2830375794722738493">隐藏隐身标签</translation>
 <translation id="2899836479226240291">将 Vivaldi 设为默认浏览器应用即可自动打开链接。</translation>
 <translation id="3365529507898144230">保存在相册中</translation>
 <translation id="3434473769478814796">粘贴并转到</translation>
@@ -76,9 +77,11 @@
 <translation id="6233792867654386826">在 Vivaldi 中打开输入的链接。</translation>
 <translation id="6271462272606946663">隐藏请求移动网站</translation>
 <translation id="6309282378909663947">Vivaldi 密码管理器中的密码</translation>
+<translation id="6464648082977038075">关闭隐身标签</translation>
 <translation id="6478587527114893588">关闭标签栈。</translation>
 <translation id="6527405730445064713">已展开的标签栈。</translation>
 <translation id="6532106788206463496">保存修改</translation>
+<translation id="6575010608310776688">以隐身模式继续</translation>
 <translation id="6636411080833380839">移出标签栈</translation>
 <translation id="6644512095122093795">提示保存密码</translation>
 <translation id="6666425778700353369">此操作将删除以<ph name="USER_EMAIL" />登录的所有设备上的标签栈。</translation>

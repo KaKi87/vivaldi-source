@@ -428,9 +428,6 @@ void AutofillKeyboardAccessoryControllerImpl::AcceptSuggestion(
   }
 
   NotifyUserEducationAboutAcceptedSuggestion(web_contents_.get(), suggestion);
-  if (suggestion.acceptance_a11y_announcement && view_) {
-    view_->AxAnnounce(*suggestion.acceptance_a11y_announcement);
-  }
 
   base::UmaHistogramEnumeration("Autofill.SuggestionAccepted.Method",
                                 accept_method);
@@ -502,11 +499,6 @@ void AutofillKeyboardAccessoryControllerImpl::OnDeletionDialogClosed(
     case FillingProduct::kAutocomplete:
       AutofillMetrics::OnAutocompleteSuggestionDeleted(
           AutofillMetrics::SingleEntryRemovalMethod::kKeyboardAccessory);
-      if (view_) {
-        view_->AxAnnounce(l10n_util::GetStringFUTF16(
-            IDS_AUTOFILL_AUTOCOMPLETE_ENTRY_DELETED_A11Y_HINT,
-            suggestions_[index].main_text.value));
-      }
       break;
     case FillingProduct::kCreditCard:
       // TODO(crbug.com/41482065): Add metrics for credit cards.
@@ -557,16 +549,12 @@ FillingProduct AutofillKeyboardAccessoryControllerImpl::GetMainFillingProduct()
   return delegate_->GetMainFillingProduct();
 }
 
-std::optional<AutofillClient::PopupScreenLocation>
-AutofillKeyboardAccessoryControllerImpl::GetPopupScreenLocation() const {
-  return std::nullopt;
-}
-
 void AutofillKeyboardAccessoryControllerImpl::Show(
     UiSessionId ui_session_id,
     std::vector<Suggestion> suggestions,
     AutofillSuggestionTriggerSource trigger_source,
-    AutoselectFirstSuggestion autoselect_first_suggestion) {
+    AutoselectFirstSuggestion autoselect_first_suggestion,
+    AutofillSuggestionsIgnoreFocusLoss ignore_focus_loss) {
   ui_session_id_ = ui_session_id;
   suggestions_filling_product_ =
       !suggestions.empty() && IsStandaloneSuggestionType(suggestions[0].type)
@@ -623,12 +611,22 @@ void AutofillKeyboardAccessoryControllerImpl::Show(
       return;
     }
 
+    // Dynamic positioning requires calling the keyboard accessory view's Show()
+    // method before the ManualFillingController updates visibility. This
+    // ensures the bar's screen position is updated before the controller makes
+    // it visible.
+    bool should_show_before_mf = base::FeatureList::IsEnabled(
+        features::kAutofillAndroidKeyboardAccessoryDynamicPositioning);
+
+    if (should_show_before_mf) {
+      view_->Show();
+    }
     if (base::WeakPtr<ManualFillingController> manual_filling_controller =
             ManualFillingController::GetOrCreate(web_contents_.get())) {
       manual_filling_controller->UpdateSourceAvailability(
           FillingSource::AUTOFILL, !suggestions_.empty());
     }
-    if (view_) {
+    if (!should_show_before_mf) {
       view_->Show();
     }
   }

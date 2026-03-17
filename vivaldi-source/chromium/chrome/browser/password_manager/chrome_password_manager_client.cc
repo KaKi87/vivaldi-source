@@ -1927,7 +1927,8 @@ void ChromePasswordManagerClient::ResourceLoadComplete(
 void ChromePasswordManagerClient::OnFieldTypesDetermined(
     autofill::AutofillManager& manager,
     autofill::FormGlobalId form_id,
-    FieldTypeSource source) {
+    FieldTypeSource source,
+    bool small_forms_were_parsed) {
   PropagatePredictionsToPasswordManager(manager, form_id, source);
 }
 
@@ -1965,7 +1966,7 @@ void ChromePasswordManagerClient::PropagatePredictionsToPasswordManager(
                                                 field_ids_for_renderer_form));
         break;
       case FieldTypeSource::kHeuristicsOrAutocomplete: {
-#if !BUILDFLAG(IS_ANDROID)
+#if !BUILDFLAG(IS_ANDROID) && BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
         bool use_model_predictions_for_actor =
             IsActorTaskActive() && base::FeatureList::IsEnabled(
                                        password_manager::features::

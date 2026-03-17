@@ -38,16 +38,16 @@ typedef NS_ENUM(NSInteger, ItemType) {
 };
 
 CGFloat buttonCornerRadius() {
-  if (@available(iOS 26,*)) {
+  if (@available(iOS 26, *)) {
     return iOS26ActionButtonCornerRadius;
   } else {
     return actionButtonCornerRadius;
   }
 }
 
-}
+}  // namespace
 
-@interface VivaldiATBPerSiteSettingsViewController()<VivaldiATBConsumer>
+@interface VivaldiATBPerSiteSettingsViewController () <VivaldiATBConsumer>
 // The Browser in which blocker engine is active.
 @property(nonatomic, assign) Browser* browser;
 // The manager for the adblock that provides all methods and properties for
@@ -60,8 +60,7 @@ CGFloat buttonCornerRadius() {
 @synthesize browser = _browser;
 
 #pragma mark - INITIALIZER
-- (instancetype)initWithBrowser:(Browser*)browser
-                          title:(NSString*)title {
+- (instancetype)initWithBrowser:(Browser*)browser title:(NSString*)title {
   UITableViewStyle style = ChromeTableViewStyle();
   self = [super initWithStyle:style];
   if (self) {
@@ -105,9 +104,8 @@ CGFloat buttonCornerRadius() {
 
 - (void)setUpTableViewFooter {
   UIView* footerView = [UIView new];
-  footerView.frame = CGRectMake(0, 0,
-                                self.view.bounds.size.width,
-                                tableFooterHeight);
+  footerView.frame =
+      CGRectMake(0, 0, self.view.bounds.size.width, tableFooterHeight);
   self.tableView.tableFooterView = footerView;
 
   UIButton* addDomainButton = [UIButton new];
@@ -115,14 +113,12 @@ CGFloat buttonCornerRadius() {
   addDomainButton.layer.cornerRadius = buttonCornerRadius();
 
   NSString* buttonTitleString = GetNSString(IDS_ADD_NEW_DOMAIN);
-  [addDomainButton setTitle:buttonTitleString
-                   forState:UIControlStateNormal];
-  [addDomainButton
-     setTitleColor:UIColor.vSystemBlue
-     forState:UIControlStateNormal];
+  [addDomainButton setTitle:buttonTitleString forState:UIControlStateNormal];
+  [addDomainButton setTitleColor:UIColor.vSystemBlue
+                        forState:UIControlStateNormal];
   [addDomainButton addTarget:self
-                            action:@selector(handleAddDomainButtonTap)
-                  forControlEvents:UIControlEventTouchUpInside];
+                      action:@selector(handleAddDomainButtonTap)
+            forControlEvents:UIControlEventTouchUpInside];
   [footerView addSubview:addDomainButton];
   [addDomainButton fillSuperviewToSafeAreaInsetWithPadding:actionButtonPadding];
 }
@@ -137,19 +133,20 @@ CGFloat buttonCornerRadius() {
 - (void)navigateToSourceDomainEditingWithDomain:(NSString*)domain
                                     siteSetting:(ATBSettingType)siteSetting
                                       isEditing:(BOOL)isEditing {
-  NSString* titleString =
-      isEditing ? GetNSString(IDS_EDIT_DOMAIN) :
-      GetNSString(IDS_ADD_NEW_DOMAIN);
+  NSString* titleString = isEditing ? GetNSString(IDS_EDIT_DOMAIN)
+                                    : GetNSString(IDS_ADD_NEW_DOMAIN);
 
   VivaldiATBAddDomainSourceViewController* controller =
-    [[VivaldiATBAddDomainSourceViewController alloc]
-         initWithBrowser:_browser
-                   title:titleString
-                  source:ATBSourceNone
-             editingMode:isEditing ? ATBEditingModeDomain : ATBAddingModeDomain
-           editingDomain:domain
-     siteSpecificSetting:isEditing ? siteSetting :
-                            [self.adblockManager globalBlockingSetting]];
+      [[VivaldiATBAddDomainSourceViewController alloc]
+              initWithBrowser:_browser
+                        title:titleString
+                       source:ATBSourceNone
+                  editingMode:isEditing ? ATBEditingModeDomain
+                                        : ATBAddingModeDomain
+                editingDomain:domain
+          siteSpecificSetting:isEditing ? siteSetting
+                                        : [self.adblockManager
+                                                  globalBlockingSetting]];
   [self.navigationController pushViewController:controller animated:YES];
 }
 
@@ -157,17 +154,14 @@ CGFloat buttonCornerRadius() {
   TableViewModel* model = self.tableViewModel;
 
   // Delete any existing section.
-  if ([model
-          hasSectionForSectionIdentifier:SectionIdentifierSites])
-    [model
-        removeSectionWithIdentifier:SectionIdentifierSites];
+  if ([model hasSectionForSectionIdentifier:SectionIdentifierSites])
+    [model removeSectionWithIdentifier:SectionIdentifierSites];
 
   if (exceptions.count < 1)
     return;
 
   // Creates section for sites list
-  [model
-      addSectionWithIdentifier:SectionIdentifierSites];
+  [model addSectionWithIdentifier:SectionIdentifierSites];
 
   for (id item in exceptions) {
     VivaldiATBItem* exceptionItem = static_cast<VivaldiATBItem*>(item);
@@ -187,13 +181,14 @@ CGFloat buttonCornerRadius() {
       case ATBSettingBlockTrackersAndAds:
         tableViewItem.image = [UIImage imageNamed:vATBShieldTrackesAndAds];
         break;
-      default: break;
+      default:
+        break;
     }
 
     tableViewItem.useCustomSeparator = YES;
 
     [model addItem:tableViewItem
-         toSectionWithIdentifier:SectionIdentifierSites];
+        toSectionWithIdentifier:SectionIdentifierSites];
   }
 }
 
@@ -212,14 +207,13 @@ CGFloat buttonCornerRadius() {
       [self navigateToSourceDomainEditingWithDomain:selectedSetting.item.title
                                         siteSetting:selectedSetting.item.type
                                           isEditing:YES];
-    }
-      break;
+    } break;
     default:
       break;
   }
 }
 
-#pragma mark: - VivaldiATBConsumer
+#pragma mark : - VivaldiATBConsumer
 - (void)didRefreshExceptionsList:(NSArray*)exceptions {
   [self reloadModelWithExceptions:exceptions];
   [self.tableView reloadData];

@@ -13,9 +13,9 @@
 #include "extensions/api/auto_update/auto_update_api.h"
 #include "extensions/tools/vivaldi_tools.h"
 
-#include "extensions/api/auto_update/linux_update_checker.h"
 #include "chrome/browser/profiles/profile.h"
 #include "content/public/browser/storage_partition.h"
+#include "extensions/api/auto_update/linux_update_checker.h"
 
 namespace extensions {
 
@@ -23,13 +23,13 @@ static constexpr char kFFMPEGFuturePath[] = "VIVALDI_FFMPEG_FUTURE_PATH";
 static constexpr char kVivaldiDistroName[] = "VIVALDI_DISTRO_NAME";
 static constexpr char kVivaldiDistroVersion[] = "VIVALDI_DISTRO_VERSION_NUMBER";
 
-bool getFFMPEGFuturePath(std::string &target) {
+bool getFFMPEGFuturePath(std::string& target) {
   std::unique_ptr<base::Environment> env(base::Environment::Create());
   target = env->GetVar(kFFMPEGFuturePath).value_or(std::string());
   return !target.empty();
 }
 
-bool getLinuxDistroVersion(std::string &distro, std::string &version) {
+bool getLinuxDistroVersion(std::string& distro, std::string& version) {
   std::unique_ptr<base::Environment> env(base::Environment::Create());
 
   distro = env->GetVar(kVivaldiDistroName).value_or(std::string());
@@ -75,7 +75,8 @@ void AutoUpdateAPI::InitUpgradeDetection() {
             base::FilePath executable_path;
             if (base::PathService::Get(base::FILE_EXE, &executable_path)) {
               LOG(INFO) << "got executable";
-              api->executable_file_watcher_ = std::make_unique<base::FilePathWatcher>();
+              api->executable_file_watcher_ =
+                  std::make_unique<base::FilePathWatcher>();
               api->executable_file_watcher_->Watch(
                   executable_path, base::FilePathWatcher::Type::kNonRecursive,
                   base::BindRepeating([](const base::FilePath&, bool) {
@@ -91,8 +92,8 @@ void AutoUpdateAPI::InitUpgradeDetection() {
           },
           this)));
 
-  // We also place a FFMPEG file watch if env variable VIVALDI_FFMPEG_FUTURE_PATH
-  // is present and not empty.
+  // We also place a FFMPEG file watch if env variable
+  // VIVALDI_FFMPEG_FUTURE_PATH is present and not empty.
   task_runner_->PostTask(
       FROM_HERE,
       base::BindOnce(
@@ -101,7 +102,8 @@ void AutoUpdateAPI::InitUpgradeDetection() {
             if (getFFMPEGFuturePath(ffmpeg_future_path)) {
               auto ffmpeg_path = base::FilePath(ffmpeg_future_path);
               LOG(INFO) << "FFMPEG file watch enabled for " << ffmpeg_path;
-              api->ffmpeg_file_watcher_ = std::make_unique<base::FilePathWatcher>();
+              api->ffmpeg_file_watcher_ =
+                  std::make_unique<base::FilePathWatcher>();
               api->ffmpeg_file_watcher_->Watch(
                   ffmpeg_path, base::FilePathWatcher::Type::kNonRecursive,
                   base::BindRepeating([](const base::FilePath&, bool) {
@@ -121,15 +123,14 @@ void AutoUpdateAPI::ShutdownUpgradeDetection() {
   // otherwise the Profile's task runner may become invalid while the watchers
   // are still trying to use it during destruction.
   base::WaitableEvent done;
-  task_runner_->PostTask(
-      FROM_HERE,
-      base::BindOnce(
-          [](AutoUpdateAPI* api, base::WaitableEvent* done) {
-            api->executable_file_watcher_.reset();
-            api->ffmpeg_file_watcher_.reset();
-            done->Signal();
-          },
-          this, &done));
+  task_runner_->PostTask(FROM_HERE,
+                         base::BindOnce(
+                             [](AutoUpdateAPI* api, base::WaitableEvent* done) {
+                               api->executable_file_watcher_.reset();
+                               api->ffmpeg_file_watcher_.reset();
+                               done->Signal();
+                             },
+                             this, &done));
   done.Wait();
 }
 
@@ -216,9 +217,10 @@ ExtensionFunction::ResponseAction AutoUpdateGetUpdateStatusFunction::Run() {
       scoped_refptr<AutoUpdateGetUpdateStatusFunction>(this),
       std::move(update_checker));
 
-  checker_ptr->CheckForUpdates(
-      profile->GetDefaultStoragePartition()->GetURLLoaderFactoryForBrowserProcess().get(),
-      std::move(callback));
+  checker_ptr->CheckForUpdates(profile->GetDefaultStoragePartition()
+                                   ->GetURLLoaderFactoryForBrowserProcess()
+                                   .get(),
+                               std::move(callback));
 
   return RespondLater();
 }
@@ -246,8 +248,7 @@ ExtensionFunction::ResponseAction AutoUpdateRunStartupChecksFunction::Run() {
   // basically hijacking this system to notify frontend the
   // OS is End-Of-Life'd - in this case linux is implied by the source code,
   // and the cpu type is gated by the ifdef.
-  extensions::AutoUpdateAPI::SendUpdaterDidNotFindUpdate(
-                           "SystemIsTooOld");
+  extensions::AutoUpdateAPI::SendUpdaterDidNotFindUpdate("SystemIsTooOld");
 #endif
   return RespondNow(NoArguments());
 }
@@ -260,7 +261,7 @@ std::string AutoUpdateGetAboutPathsInfoFunction::GetPlatformOSVersion() {
   if (getLinuxDistroVersion(distro_name, distro_version)) {
     version += " - " + distro_name;
     if (!distro_version.empty()) {
-      version += + " " + distro_version;
+      version += +" " + distro_version;
     }
   }
 

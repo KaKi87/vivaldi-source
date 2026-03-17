@@ -1,21 +1,19 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="ru">
-<translation id="1089894737218087497">Автономно</translation>
 <translation id="1682285232070778125">Сделать браузером по умолчанию</translation>
+<translation id="1775102330209840064">Делитесь отчётами о сбоях, чтобы помочь нам улучшить браузер</translation>
 <translation id="1974060860693918893">Расширенный</translation>
 <translation id="2053560788696003312">Vivaldi требуется Windows 10 и выше.</translation>
 <translation id="2134216661302048561">Установка браузера Vivaldi не была завершена. Вы действительно хотите прервать установку?</translation>
-<translation id="2286454467119466181">Простой</translation>
 <translation id="237789874664518125">Copyright <ph name="YEAR" /> Vivaldi Technologies AS. Все права защищены. &lt;a&gt;Политика конфиденциальности&lt;/a&gt;</translation>
-<translation id="3004507951429848293">Нажав «Принять и обновить», вы соглашаетесь с &lt;a&gt;Условиями использования&lt;/a&gt; Vivaldi</translation>
+<translation id="3355081107855563356">Нажав 'Принять и установить' вы соглашаетесь с &lt;a&gt;Условиями использования&lt;/a&gt; Vivaldi</translation>
 <translation id="335985608243443814">Найти...</translation>
 <translation id="3485073444286678268">Неверный каталог установки. Выберите другой.</translation>
+<translation id="3601875200579023345">Для текущего пользователя</translation>
 <translation id="3784826321032465839">Установка Vivaldi</translation>
-<translation id="4079588913451946215">Для всех пользователей</translation>
+<translation id="4066679519692422625">Обнаружена неизвестная ошибка при установке. Пожалуйста, загрузите Vivaldi снова.</translation>
 <translation id="421958613172216971">Выбрать папку</translation>
-<translation id="4234678621326711327">Для текущего пользователя</translation>
-<translation id="4322221081772213228">Нажав «Принять и установить», вы соглашаетесь с &lt;a&gt;Условиями использования&lt;/a&gt; Vivaldi</translation>
 <translation id="4380252528729894811">Каталог установки</translation>
 <translation id="460304900852424163">Отключить автоматические обновления (не рекомендуется)</translation>
 <translation id="4619978527973181021">Принять и установить</translation>
@@ -23,11 +21,16 @@
 <translation id="5051728323101947360">Разрешить назначение по умолчанию для автономной версии</translation>
 <translation id="5247376421371319618">Принять и обновить</translation>
 <translation id="5302048478445481009">Язык</translation>
+<translation id="6665592435383088482">Автономно</translation>
 <translation id="694714344624446243">Установщик Vivaldi</translation>
+<translation id="7298195798382681320">Рекомендованный</translation>
 <translation id="7467493612551448880">Устанавливаемая вами версия Vivaldi не оптимизирована для вашей версии Windows.
 
 Посетите vivaldi.com/download для загрузки версии браузера для Windows на Arm.</translation>
 <translation id="7658239707568436148">Отмена</translation>
 <translation id="8773751185824654197">Важно: При обновлении работающего браузера приложение будет перезапущено</translation>
+<translation id="9163437061188815291">Нажав 'Принять и обновить' вы соглашаетесь с &lt;a&gt;Условиями использования&lt;/a&gt; Vivaldi</translation>
+<translation id="9175596866737867642">Встречайте непревзойденные возможности настройки и встроенные функции браузера для повышения производительности, продуктивности и конфиденциальности 🎉</translation>
 <translation id="933060950687965486">Тип установки</translation>
+<translation id="963837307749850257">Для всех пользователей</translation>
 </translationbundle>

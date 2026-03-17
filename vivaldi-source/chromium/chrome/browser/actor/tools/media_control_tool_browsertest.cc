@@ -8,6 +8,7 @@
 #include "chrome/browser/actor/tools/media_control_tool_request.h"
 #include "chrome/browser/actor/tools/tools_test_util.h"
 #include "chrome/common/actor.mojom.h"
+#include "chrome/common/chrome_features.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
 
@@ -17,13 +18,20 @@ namespace {
 
 class ActorMediaControlToolBrowserTest : public ActorToolsTest {
  public:
-  ActorMediaControlToolBrowserTest() = default;
+  ActorMediaControlToolBrowserTest() {
+    scoped_feature_list_.InitWithFeatures(
+        /*enabled_features=*/{features::kGlicActor},
+        /*disabled_features=*/{});
+  }
   ~ActorMediaControlToolBrowserTest() override = default;
 
   void SetUpOnMainThread() override {
     ActorToolsTest::SetUpOnMainThread();
     ASSERT_TRUE(embedded_test_server()->Start());
   }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(ActorMediaControlToolBrowserTest, NoMedia) {
@@ -75,8 +83,14 @@ IN_PROC_BROWSER_TEST_F(ActorMediaControlToolBrowserTest, SeekMedia) {
   // Seek the media.
   ActResultFuture result;
   std::unique_ptr<ToolRequest> request =
-      MakeMediaControlRequest(*active_tab(), SeekMedia(1000000));
-  actor_task().Act(ToRequestList(request), result.GetCallback());
+      MakeMediaControlRequest(*active_tab(), SeekMedia(1000));
+  std::unique_ptr<ToolRequest> request_negative_time =
+      MakeMediaControlRequest(*active_tab(), SeekMedia(-1000));
+  std::unique_ptr<ToolRequest> request_unreachable_time =
+      MakeMediaControlRequest(*active_tab(), SeekMedia(10000));
+  actor_task().Act(
+      ToRequestList(request, request_negative_time, request_unreachable_time),
+      result.GetCallback());
   ExpectOkResult(result);
   EXPECT_EQ("seek 1", content::EvalJs(web_contents(), "event_log.join(',')"));
 }

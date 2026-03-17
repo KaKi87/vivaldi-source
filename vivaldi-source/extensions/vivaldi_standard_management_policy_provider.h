@@ -25,8 +25,9 @@ class VivaldiStandardManagementPolicyProvider
   // ManagementPolicy::Provider implementation.
   bool UserMayLoad(const Extension* extension,
                    std::u16string* error) const override;
-  bool UserMayInstall(const Extension* extension,
-                      std::u16string* error) const override;
+  void UserMayInstall(scoped_refptr<const Extension> extension,
+                      base::OnceCallback<void(ManagementPolicy::Decision)>
+                          callback) const override;
   bool UserMayModifySettings(const Extension* extension,
                              std::u16string* error) const override;
   bool ExtensionMayModifySettings(const Extension* source_extension,

@@ -22,7 +22,6 @@ VolumeSlider::VolumeSlider(views::SliderListener* listener)
   SetAccessibleName(volume_label);
   SetPaintToLayer(ui::LAYER_TEXTURED);
   layer()->SetFillsBoundsOpaquely(false);
-  SetValue(1);
 }
 
 VolumeSlider::~VolumeSlider() = default;

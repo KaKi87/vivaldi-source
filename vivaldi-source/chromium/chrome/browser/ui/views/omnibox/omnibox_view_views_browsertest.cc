@@ -6,6 +6,8 @@
 
 #include <stddef.h>
 
+#include <algorithm>
+
 #include "base/compiler_specific.h"
 #include "base/feature_list.h"
 #include "base/memory/raw_ptr.h"
@@ -50,6 +52,7 @@
 #include "components/keyed_service/core/keyed_service.h"
 #include "components/lens/lens_features.h"
 #include "components/omnibox/browser/autocomplete_match.h"
+#include "components/omnibox/browser/location_bar_model.h"
 #include "components/omnibox/browser/mock_aim_eligibility_service.h"
 #include "components/omnibox/browser/omnibox_pref_names.h"
 #include "components/omnibox/browser/omnibox_triggered_feature_service.h"
@@ -412,7 +415,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, DISABLED_SelectionClipboard) {
 
 IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, SelectAllOnTap) {
 #if BUILDFLAG(IS_OZONE)
-  if (ui::OzonePlatform::GetPlatformNameForTest() == "wayland" &&
+  if (ui::OzonePlatform::RunningOnWaylandForTest() &&
       base::FeatureList::IsEnabled(features::kOzoneBubblesUsePlatformWidgets)) {
     GTEST_SKIP()
         << "This test expects the window to be focused on sending a tap "
@@ -688,7 +691,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsTest, BackgroundIsOpaque) {
   // can't use subpixel rendering.
   OmniboxViewViews* view = BrowserView::GetBrowserViewForBrowser(browser())
                                ->toolbar()
-                               ->location_bar()
+                               ->location_bar_view()
                                ->omnibox_view();
   ASSERT_TRUE(view);
   EXPECT_FALSE(view->GetRenderText()->subpixel_rendering_suppressed());
@@ -1384,7 +1387,7 @@ IN_PROC_BROWSER_TEST_F(
   histograms.ExpectTotalCount(
       security_interstitials::omnibox_https_upgrades::kEventHistogram, 0);
   ui_test_utils::HistoryEnumerator enumerator(browser()->profile());
-  EXPECT_TRUE(base::Contains(enumerator.urls(), url));
+  EXPECT_TRUE(std::ranges::contains(enumerator.urls(), url));
 
   // Now click the omnibox. This should trigger a zero suggest request with the
   // text "site-with-good-https.com" despite the omnibox URL being
@@ -1468,7 +1471,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsOnFocusZpsTest, ShowHatsSurvey) {
 
   auto* location_bar = BrowserView::GetBrowserViewForBrowser(browser())
                            ->toolbar()
-                           ->location_bar();
+                           ->location_bar_view();
 
   // After 5 focuses of the omnibox, the HaTS survey should show if the omnibox
   // isn't still focused after the survey delay.
@@ -1487,7 +1490,7 @@ IN_PROC_BROWSER_TEST_F(OmniboxViewViewsOnFocusZpsTest,
 
   auto* location_bar = BrowserView::GetBrowserViewForBrowser(browser())
                            ->toolbar()
-                           ->location_bar();
+                           ->location_bar_view();
 
   for (int i = 0; i < 4; i++) {
     location_bar->omnibox_view()->RequestFocus();
@@ -1528,7 +1531,7 @@ class OmniboxViewViewsAIMBrowserTest : public OmniboxViewViewsTest {
                   TemplateURLServiceFactory::GetForProfile(profile),
                   /*url_loader_factory=*/nullptr,
                   /*identity_manager=*/nullptr,
-                  /*is_off_the_record=*/false);
+                  AimEligibilityService::Configuration{});
           ON_CALL(*mock_service, IsAimLocallyEligible())
               .WillByDefault(Return(is_locally_eligible));
           ON_CALL(*mock_service, IsServerEligibilityEnabled())

@@ -21,8 +21,8 @@ ExtensionFunction::ResponseAction EditcommandExecuteFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   VivaldiBrowserWindow* window =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          VivaldiBrowserWindowFromId(params->window_id);
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->window_id);
   if (!window) {
     return RespondNow(Error("No such window"));
   }

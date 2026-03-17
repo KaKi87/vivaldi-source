@@ -15,27 +15,22 @@
 #include "fake_storage.h"
 
 #include <cassert>
-#include <cstddef>
+#include <optional>
 #include <string>
+#include <utility>
 
 namespace i18n {
 namespace addressinput {
 
 FakeStorage::FakeStorage() = default;
 
-FakeStorage::~FakeStorage() {
-  for (const auto& pair : data_) {
-    delete pair.second;
-  }
-}
+FakeStorage::~FakeStorage() = default;
 
-void FakeStorage::Put(const std::string& key, std::string* data) {
-  assert(data != nullptr);
+void FakeStorage::Put(const std::string& key, std::string data) {
   auto result = data_.emplace(key, data);
   if (!result.second) {
     // Replace data in existing entry for this key.
-    delete result.first->second;
-    result.first->second = data;
+    result.first->second = std::move(data);
   }
 }
 
@@ -44,7 +39,8 @@ void FakeStorage::Get(const std::string& key,
   auto data_it = data_.find(key);
   bool success = data_it != data_.end();
   data_ready(success, key,
-             success ? new std::string(*data_it->second) : nullptr);
+             success ? std::make_optional<std::string>(data_it->second)
+                     : std::nullopt);
 }
 
 }  // namespace addressinput

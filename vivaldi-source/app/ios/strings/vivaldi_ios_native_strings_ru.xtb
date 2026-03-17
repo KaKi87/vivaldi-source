@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Управление списками блокировки</translation>
 <translation id="1577761519530347814">Синхронизировать сохранённые пароли</translation>
 <translation id="1620921465699122417">Ввести текст для перевода</translation>
+<translation id="1624621765073396937">Закрывать вкладки сдвигом</translation>
 <translation id="1631998297781042533">Популярные сайты</translation>
 <translation id="1644574205037202324">История</translation>
 <translation id="1655816024544228768">Спорт</translation>
@@ -106,6 +107,7 @@
 <translation id="2330644510603114741">Поведение вкладки</translation>
 <translation id="233493642829799329">Может привести к перезагрузке некоторых вкладок</translation>
 <translation id="2336309953058658733">Очистить корзину</translation>
+<translation id="2336679896177818431">При свайпе вверх или вниз на панели адреса открывается переключатель вкладок</translation>
 <translation id="2359808026110333948">Дальше</translation>
 <translation id="2386793615875593361">Выбрана 1 заметка</translation>
 <translation id="2387049655823108978">Синхронизировать открытые вкладки с других устройств</translation>
@@ -127,6 +129,7 @@
 <translation id="261264557609353020">Экспресс-панель</translation>
 <translation id="2619628557366098325">Португальский (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">Системная</translation>
+<translation id="2638305832232696831">Включить жест на адресной панели</translation>
 <translation id="2653659639078652383">Отправить</translation>
 <translation id="2666092431469916601">Вверху</translation>
 <translation id="2677862276555105603">Реклама
@@ -153,6 +156,7 @@
 <translation id="2862504765180635001">Жаль это услышать!</translation>
 <translation id="2878511608894704031">Удалить всё</translation>
 <translation id="2884735088411646852">Сортировка</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (Блокирует различные элементы)</translation>
 <translation id="2898963176829412617">Новая папка…</translation>
 <translation id="2918704853620385162">Открывать новую вкладку при закрытии последней</translation>
 <translation id="2924890236896835588">Имя группы</translation>
@@ -172,6 +176,7 @@
 <translation id="3142562627629111859">Новая категория</translation>
 <translation id="3157931365184549694">Восстановить</translation>
 <translation id="3159285901314605198">Фоновый рисунок</translation>
+<translation id="317084213044777332">Поиск по умолчанию</translation>
 <translation id="3177673846235066154">Сервер не принял ваши данные.</translation>
 <translation id="3180057018690062250">Стримы</translation>
 <translation id="3180358318770512945">Воспитание</translation>
@@ -594,6 +599,7 @@
 <translation id="8066170816074394954">Ошибка сервера.</translation>
 <translation id="8076492880354921740">Вкладки</translation>
 <translation id="8077675488769462025">Неактивные вкладки</translation>
+<translation id="8079925180539182073">Нельзя удалить поиск, назначенный по умолчанию.</translation>
 <translation id="8112996065264879835">Код не совпадает с отправленным вам.
         Число возможных попыток истекло. Запросите новый код используя опцию повторной отправки кода ниже.</translation>
 <translation id="8131740175452115882">Подтвердить</translation>
@@ -639,6 +645,7 @@
 <translation id="856439694359429369">Тап для опций или двойной тап для открытия.</translation>
 <translation id="8591818185775466306">Удалить <ph name="ITEM_TYPE" /></translation>
 <translation id="8605953154325672921">Требуется имя пользователя</translation>
+<translation id="861259508026988871">Добавить как службу поиска</translation>
 <translation id="8675578805254882416">Получение</translation>
 <translation id="8677007239430848917">Добавьте первую заметку кнопкой с плюсом ниже</translation>
 <translation id="8684294196284714094">Готовы назначить Vivaldi основным браузером?</translation>

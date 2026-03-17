@@ -44,13 +44,13 @@
 #include "absl/random/discrete_distribution.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
-#include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
 #include "absl/time/clock.h"
@@ -73,10 +73,8 @@
 #if defined(ADDRESS_SANITIZER) || defined(MEMORY_SANITIZER)
 #define FUZZTEST_HAS_SANITIZER
 #include <sanitizer/common_interface_defs.h>
-#endif
 
-#if defined(ADDRESS_SANITIZER)
-#include <sanitizer/asan_interface.h>
+#include "./fuzztest/internal/sanitizer_interface.h"
 #endif
 
 #ifndef TRAP_PERF
@@ -124,7 +122,12 @@ std::string GetReproductionCommand(const Configuration* configuration,
   FUZZTEST_CHECK(absl::StrContains(command_template, kTestFilterPlaceholder));
   FUZZTEST_CHECK(absl::StrContains(command_template, kExtraArgsPlaceholder));
   if (is_reproducer_in_corpus_db) {
-    const std::string corpus_db = configuration->corpus_database;
+    absl::string_view corpus_db = configuration->corpus_database;
+    auto test_srcdir = absl::NullSafeStringView(getenv("TEST_SRCDIR"));
+    if (!test_srcdir.empty()) {
+      const std::string prefix = absl::StrCat(test_srcdir, "/");
+      absl::ConsumePrefix(&corpus_db, prefix);
+    }
     std::vector<std::string> extra_args = {absl::StrCat(
         "--test_arg=--", FUZZTEST_FLAG_PREFIX, "corpus_database=", corpus_db)};
     return absl::StrReplaceAll(
@@ -161,6 +164,20 @@ absl::string_view GetSeparator() {
   return "\n================================================================="
          "\n";
 }
+
+#if defined(FUZZTEST_HAS_SANITIZER)
+// clang-format off
+extern "C" void __attribute__((visibility("default")))
+__sanitizer_report_error_summary(const char* error_summary) {
+  // clang-format on
+  absl::StatusOr<std::string> crash_type =
+      ParseCrashTypeFromSanitizerSummary(error_summary);
+  FUZZTEST_LOG_IF(ERROR, !crash_type.ok())
+      << "Failed to extract sanitizer crash type: " << crash_type.status();
+  Runtime::instance().SetCrashTypeIfUnset(
+      std::move(crash_type).value_or("Sanitizer crash"));
+}
+#endif
 
 }  // namespace
 
@@ -260,9 +277,8 @@ std::string Runtime::DumpReproducer() const {
   FUZZTEST_CHECK(!out_location.dir_path.empty())
       << "Reproducer output directory must not be empty if "
          "not reporting to controller.";
-  const std::string content =
-      current_args_->domain.SerializeCorpus(current_args_->corpus_value)
-          .ToString();
+  const std::string content = SerializeIRObject(
+      current_args_->domain.SerializeCorpus(current_args_->corpus_value));
   std::string path = WriteDataToDir(content, out_location.dir_path);
   if (path.empty()) {
     absl::FPrintF(GetStderr(), "[!] Failed to write reproducer file!\n");
@@ -627,15 +643,8 @@ void InstallSignalHandlers(FILE* out) {
   // Eg a divide by zero is intercepted by ASan and it terminates the process
   // after printing its output. This handler helps us print our output
   // afterwards.
-  __sanitizer_set_death_callback([](auto...) {
-    Runtime& runtime = Runtime::instance();
-#if defined(ADDRESS_SANITIZER)
-    runtime.SetCrashTypeIfUnset(__asan_get_report_description());
-#else
-    runtime.SetCrashTypeIfUnset("Sanitizer crash");
-#endif
-    runtime.PrintReport(&signal_out_sink);
-  });
+  __sanitizer_set_death_callback(
+      [](auto...) { Runtime::instance().PrintReport(&signal_out_sink); });
 #endif
 
   for (OldSignalHandler& h : crash_handlers) {
@@ -663,6 +672,25 @@ void Runtime::PrintFinalStatsOnDefaultSink() const {}
 
 void Runtime::PrintReportOnDefaultSink() const {}
 #endif  // __linux__ || __APPLE__
+
+void InstallUnexpectedExitHandler() {
+#ifndef FUZZTEST_COMPATIBILITY_MODE
+  // In compatibility mode we don't install the handler because libFuzzer
+  // always explicitly exits, so every run would finish with an unexpected
+  // exit.
+  // https://github.com/llvm/llvm-project/blob/fa511cde48ea218dadfa8b35658ac06368f34607/compiler-rt/lib/fuzzer/FuzzerDriver.cpp#L930
+  [[maybe_unused]] const bool installed = [] {
+    std::atexit([] { Runtime::instance().HandleUnexpectedExit(); });
+    return true;
+  }();
+#endif
+}
+
+void Runtime::HandleUnexpectedExit() {
+  if (!reporter_enabled_) return;
+  SetCrashTypeIfUnset("unexpected-exit");
+  std::abort();
+}
 
 using corpus_type = GenericDomainCorpusType;
 
@@ -692,7 +720,7 @@ FuzzTestFuzzerImpl::~FuzzTestFuzzerImpl() {
 
 absl::StatusOr<corpus_type> FuzzTestFuzzerImpl::TryParse(
     absl::string_view data) {
-  auto ir_value = IRObject::FromString(data);
+  auto ir_value = ParseIRObject(data);
   if (!ir_value) {
     return absl::InvalidArgumentError("Unexpected file format");
   }
@@ -744,7 +772,7 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable(
     PRNG prng(seed_sequence_);
 
     const auto original_serialized =
-        params_domain_.SerializeCorpus(*to_minimize).ToString();
+        SerializeIRObject(params_domain_.SerializeCorpus(*to_minimize));
 
     // In minimize mode we keep mutating the given reproducer value with
     // `only_shrink=true` until we crash. We drop mutations that don't
@@ -763,7 +791,7 @@ bool FuzzTestFuzzerImpl::ReplayInputsIfAvailable(
       num_mutations = std::max(1, num_mutations - 1);
       // We compare the serialized version. Not very efficient but works for
       // now.
-      if (params_domain_.SerializeCorpus(copy).ToString() ==
+      if (SerializeIRObject(params_domain_.SerializeCorpus(copy)) ==
           original_serialized) {
         continue;
       }
@@ -958,8 +986,9 @@ FuzzTestFuzzerImpl::TryReadCorpusFromFiles() {
 
 void FuzzTestFuzzerImpl::TryWriteCorpusFile(const Input& input) {
   if (corpus_out_dir_.empty()) return;
-  if (WriteDataToDir(params_domain_.SerializeCorpus(input.args).ToString(),
-                     corpus_out_dir_)
+  if (WriteDataToDir(
+          SerializeIRObject(params_domain_.SerializeCorpus(input.args)),
+          corpus_out_dir_)
           .empty()) {
     absl::FPrintF(GetStderr(), "[!] Failed to write corpus file.\n");
   }
@@ -1165,9 +1194,9 @@ void FuzzTestFuzzerImpl::MinimizeNonFatalFailureLocally(absl::BitGenRef prng) {
     // Only run it if it actually is different. Random mutations might
     // not actually change the value, or we have reached a minimum that can't be
     // minimized anymore.
-    if (params_domain_.SerializeCorpus(minimal_non_fatal_counterexample_->args)
-            .ToString() !=
-        params_domain_.SerializeCorpus(copy.args).ToString()) {
+    if (SerializeIRObject(params_domain_.SerializeCorpus(
+            minimal_non_fatal_counterexample_->args)) !=
+        SerializeIRObject(params_domain_.SerializeCorpus(copy.args))) {
       runtime_.SetExternalFailureDetected(false);
       RunOneInput(copy);
       if (runtime_.external_failure_detected()) {

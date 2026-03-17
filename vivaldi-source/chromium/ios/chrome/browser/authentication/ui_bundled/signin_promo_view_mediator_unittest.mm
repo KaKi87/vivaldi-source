@@ -34,7 +34,7 @@
 #import "ios/chrome/browser/shared/model/profile/features.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
-#import "ios/chrome/browser/shared/ui/symbols/symbols.h"
+#import "ios/chrome/browser/shared/ui/image/image_names.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service_factory.h"
@@ -167,11 +167,7 @@ class SigninPromoViewMediatorTest : public PlatformTest {
   void TestSigninPromoWithAccount(SigninPromoViewStyle style) {
     // Expect to receive an update to the consumer with a configurator.
     ExpectConfiguratorNotification(/*identity_changed=*/YES);
-    if (!AreSeparateProfilesForManagedAccountsEnabled()) {
-      // With this feature configuration, AccountProfileMapper sends an extra
-      // "account changed" notification when adding an account to the device.
-      ExpectConfiguratorNotification(/*identity_changed=*/NO);
-    }
+
     AddDefaultIdentity();
     // Check the configurator received by the consumer.
     CheckSigninWithAccountConfigurator(configurator_, style);
@@ -221,11 +217,11 @@ class SigninPromoViewMediatorTest : public PlatformTest {
     OCMExpect([signin_promo_view_ setPromoViewStyle:style]);
     OCMExpect([signin_promo_view_ stopSignInSpinner]);
     if (style == SigninPromoViewStyleCompact) {
-#if BUILDFLAG(IOS_USE_BRANDED_SYMBOLS)
+#if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
       UIImage* logo = [UIImage imageNamed:kChromeSigninPromoLogoImage];
 #else
       UIImage* logo = [UIImage imageNamed:kChromiumSigninPromoLogoImage];
-#endif  // BUILDFLAG(IOS_USE_BRANDED_SYMBOLS)
+#endif  // BUILDFLAG(IOS_USE_BRANDED_ASSETS)
       OCMExpect([signin_promo_view_ setNonProfileImage:logo]);
     }
     [configurator configureSigninPromoView:signin_promo_view_ withStyle:style];
@@ -380,6 +376,8 @@ class SigninPromoViewMediatorTest : public PlatformTest {
     configurator_ = nil;
     ExpectConfiguratorNotification(/*identity_changed=*/NO);
 
+    fake_system_identity_manager()->UpdateSystemIdentityAvatar(identity_.gaiaId,
+                                                               nil);
     fake_system_identity_manager()->WaitForServiceCallbacksToComplete();
     // Check the configurator received by the consumer.
     CheckSigninWithAccountConfigurator(configurator_, style);
@@ -605,6 +603,7 @@ TEST_F(SigninPromoViewMediatorTest, SigninPromoWhileSignedIn) {
       identity_, signin_metrics::AccessPoint::kFullscreenSigninPromo);
   CreateMediator(signin_metrics::AccessPoint::kRecentTabs);
   ExpectConfiguratorNotification(/*identity_changed=*/NO);
+  fake_system_identity_manager()->FireIdentityUpdatedNotification(identity_);
   [mediator_ signinPromoViewIsVisible];
   EXPECT_EQ(identity_, mediator_.displayedIdentity);
   fake_system_identity_manager()->WaitForServiceCallbacksToComplete();
@@ -689,7 +688,6 @@ TEST_F(SigninPromoViewMediatorTest,
        SigninPromoWithSigninWithNoDefaultIdentity) {
   AddDefaultIdentity();
   CreateMediator(signin_metrics::AccessPoint::kRecentTabs);
-  ExpectConfiguratorNotification(/*identity_changed=*/NO);
   [mediator_ signinPromoViewIsVisible];
   ExpectConfiguratorNotification(/*identity_changed=*/NO);
   [mediator_
@@ -709,7 +707,6 @@ TEST_F(SigninPromoViewMediatorTest,
       identity_, signin_metrics::AccessPoint::kFullscreenSigninPromo);
 
   CreateMediator(signin_metrics::AccessPoint::kBookmarkManager);
-  ExpectConfiguratorNotification(/*identity_changed=*/NO);
   [mediator_ signinPromoViewIsVisible];
   ExpectConfiguratorNotification(/*identity_changed=*/NO);
   [mediator_ setSigninPromoAction:SigninPromoAction::kReviewAccountSettings];

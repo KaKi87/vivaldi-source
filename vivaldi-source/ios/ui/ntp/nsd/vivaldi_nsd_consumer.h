@@ -11,8 +11,7 @@
 
 /// Notifies consumers with currently selected folder for SD to be
 /// added on.
-- (void)updateLocationFolder:(NSString*)title
-               folderIsGroup:(BOOL)folderIsGroup;
+- (void)updateLocationFolder:(NSString*)title folderIsGroup:(BOOL)folderIsGroup;
 
 /// Notifies the consumers when popular sites are ready.
 - (void)popularSitesDidLoad:(NSArray<VivaldiNSDDirectMatchItem*>*)popularSites;
@@ -20,8 +19,9 @@
 /// Notifies the consumers when direct match category items
 /// for selected category is ready
 - (void)directMatchCategoryItemsDidLoad:
-    (NSArray<VivaldiNSDDirectMatchItem*>*)categoryItems
-        forCategory:(VivaldiNSDDirectMatchCategory*)category;
+            (NSArray<VivaldiNSDDirectMatchItem*>*)categoryItems
+                            forCategory:
+                                (VivaldiNSDDirectMatchCategory*)category;
 
 /// Notifies the consumers when top sites are ready.
 - (void)topSitesDidLoad:(NSArray<VivaldiNSDTopSiteItem*>*)topSites;

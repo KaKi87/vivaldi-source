@@ -13,13 +13,13 @@ class VivaldiProfilePickerHandler : public content::WebUIMessageHandler {
  public:
   void RegisterMessages() override;
 
-  void HandleGetProfilesInfo(const base::Value::List& args);
-  void HandlePickProfile(const base::Value::List& args);
-  void HandleSetShowOnStartup(const base::Value::List& args);
-  void HandleDeleteProfile(const base::Value::List& args);
-  void HandleModifyProfile(const base::Value::List& args);
-  void HandleChooseFile(const base::Value::List& args);
-  void HandleCloseProfilePicker(const base::Value::List& args);
+  void HandleGetProfilesInfo(const base::ListValue& args);
+  void HandlePickProfile(const base::ListValue& args);
+  void HandleSetShowOnStartup(const base::ListValue& args);
+  void HandleDeleteProfile(const base::ListValue& args);
+  void HandleModifyProfile(const base::ListValue& args);
+  void HandleChooseFile(const base::ListValue& args);
+  void HandleCloseProfilePicker(const base::ListValue& args);
 
   void SendErrorResponse(int callback_id, const std::string& message);
   void SendResponse(int callback_id, base::Value&& response);
@@ -44,8 +44,7 @@ class VivaldiProfilePickerHandler : public content::WebUIMessageHandler {
   };
 
  private:
-
-  //CSD = Client-Side Decorations
+  // CSD = Client-Side Decorations
   bool UseCSD();
 
   using ImgMap = std::map<std::string, Image>;

@@ -9,9 +9,9 @@
 
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
+#include "build/build_config.h"
 #include "chrome/browser/glic/host/glic.mojom-shared.h"
 #include "chrome/browser/glic/public/context/glic_sharing_manager.h"
-#include "chrome/browser/glic/widget/glic_widget.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "components/tabs/public/tab_interface.h"
 #include "third_party/abseil-cpp/absl/functional/overload.h"
@@ -35,6 +35,7 @@ struct SidePanelShowOptions {
       : tab(bound_tab) {}
   base::raw_ref<tabs::TabInterface> tab;
   bool suppress_opening_animation = false;
+  bool pin_on_bind = true;
   GlicPinTrigger pin_trigger = GlicPinTrigger::kUnknown;
 };
 
@@ -48,6 +49,8 @@ using EmbedderOptions = std::variant<SidePanelShowOptions, FloatingShowOptions>;
 struct ShowOptions {
   explicit ShowOptions(EmbedderOptions panel_options);
   explicit ShowOptions(EmbedderOptions panel_options, bool focus);
+  explicit ShowOptions(EmbedderOptions panel_options,
+                       mojom::InvocationSource source);
   ShowOptions(const ShowOptions&);
   ShowOptions(ShowOptions&&);
   ShowOptions& operator=(const ShowOptions&);
@@ -64,10 +67,17 @@ struct ShowOptions {
   static ShowOptions ForSidePanel(tabs::TabInterface& bound_tab);
   static ShowOptions ForSidePanel(tabs::TabInterface& bound_tab,
                                   GlicPinTrigger pin_trigger);
+  static ShowOptions ForSidePanel(tabs::TabInterface& bound_tab,
+                                  GlicPinTrigger pin_trigger,
+                                  mojom::InvocationSource invocation_source);
 
   // Shared show options
   bool focus_on_show = false;
   bool reinitialize_if_already_active = false;
+  std::optional<std::string> prompt_suggestion = std::nullopt;
+  bool auto_send = false;
+  mojom::InvocationSource invocation_source =
+      mojom::InvocationSource::kTopChromeButton;
 
   // Container for options that are different between side panel and floaty.
   EmbedderOptions embedder_options;

@@ -15,7 +15,7 @@ class BookmarkNode;
 
 // VivaldiSpeedDialItem provides data for a the speed dial item. It is backed
 // by BookmarkNode
-@interface VivaldiSpeedDialItem: NSObject <NSItemProviderWriting>
+@interface VivaldiSpeedDialItem : NSObject <NSItemProviderWriting>
 
 // The BookmarkNode that backs this item.
 @property(nonatomic, readwrite, assign)

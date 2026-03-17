@@ -83,7 +83,7 @@ public class WebSigninAccountPickerDelegateTest {
         mDelegate =
                 new WebSigninAccountPickerDelegate(
                         mTabMock, mWebSigninBridgeFactoryMock, CONTINUE_URL);
-        when(mWebSigninBridgeFactoryMock.create(eq(mProfileMock), any(), any()))
+        when(mWebSigninBridgeFactoryMock.createWithCoreAccountId(eq(mProfileMock), any(), any()))
                 .thenReturn(mWebSigninBridgeMock);
     }
 
@@ -98,9 +98,9 @@ public class WebSigninAccountPickerDelegateTest {
         mDelegate.onSignInComplete(TestAccounts.ACCOUNT1, mSigninStateControllerMock);
 
         verify(mWebSigninBridgeFactoryMock)
-                .create(
+                .createWithCoreAccountId(
                         eq(mProfileMock),
-                        eq(TestAccounts.ACCOUNT1),
+                        eq(TestAccounts.ACCOUNT1.getId()),
                         mWebSigninCallbackCaptor.capture());
 
         mWebSigninCallbackCaptor.getValue().onResult(WebSigninTrackerResult.SUCCESS);
@@ -117,9 +117,9 @@ public class WebSigninAccountPickerDelegateTest {
         mDelegate.onSignInComplete(TestAccounts.ACCOUNT1, mSigninStateControllerMock);
 
         verify(mWebSigninBridgeFactoryMock)
-                .create(
+                .createWithCoreAccountId(
                         eq(mProfileMock),
-                        eq(TestAccounts.ACCOUNT1),
+                        eq(TestAccounts.ACCOUNT1.getId()),
                         mWebSigninCallbackCaptor.capture());
 
         mWebSigninCallbackCaptor.getValue().onResult(WebSigninTrackerResult.OTHER_ERROR);
@@ -129,9 +129,6 @@ public class WebSigninAccountPickerDelegateTest {
                 .logAccountConsistencyPromoAction(
                         AccountConsistencyPromoAction.GENERIC_ERROR_SHOWN,
                         SigninAccessPoint.WEB_SIGNIN);
-
-        // WebSigninBridge should be destroyed after the sign-in result is known.
-        verify(mWebSigninBridgeMock).destroy();
     }
 
     @Test
@@ -139,9 +136,9 @@ public class WebSigninAccountPickerDelegateTest {
         mDelegate.onSignInComplete(TestAccounts.ACCOUNT1, mSigninStateControllerMock);
 
         verify(mWebSigninBridgeFactoryMock)
-                .create(
+                .createWithCoreAccountId(
                         eq(mProfileMock),
-                        eq(TestAccounts.ACCOUNT1),
+                        eq(TestAccounts.ACCOUNT1.getId()),
                         mWebSigninCallbackCaptor.capture());
 
         mWebSigninCallbackCaptor.getValue().onResult(WebSigninTrackerResult.AUTH_ERROR);
@@ -150,8 +147,5 @@ public class WebSigninAccountPickerDelegateTest {
                 .logAccountConsistencyPromoAction(
                         AccountConsistencyPromoAction.AUTH_ERROR_SHOWN,
                         SigninAccessPoint.WEB_SIGNIN);
-
-        // WebSigninBridge should be destroyed after the sign-in result is known.
-        verify(mWebSigninBridgeMock).destroy();
     }
 }

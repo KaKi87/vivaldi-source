@@ -8,7 +8,6 @@
 #include <string>
 
 #include "base/containers/flat_map.h"
-#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
 #include "base/observer_list_types.h"
@@ -97,8 +96,8 @@ class SecureDnsManager : public NetworkStateHandlerObserver {
 
   // Computes a collection of secure DNS providers to use based on the |mode|
   // and |templates| prefs applied to |local_doh_providers_|.
-  base::Value::Dict GetProviders(const std::string& mode,
-                                 const std::string& templates) const;
+  base::DictValue GetProviders(const std::string& mode,
+                               const std::string& templates) const;
 
   // Starts tracking user-configured secure DNS settings. This settings are
   // mapped to the pref service that belongs to the profile associated with the
@@ -131,8 +130,7 @@ class SecureDnsManager : public NetworkStateHandlerObserver {
 
   // Update the internal cached DoH config. If either the template URIs or the
   // mode have been modified, inform all registered observers in the
-  // 'observers_' list and also notify Lacros and the shill service about the
-  // new values.
+  // 'observers_' list and also notify the shill service about the new values.
   // `new_template_uris` is a space separated DoH template URI. The value is
   // expected to be fetched from Chrome's kDnsOverHttpsTemplates prefs.
   // When `force_update` is true, always send the updates to the observer

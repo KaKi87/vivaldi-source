@@ -19,7 +19,9 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 
 #include <gtest/gtest.h>
 
@@ -60,13 +62,13 @@ class TestdataSourceTest : public testing::TestWithParam<std::string> {
   const std::unique_ptr<const Source::Callback> data_ready_;
 
  private:
-  void OnDataReady(bool success, const std::string& key, std::string* data) {
-    ASSERT_FALSE(success && data == nullptr);
+  void OnDataReady(bool success, const std::string& key,
+                   std::optional<std::string> data) {
+    ASSERT_FALSE(success && !data.has_value());
     success_ = success;
     key_ = key;
-    if (data != nullptr) {
-      data_ = *data;
-      delete data;
+    if (data.has_value()) {
+      data_ = std::move(data).value();
     }
   }
 };

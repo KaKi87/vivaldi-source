@@ -15,7 +15,9 @@
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/test/bind.h"
+#include "base/test/test_future.h"
 #include "build/build_config.h"
 #include "chrome/browser/enterprise/util/managed_browser_utils.h"
 #include "chrome/browser/profiles/profile.h"
@@ -24,6 +26,7 @@
 #include "chrome/browser/sync/test/integration/invalidations/invalidations_status_checker.h"
 #include "chrome/browser/sync/test/integration/quiesce_status_change_checker.h"
 #include "chrome/browser/sync/test/integration/single_client_status_change_checker.h"
+#include "chrome/browser/sync/test/integration/sync_integration_test_util.h"
 #include "chrome/browser/sync/test/integration/sync_signin_delegate.h"
 #include "chrome/common/channel_info.h"
 #include "components/signin/public/identity_manager/identity_manager.h"
@@ -36,9 +39,9 @@
 #include "components/sync/service/local_data_description.h"
 #include "components/sync/service/sync_internals_util.h"
 #include "content/public/browser/browser_context.h"
-#include "content/public/test/simple_url_loader_test_helper.h"
 #include "google_apis/google_api_keys.h"
 #include "net/base/net_errors.h"
+#include "net/http/http_response_headers.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -144,10 +147,9 @@ bool ResetAccount(network::SharedURLLoaderFactory* url_loader_factory,
   simple_loader->AttachStringForUpload(request_to_send,
                                        "application/octet-stream");
   simple_loader->SetTimeoutDuration(base::Seconds(10));
-  content::SimpleURLLoaderTestHelper url_loader_helper;
-  simple_loader->DownloadToStringOfUnboundedSizeUntilCrashAndDie(
-      url_loader_factory, url_loader_helper.GetCallback());
-  url_loader_helper.WaitForCallback();
+  base::test::TestFuture<scoped_refptr<net::HttpResponseHeaders>> future;
+  simple_loader->DownloadHeadersOnly(url_loader_factory, future.GetCallback());
+  CHECK(future.Wait());
   if (simple_loader->NetError() != 0) {
     LOG(ERROR) << "Reset account failed with error "
                << net::ErrorToString(simple_loader->NetError())
@@ -414,6 +416,9 @@ bool SyncServiceImplHarness::AwaitQuiescence(
     return true;
   }
 
+  CHECK(!sync_integration_test_util::IsCurrentTestAllowlistedForE2EMode())
+      << "AwaitQuiescence is not supported for E2E tests.";
+
   std::vector<raw_ptr<SyncServiceImpl, VectorExperimental>> services;
   for (SyncServiceImplHarness* harness : clients) {
     services.push_back(harness->service());
@@ -557,18 +562,36 @@ bool SyncServiceImplHarness::DisableSelectableType(
   return false;
 }
 
-bool SyncServiceImplHarness::EnableSyncForRegisteredDatatypes() {
-  DVLOG(1) << GetClientInfoString("EnableSyncForRegisteredDatatypes");
-
-  if (!IsSyncEnabledByUser()) {
-    bool result = SetupSync();
-    // If SetupSync() succeeded, then Sync must now be enabled.
-    DCHECK(!result || IsSyncEnabledByUser());
-    return result;
+#if BUILDFLAG(IS_CHROMEOS)
+bool SyncServiceImplHarness::EnableSelectableOsType(
+    syncer::UserSelectableOsType type) {
+  if (service() == nullptr) {
+    LOG(ERROR) << "EnableSelectableOsType(): service() is null.";
+    return false;
   }
 
-  return EnableAllSelectableTypes();
+  syncer::UserSelectableOsTypeSet selected_os_types =
+      service()->GetUserSettings()->GetSelectedOsTypes();
+  if (selected_os_types.Has(type)) {
+    DVLOG(1) << "EnableSelectableOsType(): Sync already enabled for type "
+             << syncer::GetUserSelectableOsTypeName(type) << " on "
+             << profile_debug_name_ << ".";
+    return true;
+  }
+
+  selected_os_types.Put(type);
+  service()->GetUserSettings()->SetSelectedOsTypes(false, selected_os_types);
+  if (AwaitSyncTransportActive()) {
+    DVLOG(1) << "EnableSelectableOsType(): Enabled sync for type "
+             << syncer::GetUserSelectableOsTypeName(type) << " on "
+             << profile_debug_name_ << ".";
+    return true;
+  }
+
+  DVLOG(0) << GetClientInfoString("EnableSelectableOsType failed");
+  return false;
 }
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 bool SyncServiceImplHarness::EnableAllSelectableTypes() {
   if (service() == nullptr) {
@@ -588,10 +611,6 @@ bool SyncServiceImplHarness::EnableAllSelectableTypes() {
   return false;
 }
 
-bool SyncServiceImplHarness::DisableSyncForAllDatatypes() {
-  return DisableAllSelectableTypes();
-}
-
 bool SyncServiceImplHarness::DisableAllSelectableTypes() {
   DVLOG(1) << GetClientInfoString("DisableAllSelectableTypes");
 
@@ -607,6 +626,24 @@ bool SyncServiceImplHarness::DisableAllSelectableTypes() {
            << profile_debug_name_ << ".";
   return true;
 }
+
+#if BUILDFLAG(IS_CHROMEOS)
+bool SyncServiceImplHarness::DisableAllSelectableOsTypes() {
+  DVLOG(1) << GetClientInfoString("DisableAllSelectableOsTypes");
+
+  if (service() == nullptr) {
+    LOG(ERROR) << "DisableAllSelectableOsTypes(): service() is null.";
+    return false;
+  }
+
+  service()->GetUserSettings()->SetSelectedOsTypes(
+      /*sync_everything=*/false, syncer::UserSelectableOsTypeSet());
+
+  DVLOG(1) << "DisableAllSelectableOsTypes(): Disabled all types on "
+           << profile_debug_name_ << ".";
+  return true;
+}
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
 SyncCycleSnapshot SyncServiceImplHarness::GetLastCycleSnapshot() const {
   DCHECK(service() != nullptr) << "Sync service has not yet been set up.";
@@ -650,7 +687,7 @@ SyncServiceImplHarness::GetLocalDataDescriptionAndWait(
 std::string SyncServiceImplHarness::GetServiceStatus() {
   // This method is only used in test code for debugging purposes, so it's fine
   // to include sensitive data in ConstructAboutInformation().
-  base::Value::Dict value = syncer::sync_ui_util::ConstructAboutInformation(
+  base::DictValue value = syncer::sync_ui_util::ConstructAboutInformation(
       syncer::sync_ui_util::IncludeSensitiveData(true), service(),
       chrome::GetChannelName(chrome::WithExtendedStable(true)));
   std::string service_status;

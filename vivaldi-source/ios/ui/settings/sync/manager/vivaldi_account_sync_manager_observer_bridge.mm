@@ -5,14 +5,13 @@
 #import "ios/ui/settings/sync/manager/vivaldi_account_sync_manager_consumer.h"
 
 VivaldiAccountSyncManagerObserverBridge::
-  VivaldiAccountSyncManagerObserverBridge(
-      id<VivaldiAccountSyncManagerConsumer> consumer,
-      VivaldiAccountManager* account_manager,
-      SyncService* sync_service)
-: account_manager_(account_manager),
-  sync_service_(sync_service),
-  consumer_(consumer) {
-
+    VivaldiAccountSyncManagerObserverBridge(
+        id<VivaldiAccountSyncManagerConsumer> consumer,
+        VivaldiAccountManager* account_manager,
+        SyncService* sync_service)
+    : account_manager_(account_manager),
+      sync_service_(sync_service),
+      consumer_(consumer) {
   DCHECK(account_manager);
   DCHECK(sync_service);
   DCHECK(consumer);
@@ -21,7 +20,7 @@ VivaldiAccountSyncManagerObserverBridge::
 }
 
 VivaldiAccountSyncManagerObserverBridge::
-  ~VivaldiAccountSyncManagerObserverBridge() {
+    ~VivaldiAccountSyncManagerObserverBridge() {
   account_manager_->RemoveObserver(this);
   sync_service_->RemoveObserver(this);
 }
@@ -51,23 +50,23 @@ void VivaldiAccountSyncManagerObserverBridge::OnVivaldiAccountShutdown() {
   account_manager_->RemoveObserver(this);
 }
 
-void VivaldiAccountSyncManagerObserverBridge::
-  OnStateChanged(SyncService* sync) {
+void VivaldiAccountSyncManagerObserverBridge::OnStateChanged(
+    SyncService* sync) {
   id<VivaldiAccountSyncManagerConsumer> consumer = consumer_;
   if (!consumer)
     return;
   [consumer_ onVivaldiSyncStateChanged];
 }
 
-void VivaldiAccountSyncManagerObserverBridge::
-  OnSyncCycleCompleted(SyncService* sync) {
+void VivaldiAccountSyncManagerObserverBridge::OnSyncCycleCompleted(
+    SyncService* sync) {
   id<VivaldiAccountSyncManagerConsumer> consumer = consumer_;
   if (!consumer)
     return;
   [consumer_ onVivaldiSyncCycleCompleted];
 }
 
-void VivaldiAccountSyncManagerObserverBridge::
-  OnSyncShutdown(SyncService* sync) {
+void VivaldiAccountSyncManagerObserverBridge::OnSyncShutdown(
+    SyncService* sync) {
   sync_service_->RemoveObserver(this);
 }

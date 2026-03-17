@@ -62,7 +62,10 @@ TEST(DuckDuckGoRulesParserTest, SimpleBlock) {
 
   expected_rules.back().anchor_type.set(RequestFilterRule::kAnchorHost);
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().excluded_domains.insert("badsite.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "badsite.com"});
 
   ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
 
@@ -142,7 +145,10 @@ TEST(DuckDuckGoRulesParserTest, SimpleRuleBlock) {
   expected_rules.back().resource_types.PutAll(RegularResourceTypes::All());
 
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().excluded_domains.insert("mostly_good.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "mostly_good.com"});
 
   ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
 
@@ -191,7 +197,10 @@ TEST(DuckDuckGoRulesParserTest, SimpleRuleAllow) {
 
   expected_rules.back().anchor_type.set(RequestFilterRule::kAnchorHost);
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().excluded_domains.insert("mostly_bad.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "mostly_bad.com"});
 
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =
@@ -252,9 +261,15 @@ TEST(DuckDuckGoRulesParserTest, RuleBlockWithOptions) {
   expected_rules.back().host = "example.com";
   expected_rules.back().resource_types.Put(ResourceType::kScript);
 
-  expected_rules.back().included_domains.insert("bad_with_example.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "bad_with_example.com"});
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().excluded_domains.insert("example.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "example.com"});
 
   ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
 
@@ -307,7 +322,10 @@ TEST(DuckDuckGoRulesParserTest, RuleAllowWithOptions) {
 
   expected_rules.back().anchor_type.set(RequestFilterRule::kAnchorHost);
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().excluded_domains.insert("bad_site.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "bad_site.com"});
 
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =
@@ -317,7 +335,10 @@ TEST(DuckDuckGoRulesParserTest, RuleAllowWithOptions) {
   expected_rules.back().host = "bad_site.com";
   expected_rules.back().resource_types.Put(ResourceType::kObject);
 
-  expected_rules.back().included_domains.insert("needs_bad_site.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "needs_bad_site.com"});
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
 
   ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
@@ -370,8 +391,14 @@ TEST(DuckDuckGoRulesParserTest, RuleBlockWithExceptions) {
   expected_rules.back().resource_types.PutAll(RegularResourceTypes::All());
   expected_rules.back().resource_types.Remove(ResourceType::kImage);
 
-  expected_rules.back().excluded_domains.insert("good_with_example.com");
-  expected_rules.back().excluded_domains.insert("example.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "good_with_example.com"});
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "example.com"});
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
 
   ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
@@ -426,7 +453,10 @@ TEST(DuckDuckGoRulesParserTest, RuleAllowWithExceptions) {
 
   expected_rules.back().anchor_type.set(RequestFilterRule::kAnchorHost);
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().excluded_domains.insert("bad_site.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "bad_site.com"});
 
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =
@@ -489,9 +519,18 @@ TEST(DuckDuckGoRulesParserTest, RuleBlockWithOptionsAndExceptions) {
   expected_rules.back().host = "example.com";
   expected_rules.back().resource_types.PutAll(RegularResourceTypes::All());
 
-  expected_rules.back().included_domains.insert("bad.with_example.com");
-  expected_rules.back().excluded_domains.insert("not.bad.with_example.com");
-  expected_rules.back().excluded_domains.insert("example.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "bad.with_example.com"});
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "not.bad.with_example.com"});
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "example.com"});
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
 
   ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
@@ -548,7 +587,10 @@ TEST(DuckDuckGoRulesParserTest, RuleAllowWithOptionsAndExceptions) {
 
   expected_rules.back().anchor_type.set(RequestFilterRule::kAnchorHost);
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().excluded_domains.insert("example.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "example.com"});
 
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =
@@ -611,7 +653,10 @@ TEST(DuckDuckGoRulesParserTest, PureIgnore) {
   expected_rules.back().resource_types.PutAll(RegularResourceTypes::All());
 
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().included_domains.insert("good.with_example.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "good.with_example.com"});
 
   EXPECT_EQ(1UL, parse_result.request_filter_rules.size());
 
@@ -659,7 +704,10 @@ TEST(DuckDuckGoRulesParserTest, RedundantBlock) {
 
   expected_rules.back().anchor_type.set(RequestFilterRule::kAnchorHost);
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().excluded_domains.insert("bad_site.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "bad_site.com"});
 
   EXPECT_EQ(1, parse_result.rules_info.unsupported_rules);
   ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
@@ -711,7 +759,10 @@ TEST(DuckDuckGoRulesParserTest, RuleAllowFromExceptions) {
 
   expected_rules.back().anchor_type.set(RequestFilterRule::kAnchorHost);
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().excluded_domains.insert("bad_site.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "bad_site.com"});
 
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =
@@ -788,7 +839,10 @@ TEST(DuckDuckGoRulesParserTest, RuleAllowFromOptionsAndExceptions) {
 
   expected_rules.back().anchor_type.set(RequestFilterRule::kAnchorHost);
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().excluded_domains.insert("bad_site.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "bad_site.com"});
 
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =
@@ -799,9 +853,18 @@ TEST(DuckDuckGoRulesParserTest, RuleAllowFromOptionsAndExceptions) {
   expected_rules.back().resource_types.Put(ResourceType::kStylesheet);
 
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().included_domains.insert("subdomain.example.com");
-  expected_rules.back().included_domains.insert("sub.other_site.com");
-  expected_rules.back().included_domains.insert("trusted.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "subdomain.example.com"});
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "sub.other_site.com"});
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "trusted.com"});
 
   ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
 
@@ -849,8 +912,10 @@ TEST(DuckDuckGoRulesParserTest, RegexRuleBlock) {
       "mostly_good\\.com\\/with\\/(a|another)\\/tracker";
   expected_rules.back().host = "mostly_good.com";
   expected_rules.back().resource_types.PutAll(RegularResourceTypes::All());
-
-  expected_rules.back().excluded_domains.insert("mostly_good.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "mostly_good.com"});
   expected_rules.back().pattern_type = RequestFilterRule::kRegex;
 
   ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
@@ -900,7 +965,10 @@ TEST(DuckDuckGoRulesParserTest, SimpleSurrogate) {
 
   expected_rules.back().anchor_type.set(RequestFilterRule::kAnchorHost);
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().excluded_domains.insert("bad_site.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "bad_site.com"});
 
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =
@@ -912,7 +980,10 @@ TEST(DuckDuckGoRulesParserTest, SimpleSurrogate) {
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
   expected_rules.back().modifier = ModifierType::kRedirect;
   expected_rules.back().modifier_values.insert("bad_script.js");
-  expected_rules.back().excluded_domains.insert("bad_site.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "bad_site.com"});
 
   ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
 
@@ -966,7 +1037,10 @@ TEST(DuckDuckGoRulesParserTest, SurrogateWithOptions) {
 
   expected_rules.back().anchor_type.set(RequestFilterRule::kAnchorHost);
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().excluded_domains.insert("bad_site.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "bad_site.com"});
 
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =
@@ -978,8 +1052,14 @@ TEST(DuckDuckGoRulesParserTest, SurrogateWithOptions) {
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
   expected_rules.back().modifier = ModifierType::kRedirect;
   expected_rules.back().modifier_values.insert("bad_script.js");
-  expected_rules.back().included_domains.insert("use_bad_script.com");
-  expected_rules.back().excluded_domains.insert("bad_site.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "use_bad_script.com"});
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "bad_site.com"});
 
   ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
 
@@ -1033,7 +1113,10 @@ TEST(DuckDuckGoRulesParserTest, SurrogateWithExceptions) {
 
   expected_rules.back().anchor_type.set(RequestFilterRule::kAnchorHost);
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().excluded_domains.insert("bad_site.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "bad_site.com"});
 
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =
@@ -1044,7 +1127,10 @@ TEST(DuckDuckGoRulesParserTest, SurrogateWithExceptions) {
   expected_rules.back().resource_types.PutAll(RegularResourceTypes::All());
 
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().included_domains.insert("allow_bad_script.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "allow_bad_script.com"});
 
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =
@@ -1056,7 +1142,10 @@ TEST(DuckDuckGoRulesParserTest, SurrogateWithExceptions) {
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
   expected_rules.back().modifier = ModifierType::kRedirect;
   expected_rules.back().modifier_values.insert("bad_script.js");
-  expected_rules.back().excluded_domains.insert("bad_site.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "bad_site.com"});
 
   ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
 
@@ -1107,7 +1196,10 @@ TEST(DuckDuckGoRulesParserTest, SimpleBlockWithSurrogate) {
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
   expected_rules.back().modifier = ModifierType::kRedirect;
   expected_rules.back().modifier_values.insert("tracking.js");
-  expected_rules.back().excluded_domains.insert("mostly_good.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "mostly_good.com"});
 
   ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
 
@@ -1157,7 +1249,10 @@ TEST(DuckDuckGoRulesParserTest, NoSurrogateWhenIgnore) {
 
   expected_rules.back().anchor_type.set(RequestFilterRule::kAnchorHost);
   expected_rules.back().pattern_type = RequestFilterRule::kPlain;
-  expected_rules.back().excluded_domains.insert("mostly_bad.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "mostly_bad.com"});
 
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =

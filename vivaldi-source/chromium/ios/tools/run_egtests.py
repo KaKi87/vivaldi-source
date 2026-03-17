@@ -8,6 +8,7 @@ import argparse
 import glob
 import json
 import os
+import platform
 import plistlib
 import re
 import subprocess
@@ -172,13 +173,14 @@ def _build_tests(out_dir: str, scheme: str) -> bool:
         return False
 
 
-def _run_tests(out_dir: str, simulator_name: str, scheme: str,
+def _run_tests(out_dir: str, simulator_udid: str, arch: str, scheme: str,
                test_filters: List[str]) -> int:
     """Runs the EG tests on the specified simulator.
 
     Args:
         out_dir: The output directory for the build.
-        simulator_name: The name of the simulator to use.
+        simulator_udid: The UDID of the simulator to use.
+        arch: The architecture of the simulator to use (e.g., 'arm64').
         scheme: The EG test scheme to run.
         test_filters: A list of test filters to apply.
 
@@ -194,7 +196,7 @@ def _run_tests(out_dir: str, simulator_name: str, scheme: str,
         '-scheme',
         scheme,
         '-destination',
-        f'platform=iOS Simulator,name={simulator_name}',
+        f'platform=iOS Simulator,id={simulator_udid},arch={arch}',
     ]
     if test_filters:
         for test_filter in test_filters:
@@ -227,8 +229,9 @@ def _build_and_run_eg_tests(args: argparse.Namespace) -> int:
     else:
         # Otherwise, determine the scheme for each test.
         print_header("--- Selecting Scheme ---")
-        print(f"{Colors.CYAN}Scheme not provided. Inferring from test filter..."
-              f"{Colors.RESET}")
+        print(
+            f"{Colors.CYAN}Scheme not provided. Inferring from test filter..."
+            f"{Colors.RESET}")
         for test in test_filters:
             scheme = _find_scheme_for_tests(test, args.out_dir)
             if not scheme:
@@ -248,13 +251,23 @@ def _build_and_run_eg_tests(args: argparse.Namespace) -> int:
     if not simulator:
         return 1
 
+    # Determine the architecture to use.
+    # We assume the simulator architecture matches the host architecture.
+    arch = platform.machine()
+
     final_exit_code = 0
     for scheme, tests in tests_by_scheme.items():
         if not _build_tests(args.out_dir, scheme):
             final_exit_code = 1
             continue  # Try next scheme even if this one fails to build.
 
-        exit_code = _run_tests(args.out_dir, simulator.name, scheme, tests)
+        exit_code = _run_tests(
+            args.out_dir,
+            simulator.udid,
+            arch,
+            scheme,
+            tests,
+        )
         if exit_code != 0:
             final_exit_code = exit_code
 
@@ -285,9 +298,10 @@ def main() -> int:
         '--scheme',
         help='The EG test scheme to build and run. If not provided, it will be '
         'inferred from --tests.')
-    parser.add_argument('--device', help='The device type to use for the test.')
-    parser.add_argument('--os',
-                        help='The OS version to use for the test (e.g., 17.5).')
+    parser.add_argument('--device',
+                        help='The device type to use for the test.')
+    parser.add_argument(
+        '--os', help='The OS version to use for the test (e.g., 17.5).')
     args = parser.parse_args()
 
     return _build_and_run_eg_tests(args)

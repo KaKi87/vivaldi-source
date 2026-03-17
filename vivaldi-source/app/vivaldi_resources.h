@@ -5,8 +5,8 @@
 
 #include "build/build_config.h"
 
-#include "vivaldi/grit/vivaldi_native_resources.h"
 #include "vivaldi/app/grit/vivaldi_native_strings.h"
+#include "vivaldi/grit/vivaldi_native_resources.h"
 
 #if !BUILDFLAG(IS_IOS)
 #include "vivaldi/grit/vivaldi_native_unscaled.h"

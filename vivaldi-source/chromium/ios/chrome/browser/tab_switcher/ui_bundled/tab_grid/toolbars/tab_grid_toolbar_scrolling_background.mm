@@ -7,9 +7,11 @@
 #import <UIKit/UIKit.h>
 
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/toolbars/tab_grid_toolbar_background.h"
+#import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_grid_constants.h"
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
+#import "ios/ui/ntp/vivaldi_ntp_constants.h"
 // End Vivaldi
 
 @implementation TabGridToolbarScrollingBackground {
@@ -47,6 +49,14 @@
     _tabGroupsBackground.translatesAutoresizingMaskIntoConstraints = NO;
 
     // Vivaldi
+    UIColor* incognitoColor =
+        [UIColor colorNamed:vPrivateNTPBackgroundColor];
+    UIColor* incognitoOverlayColor =
+        [incognitoColor colorWithAlphaComponent:kToolbarBackgroundAlpha];
+    [_incognitoTabsBackground
+        updateBackgroundColorsWithScrolledToEdgeColor:incognitoColor
+                             scrolledOverContentColor:incognitoOverlayColor];
+
     _remoteTabsBackground =
         [[TabGridToolbarBackground alloc] initWithFrame:self.frame];
     _remoteTabsBackground.translatesAutoresizingMaskIntoConstraints = NO;

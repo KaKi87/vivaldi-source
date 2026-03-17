@@ -28,6 +28,7 @@ std::string_view ToStringPiece(const flatbuffers::String* string);
 int GetRulePriority(const flat::RequestFilterRule& rule);
 int GetMaxRulePriority();
 bool IsFullModifierPassRule(const flat::RequestFilterRule& rule);
+bool IsGeneric(const flat::DomainConstraintsTree& tree);
 
 std::weak_ordering FastCompareFlatString(const flatbuffers::String* lhs,
                                          const flatbuffers::String* rhs);

@@ -34,15 +34,16 @@ If your test requires modifying or adding new test data i.e. a new trace in `bas
 **2**. Add the deps entry produced by the above script to the [DEPS file](../../../DEPS) (see examples in the `src/base/tracing/test/data` entry).
 ```
 {
-  "path": {
-    "dep_type": "gcs",
-    "bucket": "perfetto",
-    "objects": [
+  'path': {
+    'dep_type': 'gcs',
+    'bucket': 'perfetto',
+    'objects': [
       {
-        "object_name": "test_data/file_name-a1b2c3f4",
-        "sha256sum": "a1b2c3f4",
-        "size_bytes": 12345,
-        "generation": 1234567
+        'object_name': 'test_data/file_name-a1b2c3f4',
+        'sha256sum': 'a1b2c3f4',
+        'size_bytes': 12345,
+        'generation': 1234567,
+        'output_file': 'file_name'
       }
     ]
   }
@@ -56,7 +57,7 @@ You will need to **manually** add this to the deps entry. After adding this entr
 
 ## Writing TestTraceProcessor Tests
 
-See [test_trace_processor_example_unittests.cc](../../test/test_trace_processor_example_unittest.cc) for examples you can compile and run.
+See [test_trace_processor_example_unittest.cc](../../test/test_trace_processor_example_unittest.cc) for examples you can compile and run.
 
 You can write unit or browser tests with the TestTraceProcessor to record a trace, run a query on it and write expectations against the result.
 

@@ -14,25 +14,25 @@ class Browser;
 @interface VivaldiFeedbackViewCoordinator : ChromeCoordinator
 
 // Designated initializers.
-- (instancetype)initWithBaseNavigationController:
-    (UINavigationController*)navigationController
-                                         browser:(Browser*)browser
-                                      entryPoint:
-                          (VivaldiFeedbackViewEntryPoint)entryPoint
-                                    allowsCancel:(BOOL)allowsCancel;
+- (instancetype)
+    initWithBaseNavigationController:
+        (UINavigationController*)navigationController
+                             browser:(Browser*)browser
+                          entryPoint:(VivaldiFeedbackViewEntryPoint)entryPoint
+                        allowsCancel:(BOOL)allowsCancel;
 
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                                    browser:(Browser*)browser
                                 entryPoint:
-                          (VivaldiFeedbackViewEntryPoint)entryPoint
+                                    (VivaldiFeedbackViewEntryPoint)entryPoint
                               allowsCancel:(BOOL)allowsCancel
-NS_DESIGNATED_INITIALIZER;
+    NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                                    browser:(Browser*)browser NS_UNAVAILABLE;
 
 // Delegate
-@property (nonatomic, weak) id<VivaldiFeedbackViewDelegate> delegate;
+@property(nonatomic, weak) id<VivaldiFeedbackViewDelegate> delegate;
 
 @end
 

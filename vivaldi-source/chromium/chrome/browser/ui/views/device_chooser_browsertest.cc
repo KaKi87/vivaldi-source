@@ -9,7 +9,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ui/browser.h"
-#include "chrome/browser/ui/browser_dialogs.h"
+#include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
@@ -23,7 +23,7 @@
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/permissions/fake_bluetooth_chooser_controller.h"
 #include "components/permissions/fake_usb_chooser_controller.h"
-#include "components/tabs/public/split_tab_visual_data.h"
+#include "components/split_tabs/split_tab_visual_data.h"
 #include "content/public/test/browser_test.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
@@ -251,11 +251,6 @@ IN_PROC_BROWSER_TEST_F(BluetoothChooserBrowserTest, InvokeUi_PairedModal) {
 
 class DeviceChooserBubbleSplitViewTest : public InProcessBrowserTest {
  public:
-  void SetUp() override {
-    scoped_feature_list_.InitAndEnableFeature(features::kSideBySide);
-    InProcessBrowserTest::SetUp();
-  }
-
   void SetUpOnMainThread() override {
     host_resolver()->AddRule("*", "127.0.0.1");
     ASSERT_TRUE(embedded_test_server()->Start());
@@ -265,9 +260,6 @@ class DeviceChooserBubbleSplitViewTest : public InProcessBrowserTest {
   GURL GetURL(const char* hostname) const {
     return embedded_test_server()->GetURL(hostname, "/title1.html");
   }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(DeviceChooserBubbleSplitViewTest,

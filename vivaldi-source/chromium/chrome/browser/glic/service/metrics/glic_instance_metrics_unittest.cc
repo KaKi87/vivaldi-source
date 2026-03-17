@@ -10,8 +10,8 @@
 #include "base/test/metrics/user_action_tester.h"
 #include "base/test/task_environment.h"
 #include "chrome/browser/glic/glic_metrics.h"
+#include "components/split_tabs/split_tab_id.h"
 #include "components/tabs/public/mock_tab_interface.h"
-#include "components/tabs/public/split_tab_id.h"
 #include "components/tabs/public/tab_interface.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -119,7 +119,9 @@ TEST_F(GlicInstanceMetricsTest, OnFloatyClosed_WithoutOpening_LogsError) {
 }
 
 TEST_F(GlicInstanceMetricsTest, OnSidePanelClosed_WithoutOpening_LogsError) {
-  metrics_.OnSidePanelClosed(static_cast<tabs::TabInterface*>(&mock_tab_));
+  metrics_.OnSidePanelClosed(
+      static_cast<tabs::TabInterface*>(&mock_tab_),
+      GlicInstanceMetrics::CloseReason::kExplicitlyClosed);
   histogram_tester_.ExpectUniqueSample(
       "Glic.Instance.Metrics.Error",
       GlicInstanceMetricsError::kSidePanelClosedWithoutOpen, 1);
@@ -191,6 +193,112 @@ TEST_F(GlicInstanceMetricsTest, OnUserResizeEnded) {
       "Glic.Instance.Floaty.UserResizeEnded.Width", test_size.width(), 1);
   histogram_tester_.ExpectUniqueSample(
       "Glic.Instance.Floaty.UserResizeEnded.Height", test_size.height(), 1);
+}
+
+TEST_F(GlicInstanceMetricsTest, ValidFloatyFlow_DoesNotLogError) {
+  ShowOptions show_options{FloatingShowOptions{}};
+  metrics_.OnShowInFloaty(show_options);
+  metrics_.OnFloatyClosed();
+  histogram_tester_.ExpectTotalCount("Glic.Instance.Metrics.Error", 0);
+}
+
+TEST_F(GlicInstanceMetricsTest, ValidSidePanelFlow_DoesNotLogError) {
+  EXPECT_CALL(mock_tab_, GetTabHandle()).WillRepeatedly(testing::Return(1));
+  metrics_.OnShowInSidePanel(&mock_tab_);
+  metrics_.OnSidePanelClosed(
+      &mock_tab_, GlicInstanceMetrics::CloseReason::kExplicitlyClosed);
+  histogram_tester_.ExpectTotalCount("Glic.Instance.Metrics.Error", 0);
+}
+
+TEST_F(GlicInstanceMetricsTest, ValidResponseFlow_DoesNotLogError) {
+  metrics_.OnVisibilityChanged(true);
+  metrics_.OnUserInputSubmitted(mojom::WebClientMode::kText);
+  metrics_.OnResponseStarted();
+  metrics_.OnResponseStopped(mojom::ResponseStopCause::kUser);
+  histogram_tester_.ExpectTotalCount("Glic.Instance.Metrics.Error", 0);
+
+  EXPECT_EQ(1, user_action_tester_.GetActionCount("GlicResponseInputSubmit"));
+  EXPECT_EQ(1, user_action_tester_.GetActionCount("GlicResponseStart"));
+  EXPECT_EQ(1, user_action_tester_.GetActionCount("GlicResponse"));
+  EXPECT_EQ(1, user_action_tester_.GetActionCount("GlicResponseStop"));
+  EXPECT_EQ(1, user_action_tester_.GetActionCount("GlicResponseStopByUser"));
+}
+
+TEST_F(GlicInstanceMetricsTest, OnTurnCompleted_LogsHistograms) {
+  metrics_.OnTurnCompleted(mojom::WebClientModel::kDefault,
+                           base::Milliseconds(100));
+  histogram_tester_.ExpectUniqueTimeSample("Glic.Turn.Duration.Default",
+                                           base::Milliseconds(100), 1);
+
+  metrics_.OnTurnCompleted(mojom::WebClientModel::kActor,
+                           base::Milliseconds(200));
+  histogram_tester_.ExpectUniqueTimeSample("Glic.Turn.Duration.Actor",
+                                           base::Milliseconds(200), 1);
+}
+
+TEST_F(GlicInstanceMetricsTest, OnReaction_LogsUserActions) {
+  metrics_.OnVisibilityChanged(true);
+  metrics_.OnUserInputSubmitted(mojom::WebClientMode::kText);
+  metrics_.OnResponseStarted();
+  metrics_.OnResponseStopped(mojom::ResponseStopCause::kUnknown);
+
+  metrics_.OnReaction(mojom::MetricUserInputReactionType::kCanned);
+  EXPECT_EQ(1, user_action_tester_.GetActionCount("GlicReactionCanned"));
+
+  metrics_.OnReaction(mojom::MetricUserInputReactionType::kModel);
+  EXPECT_EQ(1, user_action_tester_.GetActionCount("GlicReactionModelled"));
+}
+
+TEST_F(GlicInstanceMetricsTest, Floaty_OpenCloseClose_LogsError) {
+  ShowOptions show_options{FloatingShowOptions{}};
+  metrics_.OnShowInFloaty(show_options);
+  metrics_.OnFloatyClosed();
+  metrics_.OnFloatyClosed();
+  histogram_tester_.ExpectUniqueSample(
+      "Glic.Instance.Metrics.Error",
+      GlicInstanceMetricsError::kFloatyClosedWithoutOpen, 1);
+}
+
+TEST_F(GlicInstanceMetricsTest, SidePanel_OpenCloseClose_LogsError) {
+  EXPECT_CALL(mock_tab_, GetTabHandle()).WillRepeatedly(testing::Return(1));
+  metrics_.OnShowInSidePanel(&mock_tab_);
+  metrics_.OnSidePanelClosed(
+      &mock_tab_, GlicInstanceMetrics::CloseReason::kExplicitlyClosed);
+  metrics_.OnSidePanelClosed(
+      &mock_tab_, GlicInstanceMetrics::CloseReason::kExplicitlyClosed);
+  histogram_tester_.ExpectUniqueSample(
+      "Glic.Instance.Metrics.Error",
+      GlicInstanceMetricsError::kSidePanelClosedWithoutOpen, 1);
+}
+
+TEST_F(GlicInstanceMetricsTest, Response_InputStopStop_LogsError) {
+  metrics_.OnVisibilityChanged(true);
+  metrics_.OnUserInputSubmitted(mojom::WebClientMode::kText);
+  metrics_.OnResponseStarted();
+  metrics_.OnResponseStopped(mojom::ResponseStopCause::kUser);
+  metrics_.OnResponseStopped(mojom::ResponseStopCause::kUser);
+  histogram_tester_.ExpectUniqueSample(
+      "Glic.Instance.Metrics.Error",
+      GlicInstanceMetricsError::kResponseStopWithoutInput, 1);
+}
+
+TEST_F(GlicInstanceMetricsTest, RecordTabPinningStatusEventLogs) {
+  base::TimeTicks now = base::TimeTicks::Now();
+  GlicPinEvent pin_event(GlicPinTrigger::kContextMenu, now);
+  metrics_.RecordTabPinningStatusEvent(&mock_tab_, pin_event);
+  histogram_tester_.ExpectUniqueSample("Glic.Instance.TabPinTrigger",
+                                       GlicPinTrigger::kContextMenu, 1);
+}
+
+TEST_F(GlicInstanceMetricsTest,
+       RecordTabPinningStatusEvent_LogsUnpinHistogram) {
+  base::TimeTicks now = base::TimeTicks::Now();
+  GlicPinnedTabUsage usage(GlicPinTrigger::kContextMenu, now);
+  GlicUnpinEvent unpin_event(GlicUnpinTrigger::kContextMenu, std::move(usage),
+                             now);
+  metrics_.RecordTabPinningStatusEvent(&mock_tab_, unpin_event);
+  histogram_tester_.ExpectUniqueSample("Glic.Instance.TabUnpinTrigger",
+                                       GlicUnpinTrigger::kContextMenu, 1);
 }
 
 }  // namespace glic

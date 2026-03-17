@@ -11,7 +11,6 @@
 #include "base/auto_reset.h"
 #include "base/feature_list.h"
 #include "base/functional/callback.h"
-#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/values.h"
@@ -118,7 +117,7 @@ class AppPreloadService : public KeyedService {
 
   bool ShouldInstallApp(const PreloadAppDefinition& app);
 
-  const base::Value::Dict& GetStateManager() const;
+  const base::DictValue& GetStateManager() const;
 
   raw_ptr<Profile> profile_;
   // Set true when response is received, or if APS is complete and not running.

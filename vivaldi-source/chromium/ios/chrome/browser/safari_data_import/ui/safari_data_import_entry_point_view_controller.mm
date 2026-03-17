@@ -13,6 +13,11 @@
 #import "ios/chrome/grit/ios_strings.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 
+// Vivaldi
+#import "app/vivaldi_apptools.h"
+#import "ios/ui/bookmarks_editor/vivaldi_bookmarks_constants.h"
+// End Vivaldi
+
 @implementation SafariDataImportEntryPointViewController
 
 #pragma mark - ConfirmationAlertViewController
@@ -32,6 +37,11 @@
   }
   [self reloadConfiguration];
   self.image = [UIImage imageNamed:@"safari_data_import"];
+
+  if (vivaldi::IsVivaldiRunning()) {
+     self.image = [UIImage imageNamed:vSafariDataImportImage];
+  } // End Vivaldi
+
   self.imageHasFixedSize = YES;
   self.topAlignedLayout = YES;
   [super viewDidLoad];

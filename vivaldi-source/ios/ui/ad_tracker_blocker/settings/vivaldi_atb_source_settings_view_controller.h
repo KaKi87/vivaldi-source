@@ -7,8 +7,8 @@
 #import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_controller.h"
 #import "ios/ui/ad_tracker_blocker/vivaldi_atb_source_type.h"
 
-@interface VivaldiATBSourceSettingsViewController :
-  LegacyChromeTableViewController <UIAdaptivePresentationControllerDelegate>
+@interface VivaldiATBSourceSettingsViewController
+    : LegacyChromeTableViewController <UIAdaptivePresentationControllerDelegate>
 
 // INITIALIZER
 - (instancetype)initWithBrowser:(Browser*)browser

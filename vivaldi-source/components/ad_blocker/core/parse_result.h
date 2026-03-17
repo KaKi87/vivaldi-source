@@ -25,7 +25,7 @@ struct ParseResult {
   CosmeticRules cosmetic_rules;
   ScriptletInjectionRules scriptlet_injection_rules;
   RulesInfo rules_info;
-  std::optional<base::Value::Dict> tracker_infos;
+  std::optional<base::DictValue> tracker_infos;
 };
 
 }  // namespace adblock_filter

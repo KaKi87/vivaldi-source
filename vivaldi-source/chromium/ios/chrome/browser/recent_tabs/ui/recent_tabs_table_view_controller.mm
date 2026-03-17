@@ -25,12 +25,9 @@
 #import "components/sync/service/sync_user_settings.h"
 #import "components/sync_sessions/open_tabs_ui_delegate.h"
 #import "components/sync_sessions/session_sync_service.h"
-#import "components/trusted_vault/trusted_vault_server_constants.h"
 #import "ios/chrome/app/tests_hook.h"
 #import "ios/chrome/browser/authentication/history_sync/coordinator/history_sync_coordinator.h"
 #import "ios/chrome/browser/authentication/history_sync/model/history_sync_utils.h"
-#import "ios/chrome/browser/authentication/trusted_vault_reauthentication/coordinator/trusted_vault_reauthentication_coordinator.h"
-#import "ios/chrome/browser/authentication/trusted_vault_reauthentication/coordinator/trusted_vault_reauthentication_coordinator_delegate.h"
 #import "ios/chrome/browser/authentication/ui_bundled/cells/signin_promo_view_configurator.h"
 #import "ios/chrome/browser/authentication/ui_bundled/cells/signin_promo_view_consumer.h"
 #import "ios/chrome/browser/authentication/ui_bundled/cells/table_view_signin_promo_item.h"
@@ -51,7 +48,6 @@
 #import "ios/chrome/browser/recent_tabs/ui/recent_tabs_presentation_delegate.h"
 #import "ios/chrome/browser/sessions/model/live_tab_context_browser_agent.h"
 #import "ios/chrome/browser/sessions/model/session_util.h"
-#import "ios/chrome/browser/settings/model/sync/utils/sync_presenter.h"
 #import "ios/chrome/browser/settings/model/sync/utils/sync_util.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
@@ -61,8 +57,8 @@
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_opener.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/settings_commands.h"
 #import "ios/chrome/browser/shared/public/commands/show_signin_command.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
@@ -189,9 +185,7 @@ typedef std::pair<SessionID, TableViewURLItem*> RecentlyClosedTableViewItemPair;
     SigninPromoViewConsumer,
     SigninPromoViewMediatorDelegate,
     SyncObserverModelBridge,
-    SyncPresenter,
     TableViewURLDragDataSource,
-    TrustedVaultReauthenticationCoordinatorDelegate,
     UIContextMenuInteractionDelegate,
 
     // Vivaldi
@@ -210,8 +204,6 @@ typedef std::pair<SessionID, TableViewURLItem*> RecentlyClosedTableViewItemPair;
   std::vector<synced_sessions::DistantTabsSet> _displayedTabs;
 
   std::unique_ptr<SyncObserverBridge> _syncObserver;
-  TrustedVaultReauthenticationCoordinator*
-      _trustedVaultReauthenticationCoordinator;
 
   // Vivaldi
   TableViewImageItem* _searchHistoryItem;
@@ -926,6 +918,32 @@ typedef std::pair<SessionID, TableViewURLItem*> RecentlyClosedTableViewItemPair;
 
 #pragma mark - TableViewModel Helpers
 
+// Called when a favicon is fetched.
+- (void)didFetchFaviconAttributes:(FaviconAttributes*)attributes
+                           cached:(bool)cached
+                             item:(TableViewURLItem*)item
+                        indexPath:(NSIndexPath*)indexPath {
+  item.faviconAttributes = attributes;
+  if (!cached && attributes.faviconImage) {
+    // Since the favicon fetch is asynchronous, `self.tableViewModel` may have
+    // updated. Ensure `indexPath` is still valid for this item before updating.
+    if (![self.tableViewModel hasItemAtIndexPath:indexPath] ||
+        [self.tableViewModel itemAtIndexPath:indexPath] != item) {
+      return;
+    }
+    LegacyTableViewCell* cell =
+        base::apple::ObjCCastStrict<LegacyTableViewCell>(
+            [self.tableView cellForRowAtIndexPath:indexPath]);
+    if (!cell) {
+      return;
+    }
+    // Even if Apple documentation hints toward reconfiguring the row instead
+    // of just updating the cell, it creates a visible jank. Use the item
+    // configuration method instead. See crbug.com/479692041 for more info.
+    [item configureCell:cell withStyler:self.styler];
+  }
+}
+
 // Ordered array of all section identifiers.
 - (NSArray*)allSessionSectionIdentifiers {
   NSMutableArray* allSessionSectionIdentifiers = [[NSMutableArray alloc] init];
@@ -1195,7 +1213,6 @@ typedef std::pair<SessionID, TableViewURLItem*> RecentlyClosedTableViewItemPair;
   [self disconnectMediator];
   [self stopSigninCoordinator];
   [self.tableView.contextMenuInteraction dismissMenu];
-  [self stopTrustedVaultReauthenticationCoordinator];
 }
 
 #pragma mark - UITableViewDelegate
@@ -1383,6 +1400,13 @@ typedef std::pair<SessionID, TableViewURLItem*> RecentlyClosedTableViewItemPair;
 - (UIContextMenuConfiguration*)tableView:(UITableView*)tableView
     contextMenuConfigurationForRowAtIndexPath:(NSIndexPath*)indexPath
                                         point:(CGPoint)point {
+  // TODO(crbug.com/428177163): Remove this workaround when the underlying iOS
+  // issue handling context menu presentation during an active drag/drop session
+  // is resolved.
+  if (tableView.hasActiveDrag || tableView.hasActiveDrop) {
+    return nil;
+  }
+
   NSInteger itemType = [self.tableViewModel itemTypeForIndexPath:indexPath];
   if (itemType != ItemTypeRecentlyClosed &&
       itemType != ItemTypeSessionTabData) {
@@ -1480,15 +1504,15 @@ typedef std::pair<SessionID, TableViewURLItem*> RecentlyClosedTableViewItemPair;
     return;
   }
 
-  __weak UITableView* tableView = self.tableView;
+  __weak __typeof(self) weakSelf = self;
 
   [self.imageDataSource
       faviconForPageURL:URLItem.URL
              completion:^(FaviconAttributes* attributes, bool cached) {
-               URLItem.faviconAttributes = attributes;
-               if (!cached && attributes.faviconImage) {
-                 [tableView reconfigureRowsAtIndexPaths:@[ indexPath ]];
-               }
+               [weakSelf didFetchFaviconAttributes:attributes
+                                            cached:cached
+                                              item:URLItem
+                                         indexPath:indexPath];
              }];
 }
 
@@ -1817,59 +1841,6 @@ typedef std::pair<SessionID, TableViewURLItem*> RecentlyClosedTableViewItemPair;
   }
 }
 
-#pragma mark - SyncPresenter
-
-- (void)showPrimaryAccountReauth {
-  [self.presentationDelegate showPrimaryAccountReauth];
-}
-
-- (void)showSyncPassphraseSettings {
-  [self.settingsHandler showSyncPassphraseSettingsFromViewController:self];
-}
-
-- (void)showGoogleServicesSettings {
-  [self.settingsHandler showGoogleServicesSettingsFromViewController:self];
-}
-
-- (void)showAccountSettings {
-  [self.settingsHandler showAccountsSettingsFromViewController:self
-                                          skipIfUINotAvailable:NO];
-}
-
-- (void)showTrustedVaultReauthForFetchKeysWithTrigger:
-    (trusted_vault::TrustedVaultUserActionTriggerForUMA)trigger {
-  trusted_vault::SecurityDomainId securityDomainID =
-      trusted_vault::SecurityDomainId::kChromeSync;
-  CHECK(!_trustedVaultReauthenticationCoordinator, base::NotFatalUntil::M145);
-  _trustedVaultReauthenticationCoordinator =
-      [[TrustedVaultReauthenticationCoordinator alloc]
-          initWithBaseViewController:self
-                             browser:self.browser
-                              intent:SigninTrustedVaultDialogIntentFetchKeys
-                    securityDomainID:securityDomainID
-                             trigger:trigger];
-  _trustedVaultReauthenticationCoordinator.delegate = self;
-  [_trustedVaultReauthenticationCoordinator start];
-}
-
-- (void)showTrustedVaultReauthForDegradedRecoverabilityWithTrigger:
-    (trusted_vault::TrustedVaultUserActionTriggerForUMA)trigger {
-  trusted_vault::SecurityDomainId securityDomainID =
-      trusted_vault::SecurityDomainId::kChromeSync;
-  SigninTrustedVaultDialogIntent intent =
-      SigninTrustedVaultDialogIntentDegradedRecoverability;
-  CHECK(!_trustedVaultReauthenticationCoordinator, base::NotFatalUntil::M145);
-  _trustedVaultReauthenticationCoordinator =
-      [[TrustedVaultReauthenticationCoordinator alloc]
-          initWithBaseViewController:self
-                             browser:self.browser
-                              intent:intent
-                    securityDomainID:securityDomainID
-                             trigger:trigger];
-  _trustedVaultReauthenticationCoordinator.delegate = self;
-  [_trustedVaultReauthenticationCoordinator start];
-}
-
 #pragma mark - SigninPromoViewMediatorDelegate
 
 - (void)showSignin:(SigninPromoViewMediator*)mediator
@@ -1941,20 +1912,14 @@ typedef std::pair<SessionID, TableViewURLItem*> RecentlyClosedTableViewItemPair;
   [self.presentationDelegate showActiveRegularTabFromRecentTabs];
 }
 
-#pragma mark - TrustedVaultReauthenticationCoordinatorDelegate
-
-- (void)trustedVaultReauthenticationCoordinatorWantsToBeStopped:
-    (TrustedVaultReauthenticationCoordinator*)coordinator {
-  CHECK_EQ(coordinator, _trustedVaultReauthenticationCoordinator);
-  [self stopTrustedVaultReauthenticationCoordinator];
-}
-
 #pragma mark - Private Helpers
 
-- (void)stopTrustedVaultReauthenticationCoordinator {
-  [_trustedVaultReauthenticationCoordinator stop];
-  _trustedVaultReauthenticationCoordinator.delegate = nil;
-  _trustedVaultReauthenticationCoordinator = nil;
+- (void)showPrimaryAccountReauth {
+  [self.presentationDelegate showPrimaryAccountReauth];
+}
+
+- (void)showSyncPassphraseSettings {
+  [self.settingsHandler showSyncPassphraseSettingsFromViewController:self];
 }
 
 // Disconnects the mediator.

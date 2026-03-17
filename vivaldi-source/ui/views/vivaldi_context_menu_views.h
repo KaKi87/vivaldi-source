@@ -69,7 +69,8 @@ class VivaldiContextMenuViews : public VivaldiContextMenu {
   std::unique_ptr<ToolkitDelegateViews> toolkit_delegate_;
   const raw_ptr<content::WebContents> web_contents_;
   raw_ptr<ui::SimpleMenuModel> menu_model_ = nullptr;
-  raw_ptr<views::MenuItemView> menu_view_ = nullptr;  // owned by toolkit_delegate_
+  raw_ptr<views::MenuItemView> menu_view_ =
+      nullptr;  // owned by toolkit_delegate_
   gfx::Rect rect_;
   raw_ptr<VivaldiRenderViewContextMenu> render_view_context_menu_;
 };

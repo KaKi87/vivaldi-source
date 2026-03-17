@@ -39,7 +39,7 @@ void SetUpWebUIDataSource(content::WebUIDataSource* source,
                           base::span<const webui::ResourcePath> resources,
                           int default_resource) {
   source->AddResourcePaths(resources);
-  source->AddResourcePath("", default_resource);
+  source->SetDefaultResource(default_resource);
   source->AddResourcePath("test_loader.html", IDR_WEBUI_TEST_LOADER_HTML);
   source->AddResourcePath("test_loader.js", IDR_WEBUI_JS_TEST_LOADER_JS);
   source->AddResourcePath("test_loader_util.js",
@@ -441,6 +441,11 @@ void AddFeatureFlags(content::WebUIDataSource* html_source) {
   html_source->AddBoolean(
       "dynamicDeviceInfoInputsEnabled",
       features::IsShimlessRMADynamicDeviceInfoInputsEnabled());
+  html_source->AddBoolean(
+      "flexibleSerialNumberNameEnabled",
+      features::IsShimlessRMAFlexibleSerialNumberNameEnabled());
+  html_source->AddBoolean("hideGoogleSKUEnabled",
+                          features::IsShimlessRMAHideGoogleSKUEnabled());
 }
 
 }  // namespace

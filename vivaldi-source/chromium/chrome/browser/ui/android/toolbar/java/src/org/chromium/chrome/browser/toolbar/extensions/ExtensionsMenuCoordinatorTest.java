@@ -4,17 +4,20 @@
 package org.chromium.chrome.browser.toolbar.extensions;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.Activity;
-import android.os.Looper;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.google.android.material.divider.MaterialDivider;
-
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -26,21 +29,18 @@ import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
-import org.robolectric.Shadows;
 
-import org.chromium.base.supplier.ObservableSupplierImpl;
-import org.chromium.base.supplier.OneshotSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabCreator;
 import org.chromium.chrome.browser.theme.ThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.R;
 import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTask;
-import org.chromium.chrome.browser.ui.extensions.FakeExtensionActionsBridge;
-import org.chromium.chrome.browser.ui.extensions.FakeExtensionActionsBridge.ProfileModel;
-import org.chromium.chrome.browser.ui.extensions.FakeExtensionActionsBridgeRule;
+import org.chromium.chrome.browser.ui.extensions.ExtensionsMenuBridge;
+import org.chromium.chrome.browser.ui.extensions.ExtensionsMenuBridgeJni;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.ui.listmenu.ListMenuButton;
@@ -49,33 +49,28 @@ import org.chromium.ui.listmenu.ListMenuHost;
 /** Unit tests for ExtensionsMenuCoordinator. */
 @RunWith(BaseRobolectricTestRunner.class)
 public class ExtensionsMenuCoordinatorTest {
+    // Constants identifying the tabs and pointers used in the test environment.
+    private static final long BROWSER_WINDOW_POINTER = 1000L;
+    private static final long EXTENSIONS_MENU_BRIDGE_POINTER = 10001L;
+
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+
+    @Mock private Profile mProfile;
+    @Mock private TabCreator mTabCreator;
+    @Mock private ChromeAndroidTask mTask;
+    @Mock private Tab mTab;
+    @Mock private ThemeColorProvider mThemeColorProvider;
+    @Mock private ExtensionsMenuBridge.Natives mExtensionsMenuBridgeJniMock;
+
     @Captor private ArgumentCaptor<LoadUrlParams> mLoadUrlParamsCaptor;
 
     private Activity mContext;
-
-    private final OneshotSupplierImpl<ChromeAndroidTask> mTaskSupplier =
-            new OneshotSupplierImpl<>();
-    private final ObservableSupplierImpl<@Nullable Profile> mProfileSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<@Nullable Tab> mCurrentTabSupplier =
-            new ObservableSupplierImpl<>();
+    private final SettableNullableObservableSupplier<Tab> mCurrentTabSupplier =
+            ObservableSuppliers.createNullable();
     private ListMenuButton mExtensionsMenuButton;
-    private MaterialDivider mExtensionsMenuTabSwitcherDivider;
-    @Mock private TabCreator mTabCreator;
-    @Mock private ChromeAndroidTask mTask;
-    @Mock private Profile mProfile;
-    @Mock private Tab mTab;
-    @Mock private Tab mAnotherTab;
-    @Mock private ThemeColorProvider mThemeColorProvider;
-
-    @Rule
-    public final FakeExtensionActionsBridgeRule mBridgeRule = new FakeExtensionActionsBridgeRule();
-
-    private final FakeExtensionActionsBridge mBridge = mBridgeRule.getFakeBridge();
-    private ProfileModel mProfileModel;
 
     private ExtensionsMenuCoordinator mExtensionsMenuCoordinator;
+    private ExtensionsMenuBridge mCapturedMenuBridge;
 
     @Before
     public void setUp() {
@@ -85,76 +80,76 @@ public class ExtensionsMenuCoordinatorTest {
         mContext = activity;
 
         mExtensionsMenuButton = new ListMenuButton(activity, null);
-        mExtensionsMenuTabSwitcherDivider = new MaterialDivider(activity);
         activity.setContentView(mExtensionsMenuButton);
 
-        mTaskSupplier.set(mTask);
-
-        mProfileModel = mBridge.getOrCreateProfileModel(mProfile);
-        mProfileModel.setInitialized(true);
-
-        mCurrentTabSupplier.set(mTab);
+        when(mTask.getOrCreateNativeBrowserWindowPtr(mProfile)).thenReturn(BROWSER_WINDOW_POINTER);
         when(mTab.getProfile()).thenReturn(mProfile);
 
-        mProfileSupplier.set(mProfile);
+        // Mock {@link ExtensionsMenuBridge}.
+        ExtensionsMenuBridgeJni.setInstanceForTesting(mExtensionsMenuBridgeJniMock);
+        // Capture the bridge instance when it is initialized. This allows us to trigger
+        // callbacks (like onReady) on the specific bridge instance created by the
+        // Coordinator/Mediator, even though it is created lazily after setUp() finishes.
+        doAnswer(
+                        invocation -> {
+                            mCapturedMenuBridge = invocation.getArgument(0);
+                            return EXTENSIONS_MENU_BRIDGE_POINTER;
+                        })
+                .when(mExtensionsMenuBridgeJniMock)
+                .init(any(), anyLong());
+
+        // Default to not ready, so we can test the waiting logic.
+        when(mExtensionsMenuBridgeJniMock.isReady(anyLong())).thenReturn(false);
+
+        // Set the current tab.
+        mCurrentTabSupplier.set(mTab);
 
         mExtensionsMenuCoordinator =
                 new ExtensionsMenuCoordinator(
                         mContext,
                         mExtensionsMenuButton,
-                        mExtensionsMenuTabSwitcherDivider,
                         mThemeColorProvider,
-                        mTaskSupplier,
-                        mProfileSupplier,
+                        mTask,
+                        mProfile,
                         mCurrentTabSupplier,
                         mTabCreator);
-
-        // Ensure the tab / profile suppliers have triggered their initial callbacks.
-        Shadows.shadowOf(Looper.getMainLooper()).idle();
     }
 
+    @After
+    public void tearDown() {
+        mExtensionsMenuCoordinator.destroy();
+    }
+
+    /**
+     * Tests that the extensions menu is shown when the menu button is clicked and actions are
+     * initialized.
+     */
     @Test
-    public void testShowMenu_showsAfterDataReady() {
-        if (mExtensionsMenuCoordinator != null) mExtensionsMenuCoordinator.destroy();
-
-        mProfileSupplier.set(null);
-        mCurrentTabSupplier.set(mAnotherTab);
-
-        mExtensionsMenuCoordinator =
-                new ExtensionsMenuCoordinator(
-                        mContext,
-                        mExtensionsMenuButton,
-                        mExtensionsMenuTabSwitcherDivider,
-                        mThemeColorProvider,
-                        mTaskSupplier,
-                        mProfileSupplier,
-                        mCurrentTabSupplier,
-                        mTabCreator);
-
+    public void testShowMenu() {
         ListMenuHost.PopupMenuShownListener shownListener =
                 Mockito.mock(ListMenuHost.PopupMenuShownListener.class);
         mExtensionsMenuButton.addPopupListener(shownListener);
 
-        // Click on the button. At this point, the data is not ready, so the menu should not appear.
+        // Click on the button. The menu should not be shown yet, but the mediator should be
+        // created.
         mExtensionsMenuButton.performClick();
         verify(shownListener, never()).onPopupMenuShown();
+        assertNotNull(mExtensionsMenuCoordinator.mMediator);
 
-        // Simulate callbacks that happen after the construction of the mediator by manually setting
-        // new variables.
-        mProfileSupplier.set(mProfile);
-        mCurrentTabSupplier.set(mTab);
-        Shadows.shadowOf(Looper.getMainLooper()).idle();
-
-        // The callback should have triggered the menu to finally show.
+        // Menu should be shown once mediator trigger the onReady runnable.
+        triggerOnMediatorReady();
         verify(shownListener).onPopupMenuShown();
     }
 
+    /** Tests that the extensions menu can be dismissed by clicking the close button. */
     @Test
     public void testCloseMenu() {
+        // Show the menu.
         ListMenuHost.PopupMenuShownListener shownListener =
                 Mockito.mock(ListMenuHost.PopupMenuShownListener.class);
         mExtensionsMenuButton.addPopupListener(shownListener);
         mExtensionsMenuButton.performClick();
+        triggerOnMediatorReady();
         verify(shownListener).onPopupMenuShown();
 
         mExtensionsMenuCoordinator
@@ -165,37 +160,97 @@ public class ExtensionsMenuCoordinatorTest {
         verify(shownListener).onPopupMenuDismissed();
     }
 
+    /** Tests that clicking "Manage extensions" opens the extensions management page. */
     @Test
     public void testManageExtensions() {
+        // Show the menu.
         ListMenuHost.PopupMenuShownListener shownListener =
                 Mockito.mock(ListMenuHost.PopupMenuShownListener.class);
         mExtensionsMenuButton.addPopupListener(shownListener);
         mExtensionsMenuButton.performClick();
+        triggerOnMediatorReady();
         verify(shownListener).onPopupMenuShown();
 
+        // Click on the manage extensions button.
         mExtensionsMenuCoordinator
                 .getContentView()
                 .findViewById(R.id.extensions_menu_manage_extensions_button)
                 .performClick();
+
+        // Verify that the menu is closed and the tab is loaded with the correct URL.
         verify(shownListener).onPopupMenuDismissed();
         verify(mTab).loadUrl(mLoadUrlParamsCaptor.capture());
         assertEquals(UrlConstants.CHROME_EXTENSIONS_URL, mLoadUrlParamsCaptor.getValue().getUrl());
     }
 
+    /** Tests that clicking the discover extensions button opens the web store page. */
     @Test
     public void testDiscoverExtensions() {
+        // Show the menu.
         ListMenuHost.PopupMenuShownListener shownListener =
                 Mockito.mock(ListMenuHost.PopupMenuShownListener.class);
         mExtensionsMenuButton.addPopupListener(shownListener);
         mExtensionsMenuButton.performClick();
+        triggerOnMediatorReady();
         verify(shownListener).onPopupMenuShown();
 
+        // Click on the discover extensions button.
         mExtensionsMenuCoordinator
                 .getContentView()
                 .findViewById(R.id.extensions_menu_discover_extensions_button)
                 .performClick();
+
+        // Verify that the menu is closed and the tab is loaded with the correct URL.
         verify(shownListener).onPopupMenuDismissed();
         verify(mTab).loadUrl(mLoadUrlParamsCaptor.capture());
         assertEquals(UrlConstants.CHROME_WEBSTORE_URL, mLoadUrlParamsCaptor.getValue().getUrl());
+    }
+
+    /**
+     * Tests the lifetime of the {@link ExtensionsMenuMediator}. It should be created when the menu
+     * opens and destroyed when the menu closes.
+     */
+    @Test
+    public void testMediatorLifetime() {
+        // Mediator should be null before the menu is opened.
+        assertNull(mExtensionsMenuCoordinator.mMediator);
+
+        // Open the menu.
+        ListMenuHost.PopupMenuShownListener shownListener =
+                Mockito.mock(ListMenuHost.PopupMenuShownListener.class);
+        mExtensionsMenuButton.addPopupListener(shownListener);
+        mExtensionsMenuButton.performClick();
+        triggerOnMediatorReady();
+        verify(shownListener).onPopupMenuShown();
+
+        // Mediator should be created when the menu is opened.
+        assertNotNull(mExtensionsMenuCoordinator.mMediator);
+
+        // Close the menu.
+        mExtensionsMenuCoordinator
+                .getContentView()
+                .findViewById(R.id.extensions_menu_close_button)
+                .performClick();
+
+        verify(shownListener).onPopupMenuDismissed();
+
+        // Mediator should be destroyed when the menu is closed.
+        assertNull(mExtensionsMenuCoordinator.mMediator);
+    }
+
+    /**
+     * Helper to simulate the callback from the native layer indicating that extension data is
+     * ready. This is required because the menu only shows itself after this data is received.
+     */
+    private void triggerOnMediatorReady() {
+        // We must mock a non-null return value for getActions() because the Mediator will
+        // immediately call this method upon receiving the onReady signal.
+        String[] mockActions = new String[] {"extA", "Extension A"};
+        when(mExtensionsMenuBridgeJniMock.getActions(anyLong())).thenReturn(mockActions);
+
+        // This simulates the actual C++ -> Java call (Observer.onReady) that happens when
+        // the native model is initialized.
+        assertNotNull("Bridge should have been initialized by the click", mCapturedMenuBridge);
+        mCapturedMenuBridge.onReady();
     }
 }

@@ -6,7 +6,7 @@
 
 #import "components/prefs/pref_registry_simple.h"
 #import "components/prefs/pref_service.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 @implementation VivaldiSearchEngineSettingsPrefs
 

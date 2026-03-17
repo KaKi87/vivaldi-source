@@ -21,14 +21,14 @@
 
 namespace webapk {
 
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 
 namespace {
 
 // Converts Java string to GURL. Returns an empty GURL if the Java string is
 // null.
 GURL ConvertNullableJavaStringToGURL(JNIEnv* env,
-                                     const JavaParamRef<jstring>& java_url) {
+                                     const JavaRef<jstring>& java_url) {
   return java_url ? GURL(base::android::ConvertJavaStringToUTF8(env, java_url))
                   : GURL();
 }
@@ -129,10 +129,10 @@ void WebApkUkmRecorder::RecordWebApkableVisit(const GURL& manifest_id) {
 // Called by the Java counterpart to record the Session Duration UKM metric.
 static void JNI_WebApkUkmRecorder_RecordSessionDuration(
     JNIEnv* env,
-    const JavaParamRef<jstring>& manifest_id,
-    jint distributor,
-    jint version_code,
-    jlong duration) {
+    const JavaRef<jstring>& manifest_id,
+    int32_t distributor,
+    int32_t version_code,
+    int64_t duration) {
   WebApkUkmRecorder::RecordSessionDuration(
       ConvertNullableJavaStringToGURL(env, manifest_id), distributor,
       version_code, duration);
@@ -141,10 +141,10 @@ static void JNI_WebApkUkmRecorder_RecordSessionDuration(
 // Called by the Java counterpart to record the Visit UKM metric.
 static void JNI_WebApkUkmRecorder_RecordVisit(
     JNIEnv* env,
-    const JavaParamRef<jstring>& manifest_id,
-    jint distributor,
-    jint version_code,
-    jint source) {
+    const JavaRef<jstring>& manifest_id,
+    int32_t distributor,
+    int32_t version_code,
+    int32_t source) {
   WebApkUkmRecorder::RecordVisit(
       ConvertNullableJavaStringToGURL(env, manifest_id), distributor,
       version_code, source);
@@ -153,11 +153,11 @@ static void JNI_WebApkUkmRecorder_RecordVisit(
 // Called by the Java counterpart to record the Uninstall UKM metrics.
 static void JNI_WebApkUkmRecorder_RecordUninstall(
     JNIEnv* env,
-    const JavaParamRef<jstring>& manifest_id,
-    jint distributor,
-    jint version_code,
-    jint launch_count,
-    jlong installed_duration_ms) {
+    const JavaRef<jstring>& manifest_id,
+    int32_t distributor,
+    int32_t version_code,
+    int32_t launch_count,
+    int64_t installed_duration_ms) {
   WebApkUkmRecorder::RecordUninstall(
       ConvertNullableJavaStringToGURL(env, manifest_id), distributor,
       version_code, launch_count, installed_duration_ms);

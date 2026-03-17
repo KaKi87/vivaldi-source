@@ -20,11 +20,10 @@ class Browser;
 
 @end
 
-
 // This class is the table view for the Start Page settings.
 @interface VivaldiStartPageSettingsViewController
     : SettingsRootTableViewController <SettingsControllerProtocol,
-                                      VivaldiStartPageSettingsConsumer>
+                                       VivaldiStartPageSettingsConsumer>
 
 // The consumer of the start page settings mediator.
 @property(nonatomic, weak) id<VivaldiStartPageSettingsConsumer> consumer;

@@ -20,7 +20,8 @@
 #include "chrome/browser/ui/bookmarks/bookmark_editor.h"
 #include "chrome/browser/ui/bookmarks/bookmark_utils.h"
 #include "chrome/browser/ui/bookmarks/bookmark_utils_desktop.h"
-#include "chrome/browser/ui/browser_dialogs.h"
+#include "chrome/browser/ui/browser_element_identifiers.h"
+#include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/grit/locale_settings.h"
@@ -35,6 +36,7 @@
 #include "components/url_formatter/url_fixer.h"
 #include "components/user_prefs/user_prefs.h"
 #include "ui/accessibility/ax_node_data.h"
+#include "ui/base/clipboard/clipboard.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/mojom/dialog_button.mojom.h"
@@ -52,6 +54,7 @@
 #include "ui/views/focus/focus_manager.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/table_layout.h"
+#include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
 #include "url/gurl.h"
 
@@ -61,6 +64,22 @@
 
 using bookmarks::BookmarkModel;
 using bookmarks::BookmarkNode;
+
+namespace {
+
+// Pasting very large text (e.g., >10 MB) into views::Textfield causes severe UI
+// lag, a common issue. Therefore, add OnBeforePaste to TextfieldController so
+// the controller can pre-process clipboard contents and supply them to the
+// Textfield. The Chrome address bar (Omnibox) mitigates this by truncating
+// clipboard input to 500 KB before insertion. Following the Omnibox
+// implementation, BookmarkEditorView limits clipboard content to 500 KB, while
+// keeping other handling consistent with Textfield::Paste.
+
+// https://crbug.com/457203690
+
+static const size_t kMaxClipboardTextLength = 500 * 1024;
+
+}  // namespace
 
 BookmarkEditorView::BookmarkEditorView(
     Profile* profile,
@@ -95,6 +114,7 @@ BookmarkEditorView::BookmarkEditorView(
   }
   set_margins(ChromeLayoutProvider::Get()->GetDialogInsetsForContentType(
       views::DialogContentType::kControl, views::DialogContentType::kControl));
+  SetProperty(views::kElementIdentifierKey, kBookmarkEditorId);
   Init();
 
   // TODO(crbug.com/40863584):  We need this View to have a role before setting
@@ -210,6 +230,31 @@ bool BookmarkEditorView::IsCommandIdChecked(int command_id) const {
   return false;
 }
 
+bool BookmarkEditorView::OnBeforePaste(views::Textfield* sender,
+                                       std::u16string* paste_contents) {
+  // Intercept paste for the URL textfield and provide sanitized clipboard text.
+  // Returning true lets Textfield::Paste() use this content instead of reading
+  // the clipboard directly.
+  if (sender != url_tf_ || !paste_contents) {
+    return false;
+  }
+
+  ui::Clipboard::GetForCurrentThread()->ReadText(
+      ui::ClipboardBuffer::kCopyPaste, /* data_dst = */ nullptr,
+      paste_contents);
+
+  if (paste_contents->length() > kMaxClipboardTextLength) {
+    // Trim leading and trailing whitespace, validate string length to stay
+    // consistent with TextfieldModel::Paste and prevent cases where the first
+    // 500 KB of pasted content is all whitespace.
+    base::TrimWhitespace(*paste_contents, base::TRIM_ALL, paste_contents);
+
+    *paste_contents = paste_contents->substr(0, kMaxClipboardTextLength);
+  }
+
+  return true;
+}
+
 bool BookmarkEditorView::IsCommandIdEnabled(int command_id) const {
   ui::TreeModelNode* const node = tree_view_->GetActiveNode();
   switch (command_id) {
@@ -245,6 +290,12 @@ void BookmarkEditorView::ExecuteCommand(int command_id, int event_flags) {
 
 void BookmarkEditorView::Show(gfx::NativeWindow parent) {
   constrained_window::CreateBrowserModalDialogViews(this, parent);
+
+  if (views::View* ok_button = GetOkButton()) {
+    ok_button->SetProperty(views::kElementIdentifierKey,
+                           kBookmarkEditorOkButtonId);
+  }
+
   UserInputChanged();
   if (show_tree_ && bb_model_->loaded()) {
     ExpandAndSelect();
@@ -405,8 +456,7 @@ GURL BookmarkEditorView::GetInputURL() const {
   if (!url_tf_) {
     return GURL();
   }
-  return url_formatter::FixupURL(base::UTF16ToUTF8(url_tf_->GetText()),
-                                 std::string());
+  return url_formatter::FixupURL(base::UTF16ToUTF8(url_tf_->GetText()));
 }
 
 void BookmarkEditorView::UserInputChanged() {

@@ -16,7 +16,7 @@
 #include "chrome/browser/command_observer.h"
 #include "chrome/browser/profiles/avatar_menu.h"
 #include "chrome/browser/profiles/avatar_menu_observer.h"
-#include "chrome/browser/ui/browser_list_observer.h"
+#include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
 #include "components/dbus/menu/menu.h"
 #include "components/history/core/browser/history_types.h"
 #include "components/history/core/browser/top_sites.h"
@@ -30,12 +30,14 @@
 namespace ui {
 class Accelerator;
 class PlatformWindow;
-}
+}  // namespace ui
 
 class Browser;
+class GlobalBrowserCollection;
 class BrowserView;
 struct DbusAppmenuCommand;
 class Profile;
+class BrowserWindowInterface;
 
 // Controls the Mac style menu bar on Linux desktop environments.
 //
@@ -44,7 +46,7 @@ class Profile;
 // survived and is usually referred to as DBus AppMenu.  There is support for it
 // in KDE Plasma in form of a widget that can be inserted into a panel.
 class DbusAppmenu : public AvatarMenuObserver,
-                    public BrowserListObserver,
+                    public BrowserCollectionObserver,
                     public CommandObserver,
                     public history::TopSitesObserver,
                     public sessions::TabRestoreServiceObserver,
@@ -120,8 +122,8 @@ class DbusAppmenu : public AvatarMenuObserver,
   // AvatarMenuObserver:
   void OnAvatarMenuChanged(AvatarMenu* avatar_menu) override;
 
-  // BrowserListObserver:
-  void OnBrowserSetLastActive(Browser* browser) override;
+  // BrowserCollectionObserver:
+  void OnBrowserActivated(BrowserWindowInterface* browser) override;
 
   // CommandObserver:
   void EnabledStateChangedForCommand(int id, bool enabled) override;
@@ -159,9 +161,6 @@ class DbusAppmenu : public AvatarMenuObserver,
   // Has Initialize() been called?
   bool initialized_ = false;
 
-  // The DBus menu service.
-  std::unique_ptr<DbusMenu> menu_service_;
-
   // Menu models.  Menus don't own their children, so we must own them.
   // |toplevel_menus_| are children of |root_menu_|.
   // |recently_closed_window_menus_| are children of |history_menu_|.
@@ -172,6 +171,11 @@ class DbusAppmenu : public AvatarMenuObserver,
       recently_closed_window_menus_;
   raw_ptr<ui::SimpleMenuModel> history_menu_ = nullptr;
   raw_ptr<ui::SimpleMenuModel> profiles_menu_ = nullptr;
+
+  // The DBus menu service.
+  // Should be destroyed prior to ui::MenuModels because DBusMenu::MenuItem
+  // holds a raw_ptr to a ui::ModelModel.
+  std::unique_ptr<DbusMenu> menu_service_;
 
   // Tracks value of the kShowBookmarkBar preference.
   PrefChangeRegistrar pref_change_registrar_;
@@ -196,6 +200,9 @@ class DbusAppmenu : public AvatarMenuObserver,
   base::flat_set<int> observed_commands_;
 
   int last_command_id_;
+
+  base::ScopedObservation<GlobalBrowserCollection, BrowserCollectionObserver>
+      browser_collection_observation_{this};
 
   // For callbacks may be run after destruction.
   base::WeakPtrFactory<DbusAppmenu> weak_ptr_factory_{this};

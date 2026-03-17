@@ -15,10 +15,9 @@ namespace vivaldi {
 
 // Returns a point that represents the difference between the origin points
 // of the views in the two RenderWidgetHostImpl that are passed in.
-extern gfx::Point GetVivaldiUIOffset(
-    content::RenderWidgetHostImpl* parent_host,
-    content::RenderWidgetHostImpl* child_host,
-    float device_scale_factor);
+extern gfx::Point GetVivaldiUIOffset(content::RenderWidgetHostImpl* parent_host,
+                                     content::RenderWidgetHostImpl* child_host,
+                                     float device_scale_factor);
 
 }  // namespace vivaldi
 

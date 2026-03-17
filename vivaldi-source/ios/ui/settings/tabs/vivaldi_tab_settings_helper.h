@@ -8,7 +8,6 @@
 #import "ios/ui/settings/tabs/vivaldi_ntp_type.h"
 #import "ios/ui/settings/tabs/vivaldi_tab_setting_prefs.h"
 
-
 class PrefService;
 
 @interface VivaldiTabSettingsHelper : NSObject

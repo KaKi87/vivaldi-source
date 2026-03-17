@@ -126,6 +126,13 @@ class ExtensionApiTest : public ExtensionBrowserTest {
   // the server before it has started.
   net::test_server::EmbeddedTestServer& GetWebSocketServer();
 
+  // Initializes web_socket that is returned by `GetWebSocketServer` function
+  // to serve endpoints via secure wss protocol.
+  void InitWebSocketHttpsServer(
+      net::test_server::EmbeddedTestServer::ServerCertificate
+          server_certificate =
+              net::test_server::EmbeddedTestServer::ServerCertificate::CERT_OK);
+
   // Start the test WebSocket server, and store details of its state. Those
   // details will be available to javascript tests using
   // chrome.test.getConfig(). Enable HTTP basic authentication if needed.
@@ -149,7 +156,7 @@ class ExtensionApiTest : public ExtensionBrowserTest {
   // If it failed, what was the error message?
   std::string message_;
 
-  base::Value::Dict* GetTestConfig() { return test_config_.get(); }
+  base::DictValue* GetTestConfig() { return test_config_.get(); }
 
  private:
   void OpenURL(const GURL& url, bool open_in_incognito);
@@ -164,7 +171,7 @@ class ExtensionApiTest : public ExtensionBrowserTest {
 
   // Hold details of the test, set in C++, which can be accessed by
   // javascript using chrome.test.getConfig().
-  std::unique_ptr<base::Value::Dict> test_config_;
+  std::unique_ptr<base::DictValue> test_config_;
 
   // Hold the test WebSocket server.
   std::unique_ptr<net::test_server::EmbeddedTestServer> websocket_server_;

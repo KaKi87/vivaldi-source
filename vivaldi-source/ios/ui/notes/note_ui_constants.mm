@@ -17,13 +17,11 @@ NSString* const kNoteFolderCreateViewContainerIdentifier =
 NSString* const kNoteFolderPickerViewContainerIdentifier =
     @"kNoteFolderPickerViewContainerIdentifier";
 
-NSString* const kNoteHomeTableViewIdentifier =
-    @"kNoteHomeTableViewIdentifier";
+NSString* const kNoteHomeTableViewIdentifier = @"kNoteHomeTableViewIdentifier";
 NSString* const kNoteHomeContextMenuIdentifier =
     @"kNoteHomeContextMenuIdentifier";
 
-NSString* const kNoteNavigationBarIdentifier =
-    @"kNoteNavigationBarIdentifier";
+NSString* const kNoteNavigationBarIdentifier = @"kNoteNavigationBarIdentifier";
 NSString* const kNoteHomeNavigationBarDoneButtonIdentifier =
     @"kNoteHomeNavigationBarDoneButtonIdentifier";
 NSString* const kNoteEditNavigationBarDoneButtonIdentifier =
@@ -43,10 +41,8 @@ NSString* const kNoteHomeCenterButtonIdentifier =
     @"kNoteHomeCenterButtonIdentifier";
 NSString* const kNoteHomeTrailingButtonIdentifier =
     @"kNoteHomeTrailingButtonIdentifier";
-NSString* const kNoteHomeUIToolbarIdentifier =
-    @"kNoteHomeUIToolbarIdentifier";
-NSString* const kNoteHomeSearchBarIdentifier =
-    @"kNoteHomeSearchBarIdentifier";
+NSString* const kNoteHomeUIToolbarIdentifier = @"kNoteHomeUIToolbarIdentifier";
+NSString* const kNoteHomeSearchBarIdentifier = @"kNoteHomeSearchBarIdentifier";
 NSString* const kNoteHomeSearchScrimIdentifier =
     @"kNoteHomeSearchScrimIdentifier";
 
@@ -73,13 +69,12 @@ NSString* vNotesFolderIcon = @"vivaldi_bookmarks_folder";
 NSString* vNotesTrashFolderIcon = @"vivaldi_trash_folder";
 // Image name for the folder selection chevron.
 NSString* vNoteFolderSelectionChevron =
-  @"vivaldi_bookmark_folder_selection_chevron";
+    @"vivaldi_bookmark_folder_selection_chevron";
 // Image name for the folder selection checkmark.
 NSString* vNoteFolderSelectionCheckmark =
-  @"vivaldi_bookmark_folder_selection_checkmark";
+    @"vivaldi_bookmark_folder_selection_checkmark";
 // Image name for add folder
-NSString* vNoteAddFolder =
-  @"vivaldi_bookmark_add_new_folder";
+NSString* vNoteAddFolder = @"vivaldi_bookmark_add_new_folder";
 
 #pragma mark - SIZE
 // Corner radius for the note body container view

@@ -9,7 +9,7 @@
 class Profile;
 
 namespace vivaldi_default_bookmarks {
-class UpdaterClientImpl: public UpdaterClient {
+class UpdaterClientImpl : public UpdaterClient {
  public:
   ~UpdaterClientImpl() override;
   UpdaterClientImpl(const UpdaterClientImpl&) = delete;
@@ -26,6 +26,6 @@ class UpdaterClientImpl: public UpdaterClient {
   UpdaterClientImpl(Profile* profile);
   const raw_ptr<Profile> profile_;
 };
-}
+}  // namespace vivaldi_default_bookmarks
 
 #endif  // BROWSER_VIVALDI_DEFAULT_BOOKMARKS_CLIENT_IMPL_H_

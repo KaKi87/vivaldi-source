@@ -8,20 +8,31 @@
 #import <WebKit/WebKit.h>
 
 #import "base/containers/adapters.h"
+#import "base/containers/lru_cache.h"
 #import "base/json/json_string_value_serializer.h"
 #import "base/strings/string_number_conversions.h"
 #import "base/strings/string_split.h"
 #import "base/strings/string_util.h"
 #import "base/time/time.h"
 #import "components/ad_blocker/core/parse_utils.h"
+#import "components/ad_blocker/ios/ios_rule_utils.h"
 #import "components/ad_blocker/ios/utils.h"
 #import "ios/web/js_messaging/scoped_wk_script_message_handler.h"
 #import "ios/web/public/browser_state.h"
 #import "ios/web/web_state/ui/wk_web_view_configuration_provider.h"
+#import "net/base/registry_controlled_domains/registry_controlled_domain.h"
+#import "third_party/re2/src/re2/re2.h"
+#import "third_party/re2/src/re2/stringpiece.h"
 
 namespace adblock_filter {
 
 namespace {
+
+// We keep the result of the script argument lookups for this amount of hosts.
+// Complex websites will have more frames with different hosts than others,
+// but hopefully this should cover a few tens of pages on different hosts,
+// which should allow a fair amount of navigations without cache misses.
+constexpr size_t kScriptArgumentCacheSize = 200;
 
 constexpr char kMessageNamePrefix[] = "vivaldi_adblock_scriptlet_";
 constexpr size_t kMessageNamePrefixLength =
@@ -32,7 +43,7 @@ constexpr char kJSScriptArgRequestPart2[] =
     R"JsSource('].postMessage({}).then((scriptlet_arguments) => {
   const source=)JsSource";
 constexpr char kJSScriptArgRequestPart3[] = R"JsSource(;
-  if(scriptlet_arguments.length != 0) {
+  if(Array.isArray(scriptlet_arguments) && scriptlet_arguments.length != 0) {
     new Function(source)();
   }
 });)JsSource";
@@ -65,6 +76,39 @@ std::string SourceToTemplatedHexString(std::string_view source) {
   return result;
 }
 
+void AddIncludedScriptletIndices(const base::ListValue& included_list,
+                                 std::set<int>& included_indices,
+                                 std::set<int>& excluded_indices) {
+  for (const auto& scriptlet_index : included_list) {
+    CHECK(scriptlet_index.is_int());
+    if (!excluded_indices.contains(scriptlet_index.GetInt())) {
+      included_indices.insert(scriptlet_index.GetInt());
+    }
+  }
+}
+
+void AddExcludedScriptletIndices(const base::ListValue& excluded_list,
+                                 std::set<int>& included_indices,
+                                 std::set<int>& excluded_indices) {
+  for (const auto& scriptlet_index : excluded_list) {
+    CHECK(scriptlet_index.is_int());
+    excluded_indices.insert(scriptlet_index.GetInt());
+    included_indices.erase(scriptlet_index.GetInt());
+  }
+}
+
+void UpdateScriptletIndices(const base::DictValue& node,
+                            std::set<int>& included_indices,
+                            std::set<int>& excluded_indices) {
+  if (const auto* included = node.FindList(ios_rule_utils::kIncluded)) {
+    AddIncludedScriptletIndices(*included, included_indices, excluded_indices);
+  }
+
+  if (const auto* excluded = node.FindList(ios_rule_utils::kExcluded)) {
+    AddExcludedScriptletIndices(*excluded, included_indices, excluded_indices);
+  }
+}
+
 class ContentInjectionHandlerImpl : public ContentInjectionHandler,
                                     public Resources::Observer {
  public:
@@ -78,7 +122,7 @@ class ContentInjectionHandlerImpl : public ContentInjectionHandler,
   // Implementing ContentInjectionHandler
   void SetIncognitoBrowserState(web::BrowserState* browser_state) override;
   void SetScriptletInjectionRules(RuleGroup group,
-                                  base::Value::Dict injection_rules) override;
+                                  base::DictValue injection_rules) override;
 
   // Implementing Resources::Observer
   void OnResourcesLoaded() override;
@@ -95,7 +139,8 @@ class ContentInjectionHandlerImpl : public ContentInjectionHandler,
 
   base::WeakPtr<web::WKWebViewConfigurationProvider> config_provider_;
   base::WeakPtr<web::WKWebViewConfigurationProvider> incognito_config_provider_;
-  RuleGroupArray<std::optional<base::Value::Dict>> injection_rules_;
+  RuleGroupArray<std::optional<base::DictValue>> injection_rules_;
+  base::LRUCache<std::string, base::DictValue> script_arguments_cache_;
 
   Resources* resources_;
 
@@ -121,6 +166,7 @@ ContentInjectionHandlerImpl::ContentInjectionHandlerImpl(
     : config_provider_(
           web::WKWebViewConfigurationProvider::FromBrowserState(browser_state)
               .AsWeakPtr()),
+      script_arguments_cache_(kScriptArgumentCacheSize),
       resources_(resources) {
   // Register callback for configuration changes in the main profile
   if (config_provider_) {
@@ -195,8 +241,9 @@ void ContentInjectionHandlerImpl::OnNewConfigurationCreated(
 
 void ContentInjectionHandlerImpl::SetScriptletInjectionRules(
     RuleGroup group,
-    base::Value::Dict injection_rules) {
+    base::DictValue injection_rules) {
   injection_rules_[group] = std::move(injection_rules);
+  script_arguments_cache_.Clear();
 }
 
 void ContentInjectionHandlerImpl::InjectUserScripts() {
@@ -245,9 +292,6 @@ void ContentInjectionHandlerImpl::InjectUserScriptsForController(
 void ContentInjectionHandlerImpl::HandlePlaceholderRequest(
     WKScriptMessage* message,
     ScriptMessageReplyHandler reply_handler) {
-  base::Value result(base::Value::Type::LIST);
-  base::Value::List& result_list = result.GetList();
-
   std::string host([message.frameInfo.securityOrigin.host
       cStringUsingEncoding:NSUTF8StringEncoding]);
 
@@ -259,65 +303,122 @@ void ContentInjectionHandlerImpl::HandlePlaceholderRequest(
   // We don't support other scriptlets yet.
   if (scriptlet_name != kAbpSnippetsMainScriptletName &&
       scriptlet_name != kAbpSnippetsIsolatedScriptletName) {
-    reply_handler(&result, nil);
+    reply_handler(nullptr, nil);
     return;
   }
 
-  std::string abp_argument;
-  const auto domain_pieces = base::SplitStringPiece(
-      host, ".", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
+  auto cached = script_arguments_cache_.Get(host);
+  if (cached != script_arguments_cache_.end()) {
+    reply_handler(cached->second.Find(scriptlet_name), nil);
+    return;
+  }
+
+  const auto labels = base::SplitStringPiece(host, ".", base::TRIM_WHITESPACE,
+                                             base::SPLIT_WANT_NONEMPTY);
+  size_t registry_length =
+      net::registry_controlled_domains::GetCanonicalHostRegistryLength(
+          host, net::registry_controlled_domains::INCLUDE_UNKNOWN_REGISTRIES,
+          net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
+
+  std::map<std::string,
+           std::set<const base::ListValue*, ContentInjectionArgumentsCompare>>
+      selected_arguments_lists_per_scriptlet;
+
   for (auto [group, injection_rules] : injection_rules_) {
-    if (!injection_rules_[group]) {
+    if (!injection_rules) {
       continue;
     }
 
-    std::set<const base::Value::List*, ContentInjectionArgumentsCompare>
-        selected_arguments_lists;
+    const base::DictValue* domain_tree =
+        injection_rules->FindDict(ios_rule_utils::kDomainConstraints);
 
-    base::Value::Dict* subdomain_dict = &injection_rules_[group].value();
-    for (const auto& domain_piece : base::Reversed(domain_pieces)) {
-      subdomain_dict = subdomain_dict->FindDict(domain_piece);
-      if (!subdomain_dict) {
-        break;
+    const base::DictValue* hostname_node =
+        domain_tree->FindDict(ios_rule_utils::kDomainTreeHostnameNode);
+    const base::DictValue* entities_node = nullptr;
+    const base::DictValue* included_regexes =
+        domain_tree->FindDict(ios_rule_utils::kDomainTreeIncludedRegexes);
+    const base::DictValue* excluded_regexes =
+        domain_tree->FindDict(ios_rule_utils::kDomainTreeExcludedRegexes);
+
+    std::set<int> included_scriptlet_indices;
+    std::set<int> excluded_scriptlet_indices;
+    size_t seen_length = 0;
+
+    for (const auto& label : base::Reversed(labels)) {
+      if (hostname_node) {
+        hostname_node = hostname_node->FindDict(label);
       }
-      if (const auto* included =
-              subdomain_dict->FindDict(rules_json::kIncluded)) {
-        if (const auto* argument_list_list =
-                included->FindList(scriptlet_name)) {
-          for (const auto& argument_list : *argument_list_list) {
-            DCHECK(argument_list.is_list());
-            selected_arguments_lists.insert(&argument_list.GetList());
-          }
-        }
+      if (entities_node) {
+        entities_node = entities_node->FindDict(label);
       }
 
-      if (const auto* excluded =
-              subdomain_dict->FindDict(rules_json::kExcluded)) {
-        if (const auto* argument_list_list =
-                excluded->FindList(scriptlet_name)) {
-          for (const auto& argument_list : *argument_list_list) {
-            DCHECK(argument_list.is_list());
-            selected_arguments_lists.erase(&argument_list.GetList());
-          }
-        }
+      if (hostname_node) {
+        UpdateScriptletIndices(*hostname_node, included_scriptlet_indices,
+                               excluded_scriptlet_indices);
+      }
+      if (entities_node) {
+        UpdateScriptletIndices(*entities_node, included_scriptlet_indices,
+                               excluded_scriptlet_indices);
+      }
+
+      seen_length += label.length() + 1;
+      if (seen_length == registry_length + 1) {
+        entities_node =
+            domain_tree->FindDict(ios_rule_utils::kDomainTreeEntityNode);
       }
     }
 
-    for (const base::Value::List* selected_arguments_list :
-         selected_arguments_lists) {
-      DCHECK_EQ(1UL, selected_arguments_list->size());
+    for (const auto [regex, snippet_indices] : *included_regexes) {
+      if (re2::RE2::PartialMatch(host, re2::RE2(regex))) {
+        CHECK(snippet_indices.is_list());
+        AddIncludedScriptletIndices(snippet_indices.GetList(),
+                                    included_scriptlet_indices,
+                                    excluded_scriptlet_indices);
+      }
+    }
+
+    for (const auto [regex, snippet_indices] : *excluded_regexes) {
+      if (re2::RE2::PartialMatch(host, re2::RE2(regex))) {
+        CHECK(snippet_indices.is_list());
+        AddExcludedScriptletIndices(snippet_indices.GetList(),
+                                    included_scriptlet_indices,
+                                    excluded_scriptlet_indices);
+      }
+    }
+
+    const base::ListValue* scriptlets =
+        injection_rules->FindList(ios_rule_utils::kScriptletRules);
+
+    for (int scriptlet_index : included_scriptlet_indices) {
+      const base::Value& scriptlet = (*scriptlets)[scriptlet_index];
+      CHECK(scriptlet.is_dict());
+      for (const auto [name, arguments] : scriptlet.GetDict()) {
+        CHECK(arguments.is_list());
+        selected_arguments_lists_per_scriptlet[name].insert(
+            &arguments.GetList());
+      }
+    }
+  }
+
+  base::DictValue result;
+  for (const auto& [name, selected_arguments_lists] :
+       selected_arguments_lists_per_scriptlet) {
+    std::string abp_argument;
+    for (const auto& selected_arguments_list : selected_arguments_lists) {
       // The ABP snippet arguments were purposefully left with a trailing
       // comma at the parsing stage. We can just concatenate them here.
       abp_argument.append(selected_arguments_list->front().GetString());
     }
+    if (!abp_argument.empty()) {
+      // Remove extra comma
+      abp_argument.pop_back();
+    }
+    result.Set(name, base::ListValue().Append(abp_argument));
   }
 
-  if (!abp_argument.empty()) {
-    // Remove extra comma
-    abp_argument.pop_back();
-    result_list.Append(abp_argument);
-  }
-  reply_handler(&result, nil);
+  reply_handler(result.Find(scriptlet_name), nil);
+
+  script_arguments_cache_.Put(host, std::move(result));
 }
 }  // namespace
 

@@ -10,7 +10,6 @@ accessibility/aria-labelledby-on-input.html
 accessibility/insert-adjacent-html-causes-crash.xhtml
 animations/animation-shorthand-overriding.html
 animations/stability/empty-keyframes.html
-animations/interpolation/border-image-slice-interpolation-stability.html
 animations/responsive/interpolation/offset-rotate-responsive.html
 compositing/animation/animated-composited-inside-hidden.html
 compositing/animation/animation-compositing.html
@@ -745,9 +744,9 @@ fast/xmlhttprequest/xmlhttprequest-responseXML-invalid-xml.html
 fast/xmlhttprequest/xmlhttprequest-responseXML-xml-text-responsetype.html
 fast/xpath/nodeset-duplicates.html
 fast/xpath/py-dom-xpath/predicates.html
-fast/xsl/import-non-document-node.xhtml
-fast/xsl/xslt-doc-enc.xml
-fast/xsl/xslt-fragment-in-empty-doc.html
+fast/xsl/xslt/import-non-document-node.xhtml
+fast/xsl/xslt/xslt-doc-enc.xml
+fast/xsl/xslt/xslt-fragment-in-empty-doc-quirk.html
 fragmentation/margin-top-at-top-of-fragmentainer.html
 fullscreen/full-screen-inline-split-crash.html
 fullscreen/full-screen-request-rejected.html
@@ -795,7 +794,7 @@ http/tests/websocket/compressed-control-frame.html
 http/tests/worklet/webexposed/global-interface-listing-paint-worklet.html
 http/tests/xmlhttprequest/sync-after-async-same-resource.html
 http/tests/xmlviewer/dumpAsText/svg.xml
-http/tests/xsl/xslt-transform-with-javascript-disabled.html
+http/tests/xsl/xslt/xslt-transform-with-javascript-disabled-quirk.html
 images/image-empty-data.html
 images/imagemap-focus-ring-outline-color-not-inherited-from-map.html
 images/link-body-content-imageDimensionChanged-crash.html

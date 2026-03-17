@@ -321,7 +321,7 @@ void CalendarEventRouter::OnEventCreated(CalendarService* service,
                                          const calendar::EventResult& event) {
   CalendarEvent createdEvent = CreateVivaldiEvent(event);
 
-  base::Value::List args = OnEventCreated::Create(createdEvent);
+  base::ListValue args = OnEventCreated::Create(createdEvent);
   DispatchEvent(profile_, OnEventCreated::kEventName, std::move(args));
 }
 
@@ -344,19 +344,19 @@ void CalendarEventRouter::OnNotificationChanged(
     CalendarService* service,
     const calendar::NotificationRow& row) {
   Notification changedNotification = CreateNotification(row);
-  base::Value::List args = OnNotificationChanged::Create(changedNotification);
+  base::ListValue args = OnNotificationChanged::Create(changedNotification);
   DispatchEvent(profile_, OnNotificationChanged::kEventName, std::move(args));
 }
 
 void CalendarEventRouter::OnCalendarModified(CalendarService* service) {
-  base::Value::List args;
+  base::ListValue args;
   DispatchEvent(profile_, OnCalendarDataChanged::kEventName, std::move(args));
 }
 
 // Helper to actually dispatch an event to extension listeners.
 void CalendarEventRouter::DispatchEvent(Profile* profile,
                                         const std::string& event_name,
-                                        base::Value::List event_args) {
+                                        base::ListValue event_args) {
   if (profile && EventRouter::Get(profile)) {
     EventRouter* event_router = EventRouter::Get(profile);
     if (event_router) {
@@ -368,7 +368,7 @@ void CalendarEventRouter::DispatchEvent(Profile* profile,
 }
 
 void BroadcastCalendarEvent(const std::string& eventname,
-                            base::Value::List args,
+                            base::ListValue args,
                             content::BrowserContext* context) {
   std::unique_ptr<extensions::Event> event(
       new extensions::Event(extensions::events::VIVALDI_EXTENSION_EVENT,

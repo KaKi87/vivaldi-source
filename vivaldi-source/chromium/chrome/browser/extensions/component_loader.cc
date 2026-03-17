@@ -9,7 +9,6 @@
 #include <string_view>
 
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/feature_list.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -107,7 +106,7 @@ bool g_enable_background_extensions_during_testing = false;
 bool g_enable_help_app = true;
 #endif
 
-ExtensionId GenerateId(const base::Value::Dict& manifest,
+ExtensionId GenerateId(const base::DictValue& manifest,
                        const base::FilePath& path) {
   std::string id_input;
   const std::string* raw_key = manifest.FindString(manifest_keys::kPublicKey);
@@ -118,13 +117,13 @@ ExtensionId GenerateId(const base::Value::Dict& manifest,
 }
 
 #if BUILDFLAG(IS_CHROMEOS)
-std::optional<base::Value::Dict> LoadManifestOnFileThread(
+std::optional<base::DictValue> LoadManifestOnFileThread(
     const base::FilePath& root_directory,
     const base::FilePath::CharType* manifest_filename,
     bool localize_manifest) {
   DCHECK(GetExtensionFileTaskRunner()->RunsTasksInCurrentSequence());
   std::string error;
-  std::optional<base::Value::Dict> manifest(
+  std::optional<base::DictValue> manifest(
       file_util::LoadManifest(root_directory, manifest_filename, &error));
   if (!manifest) {
     LOG(ERROR) << "Can't load "
@@ -160,7 +159,7 @@ bool IsNormalSession() {
 }  // namespace
 
 ComponentLoader::ComponentExtensionInfo::ComponentExtensionInfo(
-    base::Value::Dict manifest_param,
+    base::DictValue manifest_param,
     const base::FilePath& directory)
     : manifest(std::move(manifest_param)), root_directory(directory) {
   if (!root_directory.IsAbsolute()) {
@@ -227,9 +226,9 @@ void ComponentLoader::LoadAll() {
   }
 }
 
-std::optional<base::Value::Dict> ComponentLoader::ParseManifest(
+std::optional<base::DictValue> ComponentLoader::ParseManifest(
     std::string_view manifest_contents) const {
-  std::optional<base::Value::Dict> manifest = base::JSONReader::ReadDict(
+  std::optional<base::DictValue> manifest = base::JSONReader::ReadDict(
       manifest_contents, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!manifest) {
     LOG(ERROR) << "Failed to parse extension manifest.";
@@ -251,7 +250,7 @@ ExtensionId ComponentLoader::Add(int manifest_resource_id,
   return Add(manifest_contents, root_directory, true);
 }
 
-ExtensionId ComponentLoader::Add(base::Value::Dict manifest,
+ExtensionId ComponentLoader::Add(base::DictValue manifest,
                                  const base::FilePath& root_directory) {
   return Add(std::move(manifest), root_directory, false);
 }
@@ -266,14 +265,14 @@ ExtensionId ComponentLoader::Add(std::string_view manifest_contents,
                                  bool skip_allowlist) {
   // The Value is kept for the lifetime of the ComponentLoader. This is
   // required in case LoadAll() is called again.
-  std::optional<base::Value::Dict> manifest = ParseManifest(manifest_contents);
+  std::optional<base::DictValue> manifest = ParseManifest(manifest_contents);
   if (manifest) {
     return Add(std::move(*manifest), root_directory, skip_allowlist);
   }
   return std::string();
 }
 
-ExtensionId ComponentLoader::Add(base::Value::Dict parsed_manifest,
+ExtensionId ComponentLoader::Add(base::DictValue parsed_manifest,
                                  const base::FilePath& root_directory,
                                  bool skip_allowlist) {
   ComponentExtensionInfo info(std::move(parsed_manifest), root_directory);
@@ -293,7 +292,7 @@ ExtensionId ComponentLoader::Add(base::Value::Dict parsed_manifest,
 ExtensionId ComponentLoader::AddOrReplace(const base::FilePath& path) {
   base::FilePath absolute_path = base::MakeAbsoluteFilePath(path);
   std::string error;
-  std::optional<base::Value::Dict> manifest(
+  std::optional<base::DictValue> manifest(
       file_util::LoadManifest(absolute_path, &error));
   if (!manifest) {
     LOG(ERROR) << "Could not load extension from '" << absolute_path.value()
@@ -413,7 +412,7 @@ void ComponentLoader::AddWithNameAndDescription(
 
   // The Value is kept for the lifetime of the ComponentLoader. This is
   // required in case LoadAll() is called again.
-  std::optional<base::Value::Dict> manifest = ParseManifest(manifest_contents);
+  std::optional<base::DictValue> manifest = ParseManifest(manifest_contents);
 
   if (manifest) {
     manifest->Set(manifest_keys::kName, name_string);
@@ -673,7 +672,7 @@ void ComponentLoader::UnloadComponent(ComponentExtensionInfo* component) {
 
 #if BUILDFLAG(IS_CHROMEOS)
 bool ComponentLoader::IsPendingAdd(const ExtensionId& extension_id) const {
-  return base::Contains(pending_extension_ids_, extension_id);
+  return pending_extension_ids_.contains(extension_id);
 }
 
 bool ComponentLoader::ExistsOrPendingAdd(
@@ -713,7 +712,7 @@ void ComponentLoader::FinishAddComponentFromDir(
     const std::optional<std::string>& description_string,
     base::OnceClosure done_cb,
     base::OnceClosure error_cb,
-    std::optional<base::Value::Dict> manifest) {
+    std::optional<base::DictValue> manifest) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   // Extension is removed during loading. Skip adding in this case.

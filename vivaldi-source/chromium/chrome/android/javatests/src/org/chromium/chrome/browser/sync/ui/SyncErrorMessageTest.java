@@ -62,9 +62,12 @@ import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.util.ChromeRenderTestRule;
 import org.chromium.components.embedder_support.util.UrlConstants;
+import org.chromium.components.messages.DismissReason;
 import org.chromium.components.messages.MessageBannerProperties;
 import org.chromium.components.messages.MessageDispatcher;
+import org.chromium.components.sync.BookmarksLimitExceededHelpClickedSource;
 import org.chromium.components.sync.UserActionableError;
+import org.chromium.components.user_prefs.UserPrefs;
 import org.chromium.google_apis.gaia.GoogleServiceAuthError;
 import org.chromium.google_apis.gaia.GoogleServiceAuthErrorState;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -207,9 +210,9 @@ public class SyncErrorMessageTest {
 
     @Test
     @LargeTest
-    @DisableFeatures(ChromeFeatureList.SYNC_ENABLE_PASSWORDS_SYNC_ERROR_MESSAGE_ALTERNATIVE)
-    public void testSyncErrorMessageForTrustedVaultKeyRequiredContent() throws Exception {
-        ArgumentCaptor<PropertyModel> mModelCaptor = ArgumentCaptor.forClass(PropertyModel.class);
+    @DisableFeatures({ChromeFeatureList.SYNC_TRUSTED_VAULT_ERROR_MESSAGE_DURATION})
+    public void testSyncErrorMessageToUnlockVaultSuppressedAfterTimer() throws Exception {
+        ArgumentCaptor<PropertyModel> modelCaptor = ArgumentCaptor.forClass(PropertyModel.class);
 
         // Sign in.
         mSyncTestRule.setUpAccountAndSignInForTesting();
@@ -217,99 +220,75 @@ public class SyncErrorMessageTest {
         mFakeSyncServiceImpl.setTrustedVaultKeyRequiredForPreferredDataTypes(true);
         mSyncTestRule.loadUrl(UrlConstants.VERSION_URL);
 
-        verify(mMessageDispatcher).enqueueWindowScopedMessage(mModelCaptor.capture(), anyBoolean());
-        PropertyModel mModel = mModelCaptor.getValue();
-        Assert.assertEquals(
-                mContext.getString(R.string.identity_error_card_button_verify),
-                mModel.get(MessageBannerProperties.TITLE));
-        Assert.assertEquals(
-                mContext.getString(
-                        R.string.identity_error_message_body_sync_retrieve_keys_for_passwords),
-                mModel.get(MessageBannerProperties.DESCRIPTION));
-        Assert.assertEquals(
-                mContext.getString(R.string.identity_error_message_button_verify),
-                mModel.get(MessageBannerProperties.PRIMARY_BUTTON_TEXT));
-    }
-
-    @Test
-    @LargeTest
-    @EnableFeatures(
-            ChromeFeatureList.SYNC_ENABLE_PASSWORDS_SYNC_ERROR_MESSAGE_ALTERNATIVE + ":version/1")
-    public void testSyncErrorMessageForTrustedVaultKeyRequiredContent_alternativeOne()
-            throws Exception {
-        ArgumentCaptor<PropertyModel> mModelCaptor = ArgumentCaptor.forClass(PropertyModel.class);
-
-        // Sign in.
-        mSyncTestRule.setUpAccountAndSignInForTesting();
-        mFakeSyncServiceImpl.setEngineInitialized(true);
-        mFakeSyncServiceImpl.setTrustedVaultKeyRequiredForPreferredDataTypes(true);
-        mSyncTestRule.loadUrl(UrlConstants.VERSION_URL);
-
-        verify(mMessageDispatcher).enqueueWindowScopedMessage(mModelCaptor.capture(), anyBoolean());
-        PropertyModel mModel = mModelCaptor.getValue();
+        // Verify the correct message gets shown.
+        verify(mMessageDispatcher).enqueueWindowScopedMessage(modelCaptor.capture(), anyBoolean());
+        PropertyModel model = modelCaptor.getValue();
         Assert.assertEquals(
                 mContext.getString(R.string.password_sync_trusted_vault_error_title),
-                mModel.get(MessageBannerProperties.TITLE));
+                model.get(MessageBannerProperties.TITLE));
         Assert.assertEquals(
                 mContext.getString(R.string.password_sync_trusted_vault_error_hint),
-                mModel.get(MessageBannerProperties.DESCRIPTION));
-        Assert.assertEquals(
-                mContext.getString(R.string.identity_error_message_button_verify),
-                mModel.get(MessageBannerProperties.PRIMARY_BUTTON_TEXT));
-    }
-
-    @Test
-    @LargeTest
-    @EnableFeatures(
-            ChromeFeatureList.SYNC_ENABLE_PASSWORDS_SYNC_ERROR_MESSAGE_ALTERNATIVE + ":version/2")
-    public void testSyncErrorMessageForTrustedVaultKeyRequiredContent_alternativeTwo()
-            throws Exception {
-        ArgumentCaptor<PropertyModel> mModelCaptor = ArgumentCaptor.forClass(PropertyModel.class);
-
-        // Sign in.
-        mSyncTestRule.setUpAccountAndSignInForTesting();
-        mFakeSyncServiceImpl.setEngineInitialized(true);
-        mFakeSyncServiceImpl.setTrustedVaultKeyRequiredForPreferredDataTypes(true);
-        mSyncTestRule.loadUrl(UrlConstants.VERSION_URL);
-
-        verify(mMessageDispatcher).enqueueWindowScopedMessage(mModelCaptor.capture(), anyBoolean());
-        PropertyModel mModel = mModelCaptor.getValue();
-        Assert.assertEquals(
-                mContext.getString(R.string.password_sync_trusted_vault_error_title),
-                mModel.get(MessageBannerProperties.TITLE));
-        Assert.assertEquals(
-                mContext.getString(R.string.password_sync_trusted_vault_error_hint),
-                mModel.get(MessageBannerProperties.DESCRIPTION));
-        Assert.assertEquals(
-                mContext.getString(R.string.identity_error_card_button_okay),
-                mModel.get(MessageBannerProperties.PRIMARY_BUTTON_TEXT));
-    }
-
-    @Test
-    @LargeTest
-    @EnableFeatures(
-            ChromeFeatureList.SYNC_ENABLE_PASSWORDS_SYNC_ERROR_MESSAGE_ALTERNATIVE + ":version/3")
-    public void testSyncErrorMessageForTrustedVaultKeyRequiredContent_alternativeThree()
-            throws Exception {
-        ArgumentCaptor<PropertyModel> mModelCaptor = ArgumentCaptor.forClass(PropertyModel.class);
-
-        // Sign in.
-        mSyncTestRule.setUpAccountAndSignInForTesting();
-        mFakeSyncServiceImpl.setEngineInitialized(true);
-        mFakeSyncServiceImpl.setTrustedVaultKeyRequiredForPreferredDataTypes(true);
-        mSyncTestRule.loadUrl(UrlConstants.VERSION_URL);
-
-        verify(mMessageDispatcher).enqueueWindowScopedMessage(mModelCaptor.capture(), anyBoolean());
-        PropertyModel mModel = mModelCaptor.getValue();
-        Assert.assertEquals(
-                mContext.getString(R.string.password_sync_trusted_vault_error_title),
-                mModel.get(MessageBannerProperties.TITLE));
-        Assert.assertEquals(
-                mContext.getString(R.string.password_sync_trusted_vault_error_hint),
-                mModel.get(MessageBannerProperties.DESCRIPTION));
+                model.get(MessageBannerProperties.DESCRIPTION));
         Assert.assertEquals(
                 mContext.getString(R.string.identity_error_card_button_get),
-                mModel.get(MessageBannerProperties.PRIMARY_BUTTON_TEXT));
+                model.get(MessageBannerProperties.PRIMARY_BUTTON_TEXT));
+
+        // The message was dismissed by the timer.
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    model.get(MessageBannerProperties.ON_DISMISSED).onResult(DismissReason.TIMER);
+                });
+
+        Assert.assertFalse(
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> {
+                            return SyncErrorMessageImpressionTracker.canShowNow(
+                                    UserPrefs.get(mSyncTestRule.getProfile(false)));
+                        }));
+    }
+
+    @Test
+    @LargeTest
+    @EnableFeatures({ChromeFeatureList.SYNC_TRUSTED_VAULT_ERROR_MESSAGE_DURATION})
+    public void testSyncErrorMessageToUnlockVaultShowsAgainWithoutDismissal() throws Exception {
+        ArgumentCaptor<PropertyModel> modelCaptor = ArgumentCaptor.forClass(PropertyModel.class);
+
+        // Sign in.
+        mSyncTestRule.setUpAccountAndSignInForTesting();
+        mFakeSyncServiceImpl.setEngineInitialized(true);
+        mFakeSyncServiceImpl.setTrustedVaultKeyRequiredForPreferredDataTypes(true);
+        mSyncTestRule.loadUrl(UrlConstants.VERSION_URL);
+
+        // Verify the correct message gets shown.
+        verify(mMessageDispatcher).enqueueWindowScopedMessage(modelCaptor.capture(), anyBoolean());
+        PropertyModel model = modelCaptor.getValue();
+        Assert.assertEquals(
+                mContext.getString(R.string.password_sync_trusted_vault_error_title),
+                model.get(MessageBannerProperties.TITLE));
+        Assert.assertEquals(
+                mContext.getString(R.string.password_sync_trusted_vault_error_hint),
+                model.get(MessageBannerProperties.DESCRIPTION));
+        Assert.assertEquals(
+                mContext.getString(R.string.identity_error_card_button_get),
+                model.get(MessageBannerProperties.PRIMARY_BUTTON_TEXT));
+        Assert.assertEquals(
+                SyncErrorMessage.UNLOCK_VAULT_MESSAGE_DURATION,
+                model.get(MessageBannerProperties.DISMISSAL_DURATION));
+
+        // The message was dismissed by the timer.
+
+        // The message was dismissed by the timer.
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    model.get(MessageBannerProperties.ON_DISMISSED).onResult(DismissReason.TIMER);
+                });
+
+        Assert.assertTrue(
+                ThreadUtils.runOnUiThreadBlocking(
+                        () -> {
+                            return SyncErrorMessageImpressionTracker.canShowNow(
+                                    UserPrefs.get(mSyncTestRule.getProfile(false)));
+                        }));
     }
 
     @Test
@@ -352,7 +331,9 @@ public class SyncErrorMessageTest {
 
         // Resolving the error should dismiss the current message.
         ThreadUtils.runOnUiThreadBlocking(
-                () -> mFakeSyncServiceImpl.acknowledgeBookmarksLimitExceededError());
+                () ->
+                        mFakeSyncServiceImpl.acknowledgeBookmarksLimitExceededError(
+                                BookmarksLimitExceededHelpClickedSource.SYNC_ERROR_MESSAGE));
         verifyHasDismissedMessage();
         Assert.assertEquals(
                 (long) UserActionableError.NONE,
@@ -495,8 +476,8 @@ public class SyncErrorMessageTest {
 
         Intents.init();
         onViewWaiting(allOf(withText("Learn more"), isDisplayed())).perform(click());
-        intended(IntentMatchers.hasData(
-                "https://support.google.com/chrome/answer/165139"));
+        intended(
+                IntentMatchers.hasData(SyncSettingsUtils.BOOKMARKS_LIMIT_EXCEEDED_HELP_CENTER_URL));
         Intents.release();
 
         Assert.assertEquals(

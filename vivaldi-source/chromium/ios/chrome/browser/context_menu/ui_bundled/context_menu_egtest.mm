@@ -17,7 +17,7 @@
 #import "ios/chrome/browser/enterprise/data_controls/test/data_controls_app_interface.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/test/fullscreen_app_interface.h"
 #import "ios/chrome/browser/metrics/model/metrics_app_interface.h"
-#import "ios/chrome/browser/popup_menu/ui_bundled/popup_menu_constants.h"
+#import "ios/chrome/browser/popup_menu/public/popup_menu_constants.h"
 #import "ios/chrome/browser/reader_mode/model/features.h"
 #import "ios/chrome/browser/reader_mode/test/reader_mode_app_interface.h"
 #import "ios/chrome/browser/reader_mode/ui/constants.h"
@@ -49,7 +49,6 @@
 using chrome_test_util::ContextMenuCopyButton;
 using chrome_test_util::ContextMenuItemWithAccessibilityLabel;
 using chrome_test_util::ContextMenuItemWithAccessibilityLabelId;
-using chrome_test_util::OmniboxText;
 using chrome_test_util::OpenLinkInNewTabButton;
 using chrome_test_util::SystemSelectionCalloutCopyButton;
 using chrome_test_util::WebViewMatcher;
@@ -347,7 +346,6 @@ void RelaunchApp() {
   AppLaunchConfiguration config;
   config.features_enabled.push_back(
       data_sharing::features::kDataSharingFeature);
-  config.features_enabled.push_back(kEnableReaderMode);
   config.features_enabled.push_back(kEnableReaderModeInUS);
   config.features_disabled.push_back(web::features::kSmoothScrollingDefault);
 
@@ -695,8 +693,7 @@ void RelaunchApp() {
 
   // Verify url.
   const GURL imageURL = self.testServer->GetURL(kLogoPageImageSourcePath);
-  [[EarlGrey selectElementWithMatcher:OmniboxText(imageURL.GetContent())]
-      assertWithMatcher:grey_notNil()];
+  [ChromeEarlGrey waitForWebStateVisibleURL:imageURL];
 }
 
 // Tests that selecting "Open Image in New Tab" from the context menu properly
@@ -717,8 +714,7 @@ void RelaunchApp() {
 
   // Verify url.
   const GURL imageURL = self.testServer->GetURL(kLogoPageImageSourcePath);
-  [[EarlGrey selectElementWithMatcher:OmniboxText(imageURL.GetContent())]
-      assertWithMatcher:grey_notNil()];
+  [ChromeEarlGrey waitForWebStateVisibleURL:imageURL];
 }
 
 // Tests "Open in New Tab" on context menu.
@@ -744,8 +740,7 @@ void RelaunchApp() {
 
   // Verify url.
   const GURL destinationURL = self.testServer->GetURL(kDestinationPageUrl);
-  [[EarlGrey selectElementWithMatcher:OmniboxText(destinationURL.GetContent())]
-      assertWithMatcher:grey_notNil()];
+  [ChromeEarlGrey waitForWebStateVisibleURL:destinationURL];
 }
 
 // Tests that the context menu is displayed for an image url.
@@ -776,8 +771,7 @@ void RelaunchApp() {
   [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Verify url.
-  [[EarlGrey selectElementWithMatcher:OmniboxText(imageURL.GetContent())]
-      assertWithMatcher:grey_notNil()];
+  [ChromeEarlGrey waitForWebStateVisibleURL:imageURL];
 }
 
 // Tests context menu title truncation cases.
@@ -1129,8 +1123,7 @@ void RelaunchApp() {
 
   // Verify url.
   const GURL destinationURL = self.testServer->GetURL(kDestinationPageUrl);
-  [[EarlGrey selectElementWithMatcher:OmniboxText(destinationURL.GetContent())]
-      assertWithMatcher:grey_notNil()];
+  [ChromeEarlGrey waitForWebStateVisibleURL:destinationURL];
 
   // Open link in an existing tab group.
   [ChromeEarlGrey loadURL:initialURL];
@@ -1151,8 +1144,7 @@ void RelaunchApp() {
   [ChromeEarlGrey waitForWebStateContainingText:kDestinationPageText];
 
   // Verify url.
-  [[EarlGrey selectElementWithMatcher:OmniboxText(destinationURL.GetContent())]
-      assertWithMatcher:grey_notNil()];
+  [ChromeEarlGrey waitForWebStateVisibleURL:destinationURL];
 }
 
 // Tests "Share URL" action in the web context menu when long
@@ -1380,8 +1372,7 @@ void RelaunchApp() {
 
   // Verify url.
   const GURL imageURL = self.testServer->GetURL(kLogoPageImageSourcePath);
-  [[EarlGrey selectElementWithMatcher:OmniboxText(imageURL.GetContent())]
-      assertWithMatcher:grey_notNil()];
+  [ChromeEarlGrey waitForWebStateVisibleURL:imageURL];
 
   // Ensure that UMA was logged correctly.
   NSError* error = [MetricsAppInterface

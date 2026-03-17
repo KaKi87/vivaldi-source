@@ -60,11 +60,13 @@ bool VivaldiEventHooks::HandleKeyboardEvent(
 }
 
 void VivaldiEventHooks::HandleDragEnd(content::WebContents* web_contents,
-                                      bool outside_or_webview_in_same_window,
                                       int client_x,
-                                      int client_y) {
+                                      int client_y,
+                                      int screen_x,
+                                      int screen_y,
+                                      bool canceled) {
   if (!web_contents || !instance_)
     return;
-  instance_->DoHandleDragEnd(
-      web_contents, outside_or_webview_in_same_window, client_x, client_y);
+  instance_->DoHandleDragEnd(web_contents, client_x, client_y, screen_x,
+                             screen_y, canceled);
 }

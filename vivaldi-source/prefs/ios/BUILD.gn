@@ -1,0 +1,12 @@
+static_library("ios_prefs") {
+  sources = [
+    "vivaldi_ios_pref_names.h",
+    "vivaldi_ios_syncable_prefs.cc",
+    "vivaldi_ios_syncable_prefs.h",
+  ]
+
+  deps = [
+    "//base",
+    "//components/sync_preferences",
+  ]
+}

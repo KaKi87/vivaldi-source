@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="no">
+<translation id="3110967157686007724">Privatfane</translation>
 <translation id="4165986682804962316">Nettstedsinnstillinger</translation>
 <translation id="5216942107514965959">Sist besøkt i dag</translation>
+<translation id="5802121420922181398">Vis Lesemodus-knappen i adressefeltet når tilgjengelig.</translation>
 <translation id="5860033963881614850">Av</translation>
 <translation id="5939518447894949180">Tilbakestill</translation>
+<translation id="6877535416649928189">Lesemodus for nettsider</translation>
 </translationbundle>

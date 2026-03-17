@@ -23,7 +23,6 @@
 #include "extensions/browser/guest_view/web_view/web_view_permission_helper_delegate.h"
 #include "extensions/browser/guest_view/web_view/web_view_permission_types.h"
 #include "extensions/common/extension_features.h"
-#include "third_party/blink/public/mojom/mediastream/media_stream.mojom-shared.h"
 #include "third_party/blink/public/mojom/mediastream/media_stream.mojom.h"
 
 #include "app/vivaldi_apptools.h"
@@ -367,8 +366,9 @@ void WebViewPermissionHelper::RequestMediaAccessPermission(
       request_type = WEB_VIEW_PERMISSION_TYPE_MICROPHONE;
     }
   }
+  // End Vivaldi
 
-  base::Value::Dict request_info;
+  base::DictValue request_info;
   request_info.Set(guest_view::kUrl, request.security_origin.spec());
   RequestPermission(
       request_type, std::move(request_info),
@@ -476,7 +476,9 @@ void WebViewPermissionHelper::OnMediaPermissionResponse(
     content::MediaStreamRequest embedder_request = request;
     content::GlobalRenderFrameHostId embedder_rfh_id =
         embedder_rfh->GetGlobalId();
-    embedder_request.render_process_id = embedder_rfh_id.child_id;
+    // TODO(crbug.com/379869738) Remove GetUnsafeValue.
+    embedder_request.render_process_id =
+        embedder_rfh_id.child_id.GetUnsafeValue();
     embedder_request.render_frame_id = embedder_rfh_id.frame_routing_id;
     embedder_request.url_origin = embedder_origin;
     embedder_request.security_origin = embedder_origin.GetURL();
@@ -585,7 +587,7 @@ WebViewPermissionHelper::OverridePermissionResult(ContentSettingsType type) {
 
 void WebViewPermissionHelper::RequestPermission(
     WebViewPermissionType permission_type,
-    base::Value::Dict request_info,
+    base::DictValue request_info,
     PermissionResponseCallback callback,
     bool allowed_by_default) {
   // If there are too many pending permission requests then reject this request.
@@ -604,7 +606,7 @@ void WebViewPermissionHelper::RequestPermission(
   int request_id = next_permission_request_id_++;
   pending_permission_requests_[request_id] = PermissionResponseInfo(
       std::move(callback), permission_type, allowed_by_default);
-  base::Value::Dict args;
+  base::DictValue args;
   args.Set(webview::kRequestInfo, std::move(request_info));
   args.Set(webview::kRequestId, request_id);
   switch (permission_type) {

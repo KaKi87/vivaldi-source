@@ -64,11 +64,11 @@ void VivaldiATBManagerBridge::OnRuleSourceUpdated(
   if (!observer)
     return;
 
-  if ([observer respondsToSelector:@selector
-                (ruleSourceDidUpdate:group:fetchResult:)]) {
-    ATBFetchResult fetchResult =
-        this->FlattenFetchResult(rule_source.last_download_result,
-            rule_source.last_read_result);
+  if ([observer
+          respondsToSelector:@selector(
+                                 ruleSourceDidUpdate:group:fetchResult:)]) {
+    ATBFetchResult fetchResult = this->FlattenFetchResult(
+        rule_source.last_download_result, rule_source.last_read_result);
     [observer ruleSourceDidUpdate:rule_source.core.id()
                             group:group
                       fetchResult:fetchResult];
@@ -172,11 +172,11 @@ ATBFetchResult VivaldiATBManagerBridge::FlattenFetchResult(
     std::optional<DownloadResult> download_result,
     std::optional<ReadResult> read_result) {
   if (!read_result || !download_result) {
-      return FetchResultUnknown;
+    return FetchResultUnknown;
   }
 
   if (*download_result != DownloadResult::kSuccess) {
-      return FetchResultDownloadFailed;
+    return FetchResultDownloadFailed;
   }
 
   switch (*read_result) {

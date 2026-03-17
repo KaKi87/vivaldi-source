@@ -15,8 +15,8 @@
 #import "ios/ui/bookmarks_editor/vivaldi_bookmarks_editor_consumer.h"
 #import "ios/ui/bookmarks_editor/vivaldi_bookmarks_editor_mediator.h"
 #import "ios/ui/bookmarks_editor/vivaldi_bookmarks_editor_swift.h"
-#import "ui/base/l10n/l10n_util_mac.h"
 #import "ui/base/l10n/l10n_util.h"
+#import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using l10n_util::GetNSString;
@@ -24,9 +24,9 @@ using l10n_util::GetNSStringF;
 
 using bookmarks::BookmarkNode;
 
-@interface VivaldiBookmarksEditorCoordinator()<
-                                  BookmarksFolderChooserCoordinatorDelegate,
-                                  VivaldiBookmarksEditorConsumer> {
+@interface VivaldiBookmarksEditorCoordinator () <
+    BookmarksFolderChooserCoordinatorDelegate,
+    VivaldiBookmarksEditorConsumer> {
   // The browser where the settings are being displayed.
   Browser* _browser;
   // The folder chooser coordinator.
@@ -40,13 +40,13 @@ using bookmarks::BookmarkNode;
 // View provider for the bookmarks editor
 @property(nonatomic, strong) VivaldiBookmarksEditorViewProvider* viewProvider;
 // The item about to be edited. This can be nil.
-@property(nonatomic,strong) VivaldiSpeedDialItem* editingItem;
+@property(nonatomic, strong) VivaldiSpeedDialItem* editingItem;
 // The parent of the item about to be edited. This can not be nil.
-@property(nonatomic,strong) VivaldiSpeedDialItem* parentItem;
+@property(nonatomic, strong) VivaldiSpeedDialItem* parentItem;
 // The item that keeps track of the current parent selected. This only lives on
 // this view and doesn't affect the source parent incase user changes the parent
 // by folder selection option.s
-@property(nonatomic,strong) VivaldiSpeedDialItem* parentFolderItem;
+@property(nonatomic, strong) VivaldiSpeedDialItem* parentFolderItem;
 // Bookmarks editor mediator.
 @property(nonatomic, strong) VivaldiBookmarksEditorMediator* mediator;
 // Bookmarks editor entry point
@@ -61,12 +61,13 @@ using bookmarks::BookmarkNode;
 @synthesize baseNavigationController = _baseNavigationController;
 
 - (instancetype)initWithBaseNavigationController:
-  (UINavigationController*)navigationController
+                    (UINavigationController*)navigationController
                                          browser:(Browser*)browser
                                             item:(VivaldiSpeedDialItem*)item
                                           parent:(VivaldiSpeedDialItem*)parent
                                       entryPoint:
-  (VivaldiBookmarksEditorEntryPoint)entryPoint
+                                          (VivaldiBookmarksEditorEntryPoint)
+                                              entryPoint
                                        isEditing:(BOOL)isEditing
                                     allowsCancel:(BOOL)allowsCancel {
   self = [self initWithBaseViewController:navigationController
@@ -87,10 +88,9 @@ using bookmarks::BookmarkNode;
                                       item:(VivaldiSpeedDialItem*)item
                                     parent:(VivaldiSpeedDialItem*)parent
                                 entryPoint:
-    (VivaldiBookmarksEditorEntryPoint)entryPoint
+                                    (VivaldiBookmarksEditorEntryPoint)entryPoint
                                  isEditing:(BOOL)isEditing
                               allowsCancel:(BOOL)allowsCancel {
-
   self = [super initWithBaseViewController:viewController browser:browser];
 
   if (self) {
@@ -107,7 +107,7 @@ using bookmarks::BookmarkNode;
     _parentFolderItem = parentFolderItem;
 
     _snackbarCommandsHandler = HandlerForProtocol(
-          self.browser->GetCommandDispatcher(), SnackbarCommands);
+        self.browser->GetCommandDispatcher(), SnackbarCommands);
   }
 
   return self;
@@ -177,22 +177,22 @@ using bookmarks::BookmarkNode;
 }
 
 - (void)setupViewController {
-  VivaldiBookmarksEditorEntryPurpose entryPurpose = self.isEditing ?
-      VivaldiBookmarksEditorEntryPurposeEdit :
-          VivaldiBookmarksEditorEntryPurposeAdd;
+  VivaldiBookmarksEditorEntryPurpose entryPurpose =
+      self.isEditing ? VivaldiBookmarksEditorEntryPurposeEdit
+                     : VivaldiBookmarksEditorEntryPurposeAdd;
 
-  UIViewController *controller =
+  UIViewController* controller =
       [self.viewProvider makeViewControllerWithEntryPoint:self.entryPoint
-                                             entryPurpose:entryPurpose
-                                onKeyboardReturnButtonTap:^{
-        [self handleDoneButtonTap];
-      }
-                                     onFolderSelectionTap:^{
-        [self didTapParentFolderForSelection];
-      }
-                                          onItemDeleteTap:^ {
-        [self.mediator deleteBookmark];
-      }];
+          entryPurpose:entryPurpose
+          onKeyboardReturnButtonTap:^{
+            [self handleDoneButtonTap];
+          }
+          onFolderSelectionTap:^{
+            [self didTapParentFolderForSelection];
+          }
+          onItemDeleteTap:^{
+            [self.mediator deleteBookmark];
+          }];
 
   controller.title = [self titleForViewController];
   controller.navigationItem.largeTitleDisplayMode =
@@ -204,36 +204,35 @@ using bookmarks::BookmarkNode;
 }
 
 - (void)configureNavigationBarItems {
-
-  UIBarButtonItem *doneItem =
-      [[UIBarButtonItem alloc]
-          initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                               target:self
-                               action:@selector(handleDoneButtonTap)];
-  _navigationController.topViewController
-        .navigationItem.rightBarButtonItem = doneItem;
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
+  _navigationController.topViewController.navigationItem.rightBarButtonItem =
+      doneItem;
 
   if (self.allowsCancel) {
-    UIBarButtonItem *cancelItem =
-        [[UIBarButtonItem alloc]
-            initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
-                                 target:self
-                                 action:@selector(handleCancelButtonTap)];
-    _navigationController.topViewController
-        .navigationItem.leftBarButtonItem = cancelItem;
+    UIBarButtonItem* cancelItem = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
+                             target:self
+                             action:@selector(handleCancelButtonTap)];
+    _navigationController.topViewController.navigationItem.leftBarButtonItem =
+        cancelItem;
   }
 }
 
 - (void)setupSheetPresentationController {
-  UISheetPresentationController *sheetPc =
+  UISheetPresentationController* sheetPc =
       _navigationController.sheetPresentationController;
   // When iPad full screen or 2/3 SplitView support only large detent because
   // medium detent cuts the contents makes the dialog small and off centered.
   if (IsSplitToolbarMode(self.baseViewController)) {
-    sheetPc.detents = @[UISheetPresentationControllerDetent.mediumDetent,
-                        UISheetPresentationControllerDetent.largeDetent];
+    sheetPc.detents = @[
+      UISheetPresentationControllerDetent.mediumDetent,
+      UISheetPresentationControllerDetent.largeDetent
+    ];
   } else {
-    sheetPc.detents = @[UISheetPresentationControllerDetent.largeDetent];
+    sheetPc.detents = @[ UISheetPresentationControllerDetent.largeDetent ];
   }
   sheetPc.prefersScrollingExpandsWhenScrolledToEdge = NO;
   sheetPc.widthFollowsPreferredContentSizeWhenEdgeAttached = YES;
@@ -246,17 +245,19 @@ using bookmarks::BookmarkNode;
                   animated:YES];
   } else {
     [self.baseViewController presentViewController:_navigationController
-                                          animated:YES completion:nil];
+                                          animated:YES
+                                        completion:nil];
   }
 }
 
 - (void)setupBookmarkEditingMediator {
-  ProfileIOS *profile = self.browser->GetProfile()->GetOriginalProfile();
-  BookmarkModel *bookmarkModel = ios::BookmarkModelFactory::GetForProfile(profile);
-  self.mediator =
-    [[VivaldiBookmarksEditorMediator alloc] initWithBookmarkModel:bookmarkModel
-        bookmarkNode:self.editingItem.bookmarkNode
-            profile:profile];
+  ProfileIOS* profile = self.browser->GetProfile()->GetOriginalProfile();
+  BookmarkModel* bookmarkModel =
+      ios::BookmarkModelFactory::GetForProfile(profile);
+  self.mediator = [[VivaldiBookmarksEditorMediator alloc]
+      initWithBookmarkModel:bookmarkModel
+               bookmarkNode:self.editingItem.bookmarkNode
+                    profile:profile];
   self.mediator.isEditing = self.isEditing;
   self.mediator.consumer = self;
   self.mediator.snackbarCommandsHandler = _snackbarCommandsHandler;
@@ -267,7 +268,6 @@ using bookmarks::BookmarkNode;
 #pragma mark - Helpers
 
 - (NSString*)titleForEntryPoint {
-
   switch (self.entryPoint) {
     case VivaldiBookmarksEditorEntryPointGroup:
       return GetNSString(IDS_IOS_ITEM_TYPE_GROUP);
@@ -284,9 +284,8 @@ using bookmarks::BookmarkNode;
 
 - (NSString*)titleForViewController {
   std::u16string title = base::SysNSStringToUTF16([self titleForEntryPoint]);
-  return _isEditing ?
-      GetNSStringF(IDS_IOS_EDIT_ITEM_WITH_TYPE, title) :
-      GetNSStringF(IDS_IOS_NEW_ITEM_WITH_TYPE, title);
+  return _isEditing ? GetNSStringF(IDS_IOS_EDIT_ITEM_WITH_TYPE, title)
+                    : GetNSStringF(IDS_IOS_NEW_ITEM_WITH_TYPE, title);
 }
 
 /// Updates the parent folder view componets
@@ -315,13 +314,12 @@ using bookmarks::BookmarkNode;
     return;
 
   std::set<const BookmarkNode*> hiddenNodes;
-  _folderChooserCoordinator =
-      [[BookmarksFolderChooserCoordinator alloc]
-       initWithBaseNavigationController:_baseNavigationController
-                                             ? _baseNavigationController
-                                             : _navigationController
-                                       browser:self.browser
-                                   hiddenNodes:hiddenNodes];
+  _folderChooserCoordinator = [[BookmarksFolderChooserCoordinator alloc]
+      initWithBaseNavigationController:_baseNavigationController
+                                           ? _baseNavigationController
+                                           : _navigationController
+                               browser:self.browser
+                           hiddenNodes:hiddenNodes];
   _folderChooserCoordinator.allowsNewFolders = _allowsNewFolders;
   [_folderChooserCoordinator
       setSelectedFolder:self.parentFolderItem.bookmarkNode];
@@ -351,9 +349,9 @@ using bookmarks::BookmarkNode;
 #pragma mark - BookmarksFolderChooserCoordinatorDelegate
 
 - (void)bookmarksFolderChooserCoordinatorDidConfirm:
-(BookmarksFolderChooserCoordinator*)coordinator
+            (BookmarksFolderChooserCoordinator*)coordinator
                                  withSelectedFolder:
-(const bookmarks::BookmarkNode*)folder {
+                                     (const bookmarks::BookmarkNode*)folder {
   DCHECK(_folderChooserCoordinator);
   DCHECK(folder);
   VivaldiSpeedDialItem* parentFolderItem =
@@ -365,7 +363,7 @@ using bookmarks::BookmarkNode;
 }
 
 - (void)bookmarksFolderChooserCoordinatorDidCancel:
-(BookmarksFolderChooserCoordinator*)coordinator {
+    (BookmarksFolderChooserCoordinator*)coordinator {
   DCHECK(_folderChooserCoordinator);
   [self stopFolderChooserCordinator];
 }

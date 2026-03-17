@@ -26,6 +26,10 @@ BASE_FEATURE(kCachedLocationProvider, base::FEATURE_DISABLED_BY_DEFAULT);
 // Enables cloud game features.
 BASE_FEATURE(kCloudGamingDevice, base::FEATURE_DISABLED_BY_DEFAULT);
 
+// Enables Chrome to add custom icons into status tray.
+BASE_FEATURE(kSupportCustomIconsInStatusArea,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
 // Enables MPS to push payload to chrome devices.
 BASE_FEATURE(kAlmanacLauncherPayload, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -45,18 +49,6 @@ BASE_FEATURE(kDataControlsFileAccessDefaultDeny,
 
 // Enables data migration.
 BASE_FEATURE(kDataMigration, base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Disables blur on various system surfaces.
-BASE_FEATURE(kDisableSystemBlur, base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Disable idle sockets closing on memory pressure for NetworkContexts that
-// belong to Profiles. It only applies to Profiles because the goal is to
-// improve perceived performance of web browsing within the ChromeOS user
-// session by avoiding re-estabshing TLS connections that require client
-// certificates.
-BASE_FEATURE(kDisableIdleSocketsCloseOnMemoryPressure,
-             "disable_idle_sockets_close_on_memory_pressure",
-             base::FEATURE_DISABLED_BY_DEFAULT);
 
 // Disables translation services of the Quick Answers V2.
 BASE_FEATURE(kDisableQuickAnswersV2Translation,
@@ -84,9 +76,6 @@ BASE_FEATURE(kMagicBoostRevamp, base::FEATURE_ENABLED_BY_DEFAULT);
 BASE_FEATURE(kMagicBoostRevampForQuickAnswers,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-// Controls enabling / disabling the mahi feature.
-BASE_FEATURE(kMahi, base::FEATURE_ENABLED_BY_DEFAULT);
-
 // Controls enabling / disabling the mahi feature from the feature management
 // module.
 BASE_FEATURE(kFeatureManagementMahi, base::FEATURE_DISABLED_BY_DEFAULT);
@@ -98,9 +87,6 @@ BASE_FEATURE(kMahiPanelResizable, base::FEATURE_ENABLED_BY_DEFAULT);
 // Controls whether mahi sends url when making request to the server.
 BASE_FEATURE(kMahiSendingUrl, base::FEATURE_ENABLED_BY_DEFAULT);
 
-// Controls whether to enable Mahi for managed users.
-BASE_FEATURE(kMahiManaged, base::FEATURE_ENABLED_BY_DEFAULT);
-
 // Controls enabling / disabling the mahi debugging.
 BASE_FEATURE(kMahiDebugging, base::FEATURE_DISABLED_BY_DEFAULT);
 
@@ -109,9 +95,6 @@ BASE_FEATURE(kPompano, base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Controls enabling / disabling the summary of selected text feature.
 BASE_FEATURE(kMahiSummarizeSelected, base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Controls whether NotebookLM is preinstalled.
-BASE_FEATURE(kNotebookLmAppPreinstall, base::FEATURE_ENABLED_BY_DEFAULT);
 
 // Kill switch to disable the new guest profile implementation on CrOS that is
 // consistent with desktop chrome.
@@ -210,11 +193,6 @@ bool IsQuickShareV2Enabled() {
 // Enables the Office files upload workflow to improve Office files support.
 BASE_FEATURE(kUploadOfficeToCloud, base::FEATURE_ENABLED_BY_DEFAULT);
 
-// Enables the Office files upload workflow for enterprise users to improve
-// Office files support.
-BASE_FEATURE(kUploadOfficeToCloudForEnterprise,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 // Enables syncing of user's Office files upload workflow preferences for
 // enterprise users, such as whether to ask before moving files to the cloud.
 BASE_FEATURE(kUploadOfficeToCloudSync, base::FEATURE_ENABLED_BY_DEFAULT);
@@ -295,19 +273,11 @@ BASE_FEATURE(kFileSystemProviderContentCache,
 BASE_FEATURE(kSystemFeaturesDisableListHidden,
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-// Enables pinning the NotebookLM preinstalled app to the shelf.
-BASE_FEATURE(kNotebookLmAppShelfPin, base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Resets the act of pinning the NotebookLM preinstalled app to the shelf, used
-// for manual testing.
-BASE_FEATURE(kNotebookLmAppShelfPinReset, base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Enables support for protocols handlers registered via web app manifest.
-BASE_FEATURE(kWebAppManifestProtocolHandlerSupport,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 // Controls whether Vids is preinstalled.
 BASE_FEATURE(kVidsAppPreinstall, base::FEATURE_ENABLED_BY_DEFAULT);
+
+// Controls whether Vids is preinstalled for consumers.
+BASE_FEATURE(kVidsAppConsumerPreinstall, base::FEATURE_DISABLED_BY_DEFAULT);
 
 bool IsBatteryBadgeIconEnabled() {
   return base::FeatureList::IsEnabled(kBatteryBadgeIcon);
@@ -387,17 +357,12 @@ bool IsMagicBoostRevampForQuickAnswersEnabled() {
 }
 
 bool IsMahiEnabled() {
-  return base::FeatureList::IsEnabled(kMahi) &&
-         base::FeatureList::IsEnabled(kFeatureManagementMahi);
+  return base::FeatureList::IsEnabled(kFeatureManagementMahi);
 }
 
 // Mahi requests are composed & sent from ash.
 bool IsMahiSendingUrl() {
   return base::FeatureList::IsEnabled(kMahiSendingUrl);
-}
-
-bool IsMahiManagedEnabled() {
-  return base::FeatureList::IsEnabled(kMahiManaged);
 }
 
 bool IsMahiDebuggingEnabled() {
@@ -464,11 +429,6 @@ bool IsUploadOfficeToCloudEnabled() {
   return base::FeatureList::IsEnabled(kUploadOfficeToCloud);
 }
 
-bool IsUploadOfficeToCloudForEnterpriseEnabled() {
-  return base::FeatureList::IsEnabled(kUploadOfficeToCloud) &&
-         base::FeatureList::IsEnabled(kUploadOfficeToCloudForEnterprise);
-}
-
 bool IsUploadOfficeToCloudSyncEnabled() {
   return base::FeatureList::IsEnabled(kUploadOfficeToCloudSync);
 }
@@ -493,22 +453,11 @@ bool IsRoundedWindowsEnabled() {
 
 bool IsSystemBlurEnabled() {
   constexpr base::ByteCount kMinimumMemoryThreshold = base::GiB(4);  // 4GB
-  bool disable_blur =
-      base::SysInfo::AmountOfPhysicalMemory() <= kMinimumMemoryThreshold;
-  if (std::optional<bool> force_disable =
-          base::FeatureList::GetStateIfOverridden(kDisableSystemBlur)) {
-    disable_blur = force_disable.value();
-  }
-
-  return !disable_blur;
+  return base::SysInfo::AmountOfPhysicalMemory() > kMinimumMemoryThreshold;
 }
 
 bool IsFeatureManagementHistoryEmbeddingEnabled() {
   return base::FeatureList::IsEnabled(kFeatureManagementHistoryEmbedding);
-}
-
-bool IsWebAppManifestProtocolHandlerSupportEnabled() {
-  return base::FeatureList::IsEnabled(kWebAppManifestProtocolHandlerSupport);
 }
 
 }  // namespace chromeos::features

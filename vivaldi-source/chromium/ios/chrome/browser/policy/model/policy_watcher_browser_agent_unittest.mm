@@ -29,9 +29,9 @@
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_manager_ios.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/policy_change_commands.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
 #import "ios/chrome/browser/signin/model/fake_authentication_service_delegate.h"
@@ -105,7 +105,7 @@ class PolicyWatcherBrowserAgentTest : public PlatformTest {
             GetApplicationContext()->GetSystemIdentityManager());
     system_identity_manager->AddIdentity(identity);
     AuthenticationServiceFactory::GetForProfile(profile_.get())
-        ->SignIn(identity, signin_metrics::AccessPoint::kUnknown);
+        ->SignIn(identity, signin_metrics::AccessPoint::kStartPage);
   }
 
   PrefService* GetLocalState() {
@@ -329,7 +329,7 @@ TEST_F(PolicyWatcherBrowserAgentTest, UINotShownWhileSignOut) {
           GetApplicationContext()->GetSystemIdentityManager());
   system_identity_manager->AddIdentity(identity);
   authentication_service->SignIn(identity,
-                                 signin_metrics::AccessPoint::kUnknown);
+                                 signin_metrics::AccessPoint::kStartPage);
 
   signin::IdentityManager* identity_manager =
       IdentityManagerFactory::GetForProfile(profile_.get());

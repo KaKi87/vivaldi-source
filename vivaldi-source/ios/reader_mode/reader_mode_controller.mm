@@ -9,13 +9,13 @@
 #import "components/prefs/pref_service.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/reader_mode/vivaldi_reader_mode_java_script_feature.h"
+#import "ios/ui/helpers/vivaldi_global_helpers.h"
+#import "ios/ui/settings/appearance/vivaldi_appearance_settings_prefs_helper.h"
 #import "ios/ui/settings/reader_mode/vivaldi_reader_mode_animator.h"
 #import "ios/ui/settings/reader_mode/vivaldi_reader_mode_floating_ui.h"
 #import "ios/ui/settings/reader_mode/vivaldi_reader_mode_prefs.h"
-#import "ios/ui/settings/appearance/vivaldi_appearance_settings_prefs_helper.h"
-#import "ios/ui/helpers/vivaldi_global_helpers.h"
 #import "ios/web/public/web_state.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 namespace {
 // Returns the content view for the current WebState.
@@ -29,11 +29,11 @@ UIView* ContainerViewForContent(UIView* content_view) {
 }
 
 // Applies saved preferences (font size/family/theme) to current page.
-void ApplySavedPrefsToPage(ReaderModeController* controller, web::WebState* ws){
+void ApplySavedPrefsToPage(ReaderModeController* controller,
+                           web::WebState* ws) {
   if (!controller || !ws)
     return;
-  ProfileIOS* profile =
-      ProfileIOS::FromBrowserState(ws->GetBrowserState());
+  ProfileIOS* profile = ProfileIOS::FromBrowserState(ws->GetBrowserState());
   PrefService* prefs = profile ? profile->GetPrefs() : nullptr;
   if (!prefs)
     return;
@@ -55,10 +55,10 @@ void ApplySavedPrefsToPage(ReaderModeController* controller, web::WebState* ws){
 
 // Registry to map WebState to ReaderModeController
 // Using base::NoDestructor to avoid exit-time destructor issues
-static base::NoDestructor<std::map<web::WebState*,
-                          ReaderModeController*>>& GetControllerRegistry() {
-  static base::NoDestructor<std::map<web::WebState*,
-                            ReaderModeController*>> registry;
+static base::NoDestructor<std::map<web::WebState*, ReaderModeController*>>&
+GetControllerRegistry() {
+  static base::NoDestructor<std::map<web::WebState*, ReaderModeController*>>
+      registry;
   return registry;
 }
 
@@ -68,14 +68,15 @@ void ReaderModeController::SetBrowser(Browser* browser) {
   auto& registry = *GetControllerRegistry();
   for (auto& pair : registry) {
     ReaderModeController* controller = pair.second;
-    if (!controller) continue;
+    if (!controller)
+      continue;
     controller->browser_ = browser;
   }
 }
 
 // Observer wrapper that routes callbacks to the appropriate controller
-class ReaderModeControllerObserverBridge :
-        public VivaldiReaderModeJavaScriptFeature::Observer {
+class ReaderModeControllerObserverBridge
+    : public VivaldiReaderModeJavaScriptFeature::Observer {
  public:
   ReaderModeControllerObserverBridge() = default;
   ~ReaderModeControllerObserverBridge() override = default;
@@ -90,7 +91,7 @@ class ReaderModeControllerObserverBridge :
   }
 
   void OnReaderModeEnabledStateResult(web::WebState* web_state,
-                                                  bool enabled) override {
+                                      bool enabled) override {
     auto& registry = *GetControllerRegistry();
     auto it = registry.find(web_state);
     if (it != registry.end()) {
@@ -99,10 +100,10 @@ class ReaderModeControllerObserverBridge :
   }
 };
 
-static base::NoDestructor<
-    std::unique_ptr<ReaderModeControllerObserverBridge>>& GetObserverBridge() {
-  static base::NoDestructor<
-    std::unique_ptr<ReaderModeControllerObserverBridge>> bridge;
+static base::NoDestructor<std::unique_ptr<ReaderModeControllerObserverBridge>>&
+GetObserverBridge() {
+  static base::NoDestructor<std::unique_ptr<ReaderModeControllerObserverBridge>>
+      bridge;
   return bridge;
 }
 
@@ -118,8 +119,8 @@ ReaderModeController::ReaderModeController(web::WebState* web_state)
   auto& bridge = *bridge_holder;
   if (!bridge) {
     bridge = std::make_unique<ReaderModeControllerObserverBridge>();
-    VivaldiReaderModeJavaScriptFeature::GetInstance()
-                                              ->SetObserver(bridge.get());
+    VivaldiReaderModeJavaScriptFeature::GetInstance()->SetObserver(
+        bridge.get());
   }
   // Register this controller in the registry
   auto& registry = *GetControllerRegistry();
@@ -137,8 +138,8 @@ ReaderModeController::~ReaderModeController() {
   [observers_ removeAllObjects];
 }
 
-ReaderModeController*
-            ReaderModeController::FromWebState(web::WebState* web_state) {
+ReaderModeController* ReaderModeController::FromWebState(
+    web::WebState* web_state) {
   // First try to get existing instance using WebStateUserData
   ReaderModeController* existing =
       web::WebStateUserData<ReaderModeController>::FromWebState(web_state);
@@ -152,14 +153,14 @@ ReaderModeController*
 }
 
 void ReaderModeController::AddObserver(
-      id<ReaderModeControllerObserver> observer) {
+    id<ReaderModeControllerObserver> observer) {
   if (observer) {
     [observers_ addObject:observer];
   }
 }
 
 void ReaderModeController::RemoveObserver(
-      id<ReaderModeControllerObserver> observer) {
+    id<ReaderModeControllerObserver> observer) {
   if (observer) {
     [observers_ removeObject:observer];
   }
@@ -173,13 +174,13 @@ void ReaderModeController::CheckReaderModeAvailability() {
     return;
   }
 
-  VivaldiReaderModeJavaScriptFeature::
-        GetInstance()->CheckReaderModeAvailability(web_state_);
+  VivaldiReaderModeJavaScriptFeature::GetInstance()
+      ->CheckReaderModeAvailability(web_state_);
 }
 
 void ReaderModeController::CheckReaderModeEnabledState() {
-  VivaldiReaderModeJavaScriptFeature::
-        GetInstance()->CheckReaderModeEnabledState(web_state_);
+  VivaldiReaderModeJavaScriptFeature::GetInstance()
+      ->CheckReaderModeEnabledState(web_state_);
 }
 
 bool ReaderModeController::IsReaderModeEnabled() const {
@@ -206,21 +207,26 @@ void ReaderModeController::ApplyReaderMode() {
 
   base::WeakPtr<ReaderModeController> weak_ptr = weak_factory_.GetWeakPtr();
   [VivaldiReaderModeAnimator
-    playTransitionOnContentContainerView:contentContainerView
-                             contentView:contentView
-                              startPoint:CGPointMake(0.5, 0.0)
-                               wipeColor:web_state_->GetThemeColor()
-                                 toggler:^{
-                      if (!weak_ptr) return;
-                      ReaderModeController* controller = weak_ptr.get();
-                      VivaldiReaderModeJavaScriptFeature::GetInstance()
-                          ->ApplyReaderMode(controller->web_state_);
-                      ApplySavedPrefsToPage(controller, controller->web_state_);
-                      controller->is_reader_mode_enabled_ = true;
-                      controller->CreateFloatingUI();
-                      controller->NotifyEnabledStateObservers(true);
-                    }
-   ];
+      playTransitionOnContentContainerView:contentContainerView
+                               contentView:contentView
+                                startPoint:CGPointMake(0.5, 0.0)
+                                 wipeColor:web_state_->GetThemeColor()
+                                   toggler:^{
+                                     if (!weak_ptr)
+                                       return;
+                                     ReaderModeController* controller =
+                                         weak_ptr.get();
+                                     VivaldiReaderModeJavaScriptFeature::
+                                         GetInstance()
+                                             ->ApplyReaderMode(
+                                                 controller->web_state_);
+                                     ApplySavedPrefsToPage(
+                                         controller, controller->web_state_);
+                                     controller->is_reader_mode_enabled_ = true;
+                                     controller->CreateFloatingUI();
+                                     controller->NotifyEnabledStateObservers(
+                                         true);
+                                   }];
 }
 
 void ReaderModeController::DisableReaderMode() {
@@ -236,44 +242,48 @@ void ReaderModeController::DisableReaderMode() {
                                 startPoint:CGPointMake(0.5, 0.0)
                                  wipeColor:web_state_->GetThemeColor()
                                    toggler:^{
-                       if (!weak_ptr)
-                         return;
-                       ReaderModeController* controller = weak_ptr.get();
-                       VivaldiReaderModeJavaScriptFeature::GetInstance()
-                            ->DisableReaderMode(controller->web_state_);
-                       controller->is_reader_mode_enabled_ = false;
-                       controller->RemoveFloatingUI();
-                       controller->NotifyEnabledStateObservers(false);
-                     }
-   ];
+                                     if (!weak_ptr)
+                                       return;
+                                     ReaderModeController* controller =
+                                         weak_ptr.get();
+                                     VivaldiReaderModeJavaScriptFeature::
+                                         GetInstance()
+                                             ->DisableReaderMode(
+                                                 controller->web_state_);
+                                     controller->is_reader_mode_enabled_ =
+                                         false;
+                                     controller->RemoveFloatingUI();
+                                     controller->NotifyEnabledStateObservers(
+                                         false);
+                                   }];
 }
 
 bool ReaderModeController::SetFontSize(int size) {
-  return VivaldiReaderModeJavaScriptFeature::
-      GetInstance()->SetFontSize(web_state_, size);
+  return VivaldiReaderModeJavaScriptFeature::GetInstance()->SetFontSize(
+      web_state_, size);
 }
 
 bool ReaderModeController::SetFontFamily(const std::string& family) {
-  return VivaldiReaderModeJavaScriptFeature::
-      GetInstance()->SetFontFamily(web_state_, family);
+  return VivaldiReaderModeJavaScriptFeature::GetInstance()->SetFontFamily(
+      web_state_, family);
 }
 
 bool ReaderModeController::SetTheme(const std::string& theme) {
-  return VivaldiReaderModeJavaScriptFeature::
-      GetInstance()->SetTheme(web_state_, theme);
+  return VivaldiReaderModeJavaScriptFeature::GetInstance()->SetTheme(web_state_,
+                                                                     theme);
 }
 
-void ReaderModeController::
-        OnReaderModeAvailabilityResultInternal(web::WebState* web_state,
-                                                         bool available) {
+void ReaderModeController::OnReaderModeAvailabilityResultInternal(
+    web::WebState* web_state,
+    bool available) {
   DCHECK_EQ(web_state_, web_state);
   is_reader_mode_available_ = available;
   NotifyAvailabilityObservers(available);
 }
 
-void ReaderModeController::
-      OnReaderModeEnabledStateResultInternal(web::WebState* web_state,
-                                                         bool enabled) {
+void ReaderModeController::OnReaderModeEnabledStateResultInternal(
+    web::WebState* web_state,
+    bool enabled) {
   // This method is called by the observer bridge to
   // route callbacks to this controller
   DCHECK_EQ(web_state_, web_state);
@@ -316,8 +326,8 @@ bool ReaderModeController::IsReaderModeEnabledInSettings() const {
   }
   ProfileIOS* profile =
       ProfileIOS::FromBrowserState(web_state_->GetBrowserState());
-  return profile->GetPrefs()
-                    ->GetBoolean(vivaldiprefs::kVivaldiReaderModeEnabled);
+  return profile->GetPrefs()->GetBoolean(
+      vivaldiprefs::kVivaldiReaderModeEnabled);
 }
 
 void ReaderModeController::NotifyAvailabilityObservers(bool available) {
@@ -345,7 +355,8 @@ void ReaderModeController::DisableReaderModeGlobally() {
   // Iterate through all controllers and disable reader mode
   for (auto& pair : registry) {
     ReaderModeController* controller = pair.second;
-    if (!controller) continue;
+    if (!controller)
+      continue;
 
     // Disable reader mode if it's currently enabled
     if (controller->IsReaderModeEnabled()) {
@@ -365,7 +376,8 @@ void ReaderModeController::UpdateReaderModeAvailabilityGlobally() {
   // Iterate through all controllers and re-check availability
   for (auto& pair : registry) {
     ReaderModeController* controller = pair.second;
-    if (!controller) continue;
+    if (!controller)
+      continue;
 
     // Re-check reader mode availability since the global setting is now on
     controller->CheckReaderModeAvailability();

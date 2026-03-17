@@ -6,24 +6,25 @@
 #include <set>
 #include <string>
 
+#include "base/functional/callback_helpers.h"
+#include "base/i18n/file_util_icu.h"
+#include "base/i18n/time_formatting.h"
 #include "base/lazy_instance.h"
 #include "base/path_service.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/values.h"
-#include "base/i18n/file_util_icu.h"
-#include "base/i18n/time_formatting.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
+#include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/browser/bookmarks/bookmark_html_writer.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/history/top_sites_factory.h"
 #include "chrome/browser/importer/external_process_importer_host.h"
 #include "chrome/browser/importer/importer_uma.h"
+#include "chrome/browser/platform_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/chrome_select_file_policy.h"
-#include "chrome/browser/platform_util.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/extensions/api/bookmarks.h"
 #include "chrome/grit/generated_resources.h"
@@ -35,6 +36,7 @@
 
 #include "app/vivaldi_apptools.h"
 #include "app/vivaldi_constants.h"
+#include "browser/vivaldi_browser_finder.h"
 #include "browser/vivaldi_default_bookmarks.h"
 #include "browser/vivaldi_default_bookmarks_updater_client_impl.h"
 #include "components/bookmarks/vivaldi_bookmark_kit.h"
@@ -46,7 +48,6 @@
 #include "extensions/vivaldi_browser_component_wrapper.h"
 #include "ui/vivaldi_browser_window.h"
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
-#include "browser/vivaldi_browser_finder.h"
 #if BUILDFLAG(IS_WIN)
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -89,8 +90,8 @@ namespace bookmarks_private = vivaldi::bookmarks_private;
 
 VivaldiBookmarksAPI::VivaldiBookmarksAPI(content::BrowserContext* context)
     : browser_context_(context),
-      bookmark_model_(VivaldiBrowserComponentWrapper::GetInstance()->
-          GetBookmarkModelForBrowserContext(context)) {
+      bookmark_model_(VivaldiBrowserComponentWrapper::GetInstance()
+                          ->GetBookmarkModelForBrowserContext(context)) {
   if (bookmark_model_) {
     bookmark_model_->AddObserver(this);
   }
@@ -152,7 +153,8 @@ BookmarksPrivateUpdateSpeedDialsForWindowsJumplistFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
 #if BUILDFLAG(IS_WIN)
-  BrowserWindowInterface* browser = GetLastActiveBrowserWindowInterfaceWithAnyProfile();
+  BrowserWindowInterface* browser =
+      GetLastActiveBrowserWindowInterfaceWithAnyProfile();
   if (browser && browser->is_vivaldi()) {
     JumpList* jump_list = JumpListFactory::GetForProfile(browser->GetProfile());
     if (jump_list)
@@ -167,8 +169,9 @@ ExtensionFunction::ResponseAction BookmarksPrivateGetFolderIdsFunction::Run() {
 
   vivaldi::bookmarks_private::FolderIds ids;
 
-  BookmarkModel* model = VivaldiBrowserComponentWrapper::GetInstance()->
-      GetBookmarkModelForBrowserContext(browser_context());
+  BookmarkModel* model =
+      VivaldiBrowserComponentWrapper::GetInstance()
+          ->GetBookmarkModelForBrowserContext(browser_context());
   if (model) {
     ids.bookmarks = base::NumberToString(model->bookmark_bar_node()->id());
     ids.mobile = base::NumberToString(model->mobile_node()->id());
@@ -291,8 +294,7 @@ void BookmarksPrivateIOFunction::MultiFilesSelected(
   NOTREACHED() << "Should not be able to select multiple files";
 }
 
-ExtensionFunction::ResponseValue
-BookmarksPrivateExportFunction::RunOnReady() {
+ExtensionFunction::ResponseValue BookmarksPrivateExportFunction::RunOnReady() {
   using vivaldi::bookmarks_private::Export::Params;
 
   std::optional<Params> params = Params::Create(args());
@@ -308,8 +310,8 @@ BookmarksPrivateExportFunction::RunOnReady() {
       {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
        base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
       base::BindOnce(&GetDefaultFilepathForBookmarkExport),
-      base::BindOnce(&BookmarksPrivateIOFunction::ShowSelectFileDialog,
-                     this, ui::SelectFileDialog::SELECT_SAVEAS_FILE,
+      base::BindOnce(&BookmarksPrivateIOFunction::ShowSelectFileDialog, this,
+                     ui::SelectFileDialog::SELECT_SAVEAS_FILE,
                      params->window_id));
   // TODO(crbug.com/1073255): This will respond before a file is selected, which
   // seems incorrect. Waiting and responding until after

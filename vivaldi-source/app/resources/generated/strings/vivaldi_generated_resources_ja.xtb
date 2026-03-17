@@ -141,7 +141,7 @@
 <translation id="3129173833825111527">左側の余白</translation>
 <translation id="3144647712221361880">別のユーザーとしてリンクを開く</translation>
 <translation id="3222066309010235055">事前レンダリング: <ph name="PRERENDER_CONTENTS_NAME" /></translation>
-<translation id="3228985231489269630">{NUM\_EXTENSIONS, plural,
+<translation id="3228985231489269630">{NUM_EXTENSIONS, plural,
  =1 {１つの拡張機能を削除するか、<ph name="BEGIN_LINK" />Chrome ウェブストア<ph name="END_LINK" />から類似の拡張機能に置き換えてください。}
  other {拡張機能を削除するか、<ph name="BEGIN_LINK" />Chrome ウェブストア<ph name="END_LINK" />から類似の拡張機能に置き換えてください。}
 }</translation>
@@ -303,7 +303,6 @@
 <translation id="5624959475330585145">安全でない接続を使用する前に確認する</translation>
 <translation id="5638309510554459422"><ph name="BEGIN_LINK" />Chrome ウェブストア<ph name="END_LINK" />で拡張機能やテーマを探すことができます</translation>
 <translation id="5677928146339483299">ブロック中</translation>
-<translation id="5707185214361380026">拡張機能の読み込みに失敗しました:</translation>
 <translation id="5713171467967533494">Vivaldi ブラウザで開く</translation>
 <translation id="5746169159649715125">PDF で保存</translation>
 <translation id="5747809636523347288">貼り付けて <ph name="URL" /> に移動 (&amp;S)</translation>

@@ -34,8 +34,9 @@ import org.chromium.base.ApplicationStatus.ActivityStateListener;
 import org.chromium.base.ApplicationStatus.WindowFocusChangedListener;
 import org.chromium.base.DeviceInfo;
 import org.chromium.base.ObserverList;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.NullUnmarked;
 import org.chromium.build.annotations.Nullable;
@@ -82,8 +83,10 @@ public abstract class FullscreenHtmlApiHandlerBase
 
     protected final Activity mActivity;
     protected final Handler mHandler;
-    private final ObservableSupplierImpl<Boolean> mPersistentModeSupplier;
-    private final ObservableSupplier<Boolean> mAreControlsHidden;
+    private final SettableNonNullObservableSupplier<Boolean> mPersistentModeSupplier =
+            ObservableSuppliers.createNonNull(false);
+
+    private final NonNullObservableSupplier<Boolean> mAreControlsHidden;
     private boolean mExitFullscreenOnStop;
     private final ObserverList<FullscreenManager.Observer> mObservers = new ObserverList<>();
 
@@ -257,12 +260,13 @@ public abstract class FullscreenHtmlApiHandlerBase
      */
     public FullscreenHtmlApiHandlerBase(
             Activity activity,
-            ObservableSupplier<Boolean> areControlsHidden,
+            NonNullObservableSupplier<Boolean> areControlsHidden,
             boolean exitFullscreenOnStop,
             MultiWindowModeStateDispatcher multiWindowDispatcher) {
         mActivity = activity;
         mAreControlsHidden = areControlsHidden;
-        mAreControlsHidden.addObserver(this::maybeEnterFullscreenFromPendingState);
+        mAreControlsHidden.addSyncObserverAndPostIfNonNull(
+                this::maybeEnterFullscreenFromPendingState);
 
         mFullscreenManagerDelegate =
                 new FullscreenManagerDelegate() {
@@ -278,8 +282,6 @@ public abstract class FullscreenHtmlApiHandlerBase
 
         mHandler = new FullscreenHandler(this);
 
-        mPersistentModeSupplier = new ObservableSupplierImpl<>();
-        mPersistentModeSupplier.set(false);
         mExitFullscreenOnStop = exitFullscreenOnStop;
 
         mMultiWindowModeObserver = new FullscreenMultiWindowModeObserver();
@@ -299,7 +301,7 @@ public abstract class FullscreenHtmlApiHandlerBase
         mActiveTabObserver =
                 new ActivityTabTabObserver(activityTabProvider) {
                     @Override
-                    protected void onObservingDifferentTab(@Nullable Tab tab, boolean hint) {
+                    protected void onObservingDifferentTab(@Nullable Tab tab) {
                         mTab = tab;
                         setContentView(tab != null ? tab.getContentView() : null);
                         if (tab != null) {
@@ -713,7 +715,7 @@ public abstract class FullscreenHtmlApiHandlerBase
      *     mode.
      */
     @Override
-    public ObservableSupplier<Boolean> getPersistentFullscreenModeSupplier() {
+    public NonNullObservableSupplier<Boolean> getPersistentFullscreenModeSupplier() {
         return mPersistentModeSupplier;
     }
 

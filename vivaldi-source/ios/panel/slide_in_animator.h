@@ -5,13 +5,11 @@
 
 #import <UIKit/UIKit.h>
 
-@interface SlideInAnimator
-    : NSObject<UIViewControllerAnimatedTransitioning>
+@interface SlideInAnimator : NSObject <UIViewControllerAnimatedTransitioning>
 
-
--(NSTimeInterval)transitionDuration:
+- (NSTimeInterval)transitionDuration:
     (id<UIViewControllerContextTransitioning>)context;
--(void)animateTransition:(id<UIViewControllerContextTransitioning>)context;
+- (void)animateTransition:(id<UIViewControllerContextTransitioning>)context;
 
 @end
 

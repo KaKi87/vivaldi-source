@@ -18,7 +18,6 @@
 #include <vector>
 
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
 #include "base/functional/bind.h"
@@ -66,13 +65,11 @@
 #include "chrome/browser/extensions/external_provider_manager.h"
 #include "chrome/browser/extensions/external_testing_loader.h"
 #include "chrome/browser/extensions/installed_loader.h"
-#include "chrome/browser/extensions/load_error_reporter.h"
 #include "chrome/browser/extensions/managed_installation_mode.h"
 #include "chrome/browser/extensions/pack_extension_job.h"
 #include "chrome/browser/extensions/plugin_manager.h"
 #include "chrome/browser/extensions/preinstalled_apps.h"
 #include "chrome/browser/extensions/test_extension_system.h"
-#include "chrome/browser/extensions/unpacked_installer.h"
 #include "chrome/browser/extensions/updater/extension_updater.h"
 #include "chrome/browser/notifications/notification_display_service_tester.h"
 #include "chrome/browser/policy/policy_test_utils.h"
@@ -84,7 +81,6 @@
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/browser_resources.h"
-#include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/scoped_browser_locale.h"
 #include "components/crx_file/id_util.h"
 #include "components/policy/core/common/management/scoped_management_service_override_for_testing.h"
@@ -123,6 +119,7 @@
 #include "extensions/browser/external_provider_interface.h"
 #include "extensions/browser/fake_safe_browsing_database_manager.h"
 #include "extensions/browser/install_flag.h"
+#include "extensions/browser/load_error_reporter.h"
 #include "extensions/browser/management_policy.h"
 #include "extensions/browser/mock_external_provider.h"
 #include "extensions/browser/pending_extension_info.h"
@@ -135,6 +132,7 @@
 #include "extensions/browser/test_extension_registry_observer.h"
 #include "extensions/browser/test_management_policy.h"
 #include "extensions/browser/uninstall_reason.h"
+#include "extensions/browser/unpacked_installer.h"
 #include "extensions/browser/updater/extension_downloader_test_helper.h"
 #include "extensions/browser/updater/null_extension_cache.h"
 #include "extensions/browser/zipfile_installer.h"
@@ -156,6 +154,7 @@
 #include "extensions/common/switches.h"
 #include "extensions/common/url_pattern.h"
 #include "extensions/common/verifier_formats.h"
+#include "extensions/strings/grit/extensions_strings.h"
 #include "extensions/test/test_extension_dir.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "net/cookies/canonical_cookie.h"
@@ -277,7 +276,7 @@ bool HasExternalInstallErrors(Profile* profile) {
 }
 
 bool HasExternalInstallBubble(Profile* profile) {
-  return base::Contains(
+  return std::ranges::contains(
       ExternalInstallManager::Get(profile)->GetErrorsForTesting(),
       ExternalInstallError::BUBBLE_ALERT, &ExternalInstallError::alert_type);
 }
@@ -323,10 +322,10 @@ void PersistExtensionWithPaths(
     EXPECT_TRUE(base::WriteFile(file, data));
   }
 
-  base::Value::Dict manifest = base::Value::Dict()
-                                   .Set(keys::kName, "Test extension")
-                                   .Set(keys::kVersion, "1.0")
-                                   .Set(keys::kManifestVersion, 2);
+  base::DictValue manifest = base::DictValue()
+                                 .Set(keys::kName, "Test extension")
+                                 .Set(keys::kVersion, "1.0")
+                                 .Set(keys::kManifestVersion, 2);
 
   // Persist manifest file.
   base::FilePath manifest_path = extension_dir.Append(kManifestFilename);
@@ -412,7 +411,7 @@ class MockProviderVisitor : public ExternalProviderInterface::VisitorInterface {
     EXPECT_EQ(expected_creation_flags_, info.creation_flags);
 
     ++ids_found_;
-    base::Value::Dict* pref = prefs_->FindDict(info.extension_id);
+    base::DictValue* pref = prefs_->FindDict(info.extension_id);
     // This tests is to make sure that the provider only notifies us of the
     // values we gave it. So if the id we doesn't exist in our internal
     // dictionary then something is wrong.
@@ -452,7 +451,7 @@ class MockProviderVisitor : public ExternalProviderInterface::VisitorInterface {
       const ExternalInstallInfoUpdateUrl& info,
       bool force_update) override {
     ++ids_found_;
-    base::Value::Dict* pref = prefs_->FindDict(info.extension_id);
+    base::DictValue* pref = prefs_->FindDict(info.extension_id);
     // This tests is to make sure that the provider only notifies us of the
     // values we gave it. So if the id we doesn't exist in our internal
     // dictionary then something is wrong.
@@ -514,11 +513,11 @@ class MockProviderVisitor : public ExternalProviderInterface::VisitorInterface {
       provider_->set_allow_updates(true);
   }
 
-  std::optional<base::Value::Dict> GetDictionaryFromJSON(
+  std::optional<base::DictValue> GetDictionaryFromJSON(
       const std::string& json_data) {
     // We also parse the file into a dictionary to compare what we get back
     // from the provider.
-    std::optional<base::Value::Dict> json_value = base::JSONReader::ReadDict(
+    std::optional<base::DictValue> json_value = base::JSONReader::ReadDict(
         json_data, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
     if (!json_value) {
       ADD_FAILURE() << "Unable to deserialize json data";
@@ -532,7 +531,7 @@ class MockProviderVisitor : public ExternalProviderInterface::VisitorInterface {
   base::FilePath fake_base_path_;
   int expected_creation_flags_;
   ManifestLocation crx_location_;
-  std::optional<base::Value::Dict> prefs_;
+  std::optional<base::DictValue> prefs_;
   std::unique_ptr<TestingProfile> profile_;
   std::unique_ptr<ExternalProviderImpl> provider_;
 };
@@ -793,10 +792,10 @@ class ExtensionServiceTest : public ExtensionServiceTestWithInstall {
                                 user_expected_total_count);
   }
 
-  const base::Value::Dict* GetExtensionPref(const std::string& extension_id) {
-    const base::Value::Dict& dict =
+  const base::DictValue* GetExtensionPref(const std::string& extension_id) {
+    const base::DictValue& dict =
         profile()->GetPrefs()->GetDict(pref_names::kExtensions);
-    const base::Value::Dict* pref = dict.FindDict(extension_id);
+    const base::DictValue* pref = dict.FindDict(extension_id);
     if (!pref) {
       return nullptr;
     }
@@ -805,13 +804,13 @@ class ExtensionServiceTest : public ExtensionServiceTestWithInstall {
 
   bool IsPrefExist(const std::string& extension_id,
                    const std::string& pref_path) {
-    const base::Value::Dict* pref = GetExtensionPref(extension_id);
+    const base::DictValue* pref = GetExtensionPref(extension_id);
     return pref && pref->FindBoolByDottedPath(pref_path).has_value();
   }
 
   bool DoesIntegerPrefExist(const std::string& extension_id,
                             const std::string& pref_path) {
-    const base::Value::Dict* pref = GetExtensionPref(extension_id);
+    const base::DictValue* pref = GetExtensionPref(extension_id);
     if (!pref) {
       return false;
     }
@@ -823,8 +822,8 @@ class ExtensionServiceTest : public ExtensionServiceTestWithInstall {
                std::unique_ptr<base::Value> value,
                const std::string& msg) {
     ScopedDictPrefUpdate update(profile()->GetPrefs(), pref_names::kExtensions);
-    base::Value::Dict& dict = update.Get();
-    base::Value::Dict* pref = dict.FindDict(extension_id);
+    base::DictValue& dict = update.Get();
+    base::DictValue* pref = dict.FindDict(extension_id);
     ASSERT_TRUE(pref) << msg;
     pref->SetByDottedPath(pref_path,
                           base::Value::FromUniquePtrValue(std::move(value)));
@@ -832,11 +831,11 @@ class ExtensionServiceTest : public ExtensionServiceTestWithInstall {
 
   void SetPrefList(const std::string& extension_id,
                    const std::string& pref_path,
-                   base::Value::List& value,
+                   base::ListValue& value,
                    const std::string& msg) {
     ScopedDictPrefUpdate update(profile()->GetPrefs(), pref_names::kExtensions);
-    base::Value::Dict& dict = update.Get();
-    base::Value::Dict* pref = dict.FindDict(extension_id);
+    base::DictValue& dict = update.Get();
+    base::DictValue* pref = dict.FindDict(extension_id);
     ASSERT_TRUE(pref) << msg;
     pref->SetByDottedPath(pref_path, std::move(value));
   }
@@ -871,8 +870,8 @@ class ExtensionServiceTest : public ExtensionServiceTestWithInstall {
     msg += extension_id + " " + pref_path;
 
     ScopedDictPrefUpdate update(profile()->GetPrefs(), pref_names::kExtensions);
-    base::Value::Dict& dict = update.Get();
-    base::Value::Dict* pref = dict.FindDict(extension_id);
+    base::DictValue& dict = update.Get();
+    base::DictValue* pref = dict.FindDict(extension_id);
     ASSERT_TRUE(pref) << msg;
     pref->RemoveByDottedPath(pref_path);
   }
@@ -883,7 +882,7 @@ class ExtensionServiceTest : public ExtensionServiceTestWithInstall {
     std::string msg = " while setting: ";
     msg += extension_id + " " + pref_path;
 
-    base::Value::List list_value;
+    base::ListValue list_value;
     for (const auto& item : value) {
       list_value.Append(item);
     }
@@ -959,7 +958,7 @@ class PackExtensionTestClient : public PackExtensionJob::Client {
 
   void OnPackSuccess(const base::FilePath& crx_path,
                      const base::FilePath& private_key_path) override;
-  void OnPackFailure(const std::string& error_message,
+  void OnPackFailure(const std::u16string& error_message,
                      ExtensionCreator::ErrorType type) override;
 
  private:
@@ -993,7 +992,7 @@ void PackExtensionTestClient::OnPackSuccess(
 }
 
 // The tests are designed so that we never expect to see a packing error.
-void PackExtensionTestClient::OnPackFailure(const std::string& error_message,
+void PackExtensionTestClient::OnPackFailure(const std::u16string& error_message,
                                             ExtensionCreator::ErrorType type) {
   if (type == ExtensionCreator::kCRXExists)
      FAIL() << "Packing should not fail.";
@@ -1661,7 +1660,7 @@ TEST_F(ExtensionServiceTest, InstallExtensionDuringShutdown) {
   base::FilePath path = data_dir().AppendASCII("good.crx");
   scoped_refptr<CrxInstaller> installer(CrxInstaller::CreateSilent(profile()));
   // Simulate shutdown.
-  installer->set_browser_terminating_for_test(true);
+  installer->Shutdown();
   installer->set_allow_silent_install(true);
   installer->InstallCrx(path);
   task_environment()->RunUntilIdle();
@@ -2202,7 +2201,7 @@ TEST_F(ExtensionServiceTest, GrantedAPIAndHostPermissions) {
   // Test that the extension is disabled when an API permission is missing from
   // the extension's granted api permissions preference. (This simulates
   // updating the browser to a version which recognizes a new API permission).
-  base::Value::List empty_list;
+  base::ListValue empty_list;
   SetPrefList(extension_id, "granted_permissions.api", empty_list,
               "granted_permissions.api");
   service()->ReloadExtensionsForTest();
@@ -2239,7 +2238,7 @@ TEST_F(ExtensionServiceTest, GrantedAPIAndHostPermissions) {
   host_permissions.insert("https://*.google.com/*");
   host_permissions.insert("http://*.google.com.hk/*");
 
-  auto api_permissions = base::Value::List().Append("tabs");
+  auto api_permissions = base::ListValue().Append("tabs");
   SetPrefList(extension_id, "granted_permissions.api", api_permissions,
               "granted_permissions.api");
   SetPrefStringSet(
@@ -2745,7 +2744,7 @@ TEST_F(ExtensionServiceTest,
   ASSERT_FALSE(base::PathExists(manifest_dir));
 
   // First create a correct manifest and Load the extension successfully.
-  auto manifest = base::Value::Dict().Set("version", "1.0");
+  auto manifest = base::DictValue().Set("version", "1.0");
   manifest.Set("name", "malformed manifest reload test");
   manifest.Set("manifest_version", 2);
 
@@ -3379,7 +3378,7 @@ TEST_F(ExtensionServiceTest, LoadExtensionsCanDowngrade) {
   ASSERT_FALSE(base::PathExists(manifest_path));
 
   // Start with version 2.0.
-  base::Value::Dict manifest;
+  base::DictValue manifest;
   manifest.Set("version", "2.0");
   manifest.Set("name", "LOAD Downgrade Test");
   manifest.Set("manifest_version", 2);
@@ -3787,7 +3786,7 @@ TEST_F(ExtensionServiceTest, NoUnsetBlocklistInPrefs) {
   EXPECT_TRUE(registry()->enabled_extensions().Contains(good0));
   EXPECT_FALSE(registry()->blocklisted_extensions().Contains(good0));
 
-  auto attributes = base::Value::Dict().Set("_malware", true);
+  auto attributes = base::DictValue().Set("_malware", true);
 
   service()->PerformActionBasedOnOmahaAttributes(good0, attributes);
   EXPECT_TRUE(blocklist_prefs::HasOmahaBlocklistState(
@@ -4410,7 +4409,7 @@ TEST_F(ExtensionServiceTest, ManagementPolicyProhibitsLoadFromPrefs) {
   // Create a fake extension to be loaded as though it were read from prefs.
   base::FilePath path =
       data_dir().AppendASCII("management").AppendASCII("simple_extension");
-  base::Value::Dict manifest;
+  base::DictValue manifest;
   manifest.Set(keys::kName, "simple_extension");
   manifest.Set(keys::kVersion, "1");
   manifest.Set(keys::kManifestVersion, 2);
@@ -5071,7 +5070,7 @@ TEST_F(ExtensionServiceTest, DisableRemotelyForMalware) {
   InstallCRX(data_dir().AppendASCII("good.crx"), INSTALL_NEW);
   EXPECT_TRUE(registry()->enabled_extensions().GetByID(good_crx));
 
-  auto attributes = base::Value::Dict().Set("_malware", true);
+  auto attributes = base::DictValue().Set("_malware", true);
   EXPECT_EQ(1u, registry()->enabled_extensions().size());
 
   service()->PerformActionBasedOnOmahaAttributes(good_crx, attributes);
@@ -5094,7 +5093,7 @@ TEST_F(ExtensionServiceTest, NoEnableRemotelyDisabledExtension) {
   InstallCRX(data_dir().AppendASCII("good.crx"), INSTALL_NEW);
   EXPECT_TRUE(registry()->enabled_extensions().GetByID(good_crx));
 
-  auto attributes = base::Value::Dict().Set("_malware", true);
+  auto attributes = base::DictValue().Set("_malware", true);
   registrar()->DisableExtension(good_crx,
                                 {disable_reason::DISABLE_USER_ACTION});
   EXPECT_TRUE(registry()->disabled_extensions().GetByID(good_crx));
@@ -6030,7 +6029,7 @@ TEST_F(ExtensionServiceTest,
   InitializeEmptyExtensionServiceWithTestingPrefs();
 
   profile()->GetPrefs()->SetList(pref_names::kExtensionInstallTypeBlocklist,
-                                 base::Value::List().Append("command_line"));
+                                 base::ListValue().Append("command_line"));
 
   // Try to load an extension from command line.
   base::FilePath path =
@@ -8232,7 +8231,7 @@ TEST_F(ExtensionServiceTest, CannotDisableSharedModules) {
   scoped_refptr<const Extension> extension =
       ExtensionBuilder("Shared Module")
           .SetManifestPath("export.resources",
-                           base::Value::List().Append("foo.js"))
+                           base::ListValue().Append("foo.js"))
           .AddFlags(Extension::FROM_WEBSTORE)
           .Build();
 

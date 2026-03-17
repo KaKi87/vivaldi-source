@@ -115,7 +115,7 @@ public abstract class StripStacker {
             float stripWidth) {
         float rightEdge = stripLeftMargin;
         for (StripLayoutTab tab : indexOrderedTabs) {
-            if (StripLayoutUtils.skipTabEdgePositionCalculation(tab)) continue;
+            if (tab.isDraggedOffStrip()) continue;
             float layoutWidth = (tab.getWidth() - tabOverlapWidth) * tab.getWidthWeight();
             rightEdge = Math.max(tab.getDrawX() + layoutWidth, rightEdge);
         }
@@ -132,7 +132,7 @@ public abstract class StripStacker {
             float newTabButtonWidth) {
         float leftEdge = stripWidth - stripRightMargin;
         for (StripLayoutTab tab : indexOrderedTabs) {
-            if (StripLayoutUtils.skipTabEdgePositionCalculation(tab)) continue;
+            if (tab.isDraggedOffStrip()) continue;
             leftEdge = Math.min(tab.getDrawX(), leftEdge);
         }
 

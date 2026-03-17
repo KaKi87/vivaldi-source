@@ -14,6 +14,7 @@
 #include "base/strings/stringprintf.h"
 #include "base/test/bind.h"
 #include "base/test/scoped_feature_list.h"
+#include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/contextual_cueing/contextual_cueing_features.h"
 #include "chrome/browser/glic/fre/fre_util.h"
 #include "chrome/browser/glic/fre/glic_fre_dialog_view.h"
@@ -82,15 +83,18 @@ const char kIgnoreCertificateErrorsSPKIListValue[] =
 GlicE2ETest::GlicE2ETest() {
   // TODO(crbug.com/440578183): ZeroStateSuggestionsV2 is enabled here
   // due to the associated bug and should be removed here once fixed.
-  // TODO(crbug.com/453696965): Broken in multi-instance.
   scoped_feature_list_.InitWithFeatures(
-      /*enabled_features=*/{features::kGlic, features::kTabstripComboButton,
+      /*enabled_features=*/{features::kGlic,
                             features::kGlicKeyboardShortcutNewBadge,
                             features::kGlicRollout,
                             contextual_cueing::kContextualCueing,
                             mojom::features::kZeroStateSuggestionsV2},
-      /*disabled_features=*/{syncer::kReplaceSyncPromosWithSignInPromos,
-                             features::kGlicMultiInstance});
+      /*disabled_features=*/{
+          syncer::kReplaceSyncPromosWithSignInPromos,
+          // Don't disable glic based on country/locale.
+          features::kGlicCountryFiltering,
+          features::kGlicLocaleFiltering,
+      });
 }
 
 GlicE2ETest::~GlicE2ETest() = default;
@@ -103,6 +107,12 @@ void GlicE2ETest::SetUp() {
       command_line_of_test->GetSwitchValueASCII(kGlicE2ETestModeSwitch);
 
   running_actor_tests_ = command_line_of_test->HasSwitch(kEnableActorTests);
+  if (running_actor_tests_) {
+    exempt_actor_policy_control_feature_list_
+        .InitAndEnableFeatureWithParameters(
+            features::kGlicActor,
+            {{features::kGlicActorPolicyControlExemption.name, "true"}});
+  }
   enable_low_bandwidth_tests_ =
       command_line_of_test->HasSwitch(kEnableLowBandwidthTestsSwitch);
 
@@ -116,10 +126,14 @@ void GlicE2ETest::SetUp() {
     FAIL() << "Incorrect test mode input: %s" << test_mode_value;
   }
 
-  if (test_mode_ == kRecord || test_mode_ == kReplay) {
+  // Initialize WPR if we are in record/replay mode, or if opted-in to use WPR
+  // for some requests in real_backend mode.
+  if (test_mode_ == kRecord || test_mode_ == kReplay ||
+      (test_mode_ == kRealBackend && use_wpr_for_real_backend_)) {
     web_page_replay_server_wrapper_ =
-        std::make_unique<captured_sites_test_utils::WebPageReplayServerWrapper>(
-            test_mode_ == kReplay, 8080, 8081, kWprArguments);
+        std::make_unique<WebPageReplayServerWrapper>(
+            test_mode_ == kReplay || test_mode_ == kRealBackend, 8080, 8081,
+            kWprArguments);
   }
 
   // Always disable animation for stability.
@@ -135,6 +149,10 @@ void GlicE2ETest::SetUpCommandLine(base::CommandLine* command_line) {
     // The following arguments make browser work with WPR proxy.
     command_line->AppendSwitchASCII(network::switches::kHostResolverRules,
                                     kHostResolverRulesValue);
+  }
+
+  if (test_mode_ == kRecord || test_mode_ == kReplay ||
+      (test_mode_ == kRealBackend && use_wpr_for_real_backend_)) {
     command_line->AppendSwitchASCII(
         network::switches::kIgnoreCertificateErrorsSPKIList,
         kIgnoreCertificateErrorsSPKIListValue);
@@ -151,17 +169,23 @@ void GlicE2ETest::PreRunTestOnMainThread() {
 
   if (test_mode_ == kRecord || test_mode_ == kReplay) {
     // When WPR is used, for consistency, require consistent host and path.
-    CHECK(base::Contains(glic_fre_url.spec(), kAllowedHostAndPathForWpr) &&
-          base::Contains(glic_guest_url.spec(), kAllowedHostAndPathForWpr))
+    CHECK(glic_fre_url.spec().contains(kAllowedHostAndPathForWpr) &&
+          glic_guest_url.spec().contains(kAllowedHostAndPathForWpr))
         << "Please use allowed URL for WPR.";
   }
 }
 
 void GlicE2ETest::LoginTestAccountOrForceFakeSignin() {
   if (test_mode_ == kRealBackend || test_mode_ == kRecord) {
+    std::string account_label = test_account_label_;
+    // TODO(crbug.com/476984789): Remove this fallback once all tests have been
+    // updated to call set_test_account_label().
+    if (account_label.empty()) {
+      account_label =
+          running_actor_tests_ ? kTestActorAccountLabel : kTestAccountLabel;
+    }
     std::optional<signin::TestAccountSigninCredentials> test_account =
-        GetTestAccounts()->GetAccount(
-            running_actor_tests_ ? kTestActorAccountLabel : kTestAccountLabel);
+        GetTestAccounts()->GetAccount(account_label);
     signin::test::SignInFunctions sign_in_functions =
         signin::test::SignInFunctions(
             base::BindLambdaForTesting(
@@ -176,7 +200,7 @@ void GlicE2ETest::LoginTestAccountOrForceFakeSignin() {
     sign_in_functions.TurnOnSync(*test_account, 0);
   } else {
     SigninWithPrimaryAccount(browser()->profile());
-    SetModelExecutionCapability(browser()->profile(), true);
+    SetGlicCapability(browser()->profile(), true);
   }
 }
 
@@ -202,7 +226,8 @@ void GlicE2ETest::TearDownOnMainThread() {
     client.second->DetachProtocolClient();
   }
   devtools_clients_.clear();
-  if (test_mode_ == kRecord || test_mode_ == kReplay) {
+  if (test_mode_ == kRecord || test_mode_ == kReplay ||
+      (test_mode_ == kRealBackend && use_wpr_for_real_backend_)) {
     // Ensure enough time for WPR to write archive at recording mode
     // by putting this in main thread.
     EXPECT_TRUE(web_page_replay_server_wrapper_->Stop())
@@ -237,7 +262,7 @@ GlicE2ETest::WaitForAndInstrumentGlic() {
       UninstrumentWebContents(kGlicHostElementId, false),
       InAnyContext(
           ObserveState(kGlicWindowControllerState,
-                       std::ref(window_controller())),
+                       std::ref(window_controller()), active_tab()),
           WaitForState(kGlicWindowControllerState,
                        GlicWindowController::State::kOpen),
           Steps(InstrumentNonTabWebView(kGlicHostElementId, kGlicViewElementId),
@@ -252,7 +277,7 @@ GlicE2ETest::WaitForAndInstrumentGlic() {
 
 void GlicE2ETest::MaybeStartWebPageReplayForRecordingPath(
     const std::string recording_filename) {
-  if (test_mode_ == kRealBackend) {
+  if (test_mode_ == kRealBackend && !use_wpr_for_real_backend_) {
     return;
   }
   base::FilePath root_path;
@@ -261,7 +286,8 @@ void GlicE2ETest::MaybeStartWebPageReplayForRecordingPath(
       base::MakeAbsoluteFilePath(root_path.Append(kRecordingDirectoryPath));
   base::FilePath recording_path = recording_dir_path.Append(
       base::FilePath::FromUTF8Unsafe(recording_filename));
-  if (test_mode_ == kReplay) {
+  if (test_mode_ == kReplay ||
+      (test_mode_ == kRealBackend && use_wpr_for_real_backend_)) {
     CHECK(base::PathExists(recording_path))
         << recording_filename << " does not exist.";
   }
@@ -276,11 +302,17 @@ GlicKeyedService* GlicE2ETest::glic_service() {
 GlicWindowController& GlicE2ETest::window_controller() {
   return glic_service()->window_controller();
 }
+
 GlicFreController& GlicE2ETest::fre_controller() {
   return glic_service()->fre_controller();
 }
 WebPageReplayServerWrapper* GlicE2ETest::web_page_replay_server_wrapper() {
   return web_page_replay_server_wrapper_.get();
+}
+
+tabs::TabInterface* GlicE2ETest::active_tab() {
+  return tabs::TabInterface::GetFromContents(
+      browser()->tab_strip_model()->GetActiveWebContents());
 }
 
 void GlicE2ETest::ThrottleCurrentTabNetwork() {
@@ -299,12 +331,12 @@ void GlicE2ETest::ThrottleWebContentsNetwork(
     devtools_client_ptr =
         std::make_unique<content::TestDevToolsProtocolClient>();
     devtools_client_ptr->AttachToWebContents(web_contents);
-    devtools_client_ptr->SendCommand("Network.enable", base::Value::Dict());
+    devtools_client_ptr->SendCommand("Network.enable", base::DictValue());
   }
 
   // Corresponds to the "Slow 3G" preset in
   // third_party/devtools-frontend/src/front_end/core/sdk/NetworkManager.ts
-  base::Value::Dict params;
+  base::DictValue params;
   params.Set("offline", false);
   // Latency in ms.
   params.Set("latency", 2000.0);

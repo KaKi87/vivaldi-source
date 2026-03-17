@@ -7,15 +7,17 @@
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "base/base_paths.h"
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/containers/flat_set.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/json/json_file_value_serializer.h"
 #include "base/json/json_reader.h"
+#include "base/strings/strcat.h"
+#include "base/strings/to_string.h"
 
 #if BUILDFLAG(IS_MAC)
 #include "base/mac/mac_util.h"
@@ -33,7 +35,6 @@
 #include "base/test/test_future.h"
 #include "base/threading/scoped_blocking_call.h"
 #include "base/threading/thread_restrictions.h"
-#include "base/types/cxx23_to_underlying.h"
 #include "base/types/expected.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -48,7 +49,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/views/web_apps/web_app_link_capturing_test_utils.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
@@ -525,8 +526,8 @@ bool DoesTestMatchFileConfig(std::string_view full_test_params,
       TupleItemToParamString<LinkCapturing>(file_config);
   std::string display_mode_name =
       TupleItemToParamString<AppUserDisplayMode>(file_config);
-  return base::Contains(full_test_params, link_capturing_name) &&
-         base::Contains(full_test_params, display_mode_name);
+  return full_test_params.contains(link_capturing_name) &&
+         full_test_params.contains(display_mode_name);
 }
 
 // Removes all of the parameters from the `full_test_params` that are handled by
@@ -547,39 +548,39 @@ std::string RemoveExpectationsFileConfigFromFullTestParams(
   return output;
 }
 
-std::string BrowserTypeToString(Browser::Type type) {
+std::string BrowserTypeToString(BrowserWindowInterface::Type type) {
   switch (type) {
-    case Browser::Type::TYPE_NORMAL:
+    case BrowserWindowInterface::Type::TYPE_NORMAL:
       return "TYPE_NORMAL";
-    case Browser::Type::TYPE_POPUP:
+    case BrowserWindowInterface::Type::TYPE_POPUP:
       return "TYPE_POPUP";
-    case Browser::Type::TYPE_APP:
+    case BrowserWindowInterface::Type::TYPE_APP:
       return "TYPE_APP";
-    case Browser::Type::TYPE_DEVTOOLS:
+    case BrowserWindowInterface::Type::TYPE_DEVTOOLS:
       return "TYPE_DEVTOOLS";
-    case Browser::Type::TYPE_APP_POPUP:
+    case BrowserWindowInterface::Type::TYPE_APP_POPUP:
       return "TYPE_APP_POPUP";
-#if BUILDFLAG(IS_CHROMEOS)
-    case Browser::Type::TYPE_CUSTOM_TAB:
-      return "TYPE_CUSTOM_TAB";
-#endif
-    case Browser::Type::TYPE_PICTURE_IN_PICTURE:
+    case BrowserWindowInterface::Type::TYPE_PICTURE_IN_PICTURE:
       return "TYPE_PICTURE_IN_PICTURE";
   }
   NOTREACHED() << "Unknown browser type: " + base::NumberToString(type);
 }
 
-bool IsNewTabOrAboutBlankUrl(const Browser* browser, const GURL& url) {
+bool IsNewTabOrAboutBlankUrl(const BrowserWindowInterface* browser,
+                             const GURL& url) {
   return url == GURL("about:blank") || url == GURL("chrome://newtab") ||
-         url == GURL("chrome://new-tab-page") || url == browser->GetNewTabURL();
+         url == GURL("chrome://new-tab-page") ||
+         (web_app::AppBrowserController::From(browser) &&
+          url ==
+              web_app::AppBrowserController::From(browser)->GetAppNewTabUrl());
 }
 
 // Serializes the state of a RenderFrameHost relevant for this test into a
 // dictionary that can be stored as JSON. This includes the frame name and
 // current URL.
 // TODO(crbug.com/359418631): Add opener information to frames if possible.
-base::Value::Dict RenderFrameHostToJson(content::RenderFrameHost& rfh) {
-  base::Value::Dict dict;
+base::DictValue RenderFrameHostToJson(content::RenderFrameHost& rfh) {
+  base::DictValue dict;
   if (!rfh.GetFrameName().empty()) {
     dict.Set("frame_name", rfh.GetFrameName());
   }
@@ -589,9 +590,9 @@ base::Value::Dict RenderFrameHostToJson(content::RenderFrameHost& rfh) {
 
 // Serializes the state of a WebContents, including the state of all its iframes
 // as well as navigation history for the tab.
-base::Value::Dict WebContentsToJson(const Browser& browser,
-                                    content::WebContents& web_contents) {
-  base::Value::Dict dict =
+base::DictValue WebContentsToJson(const BrowserWindowInterface& browser,
+                                  content::WebContents& web_contents) {
+  base::DictValue dict =
       RenderFrameHostToJson(*web_contents.GetPrimaryMainFrame());
   if (web_contents.HasOpener()) {
     dict.Set("has_opener", true);
@@ -602,7 +603,7 @@ base::Value::Dict WebContentsToJson(const Browser& browser,
 
   // The new tab page has inconsistent frames, so skip frame analysis there.
   if (!IsNewTabOrAboutBlankUrl(&browser, last_committed_url)) {
-    base::Value::List frames;
+    base::ListValue frames;
     web_contents.GetPrimaryMainFrame()->ForEachRenderFrameHost(
         [&](content::RenderFrameHost* frame) {
           if (frame->IsInPrimaryMainFrame()) {
@@ -616,12 +617,12 @@ base::Value::Dict WebContentsToJson(const Browser& browser,
     }
   }
 
-  base::Value::List history;
+  base::ListValue history;
   content::NavigationController& navigation_controller =
       web_contents.GetController();
   for (int i = 0; i < navigation_controller.GetEntryCount(); ++i) {
     content::NavigationEntry& entry = *navigation_controller.GetEntryAtIndex(i);
-    base::Value::Dict json_entry;
+    base::DictValue json_entry;
     json_entry.Set("url", entry.GetURL().PathForRequest());
     if (!entry.GetReferrer().url.is_empty()) {
       json_entry.Set("referrer", entry.GetReferrer().url.PathForRequest());
@@ -636,7 +637,7 @@ base::Value::Dict WebContentsToJson(const Browser& browser,
       web_contents.GetPrimaryMainFrame(),
       "'launchParamsTargetUrls' in window ? launchParamsTargetUrls : []");
   EXPECT_THAT(launchParamsResults, content::EvalJsResult::IsOk());
-  const base::Value::List& launchParamsTargetUrls =
+  const base::ListValue& launchParamsTargetUrls =
       launchParamsResults.ExtractList();
   if (!launchParamsTargetUrls.empty()) {
     for (const base::Value& url : launchParamsTargetUrls) {
@@ -645,9 +646,11 @@ base::Value::Dict WebContentsToJson(const Browser& browser,
     }
   }
 
-  if (browser.app_controller() &&
-      browser.app_controller()->GetPinnedHomeTab() == &web_contents) {
-    dict.Set("is_pinned_home_tab", true);
+  if (const web_app::AppBrowserController* const app_controller =
+          web_app::AppBrowserController::From(&browser)) {
+    if (app_controller->GetPinnedHomeTab() == &web_contents) {
+      dict.Set("is_pinned_home_tab", true);
+    }
   }
 
   return dict;
@@ -659,22 +662,25 @@ base::Value::Dict WebContentsToJson(const Browser& browser,
 // For app browsers, the scope path is added to simplify manual debugging to
 // identify cases where a source app window can have an out of scope destination
 // url loaded in it.
-base::Value::Dict BrowserToJson(const Browser& browser) {
-  base::Value::Dict dict = base::Value::Dict().Set(
-      "browser_type", BrowserTypeToString(browser.type()));
-  if (browser.type() == Browser::Type::TYPE_APP ||
-      browser.type() == Browser::Type::TYPE_APP_POPUP) {
-    CHECK(browser.app_controller());
-    const webapps::AppId& app_id = browser.app_controller()->app_id();
+base::DictValue BrowserToJson(BrowserWindowInterface& browser) {
+  base::DictValue dict = base::DictValue().Set(
+      "browser_type", BrowserTypeToString(browser.GetType()));
+  if (browser.GetType() == BrowserWindowInterface::Type::TYPE_APP ||
+      browser.GetType() == BrowserWindowInterface::Type::TYPE_APP_POPUP) {
+    const web_app::AppBrowserController* const app_controller =
+        web_app::AppBrowserController::From(&browser);
+    CHECK(app_controller);
+    const webapps::AppId& app_id = app_controller->app_id();
     CHECK(!app_id.empty());
-    WebAppProvider* provider = WebAppProvider::GetForTest(browser.profile());
+    WebAppProvider* const provider =
+        WebAppProvider::GetForTest(browser.GetProfile());
     const GURL& app_scope = provider->registrar_unsafe().GetAppScope(app_id);
     if (app_scope.is_valid()) {
       dict.Set("app_scope", app_scope.PathForRequest());
     }
   }
-  base::Value::List tabs;
-  const TabStripModel* tab_model = browser.tab_strip_model();
+  base::ListValue tabs;
+  const TabStripModel* const tab_model = browser.GetTabStripModel();
   for (int i = 0; i < tab_model->count(); ++i) {
     content::WebContents* const current_contents =
         tab_model->GetWebContentsAt(i);
@@ -684,7 +690,7 @@ base::Value::Dict BrowserToJson(const Browser& browser) {
     if (current_contents->IsBeingDestroyed()) {
       continue;
     }
-    base::Value::Dict tab = WebContentsToJson(browser, *current_contents);
+    base::DictValue tab = WebContentsToJson(browser, *current_contents);
     if (i == tab_model->active_index()) {
       tab.Set("active", true);
     }
@@ -918,7 +924,7 @@ class NavCaptureParameterizedBrowserTest
     // redirection happening on the way from a source to a destination url.
     // Prevent multiple redirections from being triggered which causes a Chrome
     // error page to show up, cancelling the navigation.
-    if (base::Contains(request.GetURL().query(), "redirect")) {
+    if (request.GetURL().query().contains("redirect")) {
       return nullptr;
     }
 
@@ -931,7 +937,7 @@ class NavCaptureParameterizedBrowserTest
     const GURL& final_request_url =
         request.GetURL().ReplaceComponents(request_replacements);
 
-    if (!base::Contains(final_request_url.spec(), "/destination.html")) {
+    if (!final_request_url.spec().contains("/destination.html")) {
       return nullptr;  // Only redirect for destination pages.
     }
 
@@ -1120,10 +1126,10 @@ class NavCaptureParameterizedBrowserTest
   // This method returns the dictionary associated with the test name derived
   // from the test parameters. If no entry exists for the test, a new one is
   // created.
-  base::Value::Dict& GetTestCaseDataFromParam() {
+  base::DictValue& GetTestCaseDataFromParam() {
     std::string shortened_name =
         TupleToParamString(GetShortenedConfigFromTestConfig(GetParam()));
-    base::Value::Dict* result =
+    base::DictValue* result =
         test_expectations().EnsureDict("tests")->EnsureDict(shortened_name);
     // Temporarily check expectations for the test name before redirect mode was
     // a separate parameter as well to make it easier to migrate expectations.
@@ -1182,7 +1188,7 @@ class NavCaptureParameterizedBrowserTest
   base::Value GetMetricBuckets(std::string metric_name, T value) {
     std::vector<base::Bucket> launch_source_buckets =
         action_histogram_tester_->GetAllSamples(metric_name);
-    base::Value::List bucket_list;
+    base::ListValue bucket_list;
     for (const base::Bucket& bucket : launch_source_buckets) {
       for (int count = 0; count < bucket.count; count++) {
         bucket_list.Append(base::ToString(static_cast<T>(bucket.min)));
@@ -1194,21 +1200,20 @@ class NavCaptureParameterizedBrowserTest
   // Serializes the entire state of chrome that we're interested in in this test
   // to a dictionary. This state consists of the state of all Browser windows,
   // in creation order of the Browser.
-  base::Value::Dict CaptureCurrentState() {
-    base::Value::List browsers;
-    for (Browser* b : *BrowserList::GetInstance()) {
-      if (b->is_delete_scheduled()) {
-        continue;
-      }
-      base::Value::Dict json_browser = BrowserToJson(*b);
-      browsers.Append(std::move(json_browser));
-    }
+  base::DictValue CaptureCurrentState() {
+    base::ListValue browsers;
+    GlobalBrowserCollection::GetInstance()->ForEach(
+        [&browsers](BrowserWindowInterface* browser) {
+          browsers.Append(BrowserToJson(*browser));
+          return true;
+        },
+        BrowserCollection::Order::kCreation);
 
     // Measure the web app launch metrics as well as the navigation capturing
     // metrics for the redirections and non-redirected navigations. It is
     // expected that redirections should ALSO have non-redirected values
     // measured.
-    return base::Value::Dict()
+    return base::DictValue()
         .Set("browsers", std::move(browsers))
         .Set("launch_metric_buckets",
              GetMetricBuckets("WebApp.LaunchSource",
@@ -1233,8 +1238,8 @@ class NavCaptureParameterizedBrowserTest
     // doing a rebaseline.
     base::ScopedClosureRunner lock = LockExpectationsFile(file_config);
 
-    base::Value::Dict& test_case_to_be_updated = GetTestCaseDataFromParam();
-    base::Value::Dict saved_test_case = test_case_to_be_updated.Clone();
+    base::DictValue& test_case_to_be_updated = GetTestCaseDataFromParam();
+    base::DictValue saved_test_case = test_case_to_be_updated.Clone();
 
     std::string full_test_params = TupleToParamString(GetParam());
     test_case_to_be_updated.Set("_params", full_test_params);
@@ -1514,8 +1519,7 @@ class NavCaptureParameterizedBrowserTest
     for (int i = 0; i < unit_test->total_test_suite_count(); ++i) {
       const testing::TestSuite* test_suite = unit_test->GetTestSuite(i);
       // We only care about link capturing parameterized tests.
-      if (!base::Contains(std::string(test_suite->name()),
-                          GetTestClassName())) {
+      if (!(std::string(test_suite->name())).contains(GetTestClassName())) {
         continue;
       }
       for (int j = 0; j < test_suite->total_test_count(); ++j) {
@@ -1547,12 +1551,12 @@ class NavCaptureParameterizedBrowserTest
     const bool should_log_disabled_tests =
         base::CommandLine::ForCurrentProcess()->HasSwitch("log-disabled-tests");
 
-    base::Value::Dict& expectations = *test_expectations().EnsureDict("tests");
+    base::DictValue& expectations = *test_expectations().EnsureDict("tests");
     std::vector<std::string> tests_to_remove;
     for (const auto [shortened_name, expectation] : expectations) {
       if (!shortened_test_cases.contains(shortened_name)) {
         tests_to_remove.push_back(shortened_name);
-      } else if (base::Value::Dict* d = expectation.GetIfDict()) {
+      } else if (base::DictValue* d = expectation.GetIfDict()) {
         if (should_log_disabled_tests &&
             (d->FindBool("disabled").value_or(false) ||
              d->FindString("disabled"))) {
@@ -1582,11 +1586,11 @@ class NavCaptureParameterizedBrowserTest
   }
 
   void PerformTestCleanupForAllFilesIfNeeded() {
-    for (auto display_mode = base::to_underlying(AppUserDisplayMode::kMinValue);
-         display_mode <= base::to_underlying(AppUserDisplayMode::kMaxValue);
+    for (auto display_mode = std::to_underlying(AppUserDisplayMode::kMinValue);
+         display_mode <= std::to_underlying(AppUserDisplayMode::kMaxValue);
          ++display_mode) {
-      for (auto link_capturing = base::to_underlying(LinkCapturing::kMinValue);
-           link_capturing <= base::to_underlying(LinkCapturing::kMaxValue);
+      for (auto link_capturing = std::to_underlying(LinkCapturing::kMinValue);
+           link_capturing <= std::to_underlying(LinkCapturing::kMaxValue);
            ++link_capturing) {
         PerformTestCleanupIfNeeded(
             {static_cast<AppUserDisplayMode>(display_mode),
@@ -1595,7 +1599,7 @@ class NavCaptureParameterizedBrowserTest
     }
   }
 
-  base::Value::Dict& test_expectations() {
+  base::DictValue& test_expectations() {
     CHECK(test_expectations_.has_value());
     CHECK(test_expectations_->is_dict());
     return test_expectations_->GetDict();
@@ -1783,8 +1787,8 @@ class NavCaptureParameterizedBrowserTest
     if (ShouldRebaseline()) {
       RecordActualResults(GetExpectationsFileConfigFromTestConfig(GetParam()));
     } else {
-      const base::Value::Dict& test_case = GetTestCaseDataFromParam();
-      const base::Value::Dict* expected_state =
+      const base::DictValue& test_case = GetTestCaseDataFromParam();
+      const base::DictValue* expected_state =
           test_case.FindDict("expected_state");
       ASSERT_TRUE(expected_state)
           << "Expected state not found in file "
@@ -1815,7 +1819,7 @@ class NavCaptureParameterizedBrowserTest
 #endif
 
     testing::TestParamInfo<LinkCaptureTestParam> param(GetParam(), 0);
-    const base::Value::Dict& test_case = GetTestCaseDataFromParam();
+    const base::DictValue& test_case = GetTestCaseDataFromParam();
 
     // Skip current test-case if the test is disabled in the expectations file.
     // If the "disabled" value is a string (which can be used to specify why the
@@ -1826,8 +1830,8 @@ class NavCaptureParameterizedBrowserTest
     }
 
     // Skip tests that are disabled because they are flaky.
-    if (base::Contains(disabled_flaky_tests, TupleToParamString(param.param)) ||
-        base::Contains(disabled_flaky_tests, "*")) {
+    if (disabled_flaky_tests.contains(TupleToParamString(param.param)) ||
+        disabled_flaky_tests.contains("*")) {
       return true;
     }
 
@@ -1861,11 +1865,6 @@ class NavCaptureParameterizedBrowserTest
     if (type == "TYPE_APP_POPUP") {
       return Browser::Type::TYPE_APP_POPUP;
     }
-#if BUILDFLAG(IS_CHROMEOS)
-    if (type == "TYPE_CUSTOM_TAB") {
-      return Browser::Type::TYPE_CUSTOM_TAB;
-    }
-#endif
     if (type == "TYPE_PICTURE_IN_PICTURE") {
       return Browser::Type::TYPE_PICTURE_IN_PICTURE;
     }
@@ -1890,10 +1889,9 @@ class NavCaptureParameterizedBrowserTest
     // Cleanup tests will call this with every combination of file
     // configuration, and if no tests exist then the load will fail.
     if (!ShouldRebaseline() &&
-        !base::Contains(std::string(::testing::UnitTest::GetInstance()
-                                        ->current_test_info()
-                                        ->name()),
-                        "Cleanup")) {
+        !(std::string(
+              ::testing::UnitTest::GetInstance()->current_test_info()->name()))
+             .contains("Cleanup")) {
       ASSERT_TRUE(file_read_success_)
           << "Failed to read test baselines from "
           << GetExpectationsFile(file_config).value()

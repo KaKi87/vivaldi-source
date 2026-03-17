@@ -5,7 +5,7 @@
 
 #import <UIKit/UIKit.h>
 
-@protocol ApplicationCommands;
+@protocol SceneCommands;
 class Browser;
 @protocol BrowserCommands;
 @protocol NoteInteractionControllerDelegate;

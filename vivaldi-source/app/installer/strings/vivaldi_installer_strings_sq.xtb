@@ -1,33 +1,36 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="sq">
-<translation id="1089894737218087497">Instaloj më vete</translation>
 <translation id="1682285232070778125">Caktoj Vivaldin si shfletuesin standard të internetit</translation>
+<translation id="1775102330209840064">Shpërndaj rastet e bllokimit të Vivaldit për të përmirësuar cilësinë e produktit</translation>
 <translation id="1974060860693918893">E avancuar</translation>
 <translation id="2053560788696003312">Vivaldi ka nevojë për Windows 10 e lart.</translation>
 <translation id="2134216661302048561">Nuk ka përfunduar instalimi i shfletuesit Vivaldi. Jeni të sigurt për daljen tani?</translation>
-<translation id="2286454467119466181">E thjeshtë</translation>
 <translation id="237789874664518125">Kopirajti <ph name="YEAR" /> Vivaldi Technologies AS. Gjithë të drejtat janë rezervuar. &lt;a&gt;Politika e privatësisë&lt;/a&gt;</translation>
-<translation id="3004507951429848293">Duke klikuar butonin 'Pranoj dhe përditësoj' po miratoni edhe &lt;a&gt;Kushtet e shërbimit&lt;/a&gt; të Vivaldit</translation>
+<translation id="3355081107855563356">Duke klikuar butonin 'Pranoj dhe instaloj', tregoni se i pranoni &lt;a&gt;Kushtet e Shërbimit&lt;/a&gt; të Vivaldit</translation>
 <translation id="335985608243443814">Shfletoj...</translation>
 <translation id="3485073444286678268">Dosja e destinuar është e pasaktë. Lutemi të zgjidhni një tjetër.</translation>
+<translation id="3601875200579023345">Për përdoruesin</translation>
 <translation id="3784826321032465839">Instaloni Vivaldin</translation>
-<translation id="4079588913451946215">Instaloj për gjithë përdoruesit</translation>
+<translation id="4066679519692422625">Problem me instalimin për shkak të një gabimi të papërcaktuar. Lutemi ta shkarkoni sërish Vivaldin.</translation>
 <translation id="421958613172216971">Përzgjidhni dosjen</translation>
-<translation id="4234678621326711327">Instaloj për përdoruesin</translation>
-<translation id="4322221081772213228">Duke klikuar butonin 'Pranoj dhe instaloj' po miratoni edhe &lt;a&gt;Kushtet e shërbimit&lt;/a&gt; të Vivaldit</translation>
 <translation id="4380252528729894811">Dosja e destinuar</translation>
 <translation id="460304900852424163">Çaktivizoj përditësimet automatike (nuk rekomandohet)</translation>
 <translation id="4619978527973181021">Pranoj dhe instaloj</translation>
 <translation id="479976146866774527">Instalon Vivaldin</translation>
-<translation id="5051728323101947360">Përdor këtë aplikacion të Vivaldit si standard</translation>
+<translation id="5051728323101947360">Përdor aplikacionin autonom të Vivaldit si standard</translation>
 <translation id="5247376421371319618">Pranoj dhe përditësoj</translation>
 <translation id="5302048478445481009">Gjuha</translation>
+<translation id="6665592435383088482">Autonom</translation>
 <translation id="694714344624446243">Instaluesi i Vivaldit</translation>
+<translation id="7298195798382681320">Rekomandohet</translation>
 <translation id="7467493612551448880">Ky version i Vivaldit, që po e instaloni, nuk është optimizuar për versionin e Windows-it që keni.
 
 Vizitoni vivaldi.com/download për të shkarkuar versionin për Windows me procesor Arm.</translation>
 <translation id="7658239707568436148">Anuloj</translation>
 <translation id="8773751185824654197">Vini re: Kur Vivaldi instalohet duke qenë në punë e sipër, dritarja do të mbyllet e hapet vetë</translation>
+<translation id="9163437061188815291">Duke klikuar butonin 'Pranoj dhe përditësoj', tregoni se i pranoni &lt;a&gt;Kushtet e Shërbimit&lt;/a&gt; të Vivaldit</translation>
+<translation id="9175596866737867642">Bëhuni gati për një shfletues të pakrahasueshëm me shumë funksione të integruara, që rritin performancën, produktivitetin dhe privatësinë 🎉</translation>
 <translation id="933060950687965486">Lloji i instalimit</translation>
+<translation id="963837307749850257">Gjithë përdoruesit</translation>
 </translationbundle>

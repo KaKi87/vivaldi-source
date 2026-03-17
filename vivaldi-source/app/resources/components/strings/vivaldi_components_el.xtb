@@ -25,4 +25,14 @@
         Εάν με αυτόν τον τρόπο δεν επιλύεται το ζήτημά σας, συνιστούμε
         να ενεργοποιήσετε ξανά αυτήν την επιλογή για βελτιωμένη απόδοση.</translation>
 <translation id="7496505986576158197">Το Vivaldi υλοποιήθηκε με χρήση του έργου ανοικτού κώδικα <ph name="BEGIN_LINK_CHROMIUM" />Chromium<ph name="END_LINK_CHROMIUM" /> και άλλου <ph name="BEGIN_LINK_OSS" />λογισμικού ανοικτού κώδικα<ph name="END_LINK_OSS" />.</translation>
+<translation id="89559930087159128">Μεταβείτε στο
+          μενού Vivaldi &gt;
+          <ph name="SETTINGS_TITLE" />
+          &gt;
+          <ph name="SYSTEM_TITLE" />
+          &gt;
+          <ph name="PROXIES_TITLE" />
+          &gt;
+          Δίκτυο και διαδίκτυο &gt; Διακομιστής μεσολάβησης
+          και αποεπιλέξτε την «Αυτόματη ανίχνευση ρυθμίσεων».</translation>
 </translationbundle>

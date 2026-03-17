@@ -18,8 +18,9 @@ import androidx.annotation.VisibleForTesting;
 import androidx.fragment.app.Fragment;
 
 import org.chromium.base.CallbackController;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -30,6 +31,7 @@ import org.chromium.chrome.browser.safety_hub.SafetyHubMetricUtils.DashboardModu
 import org.chromium.chrome.browser.safety_hub.SafetyHubMetricUtils.LifecycleEvent;
 import org.chromium.chrome.browser.safety_hub.SafetyHubModuleMediator.ModuleOption;
 import org.chromium.chrome.browser.safety_hub.SafetyHubModuleMediator.ModuleState;
+import org.chromium.chrome.browser.settings.search.ChromeBaseSearchIndexProvider;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
@@ -71,7 +73,8 @@ public class SafetyHubFragment extends SafetyHubBaseFragment
     @VisibleForTesting
     static final String HELP_CENTER_URL = "https://support.google.com/chrome?p=safety_check";
 
-    private final ObservableSupplierImpl<String> mPageTitle = new ObservableSupplierImpl<>();
+    private final SettableMonotonicObservableSupplier<String> mPageTitle =
+            ObservableSuppliers.createMonotonic();
 
     private SafetyHubModuleDelegate mDelegate;
     private @Nullable CallbackController mCallbackController;
@@ -116,14 +119,7 @@ public class SafetyHubFragment extends SafetyHubBaseFragment
                                 updateCheckModuleMediator,
                                 permissionsRevocationModuleMediator,
                                 safeBrowsingModuleMediator));
-        boolean shouldShowNotificationModule =
-                !ChromeFeatureList.isEnabled(
-                                ChromeFeatureList.SAFETY_HUB_DISRUPTIVE_NOTIFICATION_REVOCATION)
-                        || ChromeFeatureList.getFieldTrialParamByFeatureAsBoolean(
-                                ChromeFeatureList.SAFETY_HUB_DISRUPTIVE_NOTIFICATION_REVOCATION,
-                                "shadow_run",
-                                true);
-        if (shouldShowNotificationModule) {
+        if (shouldShowNotificationModule()) {
             SafetyHubModuleMediator notificationsModuleMediator =
                     new SafetyHubNotificationsModuleMediator(
                             findPreference(PREF_NOTIFICATIONS_REVIEW),
@@ -146,9 +142,7 @@ public class SafetyHubFragment extends SafetyHubBaseFragment
                         safetyHubFetchService,
                         new PasswordStoreBridge(getProfile()));
 
-        if (ChromeFeatureList.isEnabled(ChromeFeatureList.SAFETY_HUB_UNIFIED_PASSWORDS_MODULE)
-                && ChromeFeatureList.isEnabled(
-                        ChromeFeatureList.SAFETY_HUB_LOCAL_PASSWORDS_MODULE)) {
+        if (shouldShowUnifiedPasswords()) {
             SafetyHubPasswordsModuleMediator passwordsModuleMediator =
                     new SafetyHubPasswordsModuleMediator(
                             findPreference(PREF_UNIFIED_PASSWORDS),
@@ -165,8 +159,7 @@ public class SafetyHubFragment extends SafetyHubBaseFragment
                             /* mediatorDelegate= */ this,
                             mDelegate);
             mModuleMediators.add(accountPasswordsModuleMediator);
-
-            if (ChromeFeatureList.isEnabled(ChromeFeatureList.SAFETY_HUB_LOCAL_PASSWORDS_MODULE)) {
+            if (shouldShowLocalPasswords()) {
                 SafetyHubLocalPasswordsModuleMediator localPasswordsModuleMediator =
                         new SafetyHubLocalPasswordsModuleMediator(
                                 findPreference(PREF_LOCAL_PASSWORDS),
@@ -185,6 +178,25 @@ public class SafetyHubFragment extends SafetyHubBaseFragment
         for (SafetyHubModuleMediator moduleMediator : mModuleMediators) {
             moduleMediator.setUpModule();
         }
+    }
+
+    private static boolean shouldShowNotificationModule() {
+        return !ChromeFeatureList.isEnabled(
+                        ChromeFeatureList.SAFETY_HUB_DISRUPTIVE_NOTIFICATION_REVOCATION)
+                || ChromeFeatureList.getFieldTrialParamByFeatureAsBoolean(
+                        ChromeFeatureList.SAFETY_HUB_DISRUPTIVE_NOTIFICATION_REVOCATION,
+                        "shadow_run",
+                        true);
+    }
+
+    private static boolean shouldShowUnifiedPasswords() {
+        return ChromeFeatureList.isEnabled(ChromeFeatureList.SAFETY_HUB_UNIFIED_PASSWORDS_MODULE)
+                && ChromeFeatureList.isEnabled(ChromeFeatureList.SAFETY_HUB_LOCAL_PASSWORDS_MODULE);
+    }
+
+    private static boolean shouldShowLocalPasswords() {
+        return !shouldShowUnifiedPasswords()
+                && ChromeFeatureList.isEnabled(ChromeFeatureList.SAFETY_HUB_LOCAL_PASSWORDS_MODULE);
     }
 
     private void setUpSafetyTipsModule() {
@@ -224,7 +236,7 @@ public class SafetyHubFragment extends SafetyHubBaseFragment
     }
 
     @Override
-    public ObservableSupplier<String> getPageTitle() {
+    public MonotonicObservableSupplier<String> getPageTitle() {
         return mPageTitle;
     }
 
@@ -254,7 +266,7 @@ public class SafetyHubFragment extends SafetyHubBaseFragment
                 menu.add(Menu.NONE, R.id.menu_id_targeted_help, Menu.NONE, R.string.menu_help);
         help.setIcon(
                 TraceEventVectorDrawableCompat.create(
-                        getResources(), R.drawable.ic_help_and_feedback, getActivity().getTheme()));
+                        getResources(), R.drawable.ic_help_24dp, getActivity().getTheme()));
     }
 
     @Override
@@ -374,4 +386,8 @@ public class SafetyHubFragment extends SafetyHubBaseFragment
     public @Nullable String getMainMenuKey() {
         return "safety_hub";
     }
+
+    public static final ChromeBaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+            new ChromeBaseSearchIndexProvider(
+                    SafetyHubFragment.class.getName(), ChromeBaseSearchIndexProvider.INDEX_OPT_OUT);
 }

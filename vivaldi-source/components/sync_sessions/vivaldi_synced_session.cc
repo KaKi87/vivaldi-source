@@ -14,4 +14,4 @@ void SyncedSession::SetVivaldiSpecific(
 const VivaldiSpecific& SyncedSession::GetVivaldiSpecific() const {
   return vivaldi_specific_;
 }
-} // namespace sync_sessions
+}  // namespace sync_sessions

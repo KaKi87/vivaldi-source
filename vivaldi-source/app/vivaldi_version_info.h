@@ -4,16 +4,16 @@
 #define APP_VIVALDI_VERSION_INFO_H_
 
 /*
-* NOTE! NOTE! NOTE!
-*
-* Sources in targets using this header file MUST add the below
-* in the relevant GN target:
-*
-*   configs += [
-*     "//vivaldi/gn/config:release_kind"
-*   ]
-*
-*/
+ * NOTE! NOTE! NOTE!
+ *
+ * Sources in targets using this header file MUST add the below
+ * in the relevant GN target:
+ *
+ *   configs += [
+ *     "//vivaldi/gn/config:release_kind"
+ *   ]
+ *
+ */
 #ifndef VIVALDI_RELEASE
 #error "VIVALDI_RELEASE must be defined (missing config:release_kind)."
 #endif

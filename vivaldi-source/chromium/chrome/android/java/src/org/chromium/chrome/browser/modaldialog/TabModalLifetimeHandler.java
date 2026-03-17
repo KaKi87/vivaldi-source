@@ -8,8 +8,10 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.app.Activity;
 
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -88,10 +90,11 @@ public class TabModalLifetimeHandler
     private final Supplier<BrowserControlsVisibilityManager>
             mBrowserControlsVisibilityManagerSupplier;
     private final Supplier<FullscreenManager> mFullscreenManagerSupplier;
-    private final ObservableSupplierImpl<Boolean> mHandleBackPressChangedSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplier<ScrimManager> mScrimManagerSupplier;
-    private final ObservableSupplier<EdgeToEdgeController> mEdgeToEdgeControllerSupplier;
+    private final SettableNonNullObservableSupplier<Boolean> mHandleBackPressChangedSupplier =
+            ObservableSuppliers.createNonNull(false);
+
+    private final MonotonicObservableSupplier<ScrimManager> mScrimManagerSupplier;
+    private final MonotonicObservableSupplier<EdgeToEdgeController> mEdgeToEdgeControllerSupplier;
     private final BackPressManager mBackPressManager;
     private @MonotonicNonNull ChromeTabModalPresenter mPresenter;
     private @MonotonicNonNull TabModelSelectorTabModelObserver mTabModelObserver;
@@ -131,8 +134,8 @@ public class TabModalLifetimeHandler
             Supplier<BrowserControlsVisibilityManager> browserControlsVisibilityManagerSupplier,
             Supplier<FullscreenManager> fullscreenManagerSupplier,
             BackPressManager backPressManager,
-            ObservableSupplier<ScrimManager> scrimManagerSupplier,
-            ObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier) {
+            MonotonicObservableSupplier<ScrimManager> scrimManagerSupplier,
+            MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier) {
         mActivity = activity;
         mActivityLifecycleDispatcher = activityLifecycleDispatcher;
         mActivityLifecycleDispatcher.register(this);
@@ -174,7 +177,7 @@ public class TabModalLifetimeHandler
     }
 
     @Override
-    public ObservableSupplier<Boolean> getHandleBackPressChangedSupplier() {
+    public NonNullObservableSupplier<Boolean> getHandleBackPressChangedSupplier() {
         return mHandleBackPressChangedSupplier;
     }
 

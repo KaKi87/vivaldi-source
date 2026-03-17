@@ -18,8 +18,7 @@ class Browser;
 // Initializer for a mediator. `Browser` is the
 // Browser whose content is shown within the BrowserContainerConsumer. It must
 // be non-null. `consumer` is the consumer of copy-to-note updates.
-- (instancetype)initWithBrowser:(Browser*)browser
-    NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithBrowser:(Browser*)browser NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
 // The delegate to present error message alerts.

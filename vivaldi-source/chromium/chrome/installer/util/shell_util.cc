@@ -304,7 +304,7 @@ void GetProgIdEntries(const ShellUtil::ApplicationInfo& app_info,
     entries->push_back(std::make_unique<RegistryEntry>(
         prog_id_path + ShellUtil::kRegShellOpen, ShellUtil::kRegDelegateExecute,
         app_info.delegate_clsid));
-    // TODO(scottmg): Simplify after Metro removal. https://crbug.com/558054.
+    // TODO(scottmg): Simplify after Metro removal. https://crbug.com/40445378.
     entries->back()->set_removal_flag(RegistryEntry::RemovalFlag::VALUE);
   }
 
@@ -388,7 +388,7 @@ void GetChromeProgIdEntries(
         GetChromeDelegateExecuteEntries(chrome_exe, app_info);
     // Remove the keys (not only their values) so that Windows will continue
     // to launch Chrome without a pesky association error.
-    // TODO(scottmg): Simplify after Metro removal. https://crbug.com/558054.
+    // TODO(scottmg): Simplify after Metro removal. https://crbug.com/40445378.
     for (const auto& entry : delegate_execute_entries)
       entry->set_removal_flag(RegistryEntry::RemovalFlag::KEY);
     // Move |delegate_execute_entries| to |entries|.
@@ -476,18 +476,16 @@ void GetShellIntegrationEntries(
       capabilities + L"\\Startmenu", L"StartMenuInternet", reg_app_name));
 
   const std::wstring html_prog_id(GetBrowserProgId(suffix));
-  // Register HTML and PDF Prog IDs (e.g., ChromePDF) with the corresponding
-  // file association.
-  for (int i = 0;
-       UNSAFE_TODO(ShellUtil::kPotentialFileAssociations[i]) != nullptr; i++) {
+  // Associate ordinary files with the HTML Prog ID (e.g., "ChromeHTML").
+  for (auto association : ShellUtil::kPotentialFileAssociations) {
     entries->push_back(std::make_unique<RegistryEntry>(
-        capabilities + L"\\FileAssociations",
-        UNSAFE_TODO(ShellUtil::kPotentialFileAssociations[i]),
-        UNSAFE_TODO(
-            wcscmp(ShellUtil::kPotentialFileAssociations[i], L".pdf")) == 0
-            ? GetPDFProgId(suffix)
-            : html_prog_id));
+        capabilities + L"\\FileAssociations", std::wstring(association),
+        html_prog_id));
   }
+  // Associate .pdf files with the PDF Prog ID (e.g., "ChromePDF").
+  entries->push_back(std::make_unique<RegistryEntry>(
+      capabilities + L"\\FileAssociations", L".pdf", GetPDFProgId(suffix)));
+
   for (int i = 0;
        UNSAFE_TODO(ShellUtil::kPotentialProtocolAssociations[i]) != nullptr;
        i++) {
@@ -496,6 +494,15 @@ void GetShellIntegrationEntries(
         UNSAFE_TODO(ShellUtil::kPotentialProtocolAssociations[i]),
         html_prog_id));
   }
+
+  // Add the direct launch URL scheme if one is defined for this mode.
+  const char* direct_launch_scheme =
+      install_static::GetDirectLaunchUrlScheme();
+  if (direct_launch_scheme && *direct_launch_scheme) {
+    entries->push_back(std::make_unique<RegistryEntry>(
+        capabilities + L"\\URLAssociations",
+        base::ASCIIToWide(direct_launch_scheme), html_prog_id));
+  }
 }
 
 // Gets the registry entries to register an application as a handler for a
@@ -503,7 +510,7 @@ void GetShellIntegrationEntries(
 // application. |ext| is the file extension, which must begin with a '.'.
 void GetAppExtRegistrationEntries(
     const std::wstring& prog_id,
-    const std::wstring& ext,
+    std::wstring_view ext,
     std::vector<std::unique_ptr<RegistryEntry>>* entries) {
   // In HKEY_CURRENT_USER\Software\Classes\EXT\OpenWithProgids, create an
   // empty value with this class's ProgId.
@@ -536,12 +543,15 @@ void GetChromeAppRegistrationEntries(
       chrome_exe.DirName().value()));
 
   const std::wstring html_prog_id(GetBrowserProgId(suffix));
-  for (int i = 0;
-       UNSAFE_TODO(ShellUtil::kPotentialFileAssociations[i]) != nullptr; i++) {
-    GetAppExtRegistrationEntries(
-        html_prog_id, UNSAFE_TODO(ShellUtil::kPotentialFileAssociations[i]),
-        entries);
+  for (auto association : ShellUtil::kPotentialFileAssociations) {
+    GetAppExtRegistrationEntries(html_prog_id, association, entries);
   }
+  GetAppExtRegistrationEntries(GetPDFProgId(suffix), L".pdf", entries);
+
+  // Remove the faulty registration of the main HTML Prog Id with .pdf files.
+  // Remove this in 2028.
+  GetAppExtRegistrationEntries(html_prog_id, L".pdf", entries);
+  entries->back()->set_removal_flag(RegistryEntry::RemovalFlag::VALUE);
 }
 
 // Gets the registry entries to register an application as the default handler
@@ -655,14 +665,42 @@ bool AreEntriesAsDesired(
   return true;
 }
 
+// This method returns a list of all the registry entries that are needed to
+// register the direct launch URI scheme (e.g. "google-chrome://").
+void GetDirectLaunchEntries(
+    const base::FilePath& chrome_exe,
+    std::vector<std::unique_ptr<RegistryEntry>>* entries) {
+  const char* scheme_char = install_static::GetDirectLaunchUrlScheme();
+  if (!scheme_char || *scheme_char == '\0') {
+    return;
+  }
+  const std::wstring scheme = base::ASCIIToWide(scheme_char);
+  std::wstring url_key =
+      base::StrCat({ShellUtil::kRegClasses, kFilePathSeparator, scheme});
+
+  // <root hkey>\SOFTWARE\Classes\<scheme>:
+  // - "" (default value) REG_SZ: "URL:google-chrome"
+  // - "URL Protocol" REG_SZ: (empty string)
+  entries->push_back(std::make_unique<RegistryEntry>(
+      url_key, base::StrCat({L"URL:", scheme})));
+  entries->push_back(std::make_unique<RegistryEntry>(
+      url_key, ShellUtil::kRegUrlProtocol, std::wstring()));
+
+  // <root hkey>\SOFTWARE\Classes\<scheme>\ShellUtil::kRegShellOpen:
+  // - "" (default value) REG_SZ: ShellUtil::GetChromeShellOpenCmd()
+  std::wstring shell_key = url_key + ShellUtil::kRegShellOpen;
+  entries->push_back(std::make_unique<RegistryEntry>(
+      shell_key, ShellUtil::GetChromeShellOpenCmd(chrome_exe)));
+}
+
 // Checks that all required registry entries for Chrome are already present on
 // this computer (or absent if their |removal_flag_| is set).
 // See RegistryEntry::ExistsInRegistry for the behavior of |look_for_in|.
 // Note: between r133333 and r154145 we were registering parts of Chrome in HKCU
 // and parts in HKLM for user-level installs; we now always register everything
-// under a single registry root. Not doing so caused http://crbug.com/144910 for
-// users who first-installed Chrome in that revision range (those users are
-// still impacted by http://crbug.com/144910). This method will keep returning
+// under a single registry root. Not doing so caused http://crbug.com/40914637
+// for users who first-installed Chrome in that revision range (those users are
+// still impacted by http://crbug.com/40914637). This method will keep returning
 // true for affected users (i.e. who have all the registrations, but over both
 // registry roots).
 bool IsChromeRegistered(const base::FilePath& chrome_exe,
@@ -672,6 +710,7 @@ bool IsChromeRegistered(const base::FilePath& chrome_exe,
   GetChromeProgIdEntries(chrome_exe, suffix, &entries);
   GetShellIntegrationEntries(chrome_exe, suffix, &entries);
   GetChromeAppRegistrationEntries(chrome_exe, suffix, &entries);
+  GetDirectLaunchEntries(chrome_exe, &entries);
   return AreEntriesAsDesired(entries, look_for_in);
 }
 
@@ -1314,9 +1353,7 @@ bool BatchShortcutAction(
 bool RemoveShortcutFolderIfEmpty(ShellUtil::ShortcutLocation location,
                                  ShellUtil::ShellChange level) {
   // Explicitly allow locations, since accidental calls can be very harmful.
-  if (location !=
-          ShellUtil::SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED &&
-      location != ShellUtil::SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR &&
+  if (location != ShellUtil::SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR &&
       location != ShellUtil::SHORTCUT_LOCATION_APP_SHORTCUTS) {
     NOTREACHED();
   }
@@ -1418,6 +1455,7 @@ bool RegisterChromeBrowserImpl(const base::FilePath& chrome_exe,
     GetChromeAppRegistrationEntries(chrome_exe, suffix,
                                     &progid_and_appreg_entries);
     GetShellIntegrationEntries(chrome_exe, suffix, &shell_entries);
+    GetDirectLaunchEntries(chrome_exe, &shell_entries);
     const std::wstring html_prog_id = GetBrowserProgId(suffix);
     return ShellUtil::AddRegistryEntries(root, progid_and_appreg_entries,
                                          best_effort_no_rollback) &&
@@ -1427,7 +1465,7 @@ bool RegisterChromeBrowserImpl(const base::FilePath& chrome_exe,
   // The installer is responsible for registration for system-level installs, so
   // never try to do it here. Getting to this point for a system-level install
   // likely means that IsChromeRegistered thinks registration is broken due to
-  // localization issues (see https://crbug.com/717913#c18). It likely is not,
+  // localization issues (see https://crbug.com/41316723#c18). It likely is not,
   // so return success to allow Chrome to be made default.
   if (!user_level) {
     std::move(notify_on_exit).Cancel();
@@ -1578,9 +1616,6 @@ const wchar_t* ShellUtil::kAppPathsRegistryPathName = L"Path";
 
 const wchar_t* ShellUtil::kDefaultFileAssociations[] = {
     L".htm", L".html", L".shtml", L".xht", L".xhtml", nullptr};
-const wchar_t* ShellUtil::kPotentialFileAssociations[] = {
-    L".htm", L".html", L".mhtml", L".pdf",  L".shtml",
-    L".svg", L".xht",  L".xhtml", L".webp", nullptr};
 const wchar_t* ShellUtil::kBrowserProtocolAssociations[] = {L"http", L"https",
                                                             nullptr};
 const wchar_t* ShellUtil::kPotentialProtocolAssociations[] = {
@@ -1628,7 +1663,6 @@ bool ShellUtil::ShortcutLocationIsSupported(ShortcutLocation location) {
     case SHORTCUT_LOCATION_DESKTOP:                           // Falls through.
     case SHORTCUT_LOCATION_QUICK_LAUNCH:                      // Falls through.
     case SHORTCUT_LOCATION_START_MENU_ROOT:                   // Falls through.
-    case SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED:  // Falls through.
     case SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR:        // Falls through.
     case SHORTCUT_LOCATION_STARTUP:                           // Falls through.
     case SHORTCUT_LOCATION_TASKBAR_PINS:                      // Falls through.
@@ -1658,11 +1692,6 @@ bool ShellUtil::GetShortcutPath(ShortcutLocation location,
     case SHORTCUT_LOCATION_START_MENU_ROOT:
       dir_key = (level == CURRENT_USER) ? base::DIR_START_MENU
                                         : base::DIR_COMMON_START_MENU;
-      break;
-    case SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED:
-      dir_key = (level == CURRENT_USER) ? base::DIR_START_MENU
-                                        : base::DIR_COMMON_START_MENU;
-      folder_to_append = InstallUtil::GetChromeShortcutDirNameDeprecated();
       break;
     case SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR:
       dir_key = (level == CURRENT_USER) ? base::DIR_START_MENU
@@ -1715,29 +1744,6 @@ void ShellUtil::AddDefaultShortcutProperties(const base::FilePath& target_exe,
     properties->set_description(InstallUtil::GetAppDescription());
 }
 
-bool ShellUtil::MoveExistingShortcut(ShortcutLocation old_location,
-                                     ShortcutLocation new_location,
-                                     const ShortcutProperties& properties) {
-  // Explicitly allow locations to which this is applicable.
-  if (old_location != SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED ||
-      new_location != SHORTCUT_LOCATION_START_MENU_ROOT) {
-    NOTREACHED();
-  }
-
-  std::wstring shortcut_name(ExtractShortcutNameFromProperties(properties));
-
-  base::FilePath old_shortcut_path;
-  base::FilePath new_shortcut_path;
-  GetShortcutPath(old_location, properties.level, &old_shortcut_path);
-  GetShortcutPath(new_location, properties.level, &new_shortcut_path);
-  old_shortcut_path = old_shortcut_path.Append(shortcut_name);
-  new_shortcut_path = new_shortcut_path.Append(shortcut_name);
-
-  bool result = base::Move(old_shortcut_path, new_shortcut_path);
-  RemoveShortcutFolderIfEmpty(old_location, properties.level);
-  return result;
-}
-
 bool ShellUtil::TranslateShortcutCreationOrUpdateInfo(
     ShortcutLocation location,
     const ShortcutProperties& properties,
@@ -1750,7 +1756,6 @@ bool ShellUtil::TranslateShortcutCreationOrUpdateInfo(
   if (location != SHORTCUT_LOCATION_DESKTOP &&
       location != SHORTCUT_LOCATION_QUICK_LAUNCH &&
       location != SHORTCUT_LOCATION_START_MENU_ROOT &&
-      location != SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED &&
       location != SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR) {
     DLOG(ERROR) << "Invalid shortcut location " << location;
     return false;
@@ -2039,11 +2044,12 @@ ShellUtil::ShowSystemUIResult ShellUtil::ShowSetDefaultForFileExtensionSystemUI(
   // Ensure `file_extension` is correctly formatted and is one of the extensions
   // Chrome handles.
   DCHECK(file_extension.starts_with(base::FilePath::kExtensionSeparator));
-  DCHECK(std::ranges::any_of(base::span(ShellUtil::kPotentialFileAssociations),
-                             [&file_extension](const wchar_t* candidate) {
+  DCHECK(std::ranges::any_of(ShellUtil::kPotentialFileAssociations,
+                             [&file_extension](std::wstring_view candidate) {
                                return base::FilePath::CompareEqualIgnoreCase(
                                    file_extension, candidate);
-                             }));
+                             }) ||
+         base::FilePath::CompareEqualIgnoreCase(file_extension, L".pdf"));
   // If Chrome is not eligible to become the default handler, do nothing.
   if (!install_static::SupportsSetAsDefaultBrowser() ||
       !RegisterChromeBrowser(chrome_exe, std::wstring(), true)) {
@@ -2246,10 +2252,8 @@ bool ShellUtil::RemoveShortcuts(
       BatchShortcutAction(shortcut_filter.AsShortcutFilterCallback(),
                           shortcut_operation, location, level, nullptr);
   // Remove chrome-specific shortcut folders if they are now empty.
-  if (success &&
-      (location == SHORTCUT_LOCATION_START_MENU_CHROME_DIR_DEPRECATED ||
-       location == SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR ||
-       location == SHORTCUT_LOCATION_APP_SHORTCUTS)) {
+  if (success && (location == SHORTCUT_LOCATION_START_MENU_CHROME_APPS_DIR ||
+                  location == SHORTCUT_LOCATION_APP_SHORTCUTS)) {
     success = RemoveShortcutFolderIfEmpty(location, level);
   }
   return success;

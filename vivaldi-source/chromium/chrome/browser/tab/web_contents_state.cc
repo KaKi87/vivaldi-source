@@ -33,13 +33,14 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/referrer.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
+#include "third_party/jni_zero/common_apis.h"
 
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/browser/tab/jni_headers/WebContentsState_jni.h"
 
 using base::android::ConvertUTF16ToJavaString;
 using base::android::ConvertUTF8ToJavaString;
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 using base::android::MethodID;
 using base::android::ScopedJavaLocalRef;
 using content::BrowserContext;
@@ -49,15 +50,7 @@ using content::WebContents;
 namespace {
 
 ScopedJavaLocalRef<jobject> CreateByteBufferDirect(JNIEnv* env, int size) {
-  ScopedJavaLocalRef<jclass> clazz =
-      base::android::GetClass(env, "java/nio/ByteBuffer");
-  jmethodID method = MethodID::Get<MethodID::TYPE_STATIC>(
-      env, clazz.obj(), "allocateDirect", "(I)Ljava/nio/ByteBuffer;");
-  jobject ret = env->CallStaticObjectMethod(clazz.obj(), method, size);
-  if (base::android::ClearException(env)) {
-    return {};
-  }
-  return base::android::ScopedJavaLocalRef<jobject>::Adopt(env, ret);
+  return jni_zero::ByteBufferAllocateDirect(env, size);
 }
 
 void WriteStateHeaderToPickle(bool off_the_record,
@@ -307,8 +300,8 @@ ScopedJavaLocalRef<jobject> WebContentsState::RestoreContentsFromByteBuffer(
     const base::android::JavaRef<jobject>& state,
     BrowserContext* browser_context,
     int saved_state_version,
-    jboolean initially_hidden,
-    jboolean no_renderer) {
+    bool initially_hidden,
+    bool no_renderer) {
   base::span<const uint8_t> span =
       base::android::JavaByteBufferToSpan(env, state);
 
@@ -376,8 +369,7 @@ bool WebContentsState::ExtractNavigationEntries(
     int* current_entry_index,
     std::vector<sessions::SerializedNavigationEntry>* navigations) {
   int entry_count;
-  base::Pickle pickle = base::Pickle::WithUnownedBuffer(buffer);
-  base::PickleIterator iter(pickle);
+  base::PickleIterator iter = base::PickleIterator::WithData(buffer);
   if (!iter.ReadBool(is_off_the_record) || !iter.ReadInt(&entry_count) ||
       !iter.ReadInt(current_entry_index)) {
     LOG(ERROR) << "Failed to restore state from byte array (length="
@@ -402,9 +394,8 @@ bool WebContentsState::ExtractNavigationEntries(
       LOG(ERROR) << "Failed to restore tab entry from byte array.";
       return false;  // It's dangerous to keep deserializing now, give up.
     }
-    base::Pickle tab_navigation_pickle =
-        base::Pickle::WithUnownedBuffer(*tab_entry);
-    base::PickleIterator tab_navigation_pickle_iterator(tab_navigation_pickle);
+    base::PickleIterator tab_navigation_pickle_iterator =
+        base::PickleIterator::WithData(*tab_entry);
     sessions::SerializedNavigationEntry nav;
     if (!nav.ReadFromPickle(&tab_navigation_pickle_iterator)) {
       return false;  // If we failed to read a navigation, give up on others.
@@ -515,10 +506,10 @@ static ScopedJavaLocalRef<jobject>
 JNI_WebContentsState_RestoreContentsFromByteBuffer(
     JNIEnv* env,
     Profile* profile,
-    const JavaParamRef<jobject>& state,
+    const JavaRef<jobject>& state,
     int saved_state_version,
-    jboolean initially_hidden,
-    jboolean no_renderer) {
+    bool initially_hidden,
+    bool no_renderer) {
   return WebContentsState::RestoreContentsFromByteBuffer(
       env, state, profile, saved_state_version, initially_hidden, no_renderer);
 }
@@ -526,7 +517,7 @@ JNI_WebContentsState_RestoreContentsFromByteBuffer(
 static ScopedJavaLocalRef<jobject>
 JNI_WebContentsState_GetContentsStateAsByteBuffer(
     JNIEnv* env,
-    const JavaParamRef<jobject>& jweb_contents) {
+    const JavaRef<jobject>& jweb_contents) {
   WebContents* web_contents =
       content::WebContents::FromJavaWebContents(jweb_contents);
   return WebContentsState::GetContentsStateAsByteBuffer(env, web_contents);
@@ -535,9 +526,9 @@ JNI_WebContentsState_GetContentsStateAsByteBuffer(
 static base::android::ScopedJavaLocalRef<jobject>
 JNI_WebContentsState_DeleteNavigationEntries(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& state,
+    const base::android::JavaRef<jobject>& state,
     int saved_state_version,
-    jlong predicate_ptr) {
+    int64_t predicate_ptr) {
   base::span<const uint8_t> span =
       base::android::JavaByteBufferToSpan(env, state);
 
@@ -565,9 +556,9 @@ JNI_WebContentsState_CreateSingleNavigationStateAsByteBuffer(
 static ScopedJavaLocalRef<jobject> JNI_WebContentsState_AppendPendingNavigation(
     JNIEnv* env,
     Profile* profile,
-    const JavaParamRef<jobject>& state,
+    const JavaRef<jobject>& state,
     int saved_state_version,
-    jboolean clobber_current_entry,
+    bool clobber_current_entry,
     std::optional<std::u16string>& title,
     std::string& url,
     std::optional<std::string>& referrer_url,
@@ -584,7 +575,7 @@ static ScopedJavaLocalRef<jobject> JNI_WebContentsState_AppendPendingNavigation(
 static std::optional<std::u16string>
 JNI_WebContentsState_GetDisplayTitleFromByteBuffer(
     JNIEnv* env,
-    const JavaParamRef<jobject>& state,
+    const JavaRef<jobject>& state,
     int saved_state_version) {
   base::span<const uint8_t> span =
       base::android::JavaByteBufferToSpan(env, state);
@@ -594,10 +585,9 @@ JNI_WebContentsState_GetDisplayTitleFromByteBuffer(
 }
 
 static std::optional<std::string>
-JNI_WebContentsState_GetVirtualUrlFromByteBuffer(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& state,
-    int saved_state_version) {
+JNI_WebContentsState_GetVirtualUrlFromByteBuffer(JNIEnv* env,
+                                                 const JavaRef<jobject>& state,
+                                                 int saved_state_version) {
   base::span<const uint8_t> span =
       base::android::JavaByteBufferToSpan(env, state);
 
@@ -606,7 +596,7 @@ JNI_WebContentsState_GetVirtualUrlFromByteBuffer(
 }
 
 static void JNI_WebContentsState_FreeStringPointer(JNIEnv* env,
-                                                   jlong string_pointer) {
+                                                   int64_t string_pointer) {
   delete reinterpret_cast<std::string*>(string_pointer);
 }
 

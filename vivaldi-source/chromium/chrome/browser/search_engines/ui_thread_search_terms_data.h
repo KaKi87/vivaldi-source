@@ -32,6 +32,8 @@ class UIThreadSearchTermsData : public SearchTermsData {
   // Estimates dynamic memory usage.
   // See base/trace_event/memory_usage_estimator.h for more info.
   size_t EstimateMemoryUsage() const override;
+
+  std::string_view VivaldiGetKagiToken() const override;
 };
 
 #endif  // CHROME_BROWSER_SEARCH_ENGINES_UI_THREAD_SEARCH_TERMS_DATA_H_

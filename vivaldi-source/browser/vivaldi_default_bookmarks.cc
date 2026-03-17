@@ -345,8 +345,7 @@ void BookmarkUpdater::SetDeletedPartners(PrefService* prefs) {
       prefs->GetList(vivaldiprefs::kBookmarksDeletedPartners);
   bool upgraded_old_ids = false;
   deleted_partner_uuids_ =
-      ReadRemovedPartners(
-          deleted_partners, upgraded_old_ids);
+      ReadRemovedPartners(deleted_partners, upgraded_old_ids);
 }
 
 void AddBookmarkUuids(const std::vector<DefaultBookmarkItem>& default_items,
@@ -613,7 +612,7 @@ const BookmarkNode* BookmarkUpdater::TryToAdd(const DefaultBookmarkItem& item,
     }
   }
 
-  if (base::Contains(deleted_partner_uuids_, item.uuid)) {
+  if (deleted_partner_uuids_.contains(item.uuid)) {
     VLOG(2) << "Skipping deleted partner name=" << item.title
             << " uuid=" << item.uuid;
     return nullptr;
@@ -844,7 +843,7 @@ void UpdatePartners(std::unique_ptr<UpdaterClient> client,
 }
 
 std::set<base::Uuid> ReadRemovedPartners(
-    const base::Value::List& deleted_partners,
+    const base::ListValue& deleted_partners,
     bool& upgraded_old_id) {
   upgraded_old_id = false;
   std::set<base::Uuid> removed_partners;

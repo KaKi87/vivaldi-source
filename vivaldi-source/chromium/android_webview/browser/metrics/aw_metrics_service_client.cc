@@ -253,6 +253,14 @@ void AwMetricsServiceClient::SetInstance(
       g_aw_metrics_service_client->sequence_checker_);
 }
 
+// static
+void AwMetricsServiceClient::ClearInstanceForTesting() {
+  if (g_aw_metrics_service_client) {
+    delete g_aw_metrics_service_client;
+    g_aw_metrics_service_client = nullptr;
+  }
+}
+
 AwMetricsServiceClient::AwMetricsServiceClient(
     std::unique_ptr<Delegate> delegate)
     : time_created_(base::Time::Now()), delegate_(std::move(delegate)) {}
@@ -538,6 +546,17 @@ AwMetricsServiceClient::CreateUploader(
       on_upload_complete);
 }
 
+bool AwMetricsServiceClient::IsJobSchedulerSupported() const {
+  // The native wrapper to schedule tasks through JobScheduler is not currently
+  // supported on WebView (since tasks have to be mapped under //chrome in
+  // ChromeBackgroundTaskFactory). Thankfully, this is fine for our purposes.
+  // The reason we want to schedule jobs through JobScheduler is because since
+  // Android 15, JobScheduler is required make network requests while the app is
+  // in the background. However, on WebView, we do not make direct network
+  // requests -- the logs are simply forwarded to the Clearcut Client.
+  return false;
+}
+
 base::TimeDelta AwMetricsServiceClient::GetStandardUploadInterval() {
   // In AwMetricsServiceClients, metrics collection (when we batch up all
   // logged histograms into a ChromeUserMetricsExtension proto) and metrics
@@ -806,10 +825,9 @@ base::FilePath AwMetricsServiceClient::GetNoBackupFilesDir() {
 }
 
 // static
-static void JNI_AwMetricsServiceClient_SetHaveMetricsConsent(
-    JNIEnv* env,
-    jboolean user_consent,
-    jboolean app_consent) {
+static void JNI_AwMetricsServiceClient_SetHaveMetricsConsent(JNIEnv* env,
+                                                             bool user_consent,
+                                                             bool app_consent) {
   AwMetricsServiceClient::GetInstance()->SetHaveMetricsConsent(user_consent,
                                                                app_consent);
 }
@@ -817,7 +835,7 @@ static void JNI_AwMetricsServiceClient_SetHaveMetricsConsent(
 // static
 static void JNI_AwMetricsServiceClient_SetFastStartupForTesting(
     JNIEnv* env,
-    jboolean fast_startup_for_testing) {
+    bool fast_startup_for_testing) {
   AwMetricsServiceClient::GetInstance()->SetFastStartupForTesting(
       fast_startup_for_testing);
 }
@@ -825,7 +843,7 @@ static void JNI_AwMetricsServiceClient_SetFastStartupForTesting(
 // static
 static void JNI_AwMetricsServiceClient_SetUploadIntervalForTesting(
     JNIEnv* env,
-    jlong upload_interval_ms) {
+    int64_t upload_interval_ms) {
   AwMetricsServiceClient::GetInstance()->SetUploadIntervalForTesting(
       base::Milliseconds(upload_interval_ms));
 }
@@ -834,10 +852,10 @@ static void JNI_AwMetricsServiceClient_SetUploadIntervalForTesting(
 static void
 JNI_AwMetricsServiceClient_SetOnFinalMetricsCollectedListenerForTesting(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& listener) {
+    const base::android::JavaRef<jobject>& listener) {
   AwMetricsServiceClient::GetInstance()
       ->SetOnFinalMetricsCollectedListenerForTesting(base::BindRepeating(
-          base::android::RunRunnableAndroid,
+          jni_zero::RunRunnable,
           base::android::ScopedJavaGlobalRef<jobject>(listener)));
 }
 

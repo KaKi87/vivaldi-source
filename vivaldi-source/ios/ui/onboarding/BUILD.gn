@@ -28,6 +28,17 @@ source_set("vivaldi_onboarding") {
   ]
 }
 
+source_set("vivaldi_onboarding_notification_constants") {
+  sources = [
+    "vivaldi_onboarding_notification_constants.h",
+    "vivaldi_onboarding_notification_constants.mm",
+  ]
+
+  frameworks = [
+    "Foundation.framework",
+  ]
+}
+
 swift_source_set("vivaldi_onboarding_swift") {
   bridge_header = "vivaldi_onboarding_swift_bridge.h"
   sources = [
@@ -48,6 +59,7 @@ swift_source_set("vivaldi_onboarding_swift") {
   ]
 
   deps = [
+    ":vivaldi_onboarding_notification_constants",
     "//base",
     "//ios/chrome/app/strings",
     "//ui/base",

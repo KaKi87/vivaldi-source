@@ -52,7 +52,7 @@ suite('TransportMode', () => {
     PageImageServiceBrowserProxy.setInstance(
         new PageImageServiceBrowserProxy(imageServiceHandler));
     imageServiceHandler.setResultFor('getPageImageUrl', Promise.resolve({
-      result: {imageUrl: {url: 'https://example.com/image.png'}},
+      result: {imageUrl: 'https://example.com/image.png'},
     }));
 
     loadTimeData.overrideValues({
@@ -66,7 +66,6 @@ suite('TransportMode', () => {
       emptyBodyGuest: 'guest body',
       bookmarksTreeViewEnabled: false,
       isBookmarksInTransportModeEnabled: true,
-      splitViewEnabled: false,
     });
 
     powerBookmarksList = await initializeUi(bookmarksApi);
@@ -81,17 +80,17 @@ suite('TransportMode', () => {
     contextMenu.showAtPosition(
         new MouseEvent('click'),
         [getBookmarkWithId(powerBookmarksList, bookmarkId)!], false, false,
-        false);
+        false, 1);
     await waitAfterNextRender(contextMenu);
 
     // Get the edit option in the menu.
     const menuItems =
         contextMenu.shadowRoot!.querySelectorAll('.dropdown-item');
     assertEquals(
-        menuItems[3]!.textContent.includes(loadTimeData.getString('menuEdit')),
+        menuItems[4]!.textContent.includes(loadTimeData.getString('menuEdit')),
         true);
     const editItem = contextMenu.shadowRoot!.querySelectorAll<HTMLElement>(
-        '.dropdown-item')[3]!;
+        '.dropdown-item')[4]!;
 
     // Click on edit and wait for the call to propagate.
     editItem.click();
@@ -117,7 +116,7 @@ suite('TransportMode', () => {
 
     // Open the context menu.
     contextMenu.showAtPosition(
-        new MouseEvent('click'), bookmarks, false, false, false);
+        new MouseEvent('click'), bookmarks, false, false, false, 1);
     await waitAfterNextRender(contextMenu);
 
     // Get the move option in the menu.

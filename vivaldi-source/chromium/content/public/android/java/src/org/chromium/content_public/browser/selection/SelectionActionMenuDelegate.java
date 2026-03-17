@@ -30,7 +30,11 @@ public interface SelectionActionMenuDelegate {
             DefaultItem.PASTE_AS_PLAIN_TEXT,
             DefaultItem.SHARE,
             DefaultItem.SELECT_ALL,
-            DefaultItem.WEB_SEARCH
+            DefaultItem.WEB_SEARCH,
+            DefaultItem.VIVALDI_TRANSLATE,  // Vivaldi
+            DefaultItem.COPY_TO_NOTE,  // Vivaldi
+            DefaultItem.APPEND_TO_NOTE,  // Vivaldi
+            DefaultItem.ADD_AS_SEARCH_ENGINE // Vivaldi
         };
     }
 

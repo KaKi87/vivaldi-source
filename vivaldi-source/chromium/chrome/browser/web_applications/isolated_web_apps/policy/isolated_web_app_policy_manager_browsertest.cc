@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "base/check_deref.h"
@@ -23,7 +24,6 @@
 #include "base/test/run_until.h"
 #include "base/test/test_future.h"
 #include "base/threading/thread_restrictions.h"
-#include "base/types/cxx23_to_underlying.h"
 #include "base/types/expected.h"
 #include "base/version.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
@@ -37,14 +37,15 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/web_applications/test/isolated_web_app_test_utils.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
+#include "chrome/browser/web_applications/isolated_web_apps/test/fake_iwa_runtime_data_provider_mixin.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_test_update_server.h"
-#include "chrome/browser/web_applications/isolated_web_apps/test/key_distribution/test_utils.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/policy_generator.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/test_iwa_installer_factory.h"
 #include "chrome/browser/web_applications/policy/web_app_policy_manager.h"
 #include "chrome/browser/web_applications/test/web_app_test_observers.h"
 #include "chrome/browser/web_applications/web_app_command_manager.h"
+#include "chrome/browser/web_applications/web_app_filter.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/pref_names.h"
@@ -57,8 +58,6 @@
 #include "components/policy/policy_constants.h"
 #include "components/prefs/pref_service.h"
 #include "components/webapps/common/web_app_id.h"
-#include "components/webapps/isolated_web_apps/features.h"
-#include "components/webapps/isolated_web_apps/iwa_key_distribution_info_provider.h"
 #include "components/webapps/isolated_web_apps/test_support/signing_keys.h"
 #include "components/webapps/isolated_web_apps/types/iwa_version.h"
 #include "components/webapps/isolated_web_apps/types/update_channel.h"
@@ -286,13 +285,13 @@ class IsolatedWebAppPolicyManagerBrowserTestBase
             .mutable_isolatedwebappinstallforcelist();
 
     isolated_web_apps_proto->set_value(
-        WriteJson(base::Value::List().Append(
+        WriteJson(base::ListValue().Append(
                       iwa_test_update_server_.CreateForceInstallPolicyEntry(
                           kWebBundleId1)))
             .value());
   }
 
-  void SetIwaForceInstallPolicy(base::Value::List update_manifest_entries) {
+  void SetIwaForceInstallPolicy(base::ListValue update_manifest_entries) {
     if (is_user_session_) {
       policy::PolicyMap policies;
       policies.Set(policy::key::kIsolatedWebAppInstallForceList,
@@ -309,20 +308,18 @@ class IsolatedWebAppPolicyManagerBrowserTestBase
 
   void SetIwaAllowlist(
       const std::vector<web_package::SignedWebBundleId>& managed_allowlist) {
-    base::ScopedAllowBlockingForTesting allow_blocking;
-    EXPECT_THAT(test::UpdateKeyDistributionInfoWithAllowlist(
-                    base::Version("1.0.0"), std::move(managed_allowlist)),
-                base::test::HasValue());
+    data_provider_->Update(
+        [&](auto& update) { update.SetManagedAllowlist(managed_allowlist); });
   }
 
   void SetPolicyWithOneApp() {
-    SetIwaForceInstallPolicy(base::Value::List().Append(
+    SetIwaForceInstallPolicy(base::ListValue().Append(
         iwa_test_update_server_.CreateForceInstallPolicyEntry(kWebBundleId1)));
   }
 
   void SetPolicyWithTwoApps() {
     SetIwaForceInstallPolicy(
-        base::Value::List()
+        base::ListValue()
             .Append(iwa_test_update_server_.CreateForceInstallPolicyEntry(
                 kWebBundleId1))
             .Append(iwa_test_update_server_.CreateForceInstallPolicyEntry(
@@ -331,7 +328,7 @@ class IsolatedWebAppPolicyManagerBrowserTestBase
 
   void SetPolicyWithOneAppWithPinnedVersion(
       std::string pinned_version = kPinnedVersion) {
-    SetIwaForceInstallPolicy(base::Value::List().Append(
+    SetIwaForceInstallPolicy(base::ListValue().Append(
         iwa_test_update_server_.CreateForceInstallPolicyEntry(
             kWebBundleId1, /*update_channel=*/std::nullopt,
             *IwaVersion::Create(pinned_version))));
@@ -339,7 +336,7 @@ class IsolatedWebAppPolicyManagerBrowserTestBase
 
   void SetPolicyWithBetaChannelApp(
       const web_package::SignedWebBundleId& web_bundle_id) {
-    SetIwaForceInstallPolicy(base::Value::List().Append(
+    SetIwaForceInstallPolicy(base::ListValue().Append(
         iwa_test_update_server_.CreateForceInstallPolicyEntry(web_bundle_id,
                                                               {kBetaChannel})));
   }
@@ -452,6 +449,8 @@ class IsolatedWebAppPolicyManagerBrowserTestBase
 
   policy::UserPolicyBuilder device_local_account_policy_;
   const bool is_user_session_;
+  TypedIwaRuntimeDataProviderMixin<FakeIwaRuntimeDataProvider> data_provider_{
+      &mixin_host_};
 
  private:
 #if BUILDFLAG(IS_CHROMEOS)
@@ -479,32 +478,12 @@ class IsolatedWebAppPolicyManagerBrowserTest
       public testing::WithParamInterface<bool> {
  public:
   IsolatedWebAppPolicyManagerBrowserTest()
-      : IsolatedWebAppPolicyManagerBrowserTestBase(GetParam()) {
-    scoped_feature_list_.InitWithFeatures(
-        /*enabled_features=*/
-        {
-#if !BUILDFLAG(IS_CHROMEOS)
-            features::kIsolatedWebApps,
-#endif  // BUILDFLAG(IS_CHROMEOS),
-            features::kIsolatedWebAppManagedAllowlist},
-        /*disabled_features=*/
-        {});
-  }
+      : IsolatedWebAppPolicyManagerBrowserTestBase(GetParam()) {}
+
   IsolatedWebAppPolicyManagerBrowserTest(
       const IsolatedWebAppPolicyManagerBrowserTest&) = delete;
   IsolatedWebAppPolicyManagerBrowserTest& operator=(
       const IsolatedWebAppPolicyManagerBrowserTest&) = delete;
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-
-  // Override the pre-install component directory and its alternative directory
-  // so that the component update will not find the pre-installed key
-  // distribution component.
-  base::ScopedPathOverride preinstalled_dir_override_{
-      component_updater::DIR_COMPONENT_PREINSTALLED};
-  base::ScopedPathOverride preinstalled_alt_dir_override_{
-      component_updater::DIR_COMPONENT_PREINSTALLED_ALT};
 };
 
 IN_PROC_BROWSER_TEST_P(IsolatedWebAppPolicyManagerBrowserTest,
@@ -524,8 +503,8 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppPolicyManagerBrowserTest,
   WebAppTestInstallObserver observer(profile);
   observer.BeginListeningAndWait({kAppId1});
 
-  ASSERT_EQ(provider().registrar_unsafe().GetInstallState(kAppId1),
-            proto::InstallState::INSTALLED_WITH_OS_INTEGRATION);
+  ASSERT_TRUE(provider().registrar_unsafe().AppMatches(
+      kAppId1, WebAppFilter::PolicyInstalledIsolatedWebApp()));
   EXPECT_EQ(GetIsolatedWebAppVersion(kAppId1).GetString(), "7.0.6");
 }
 
@@ -536,7 +515,7 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppPolicyManagerBrowserTest,
   SetIwaAllowlist(/*managed_allowlist=*/{});
 
   EXPECT_FALSE(
-      IwaKeyDistributionInfoProvider::GetInstance().IsManagedInstallPermitted(
+      ChromeIwaRuntimeDataProvider::GetInstance().IsManagedInstallPermitted(
           kWebBundleId1.id()));
 
   base::RunLoop run_loop;
@@ -560,8 +539,48 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppPolicyManagerBrowserTest,
 
   run_loop.Run();
 
-  EXPECT_THAT(provider().registrar_unsafe().GetAppById(kAppId1),
-              testing::IsNull());
+  EXPECT_FALSE(
+      provider().registrar_unsafe().GetInstallState(kAppId1).has_value());
+}
+
+IN_PROC_BROWSER_TEST_P(IsolatedWebAppPolicyManagerBrowserTest,
+                       AppInBlocklistNotInstalled) {
+  AddUser();
+  // Add also to allowlist to be sure that installation is blocked by blocklist
+
+  data_provider_->Update([&](auto& update) {
+    update.SetManagedAllowlist({kWebBundleId1, kWebBundleId2})
+        .SetBlocklist({kWebBundleId1});
+  });
+
+  EXPECT_TRUE(
+      ChromeIwaRuntimeDataProvider::GetInstance().IsManagedInstallPermitted(
+          kWebBundleId1.id()));
+  EXPECT_TRUE(ChromeIwaRuntimeDataProvider::GetInstance().IsBundleBlocklisted(
+      kWebBundleId1.id()));
+
+  base::RunLoop run_loop;
+  IsolatedWebAppPolicyManager::SetOnPolicyFullyProcessedCallbackForTesting(
+      base::BindLambdaForTesting([&]() {
+        // The second app was installed just to catch the final policy processed
+        // callback, both apps are processed together.
+        EXPECT_FALSE(
+            provider().registrar_unsafe().GetInstallState(kAppId1).has_value());
+        if (provider()
+                .registrar_unsafe()
+                .GetInstallState(kAppId2)
+                .has_value() == true) {
+          run_loop.Quit();
+        }
+      }));
+
+  WaitForUserAdded();
+
+  ASSERT_NO_FATAL_FAILURE(StartLogin({}));
+  WaitForSessionStart();
+  SetPolicyWithTwoApps();
+
+  run_loop.Run();
 }
 
 IN_PROC_BROWSER_TEST_P(IsolatedWebAppPolicyManagerBrowserTest, PolicyUpdate) {
@@ -584,8 +603,8 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppPolicyManagerBrowserTest, PolicyUpdate) {
     WebAppTestInstallObserver observer(profile);
     observer.BeginListeningAndWait({kAppId1});
 
-    EXPECT_EQ(provider().registrar_unsafe().GetInstallState(kAppId1),
-              proto::InstallState::INSTALLED_WITH_OS_INTEGRATION);
+    EXPECT_TRUE(provider().registrar_unsafe().AppMatches(
+        kAppId1, WebAppFilter::PolicyInstalledIsolatedWebApp()));
   }
 
   // Set the policy with 2 IWAs and wait for the IWA to be installed.
@@ -596,8 +615,8 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppPolicyManagerBrowserTest, PolicyUpdate) {
     WebAppTestInstallObserver observer2(profile);
     observer2.BeginListeningAndWait({kAppId2});
 
-    EXPECT_EQ(provider().registrar_unsafe().GetInstallState(kAppId2),
-              proto::InstallState::INSTALLED_WITH_OS_INTEGRATION);
+    EXPECT_TRUE(provider().registrar_unsafe().AppMatches(
+        kAppId2, WebAppFilter::PolicyInstalledIsolatedWebApp()));
   }
 }
 
@@ -652,8 +671,8 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppPolicyManagerBrowserTest,
   WebAppTestInstallObserver observer(profile);
   observer.BeginListeningAndWait({kAppId1});
 
-  ASSERT_EQ(provider().registrar_unsafe().GetInstallState(kAppId1),
-            proto::InstallState::INSTALLED_WITH_OS_INTEGRATION);
+  ASSERT_TRUE(provider().registrar_unsafe().AppMatches(
+      kAppId1, WebAppFilter::PolicyInstalledIsolatedWebApp()));
   EXPECT_EQ(GetIsolatedWebAppVersion(kAppId1),
             *IwaVersion::Create(kPinnedVersion));
 }
@@ -678,10 +697,10 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppPolicyManagerBrowserTest,
     CreateInitialDiscoveryUpdateWaiters({kAppId1, kAppId2});
     install_observer.Wait();
 
-    EXPECT_EQ(provider().registrar_unsafe().GetInstallState(kAppId1),
-              proto::InstallState::INSTALLED_WITH_OS_INTEGRATION);
-    EXPECT_EQ(provider().registrar_unsafe().GetInstallState(kAppId2),
-              proto::InstallState::INSTALLED_WITH_OS_INTEGRATION);
+    EXPECT_TRUE(provider().registrar_unsafe().AppMatches(
+        kAppId1, WebAppFilter::PolicyInstalledIsolatedWebApp()));
+    EXPECT_TRUE(provider().registrar_unsafe().AppMatches(
+        kAppId2, WebAppFilter::PolicyInstalledIsolatedWebApp()));
   }
 
   // Set the policy with 1 IWA and wait for the unnecessary IWA to be
@@ -705,9 +724,10 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppPolicyManagerBrowserTest,
     EXPECT_TRUE(uninstall_browsing_data_future.Wait());
     EXPECT_EQ(uninstall_observer.Wait(), kAppId2);
 
-    EXPECT_EQ(provider().registrar_unsafe().GetInstallState(kAppId1),
-              proto::InstallState::INSTALLED_WITH_OS_INTEGRATION);
-    EXPECT_FALSE(provider().registrar_unsafe().IsInRegistrar(kAppId2));
+    EXPECT_TRUE(provider().registrar_unsafe().AppMatches(
+        kAppId1, WebAppFilter::PolicyInstalledIsolatedWebApp()));
+    EXPECT_FALSE(
+        provider().registrar_unsafe().GetInstallState(kAppId2).has_value());
   }
 
   // Set the policy with 2 IWAs and wait for the second IWA to be re-installed.
@@ -719,10 +739,58 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppPolicyManagerBrowserTest,
     CreateInitialDiscoveryUpdateWaiters({kAppId2});
     install_observer.Wait();
 
-    EXPECT_EQ(provider().registrar_unsafe().GetInstallState(kAppId1),
-              proto::InstallState::INSTALLED_WITH_OS_INTEGRATION);
-    EXPECT_EQ(provider().registrar_unsafe().GetInstallState(kAppId2),
-              proto::InstallState::INSTALLED_WITH_OS_INTEGRATION);
+    EXPECT_TRUE(provider().registrar_unsafe().AppMatches(
+        kAppId1, WebAppFilter::PolicyInstalledIsolatedWebApp()));
+    EXPECT_TRUE(provider().registrar_unsafe().AppMatches(
+        kAppId2, WebAppFilter::PolicyInstalledIsolatedWebApp()));
+  }
+}
+
+IN_PROC_BROWSER_TEST_P(IsolatedWebAppPolicyManagerBrowserTest,
+                       AppsRemovedAfterBeingBlocklisted) {
+  AddUser();
+  data_provider_->Update([&](auto& update) {
+    update.SetManagedAllowlist({kWebBundleId1, kWebBundleId2});
+  });
+  WaitForUserAdded();
+
+  // Log in to the managed guest session. There is no IWA policy set at the
+  // moment of login.
+  ASSERT_NO_FATAL_FAILURE(StartLogin());
+  WaitForSessionStart();
+
+  // Set the policy with 2 IWAs and wait for the IWAs to be installed.
+  {
+    WebAppTestInstallObserver install_observer(GetProfileForTest());
+    install_observer.BeginListening({kAppId1, kAppId2});
+
+    SetPolicyWithTwoApps();
+    CreateInitialDiscoveryUpdateWaiters({kAppId1, kAppId2});
+    install_observer.Wait();
+
+    EXPECT_TRUE(provider().registrar_unsafe().AppMatches(
+        kAppId1, WebAppFilter::PolicyInstalledIsolatedWebApp()));
+    EXPECT_TRUE(provider().registrar_unsafe().AppMatches(
+        kAppId2, WebAppFilter::PolicyInstalledIsolatedWebApp()));
+  }
+
+  // Add apps to the blocklist and check if they are uninstalled
+  {
+    WebAppTestUninstallObserver uninstall_observer(GetProfileForTest());
+    uninstall_observer.BeginListening({kAppId1, kAppId2});
+
+    // Verify uninstallation takes place regardless of app allowlisting
+    data_provider_->Update([&](auto& update) {
+      update.SetBlocklist({kWebBundleId1, kWebBundleId2})
+          .SetManagedAllowlist({kWebBundleId1});
+    });
+
+    EXPECT_THAT(uninstall_observer.Wait(), testing::AnyOf(kAppId1, kAppId2));
+
+    EXPECT_FALSE(
+        provider().registrar_unsafe().GetInstallState(kAppId1).has_value());
+    EXPECT_FALSE(
+        provider().registrar_unsafe().GetInstallState(kAppId2).has_value());
   }
 }
 
@@ -750,7 +818,7 @@ class IsolatedWebAppDevToolsTestWithPolicy
   void SetDevToolsAvailability() {
     GetProfileForTest()->GetPrefs()->SetInteger(
         prefs::kDevToolsAvailability,
-        base::to_underlying(
+        std::to_underlying(
             std::get<DeveloperToolsPolicyHandler::Availability>(GetParam())));
   }
   bool AreDevToolsWindowsAllowedByCurrentPolicy() const {
@@ -778,10 +846,10 @@ IN_PROC_BROWSER_TEST_P(IsolatedWebAppDevToolsTestWithPolicy,
     CreateInitialDiscoveryUpdateWaiters(kAppId1);
     install_observer.Wait();
 
-    EXPECT_EQ(WebAppProvider::GetForTest(GetProfileForTest())
-                  ->registrar_unsafe()
-                  .GetInstallState(kAppId1),
-              proto::InstallState::INSTALLED_WITH_OS_INTEGRATION);
+    EXPECT_TRUE(WebAppProvider::GetForTest(GetProfileForTest())
+                    ->registrar_unsafe()
+                    .AppMatches(kAppId1,
+                                WebAppFilter::PolicyInstalledIsolatedWebApp()));
   }
 
   SetDevToolsAvailability();

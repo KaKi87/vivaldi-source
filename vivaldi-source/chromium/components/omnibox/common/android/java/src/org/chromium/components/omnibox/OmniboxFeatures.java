@@ -126,11 +126,6 @@ public class OmniboxFeatures {
     public static final CachedFlag sPostDelayedTaskFocusTab =
             newFlag(OmniboxFeatureList.POST_DELAYED_TASK_FOCUS_TAB, FeatureState.ENABLED_IN_PROD);
 
-    public static final CachedFlag sOmniboxMobileParityUpdateV2 =
-            newFlag(
-                    OmniboxFeatureList.OMNIBOX_MOBILE_PARITY_UPDATE_V2,
-                    FeatureState.ENABLED_IN_TEST);
-
     public static final CachedFlag sOmniboxSiteSearch =
             newFlag(OmniboxFeatureList.OMNIBOX_SITE_SEARCH, FeatureState.ENABLED_IN_TEST);
 
@@ -152,8 +147,23 @@ public class OmniboxFeatures {
     public static final BooleanCachedFeatureParam sMultiattachmentFusebox =
             newBooleanParam(sOmniboxMultimodalInput, "multi_context", false);
 
+    public static final BooleanCachedFeatureParam sRedirectComposeplateButton =
+            newBooleanParam(sOmniboxMultimodalInput, "redirect_composeplate_button", true);
+
+    /** A necessary but not sufficient condition to show the current tab button. */
+    public static final BooleanCachedFeatureParam sAllowCurrentTab =
+            newBooleanParam(sOmniboxMultimodalInput, "allow_current_tab", true);
+
+    /**
+     * If the expanded set of inputs (model picker as well as canvas tool) should be options. These
+     * new types, as well as all existing types, should be driven through PEC instead of hard coded
+     * into the client when this param is enabled.
+     */
+    public static final BooleanCachedFeatureParam sShowModelPicker =
+            newBooleanParam(sOmniboxMultimodalInput, "show_model_picker", false);
+
     public static final CachedFlag sMultilineEditField =
-            newFlag(OmniboxFeatureList.MULTILINE_EDIT_FIELD, FeatureState.ENABLED_IN_TEST);
+            newFlag(OmniboxFeatureList.MULTILINE_EDIT_FIELD, FeatureState.ENABLED_IN_PROD);
 
     public static final BooleanCachedFeatureParam sWrapAutocompleteText =
             newBooleanParam(sOmniboxMultimodalInput, "wrap_autocomplete_text", false);
@@ -165,15 +175,11 @@ public class OmniboxFeatures {
             newFlag(OmniboxFeatureList.OMNIBOX_IMPROVEMENT_FOR_LFF, FeatureState.DISABLED);
 
     public static final CachedFlag sRemoveSearchReadyOmnibox =
-            newFlag(OmniboxFeatureList.REMOVE_SEARCH_READY_OMNIBOX, FeatureState.ENABLED_IN_TEST);
+            newFlag(OmniboxFeatureList.REMOVE_SEARCH_READY_OMNIBOX, FeatureState.DISABLED);
 
     public static final BooleanCachedFeatureParam sRemoveSroIncludingVerbatimMatch =
             newBooleanParam(
                     sRemoveSearchReadyOmnibox, "remove_sro_including_verbatim_match", false);
-
-    public static final BooleanCachedFeatureParam sOmniboxParityRetrieveBuiltInEngineIcon =
-            newBooleanParam(sOmniboxMobileParityUpdateV2, "retrieve_builtin_favicon", true);
-
     public static final IntCachedFeatureParam sGeolocationRequestTimeoutMinutes =
             newIntParam(
                     sUseFusedLocationProvider,
@@ -208,7 +214,7 @@ public class OmniboxFeatures {
             newIntParam(sJumpStartOmnibox, "jump_start_memory_threshold_kb", 2 * 1024 * 1024);
 
     public static final IntCachedFeatureParam sJumpStartOmniboxMinAwayTimeMinutes =
-            newIntParam(sJumpStartOmnibox, "jump_start_min_away_time_minutes", 0 * 60);
+            newIntParam(sJumpStartOmnibox, "jump_start_min_away_time_minutes", 15);
 
     public static final IntCachedFeatureParam sJumpStartOmniboxMaxAwayTimeMinutes =
             newIntParam(sJumpStartOmnibox, "jump_start_max_away_time_minutes", 8 * 60);

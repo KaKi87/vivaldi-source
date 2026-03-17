@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.ntp_customization;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
@@ -28,15 +29,20 @@ import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoor
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.SINGLE_THEME_COLLECTION;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.THEME;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.THEME_COLLECTIONS;
+import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType.THEME_COLLECTION;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationViewProperties.LAYOUT_TO_DISPLAY;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationViewProperties.LIST_CONTAINER_VIEW_DELEGATE;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationViewProperties.MAIN_BOTTOM_SHEET_FEED_SECTION_SUBTITLE;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.os.Build;
 import android.view.View;
+import android.view.Window;
 
 import androidx.test.core.app.ApplicationProvider;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -44,7 +50,9 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 
+import org.chromium.base.UnownedUserDataHost;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.HistogramWatcher;
@@ -53,13 +61,18 @@ import org.chromium.chrome.browser.feed.FeedServiceBridge;
 import org.chromium.chrome.browser.feed.FeedServiceBridgeJni;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType;
+import org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType;
+import org.chromium.chrome.browser.ntp_customization.policy.NtpCustomizationPolicyManager;
 import org.chromium.chrome.browser.ntp_customization.theme.NtpThemeStateProvider;
+import org.chromium.chrome.browser.ntp_customization.theme.chrome_colors.NtpThemeColorInfo;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetContent;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
 import org.chromium.components.prefs.PrefService;
+import org.chromium.ui.base.WindowAndroid;
+import org.chromium.ui.edge_to_edge.EdgeToEdgeStateProvider;
 import org.chromium.ui.modelutil.PropertyModel;
 
 import java.util.List;
@@ -68,6 +81,7 @@ import java.util.function.Supplier;
 
 /** Unit tests for {@link NtpCustomizationMediator} */
 @RunWith(BaseRobolectricTestRunner.class)
+@Config(manifest = Config.NONE, sdk = Build.VERSION_CODES.R)
 public class NtpCustomizationMediatorUnitTest {
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
@@ -78,12 +92,16 @@ public class NtpCustomizationMediatorUnitTest {
     @Mock private PrefService mPrefService;
     @Mock private FeedServiceBridge.Natives mFeedServiceBridgeJniMock;
     @Mock private Profile mProfile;
+    @Mock private NtpCustomizationConfigManager mConfigManager;
+    @Mock private NtpCustomizationPolicyManager mNtpCustomizationPolicyManager;
+    @Mock private WindowAndroid mWindowAndroid;
 
     private NtpCustomizationMediator mMediator;
     private Map<Integer, Integer> mViewFlipperMap;
     private ListContainerViewDelegate mListDelegate;
     private Context mContext;
     private Supplier<Profile> mProfileSupplier;
+    private EdgeToEdgeStateProvider mE2EProvider;
 
     @Before
     public void setUp() {
@@ -92,6 +110,27 @@ public class NtpCustomizationMediatorUnitTest {
         NtpCustomizationMediator.setPrefForTesting(mPrefService);
         FeedServiceBridgeJni.setInstanceForTesting(mFeedServiceBridgeJniMock);
         FeedFeatures.setFakePrefsForTest(mPrefService);
+        NtpCustomizationConfigManager.setInstanceForTesting(mConfigManager);
+        when(mNtpCustomizationPolicyManager.isNtpCustomBackgroundEnabled()).thenReturn(true);
+        NtpCustomizationPolicyManager.setInstanceForTesting(mNtpCustomizationPolicyManager);
+
+        // Creates a data container so the Edge-to-Edge provider can be registered on the mocked
+        // WindowAndroid.
+        UnownedUserDataHost windowUserDataHost = new UnownedUserDataHost();
+        when(mWindowAndroid.getUnownedUserDataHost()).thenReturn(windowUserDataHost);
+
+        // Mocks the DecorView to avoid a NullPointerException by providing a non-null DecorView for
+        // WindowCompat to use when toggling edge-to-edge mode.
+        Window window = mock(Window.class);
+        View decorView = mock(View.class);
+        when(window.getDecorView()).thenReturn(decorView);
+
+        // Initialize the provider and acquire a token to force the Edge-to-Edge state to "enabled"
+        // for the tests.
+        mE2EProvider = new EdgeToEdgeStateProvider(window);
+        mE2EProvider.attach(mWindowAndroid);
+        mE2EProvider.acquireSetDecorFitsSystemWindowToken();
+
         mMediator =
                 new NtpCustomizationMediator(
                         mContext,
@@ -99,9 +138,16 @@ public class NtpCustomizationMediatorUnitTest {
                         mBottomSheetContent,
                         mViewFlipperPropertyModel,
                         mContainerPropertyModel,
-                        mProfileSupplier);
+                        mProfileSupplier,
+                        mWindowAndroid);
         mViewFlipperMap = mMediator.getViewFlipperMapForTesting();
         mListDelegate = mMediator.createListDelegate();
+    }
+
+    @After
+    public void tearDown() {
+        NtpCustomizationUtils.resetSharedPreferenceForTesting();
+        if (mE2EProvider != null) mE2EProvider.detach();
     }
 
     @Test
@@ -257,18 +303,24 @@ public class NtpCustomizationMediatorUnitTest {
         // Verifies mViewFlipperMap is cleared.
         mViewFlipperMap.put(BottomSheetType.NTP_CARDS, 9);
         mViewFlipperMap.put(BottomSheetType.MAIN, 10);
-
         assertEquals(2, mViewFlipperMap.size());
-        mMediator.destroy();
-        assertEquals(0, mViewFlipperMap.size());
 
         // Verifies mTypeToListenerMap is cleared.
         Map<Integer, View.OnClickListener> typeToListenerMap =
                 mMediator.getTypeToListenersForTesting();
         typeToListenerMap.put(BottomSheetType.NTP_CARDS, view -> {});
         assertEquals(1, typeToListenerMap.size());
+
+        // Verifies mListContent is cleared.
+        List<Integer> listItems = mListDelegate.getListItems();
+        assertFalse(listItems.isEmpty());
+
         mMediator.destroy();
+
+        assertEquals(0, mViewFlipperMap.size());
         assertEquals(0, typeToListenerMap.size());
+        assertTrue(listItems.isEmpty());
+        verify(mContainerPropertyModel).set(eq(LIST_CONTAINER_VIEW_DELEGATE), eq(null));
     }
 
     @Test
@@ -348,32 +400,84 @@ public class NtpCustomizationMediatorUnitTest {
     }
 
     @Test
-    public void testBuildListContentWhenProfileIsNotReady() {
-        List<Integer> listContent = mMediator.buildListContent();
+    @Features.EnableFeatures({
+        ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_V2,
+        ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_FOR_MVT
+    })
+    public void testBuildListContent_IncludesTheme() {
+        // Condition Check:
+        // 1. Feature Flag V2: Enabled via @EnableFeatures
+        // 2. Policy: Enabled via setUp
+        // 3. !isTablet: True (Robolectric context is phone by default)
+        // 4. SDK >= R: True via @Config
+        // 5. E2E Enabled for Window: True via setUp (token acquired)
+
+        List<Integer> listContent = mMediator.buildListContent(mContext);
+
+        assertTrue("List should contain THEME", listContent.contains(THEME));
+        assertEquals(List.of(MVT, NTP_CARDS, THEME), listContent);
+    }
+
+    @Test
+    @Features.EnableFeatures({
+        ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_V2,
+        ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_FOR_MVT
+    })
+    public void testBuildListContent_ExcludesThemeWhenE2EDisabled() {
+        // Release the token so E2E returns false
+        mE2EProvider.releaseSetDecorFitsSystemWindowToken(0);
+
+        List<Integer> listContent = mMediator.buildListContent(mContext);
+
+        assertFalse(
+                "List should NOT contain THEME when E2E is disabled", listContent.contains(THEME));
         assertEquals(List.of(MVT, NTP_CARDS), listContent);
     }
 
     @Test
-    @Features.DisableFeatures(ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_FOR_MVT)
-    public void testBuildListContentWhenProfileIsNotReadyAsNtpCustomizationForMvtFeatureDisabled() {
-        List<Integer> listContent = mMediator.buildListContent();
-        assertEquals(List.of(NTP_CARDS), listContent);
+    @Config(qualifiers = "sw600dp")
+    @Features.EnableFeatures({
+        ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_V2,
+        ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_FOR_MVT
+    })
+    public void testBuildListContent_IncludesThemeWhenE2EDisabled_tablet() {
+        // Release the token so E2E returns false
+        mE2EProvider.releaseSetDecorFitsSystemWindowToken(0);
+
+        List<Integer> listContent = mMediator.buildListContent(mContext);
+
+        assertTrue("List should contain THEME", listContent.contains(THEME));
+        assertEquals(List.of(MVT, NTP_CARDS, THEME), listContent);
     }
 
     @Test
+    public void testBuildListContentWhenProfileIsNotReady() {
+        List<Integer> listContent = mMediator.buildListContent(mContext);
+        assertEquals(List.of(MVT, NTP_CARDS, THEME), listContent);
+    }
+
+    @Test
+    @Features.DisableFeatures({ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_FOR_MVT})
+    public void testBuildListContentWhenProfileIsNotReadyAsNtpCustomizationForMvtFeatureDisabled() {
+        List<Integer> listContent = mMediator.buildListContent(mContext);
+        assertEquals(List.of(NTP_CARDS, THEME), listContent);
+    }
+
+    @Test
+    @Features.EnableFeatures({ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_V2})
     public void testBuildListContent() {
         // Mock dependencies to enable FeedFeatures.isFeedEnabled(profile) to return true.
         when(mPrefService.getBoolean(Pref.ENABLE_SNIPPETS_BY_DSE)).thenReturn(true);
         when(mFeedServiceBridgeJniMock.isEnabled()).thenReturn(true);
 
         assertTrue(FeedFeatures.isFeedEnabled(mProfile));
-        assertEquals(List.of(MVT, NTP_CARDS, FEED), mMediator.buildListContent());
+        assertEquals(List.of(MVT, NTP_CARDS, FEED, THEME), mMediator.buildListContent(mContext));
 
         // Mock dependencies to enable FeedFeatures.isFeedEnabled(profile) to return false.
         when(mPrefService.getBoolean(Pref.ENABLE_SNIPPETS_BY_DSE)).thenReturn(false);
 
         assertFalse(FeedFeatures.isFeedEnabled(mProfile));
-        assertEquals(List.of(MVT, NTP_CARDS), mMediator.buildListContent());
+        assertEquals(List.of(MVT, NTP_CARDS, THEME), mMediator.buildListContent(mContext));
     }
 
     @Test
@@ -384,13 +488,25 @@ public class NtpCustomizationMediatorUnitTest {
         when(mFeedServiceBridgeJniMock.isEnabled()).thenReturn(true);
 
         assertTrue(FeedFeatures.isFeedEnabled(mProfile));
-        assertEquals(List.of(NTP_CARDS, FEED), mMediator.buildListContent());
+        assertEquals(List.of(NTP_CARDS, FEED, THEME), mMediator.buildListContent(mContext));
 
         // Mock dependencies to enable FeedFeatures.isFeedEnabled(profile) to return false.
         when(mPrefService.getBoolean(Pref.ENABLE_SNIPPETS_BY_DSE)).thenReturn(false);
 
         assertFalse(FeedFeatures.isFeedEnabled(mProfile));
-        assertEquals(List.of(NTP_CARDS), mMediator.buildListContent());
+        assertEquals(List.of(NTP_CARDS, THEME), mMediator.buildListContent(mContext));
+    }
+
+    @Test
+    public void testBuildListContent_themeDisabledByPolicy() {
+        when(mPrefService.getBoolean(Pref.ENABLE_SNIPPETS_BY_DSE)).thenReturn(true);
+        when(mFeedServiceBridgeJniMock.isEnabled()).thenReturn(true);
+        assertTrue(FeedFeatures.isFeedEnabled(mProfile));
+        assertEquals(List.of(MVT, NTP_CARDS, FEED, THEME), mMediator.buildListContent(mContext));
+
+        // Disable NtpCustomBackgroundEnabled by policy.
+        when(mNtpCustomizationPolicyManager.isNtpCustomBackgroundEnabled()).thenReturn(false);
+        assertEquals(List.of(MVT, NTP_CARDS, FEED), mMediator.buildListContent(mContext));
     }
 
     @Test
@@ -429,5 +545,51 @@ public class NtpCustomizationMediatorUnitTest {
         mMediator.backPressOnCurrentBottomSheet();
         assertEquals(MAIN, (int) mMediator.getCurrentBottomSheetType());
         verify(mViewFlipperPropertyModel).set(eq(LAYOUT_TO_DISPLAY), eq(2));
+    }
+
+    @Test
+    public void testOnNewThemeCollectionImageSelected_onSheetClosed() {
+        BottomSheetObserver observer = mMediator.getBottomSheetObserverForTesting();
+        NtpCustomizationUtils.resetSharedPreferenceForTesting();
+        assertEquals(
+                NtpThemeColorInfo.COLOR_NOT_SET,
+                NtpCustomizationUtils.getCustomizedPrimaryColorFromSharedPreference());
+
+        // Verifies pickAndSavePrimaryColor() is called when a new theme collection image is
+        // selected and the background image type is THEME_COLLECTION.
+        Bitmap bitmap = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+        mMediator.onNewThemeCollectionImageSelected(bitmap);
+        when(mConfigManager.getBackgroundType()).thenReturn(THEME_COLLECTION);
+
+        observer.onSheetClosed(0);
+
+        assertNotEquals(
+                NtpThemeColorInfo.COLOR_NOT_SET,
+                NtpCustomizationUtils.getCustomizedPrimaryColorFromSharedPreference());
+
+        // Verifies pickAndSavePrimaryColor() is NOT called if background image type is not
+        // THEME_COLLECTION.
+        NtpCustomizationUtils.resetSharedPreferenceForTesting();
+        when(mConfigManager.getBackgroundType()).thenReturn(NtpBackgroundType.IMAGE_FROM_DISK);
+        mMediator.onNewThemeCollectionImageSelected(bitmap);
+        observer.onSheetClosed(0);
+        assertEquals(
+                NtpThemeColorInfo.COLOR_NOT_SET,
+                NtpCustomizationUtils.getCustomizedPrimaryColorFromSharedPreference());
+
+        // Verifies pickAndSavePrimaryColor() is not called when mNewThemeCollectionImage is null.
+        mMediator.onNewThemeCollectionImageSelected(null);
+        // Clean up shared preference for the test.
+        NtpCustomizationUtils.resetSharedPreferenceForTesting();
+        when(mConfigManager.getBackgroundType()).thenReturn(THEME_COLLECTION);
+        assertEquals(
+                NtpThemeColorInfo.COLOR_NOT_SET,
+                NtpCustomizationUtils.getCustomizedPrimaryColorFromSharedPreference());
+
+        observer.onSheetClosed(0);
+
+        assertEquals(
+                NtpThemeColorInfo.COLOR_NOT_SET,
+                NtpCustomizationUtils.getCustomizedPrimaryColorFromSharedPreference());
     }
 }

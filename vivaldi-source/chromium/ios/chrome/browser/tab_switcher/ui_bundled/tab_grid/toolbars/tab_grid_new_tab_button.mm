@@ -52,6 +52,7 @@ const CGFloat kSquareCornerRadius = 10;
 - (instancetype)initWithLargeSize:(BOOL)largeSize {
   self = [super initWithFrame:CGRectZero];
   if (self) {
+    _buttonColor = [UIColor colorNamed:kStaticBlue400Color];
     CGFloat symbolSize;
     CGFloat buttonSize;
     if (largeSize) {
@@ -73,10 +74,13 @@ const CGFloat kSquareCornerRadius = 10;
     } else {
     _symbol = CustomSymbolWithPointSize(kPlusCircleFillSymbol, symbolSize);
 
-    if (@available(iOS 26, *)) {
-      self.configuration = [UIButtonConfiguration glassButtonConfiguration];
+    if (@available(iOS 18, *)) {
+      self.configuration = [UIButtonConfiguration filledButtonConfiguration];
       _symbol = DefaultSymbolWithPointSize(kPlusSymbol, symbolSize);
       self.tintColor = UIColor.blackColor;
+      if (@available(iOS 26, *)) {
+        self.configuration = [UIButtonConfiguration glassButtonConfiguration];
+      }
     }
     } // End Vivaldi
 
@@ -115,6 +119,14 @@ const CGFloat kSquareCornerRadius = 10;
   } // End Vivaldi
 }
 
+- (void)setButtonColor:(UIColor*)buttonColor {
+  if (_buttonColor == buttonColor) {
+    return;
+  }
+  _buttonColor = buttonColor;
+  [self setSymbolPage:self.page];
+}
+
 #pragma mark - Private
 
 // Sets page using a symbol image.
@@ -124,7 +136,7 @@ const CGFloat kSquareCornerRadius = 10;
       self.accessibilityLabel =
           l10n_util::GetNSString(IDS_IOS_TAB_GRID_CREATE_NEW_INCOGNITO_TAB);
 
-      if (@available(iOS 26, *)) {
+      if (@available(iOS 18, *)) {
         UIButtonConfiguration* config = self.configuration;
         config.background.backgroundColor = UIColor.whiteColor;
         // Set the corner style to display a circle button.
@@ -142,17 +154,15 @@ const CGFloat kSquareCornerRadius = 10;
       self.accessibilityLabel =
           l10n_util::GetNSString(IDS_IOS_TAB_GRID_CREATE_NEW_TAB);
 
-      if (@available(iOS 26, *)) {
+      if (@available(iOS 18, *)) {
         UIButtonConfiguration* config = self.configuration;
-        config.background.backgroundColor =
-            [UIColor colorNamed:kStaticBlue400Color];
+        config.background.backgroundColor = _buttonColor;
         // Set the corner style to display a circle button.
         config.cornerStyle = UIButtonConfigurationCornerStyleCapsule;
         self.configuration = config;
       } else {
-        _imageContainer.image = SymbolWithPalette(
-            _symbol,
-            @[ UIColor.blackColor, [UIColor colorNamed:kStaticBlue400Color] ]);
+        _imageContainer.image =
+            SymbolWithPalette(_symbol, @[ UIColor.blackColor, _buttonColor ]);
       }
 
       break;
@@ -161,18 +171,16 @@ const CGFloat kSquareCornerRadius = 10;
         self.accessibilityLabel =
             l10n_util::GetNSString(IDS_IOS_TAB_GRID_CREATE_NEW_TAB_GROUP);
 
-        if (@available(iOS 26, *)) {
+        if (@available(iOS 18, *)) {
           UIButtonConfiguration* config = self.configuration;
-          config.background.backgroundColor =
-              [UIColor colorNamed:kStaticBlue400Color];
+          config.background.backgroundColor = _buttonColor;
           // Set the corner style and radius to display a square button.
           config.cornerStyle = UIButtonConfigurationCornerStyleFixed;
           config.background.cornerRadius = kSquareCornerRadius;
           self.configuration = config;
         } else {
-          _imageContainer.image = SymbolWithPalette(_symbol, @[
-            UIColor.blackColor, [UIColor colorNamed:kStaticBlue400Color]
-          ]);
+          _imageContainer.image =
+              SymbolWithPalette(_symbol, @[ UIColor.blackColor, _buttonColor ]);
         }
       }
 
@@ -190,6 +198,11 @@ const CGFloat kSquareCornerRadius = 10;
 #pragma mark - Vivaldi
 // Sets page using icon images.
 - (void)setIconPage:(TabGridPage)page {
+  if (page == TabGridPageIncognitoTabs) {
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+  } else {
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleUnspecified;
+  }
   switch (page) {
     case TabGridPageIncognitoTabs:
       self.accessibilityLabel =

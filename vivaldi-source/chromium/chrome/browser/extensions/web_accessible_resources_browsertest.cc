@@ -34,11 +34,6 @@
 #include "net/dns/mock_host_resolver.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-#include "chrome/browser/ui/browser.h"
-#include "chrome/test/base/ui_test_utils.h"
-#endif
-
 static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
 
 namespace extensions {
@@ -290,10 +285,7 @@ IN_PROC_BROWSER_TEST_F(
   }
 }
 
-#if BUILDFLAG(ENABLE_EXTENSIONS)
 // Navigate to a web page and then try to load an extension subresource.
-// TODO(crbug.com/390687767): Port to desktop Android. Currently the redirect
-// doesn't happen.
 IN_PROC_BROWSER_TEST_F(WebAccessibleResourcesBrowserTest,
                        SubresourceReachabilityAfterServerRedirect) {
   // Load extension.
@@ -327,7 +319,7 @@ IN_PROC_BROWSER_TEST_F(WebAccessibleResourcesBrowserTest,
 
   for (const auto& test_case : test_cases) {
     SCOPED_TRACE(test_case.title);
-    ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), gurl));
+    ASSERT_TRUE(NavigateToURL(GetActiveWebContents(), gurl));
 
     // Navigate to a web page and then fetch the supplied subresource.
     static constexpr char kScriptTemplate[] = R"(
@@ -372,8 +364,6 @@ IN_PROC_BROWSER_TEST_F(WebAccessibleResourcesBrowserTest,
 }
 
 // Server redirect to a web accessible resource whereby `matches` doesn't match.
-// TODO(crbug.com/390687767): Port to desktop Android. Currently the redirect
-// doesn't happen.
 IN_PROC_BROWSER_TEST_F(WebAccessibleResourcesBrowserTest,
                        ServerRedirectSubresource) {
   // Load extension.
@@ -397,7 +387,7 @@ IN_PROC_BROWSER_TEST_F(WebAccessibleResourcesBrowserTest,
   const char* filename = "accessible.html";
   net::Error error = net::ERR_BLOCKED_BY_CLIENT;
 
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), gurl));
+  ASSERT_TRUE(NavigateToURL(GetActiveWebContents(), gurl));
 
   // Navigate to a web page and then fetch the supplied subresource.
   static constexpr char kScriptTemplate[] = R"(
@@ -441,8 +431,6 @@ IN_PROC_BROWSER_TEST_F(WebAccessibleResourcesBrowserTest,
 }
 
 // Server redirect to a web accessible resource whereby `matches` doesn't match.
-// TODO(crbug.com/390687767): Port to desktop Android. Currently the redirect
-// doesn't happen.
 IN_PROC_BROWSER_TEST_F(WebAccessibleResourcesBrowserTest,
                        ServerRedirectMainframe) {
   // Load extension.
@@ -469,12 +457,12 @@ IN_PROC_BROWSER_TEST_F(WebAccessibleResourcesBrowserTest,
 
   auto* web_contents = GetActiveWebContents();
   content::TestNavigationObserver observer(web_contents);
-  EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), gurl));
+  // Navigation should be blocked, so NavigateToURL() returns false.
+  EXPECT_FALSE(NavigateToURL(web_contents, gurl));
   observer.WaitForNavigationFinished();
   EXPECT_FALSE(observer.last_navigation_succeeded());
   EXPECT_EQ(net::ERR_BLOCKED_BY_CLIENT, observer.last_net_error_code());
 }
-#endif  // BUILDFLAG(ENABLE_EXTENSIONS)
 
 // DNR, WAR, and use_dynamic_url with the extension feature. DNR does not
 // currently succeed when redirecting to a resource using use_dynamic_url with
@@ -590,6 +578,40 @@ IN_PROC_BROWSER_TEST_F(WebAccessibleResourcesBrowserTest, DNRRedirect) {
   EXPECT_EQ(net::Error::OK, navigation_observer.last_net_error_code());
   auto result = EvalJs(web_contents, "document.body.textContent");
   EXPECT_EQ("dnr redirect success", result.ExtractString());
+}
+
+// Succeed when DNR redirects a script to a WAR where the redirect URL contains
+// both a query and a ref.
+// Regression test for crbug.com/461824106.
+IN_PROC_BROWSER_TEST_F(WebAccessibleResourcesBrowserTest,
+                       DNRRedirectWithQueryAndRef) {
+  auto file_path = test_data_dir_.AppendASCII(
+      "web_accessible_resources/dnr/redirect_query_and_ref");
+  const Extension* extension = LoadExtension(file_path);
+  ASSERT_TRUE(extension);
+
+  // Navigate to a non-extension page (main frame).
+  content::WebContents* web_contents = GetActiveWebContents();
+  GURL url =
+      embedded_test_server()->GetURL("example.com", "/simple_with_script.html");
+  GURL expected_commit_url = extension->url().Resolve("ok.html?foo=bar#baz");
+
+  // Track the navigation event and allow us to wait for it to complete.
+  content::TestNavigationObserver navigation_observer(web_contents);
+
+  // Start the navigation to the initial URL.
+  ASSERT_TRUE(content::NavigateToURL(web_contents, url, expected_commit_url));
+
+  // Wait for the navigation.
+  navigation_observer.WaitForNavigationFinished();
+
+  // Ensure the navigation was successful and check the final redirected URL.
+  EXPECT_EQ(navigation_observer.last_net_error_code(), net::Error::OK);
+  EXPECT_EQ(expected_commit_url, web_contents->GetLastCommittedURL());
+
+  // Verify that the body content of the main frame changes due to DNR redirect.
+  auto result = EvalJs(web_contents, "document.body.textContent");
+  EXPECT_EQ("ok\n", result.ExtractString());
 }
 
 class WebAccessibleResourcesServiceWorkerBrowserTest
@@ -896,6 +918,11 @@ class DynamicOriginBrowserTest : public ExtensionBrowserTest {
     InstallExtension();
   }
 
+  void TearDownOnMainThread() override {
+    extension_ = nullptr;
+    ExtensionBrowserTest::TearDownOnMainThread();
+  }
+
  protected:
   const Extension* GetExtension() { return extension_; }
 
@@ -923,7 +950,7 @@ class DynamicOriginBrowserTest : public ExtensionBrowserTest {
     DCHECK(extension_);
   }
 
-  raw_ptr<const Extension, DanglingUntriaged> extension_ = nullptr;
+  raw_ptr<const Extension> extension_ = nullptr;
   TestExtensionDir dir_;
 };
 

@@ -15,6 +15,7 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/run_until.h"
+#include "base/test/scoped_feature_list.h"
 #include "base/test/with_feature_override.h"
 #include "build/build_config.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
@@ -42,6 +43,7 @@
 #include "chrome/browser/ui/views/passwords/password_save_update_view.h"
 #include "chrome/browser/ui/views/passwords/shared_passwords_notification_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/interactive_test_utils.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/autofill/core/common/autofill_features.h"
@@ -132,7 +134,14 @@ class PasswordBubbleInteractiveUiTest : public ManagePasswordsTest,
  public:
   PasswordBubbleInteractiveUiTest()
       : base::test::WithFeatureOverride(
-            autofill::features::kAutofillShowBubblesBasedOnPriorities) {}
+            autofill::features::kAutofillShowBubblesBasedOnPriorities) {
+    scoped_feature_list_.InitWithFeaturesAndParameters(
+        /*enabled_features=*/{{features::kGlicActor,
+                               {{features::kGlicActorPolicyControlExemption
+                                     .name,
+                                 "true"}}}},
+        /*disabled_features=*/{});
+  }
 
   PasswordBubbleInteractiveUiTest(const PasswordBubbleInteractiveUiTest&) =
       delete;
@@ -154,6 +163,9 @@ class PasswordBubbleInteractiveUiTest : public ManagePasswordsTest,
             [&](actor::mojom::ActionResultPtr result) { loop.Quit(); }));
     loop.Run();
   }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest, BasicOpenAndClose) {
@@ -390,12 +402,20 @@ IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest,
 
 IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest, DontCloseOnClick) {
   SetupPendingPassword();
-  EXPECT_TRUE(IsBubbleShowing());
-  EXPECT_FALSE(PasswordBubbleViewBase::manage_password_bubble()
+  RunTestSequence(
+      Do([this]() { SetupPendingPassword(); }),
+      WaitForShow(PasswordSaveUpdateView::kPasswordBubbleElementId),
+      Check([]() {
+        return PasswordBubbleViewBase::manage_password_bubble()
                    ->GetFocusManager()
-                   ->GetFocusedView());
-  ui_test_utils::ClickOnView(browser(), VIEW_ID_TAB_CONTAINER);
-  EXPECT_TRUE(IsBubbleShowing());
+                   ->GetFocusedView() == nullptr;
+      }),
+      // Click somewhere outside the dialog. Use the menu button arbitrarily,
+      // as something that's safely outside the bounds of the dialog. Note that
+      // clicking the center of the content window (as was previously done) may
+      // actually hit the password dialog in some cases.
+      PressButton(kToolbarAppMenuButtonElementId),
+      EnsurePresent(PasswordSaveUpdateView::kPasswordBubbleElementId));
 }
 
 IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest,
@@ -463,14 +483,8 @@ IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest, DontCloseOnLostFocus) {
   EXPECT_TRUE(IsBubbleShowing());
 }
 
-// TODO(https://crbug.com/410751413): Test is flake on Mac.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_TwoTabsWithBubbleSwitch DISABLED_TwoTabsWithBubbleSwitch
-#else
-#define MAYBE_TwoTabsWithBubbleSwitch TwoTabsWithBubbleSwitch
-#endif
 IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest,
-                       MAYBE_TwoTabsWithBubbleSwitch) {
+                       TwoTabsWithBubbleSwitch) {
   // Set up the first tab with the bubble.
   SetupPendingPassword();
   EXPECT_TRUE(IsBubbleShowing());
@@ -489,11 +503,7 @@ IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest,
   tab_model->ActivateTabAt(
       0, TabStripUserGestureDetails(
              TabStripUserGestureDetails::GestureType::kOther));
-  if (GetParam()) {
-    EXPECT_TRUE(IsBubbleShowing());
-  } else {
-    EXPECT_FALSE(IsBubbleShowing());
-  }
+  EXPECT_FALSE(IsBubbleShowing());
 }
 
 IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest,
@@ -543,11 +553,7 @@ IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest,
   int previous_tab_count = tab_model->count();
   tab_model->CloseWebContentsAt(0, 0);
   ASSERT_EQ(previous_tab_count - 1, tab_model->count());
-  if (GetParam()) {
-    EXPECT_TRUE(IsBubbleShowing());
-  } else {
-    EXPECT_FALSE(IsBubbleShowing());
-  }
+  EXPECT_FALSE(IsBubbleShowing());
 
   // The bubble is not destroyed. However, the WebContents _is_ destroyed.
   // Emptying the runloop will process the queued event, and should not cause a
@@ -597,8 +603,9 @@ IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest, AutoSigninNoFocus) {
   SetupAutoSignin(std::move(local_credentials));
   EXPECT_TRUE(IsBubbleShowing());
 
+  ui_test_utils::BrowserDestroyedObserver observer(focused_window);
   focused_window->window()->Close();
-  ui_test_utils::WaitForBrowserToClose(focused_window);
+  observer.Wait();
 
   // Wait until the auto-signin bubble has disappeared, which should happen
   // after its timeout.
@@ -1274,17 +1281,9 @@ IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest,
   EXPECT_NE(first_bubble, second_bubble);
 }
 
-// TODO(crbug.com/364687935): Failing on Mac.
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_NavigateToManagementDetailsViewWithMoveFooterVisibleAndTakeScreenshot \
-  DISABLED_NavigateToManagementDetailsViewWithMoveFooterVisibleAndTakeScreenshot
-#else
-#define MAYBE_NavigateToManagementDetailsViewWithMoveFooterVisibleAndTakeScreenshot \
-  NavigateToManagementDetailsViewWithMoveFooterVisibleAndTakeScreenshot
-#endif
 IN_PROC_BROWSER_TEST_P(
     PasswordBubbleInteractiveUiTest,
-    MAYBE_NavigateToManagementDetailsViewWithMoveFooterVisibleAndTakeScreenshot) {
+    NavigateToManagementDetailsViewWithMoveFooterVisibleAndTakeScreenshot) {
   const char kFirstCredentialsRow[] = "FirstCredentialsRow";
 
   std::unique_ptr<base::AutoReset<bool>> bypass_user_auth_for_testing =
@@ -1311,8 +1310,16 @@ IN_PROC_BROWSER_TEST_P(
                  /*screenshot_name=*/std::string(), /*baseline_cl=*/"5189779"));
 }
 
+// TODO(crbug.com/470163229): Disabled due to flakiness.
+#if BUILDFLAG(IS_MAC)
+#define MAYBE_ClosesBubbleOnNavigationToPasswordDetailsSubpage \
+  DISABLED_ClosesBubbleOnNavigationToPasswordDetailsSubpage
+#else
+#define MAYBE_ClosesBubbleOnNavigationToPasswordDetailsSubpage \
+  ClosesBubbleOnNavigationToPasswordDetailsSubpage
+#endif
 IN_PROC_BROWSER_TEST_P(PasswordBubbleInteractiveUiTest,
-                       ClosesBubbleOnNavigationToPasswordDetailsSubpage) {
+                       MAYBE_ClosesBubbleOnNavigationToPasswordDetailsSubpage) {
   base::HistogramTester histogram_tester;
 
   SetupManagingPasswords();

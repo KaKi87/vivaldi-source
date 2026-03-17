@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "base/strings/strcat.h"
 #include "chrome/browser/password_manager/password_change_delegate_impl.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/passwords/password_change_ui_controller.h"
@@ -69,7 +70,7 @@ class PasswordChangeToastBrowserTest : public UiBrowserTest {
   }
 
   void WaitForUserDismissal() override {
-    ui_test_utils::WaitForBrowserToClose(browser());
+    ui_test_utils::BrowserDestroyedObserver().Wait();
   }
 
  private:

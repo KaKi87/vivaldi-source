@@ -21,6 +21,7 @@
 #include "base/power_monitor/power_monitor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/bind_post_task.h"
 #include "base/task/current_thread.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
@@ -2563,6 +2564,7 @@ ExtensionFunction::ResponseAction UtilitiesEmulateUserInputFunction::Run() {
 
 void UtilitiesIsVivaldiPinnedToLaunchBarFunction::SendResult(
     std::optional<bool> isPinned) {
+  CHECK_CURRENTLY_ON(content::BrowserThread::UI);
   namespace Results = vivaldi::utilities::IsVivaldiPinnedToLaunchBar::Results;
   if (isPinned.has_value())
     Respond(ArgumentList(Results::Create(isPinned.value())));
@@ -2572,47 +2574,40 @@ void UtilitiesIsVivaldiPinnedToLaunchBarFunction::SendResult(
 
 ExtensionFunction::ResponseAction
 UtilitiesIsVivaldiPinnedToLaunchBarFunction::Run() {
-#if BUILDFLAG(IS_WIN)
-  return RespondNow(
-      Error("IsVivaldiPinnedToLaunchBar API is not implemented on "
-            "windows yet"));
-#else
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE,
-      {base::TaskPriority::USER_VISIBLE, base::MayBlock(),
-       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
-      base::BindOnce(
-          &UtilitiesIsVivaldiPinnedToLaunchBarFunction::CheckIsPinned, this),
+  // This will be bound to this thread, UI.
+  auto current_thread_callback = base::BindPostTaskToCurrentDefault(
       base::BindOnce(&UtilitiesIsVivaldiPinnedToLaunchBarFunction::SendResult,
-                     this));
+                     base::RetainedRef(this)));
+
+  base::ThreadPool::PostTask(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(
+          &UtilitiesIsVivaldiPinnedToLaunchBarFunction::CheckIsPinned,
+          base::RetainedRef(this), std::move(current_thread_callback)));
 
   return RespondLater();
-#endif
 }
 
 void UtilitiesPinVivaldiToLaunchBarFunction::SendResult(bool success) {
+  CHECK_CURRENTLY_ON(content::BrowserThread::UI);
   namespace Results = vivaldi::utilities::PinVivaldiToLaunchBar::Results;
   Respond(ArgumentList(Results::Create(success)));
-  return;
 }
 
 ExtensionFunction::ResponseAction
 UtilitiesPinVivaldiToLaunchBarFunction::Run() {
-#if BUILDFLAG(IS_WIN)
-  return RespondNow(
-      Error("PinVivaldiToLaunchBar API is not implemented on windows yet"));
-#else
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE,
-      {base::TaskPriority::USER_VISIBLE, base::MayBlock(),
-       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
-      base::BindOnce(&UtilitiesPinVivaldiToLaunchBarFunction::PinToLaunchBar,
-                     this),
+  // This will be bound to this thread, UI.
+  auto current_thread_callback = base::BindPostTaskToCurrentDefault(
       base::BindOnce(&UtilitiesPinVivaldiToLaunchBarFunction::SendResult,
-                     this));
+                     base::RetainedRef(this)));
+
+  base::ThreadPool::PostTask(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(&UtilitiesPinVivaldiToLaunchBarFunction::PinToLaunchBar,
+                     base::RetainedRef(this),
+                     std::move(current_thread_callback)));
 
   return RespondLater();
-#endif
 }
 
 ExtensionFunction::ResponseAction UtilitiesDownloadsDragFunction::Run() {
@@ -2894,8 +2889,7 @@ ExtensionFunction::ResponseAction UtilitiesCopyToClipboardFunction::Run() {
   return RespondNow(NoArguments());
 }
 
-std::string UtilitiesDetectNewCrashesFunction::CheckForNewCrashes(
-    const std::string& lastSeenUUID) {
+std::string UtilitiesDetectNewCrashesFunction::CheckForNewCrashes() {
   std::vector<crash_reporter::Report> reports;
   crash_reporter::GetReports(&reports);
   if (reports.empty()) {
@@ -2903,13 +2897,12 @@ std::string UtilitiesDetectNewCrashesFunction::CheckForNewCrashes(
   }
 
   // Reports are sorted by capture_time
-  const std::string lastCrashUUID = reports.front().local_id;
-  return (lastSeenUUID.empty() || lastCrashUUID != lastSeenUUID) ? lastCrashUUID
-                                                                 : lastSeenUUID;
+  const std::string last_seen_crash_uuid = reports.front().local_id;
+  return last_seen_crash_uuid;
 }
 
 void UtilitiesDetectNewCrashesFunction::SendResult(
-    const std::string& lastCrashUUID) {
+    const std::string& last_seen_crash_uuid) {
   namespace Results = vivaldi::utilities::DetectNewCrashes::Results;
   Profile* profile = Profile::FromBrowserContext(browser_context());
   if (!profile) {
@@ -2929,46 +2922,53 @@ void UtilitiesDetectNewCrashesFunction::SendResult(
     return;
   }
 
-  const bool has_new_crash_report =
-      !lastCrashUUID.empty() &&
+  const std::string& last_crash_report_seen_from_prefs =
       local_state_prefs->GetString(
-          vivaldiprefs::kVivaldiCrashReportLastUuidSeen) != lastCrashUUID;
-  if (has_new_crash_report || lastCrashUUID.empty()) {
-    local_state_prefs->SetString(vivaldiprefs::kVivaldiCrashReportLastUuidSeen,
-                                 lastCrashUUID);
+          vivaldiprefs::kVivaldiCrashReportLastUuidSeen);
+
+  if (last_crash_report_seen_from_prefs.empty()) {
+    if (last_seen_crash_uuid.empty()) {
+      // Never seen a crash before and never crashed.
+    } else {
+      // Crashed for the first time, save it to prefs and return early.
+      local_state_prefs->SetString(
+          vivaldiprefs::kVivaldiCrashReportLastUuidSeen, last_seen_crash_uuid);
+    }
+    Respond(NoArguments());
+    return;
   }
 
+  // Last seen crash UUID is different than stored in prefs.
+  const bool has_new_crash_report =
+      last_crash_report_seen_from_prefs != last_seen_crash_uuid;
+
   if (has_new_crash_report) {
+    local_state_prefs->SetString(vivaldiprefs::kVivaldiCrashReportLastUuidSeen,
+                                 last_seen_crash_uuid);
     const std::string exit_type = prefs->GetString(prefs::kSessionExitType);
     if (exit_type == "CrashedOnlyOnce" || exit_type == "Crashed") {
       // Browser crashed if last exit type is "CrashedOnlyOnce" or "Crashed".
       Respond(ArgumentList(
           Results::Create(vivaldi::utilities::CrashType::kBrowser)));
+      return;
     } else {
       // Otherwise it's probably other crash.
       Respond(
           ArgumentList(Results::Create(vivaldi::utilities::CrashType::kOther)));
+      return;
     }
-  } else {
-    // Otherwise no new crash.
-    Respond(NoArguments());
   }
+  // Otherwise no new crash.
+  Respond(NoArguments());
 }
 
 ExtensionFunction::ResponseAction UtilitiesDetectNewCrashesFunction::Run() {
-  PrefService* prefs = g_browser_process->local_state();
-
-  if (!prefs) {
-    return RespondNow(Error("Cannot get local state prefs."));
-  }
-
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE,
       {base::TaskPriority::USER_VISIBLE, base::MayBlock(),
        base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
-      base::BindOnce(
-          &UtilitiesDetectNewCrashesFunction::CheckForNewCrashes, this,
-          prefs->GetString(vivaldiprefs::kVivaldiCrashReportLastUuidSeen)),
+      base::BindOnce(&UtilitiesDetectNewCrashesFunction::CheckForNewCrashes,
+                     this),
       base::BindOnce(&UtilitiesDetectNewCrashesFunction::SendResult, this));
 
   return RespondLater();

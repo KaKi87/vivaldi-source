@@ -9,13 +9,14 @@ import android.os.Bundle;
 
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.omnibox.voice.VoiceRecognitionUtil;
 import org.chromium.chrome.browser.settings.ChromeBaseSettingsFragment;
-import org.chromium.chrome.browser.settings.search.BaseSearchIndexProvider;
+import org.chromium.chrome.browser.settings.search.ChromeBaseSearchIndexProvider;
 import org.chromium.chrome.browser.toolbar.R;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarButtonVariant;
 import org.chromium.chrome.browser.toolbar.adaptive.AdaptiveToolbarFeatures;
@@ -56,7 +57,8 @@ public class AdaptiveToolbarSettingsFragment extends ChromeBaseSettingsFragment 
 
     private ChromeSwitchPreference mToolbarShortcutSwitch;
     private RadioButtonGroupAdaptiveToolbarPreference mRadioButtonGroup;
-    private final ObservableSupplierImpl<String> mPageTitle = new ObservableSupplierImpl<>();
+    private final SettableMonotonicObservableSupplier<String> mPageTitle =
+            ObservableSuppliers.createMonotonic();
 
     @Override
     public void onCreatePreferences(@Nullable Bundle bundle, @Nullable String s) {
@@ -72,32 +74,34 @@ public class AdaptiveToolbarSettingsFragment extends ChromeBaseSettingsFragment 
                     return true;
                 });
 
-        mRadioButtonGroup =
-                (RadioButtonGroupAdaptiveToolbarPreference)
-                        findPreference(PREF_ADAPTIVE_RADIO_GROUP);
-        mRadioButtonGroup.setCanUseVoiceSearch(getCanUseVoiceSearch());
-        mRadioButtonGroup.setCanUseReadAloud(
-                AdaptiveToolbarFeatures.isAdaptiveToolbarReadAloudEnabled(getProfile()));
-        if (BuildConfig.IS_VIVALDI) // Vivaldi VAB-10555
+        mRadioButtonGroup = findPreference(PREF_ADAPTIVE_RADIO_GROUP);
+        if (mRadioButtonGroup != null) {
+            mRadioButtonGroup.setOnComponentUpdatedListener(this::notifyPreferencesUpdated);
+            mRadioButtonGroup.setCanUseVoiceSearch(getCanUseVoiceSearch());
+            mRadioButtonGroup.setCanUseReadAloud(
+                    AdaptiveToolbarFeatures.isAdaptiveToolbarReadAloudEnabled(getProfile()));
+
+            if (BuildConfig.IS_VIVALDI) // Vivaldi VAB-10555
+                mRadioButtonGroup.setCanUsePageSummary(
+                        VivaldiPreferences.getSharedPreferencesManager().readBoolean(
+                                "reader_for_accessibility", true));
+            else // Vivaldi
             mRadioButtonGroup.setCanUsePageSummary(
-                    VivaldiPreferences.getSharedPreferencesManager().readBoolean(
-                            "reader_for_accessibility", true));
-        else
-        mRadioButtonGroup.setCanUsePageSummary(
-                AdaptiveToolbarFeatures.isAdaptiveToolbarPageSummaryEnabled());
-        maybeSetUiStateFromBundleArgs();
-        mRadioButtonGroup.setStatePredictor(
-                new AdaptiveToolbarStatePredictor(
-                        getContext(),
-                        getProfile(),
-                        new ActivityAndroidPermissionDelegate(new WeakReference(getActivity())),
-                        /* behavior= */ null));
-        mRadioButtonGroup.setOnPreferenceChangeListener(
-                (preference, newValue) -> {
-                    AdaptiveToolbarPrefs.saveToolbarButtonManualOverride((int) newValue);
-                    return true;
-                });
-        mRadioButtonGroup.setEnabled(AdaptiveToolbarPrefs.isCustomizationPreferenceEnabled());
+                    AdaptiveToolbarFeatures.isAdaptiveToolbarPageSummaryEnabled());
+            maybeSetUiStateFromBundleArgs();
+            mRadioButtonGroup.setStatePredictor(
+                    new AdaptiveToolbarStatePredictor(
+                            getContext(),
+                            getProfile(),
+                            new ActivityAndroidPermissionDelegate(new WeakReference(getActivity())),
+                            /* behavior= */ null));
+            mRadioButtonGroup.setOnPreferenceChangeListener(
+                    (preference, newValue) -> {
+                        AdaptiveToolbarPrefs.saveToolbarButtonManualOverride((int) newValue);
+                        return true;
+                    });
+            mRadioButtonGroup.setEnabled(AdaptiveToolbarPrefs.isCustomizationPreferenceEnabled());
+        }
         AdaptiveToolbarStats.recordToolbarShortcutToggleState(/* onStartup= */ true);
     }
 
@@ -122,7 +126,7 @@ public class AdaptiveToolbarSettingsFragment extends ChromeBaseSettingsFragment 
     }
 
     @Override
-    public ObservableSupplier<String> getPageTitle() {
+    public MonotonicObservableSupplier<String> getPageTitle() {
         return mPageTitle;
     }
 
@@ -159,8 +163,8 @@ public class AdaptiveToolbarSettingsFragment extends ChromeBaseSettingsFragment 
         return "toolbar_shortcut";
     }
 
-    public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
-            new BaseSearchIndexProvider(
+    public static final ChromeBaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+            new ChromeBaseSearchIndexProvider(
                     AdaptiveToolbarSettingsFragment.class.getName(),
                     R.xml.adaptive_toolbar_preference);
 }

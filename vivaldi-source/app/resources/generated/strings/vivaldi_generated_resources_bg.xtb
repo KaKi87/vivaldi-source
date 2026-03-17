@@ -159,7 +159,7 @@
 <translation id="3331974543021145906">За приложението</translation>
 <translation id="3341703758641437857">Позволи достъп до локалните файлове</translation>
 <translation id="3347086966102161372">Коп&amp;ирай адреса на картината</translation>
-<translation id="3360297538363969800">Отпечатването се провали. Моля, проверете принтера и опитайте отново.</translation>
+<translation id="3360297538363969800">Отпечатването се провали. Моля, проверете принтера и опитайте отново.</translation>
 <translation id="3378572629723696641">Вероятно разширението е повредено.</translation>
 <translation id="3387614642886316601">Ползвай подобрена проверка</translation>
 <translation id="3390013585654699824">Подробно за приложението</translation>
@@ -286,7 +286,7 @@
 <translation id="5362741141255528695">Изберете файл с частен ключ.</translation>
 <translation id="536638840841140142">незададени</translation>
 <translation id="5370819323174483825">Пре&amp;зареди</translation>
-<translation id="5398572795982417028">Страницата е извън обхвата, ограничен до <ph name="MAXIMUM_PAGE" /></translation>
+<translation id="5398572795982417028">Препратка към страница извън обхвата. Обемът е <ph name="MAXIMUM_PAGE" /></translation>
 <translation id="5423753908060469325">Създай &amp;пряк път…</translation>
 <translation id="5425042808445046667">Продължи изтеглянето</translation>
 <translation id="5427459444770871191">Завърти по &amp;часовника</translation>
@@ -303,7 +303,6 @@
 <translation id="5624959475330585145">Питай преди ползване на незащитени съединения</translation>
 <translation id="5638309510554459422">Намерете разширения и теми в <ph name="BEGIN_LINK" />магазина на Chrome<ph name="END_LINK" /></translation>
 <translation id="5677928146339483299">Блокирани</translation>
-<translation id="5707185214361380026">Провалено зареждане на разширение от:</translation>
 <translation id="5713171467967533494">Отвори в браузър Vivaldi</translation>
 <translation id="5746169159649715125">Запиши като PDF</translation>
 <translation id="5747809636523347288">Пост&amp;ави и премини към <ph name="URL" /></translation>
@@ -338,7 +337,7 @@
 <translation id="6248988683584659830">Търсене в настройките</translation>
 <translation id="6251870443722440887">Графични обработчици</translation>
 <translation id="6264365405983206840">&amp;Избери всичко</translation>
-<translation id="6268252012308737255">Отвори в <ph name="APP" /></translation>
+<translation id="6268252012308737255">Отвори в <ph name="APP" /></translation>
 <translation id="6273677812470008672">Качество</translation>
 <translation id="6295158916970320988">Всички сайтове</translation>
 <translation id="6295855836753816081">Записване…</translation>

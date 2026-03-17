@@ -41,6 +41,14 @@ class ManagePasswordsPageActionController;
 class BookmarkBarPreloadPipelineManager;
 class NewTabPagePreloadPipelineManager;
 
+namespace skills {
+class SkillsUiTabControllerInterface;
+}  // namespace skills
+
+namespace back_to_opener {
+class BackToOpenerController;
+}  // namespace back_to_opener
+
 namespace autofill {
 class BubbleManager;
 }  // namespace autofill
@@ -63,6 +71,10 @@ namespace enterprise_data_protection {
 class DataProtectionNavigationController;
 }  // namespace enterprise_data_protection
 
+namespace enterprise_reporting {
+class SaasUsageNavigationObserver;
+}  // namespace enterprise_reporting
+
 namespace content {
 class WebContents;
 }  // namespace content
@@ -70,6 +82,10 @@ class WebContents;
 namespace contextual_cueing {
 class ContextualCueingHelper;
 }  // namespace contextual_cueing
+
+namespace contextual_tasks {
+class ContextualTasksTabVisitTracker;
+}  // namespace contextual_tasks
 
 namespace customize_chrome {
 class SidePanelController;
@@ -79,13 +95,13 @@ namespace extensions {
 class ExtensionSidePanelManager;
 }  // namespace extensions
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 namespace glic {
 class GlicInstanceHelper;
 class GlicTabIndicatorHelper;
 class GlicSidePanelCoordinator;
 }  // namespace glic
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
 namespace memory_saver {
 class MemorySaverChipController;
@@ -102,6 +118,12 @@ class PermissionIndicatorsTabData;
 namespace privacy_sandbox {
 class PrivacySandboxTabObserver;
 }  // namespace privacy_sandbox
+
+#if BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+namespace skills {
+class SkillsUpdateObserver;
+}  // namespace skills
+#endif  // BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID) // Vivaldi keep disabled
 
 namespace sync_sessions {
 class SyncSessionsRouterTabHelper;
@@ -139,15 +161,19 @@ class ProtocolHandlerPickerCoordinator;
 
 namespace tabs {
 
-class TabAlertController;
-class TabInterface;
-class TabDialogManager;
-
+class ContextHighlightTabFeature;
 class InactiveWindowMouseEventController;
+class TabAlertController;
 class TabCreationMetricsController;
+class TabDialogManager;
+class TabInterface;
 
 // This class owns the core controllers for features that are scoped to a given
 // tab. It can be subclassed by tests to perform dependency injection.
+//
+// Do not add more public accessors. Instead use the UnownedUserData design
+// pattern, see ui/base/unowned_user_data/README.md.
+// TODO(crbug.com/481268779a): Remove existing public accessors.
 class TabFeatures {
  public:
   TabFeatures();
@@ -191,6 +217,11 @@ class TabFeatures {
 
   commerce::CommerceUiTabHelper* commerce_ui_tab_helper() {
     return commerce_ui_tab_helper_.get();
+  }
+
+  contextual_tasks::ContextualTasksTabVisitTracker*
+  contextual_tasks_tab_visit_tracker() {
+    return contextual_tasks_tab_visit_tracker_.get();
   }
 
   privacy_sandbox::PrivacySandboxTabObserver* privacy_sandbox_tab_observer() {
@@ -269,8 +300,6 @@ class TabFeatures {
     return memory_saver_chip_helper_.get();
   }
 
-  TabUIHelper* tab_ui_helper() { return tab_ui_helper_.get(); }
-
   TabUIHelper* SetTabUIHelperForTesting(
       std::unique_ptr<TabUIHelper> tab_ui_helper);
 
@@ -278,6 +307,9 @@ class TabFeatures {
   SetTabContextualizationControllerForTesting(
       std::unique_ptr<lens::TabContextualizationController>
           tab_contextualization_controller);
+
+  TabAlertController* SetTabAlertControllerForTesting(
+      std::unique_ptr<TabAlertController> tab_alert_controller);
 
   TabCreationMetricsController* tab_creation_metrics_controller() {
     return tab_creation_metrics_controller_.get();
@@ -294,11 +326,9 @@ class TabFeatures {
     return ask_before_http_dialog_controller_.get();
   }
 
-#if BUILDFLAG(ENABLE_GLIC)
-  glic::GlicSidePanelCoordinator* glic_side_panel_coordinator() {
-    return glic_side_panel_coordinator_.get();
+  back_to_opener::BackToOpenerController* back_to_opener_controller() {
+    return back_to_opener_controller_.get();
   }
-#endif  // BUILDFLAG(ENABLE_GLIC)
 
   BookmarkBarPreloadPipelineManager* bookmarkbar_preload_pipeline_manager() {
     return bookmarkbar_preload_pipeline_manager_.get();
@@ -451,11 +481,11 @@ class TabFeatures {
   std::unique_ptr<BookmarkPageActionController>
       bookmark_page_action_controller_;
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   std::unique_ptr<glic::GlicInstanceHelper> glic_instance_helper_;
   std::unique_ptr<glic::GlicTabIndicatorHelper> glic_tab_indicator_helper_;
   std::unique_ptr<glic::GlicSidePanelCoordinator> glic_side_panel_coordinator_;
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
   std::unique_ptr<memory_saver::MemorySaverChipController>
       memory_saver_chip_controller_;
@@ -471,6 +501,8 @@ class TabFeatures {
   std::unique_ptr<MemorySaverChipTabHelper> memory_saver_chip_helper_;
 
   std::unique_ptr<TabAlertController> tab_alert_controller_;
+
+  std::unique_ptr<ContextHighlightTabFeature> context_highlight_tab_feature_;
 
   std::unique_ptr<TabUIHelper> tab_ui_helper_;
 
@@ -501,10 +533,29 @@ class TabFeatures {
   std::unique_ptr<NewTabPagePreloadPipelineManager>
       new_tab_page_preload_pipeline_manager_;
 
+  std::unique_ptr<back_to_opener::BackToOpenerController>
+      back_to_opener_controller_;
+
+  std::unique_ptr<skills::SkillsUiTabControllerInterface>
+      skills_ui_tab_controller_;
+
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
     BUILDFLAG(IS_CHROMEOS)
   std::unique_ptr<wallet::ChromeWalletablePassClient> walletable_pass_client_;
 #endif
+
+  std::unique_ptr<contextual_tasks::ContextualTasksTabVisitTracker>
+      contextual_tasks_tab_visit_tracker_;
+
+#if BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID)  // Vivaldi keep disabled
+  std::unique_ptr<skills::SkillsUpdateObserver> skills_update_observer_;
+#endif  // BUILDFLAG(ENABLE_GLIC) && !BUILDFLAG(IS_ANDROID) // Vivaldi keep disabled
+
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+  std::unique_ptr<enterprise_reporting::SaasUsageNavigationObserver>
+      saas_usage_navigation_observer_;
+#endif  // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+
   // Must be the last member.
   base::WeakPtrFactory<TabFeatures> weak_factory_{this};
 };

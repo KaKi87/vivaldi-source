@@ -22,7 +22,6 @@ import android.content.Context;
 import android.view.View;
 import android.widget.EditText;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.hamcrest.Matcher;
@@ -42,6 +41,7 @@ import org.chromium.chrome.test.R;
 import org.chromium.chrome.test.transit.ChromeActivityTabModelBoundStation;
 import org.chromium.chrome.test.transit.SoftKeyboardFacility;
 import org.chromium.chrome.test.transit.tabmodel.TabGroupCreatedCondition;
+import org.chromium.chrome.test.transit.tabmodel.TabGroupExistsCondition;
 import org.chromium.chrome.test.transit.tabmodel.TabGroupUtil;
 import org.chromium.chrome.test.util.TabBinningUtil;
 import org.chromium.components.tab_groups.TabGroupColorId;
@@ -100,6 +100,9 @@ public class NewTabGroupDialogFacility<
             initTabGroupCreatedCondition();
         } else {
             titleInputElement = declareView(createTitleViewSpec(), inDialogOption());
+            declareEnterCondition(
+                    new TabGroupExistsCondition(
+                            getHostStation().tabGroupModelFilterElement, mTabIdsToGroup));
         }
 
         dialogElement =
@@ -111,29 +114,23 @@ public class NewTabGroupDialogFacility<
                 inDialogOption());
 
         // TODO(crbug.com/346377124): Partially cut off in android_30_google_apis_x86.textpb
-        declareView(withId(R.id.color_picker_container), ViewElement.displayingAtLeastOption(50));
+        declareView(withId(R.id.color_picker_container));
         @TabGroupColorId List<Integer> colors = TabGroupColorUtils.getTabGroupColorIdList();
         // Only the first 5 colors are displayed reliably when the soft keyboard opens.
         colorElements = new ViewElement[5];
         for (int i = 0; i < 5; i++) {
             @TabGroupColorId Integer color = colors.get(i);
-            if (mSelectedColor != null) {
-                colorElements[i] =
-                        declareView(
-                                colorPickerIconSpec(color, color.equals(mSelectedColor)),
-                                newOptions().inDialog().unscoped().displayingAtLeast(60).build());
-            } else {
-                colorElements[i] =
-                        declareView(
-                                colorPickerIconSpec(color, /* selected= */ null),
-                                newOptions().inDialog().unscoped().displayingAtLeast(60).build());
-            }
+            colorElements[i] =
+                    declareView(
+                            colorPickerIconSpec(
+                                    color,
+                                    mSelectedColor != null ? color.equals(mSelectedColor) : null),
+                            ViewElement.newOptions().inDialog().unscoped().build());
         }
 
         doneButtonElement = declareView(withId(R.id.positive_button), inDialogOption());
     }
 
-    @NonNull
     private ViewSpec<View> createTitleViewSpec() {
         return viewSpec(
                 withId(R.id.title_input_text), isAssignableFrom(EditText.class), withText(mTitle));

@@ -12,38 +12,38 @@
 
 @implementation SlideInAnimator
 
--(NSTimeInterval)transitionDuration:
-(id<UIViewControllerContextTransitioning>)context {
+- (NSTimeInterval)transitionDuration:
+    (id<UIViewControllerContextTransitioning>)context {
   return panel_transition_duration;
 }
 
--(void)animateTransition:(id<UIViewControllerContextTransitioning>)context {
+- (void)animateTransition:(id<UIViewControllerContextTransitioning>)context {
   UIViewController* toVC =
       [context viewControllerForKey:UITransitionContextToViewControllerKey];
   UIView* toView = [context viewForKey:UITransitionContextToViewKey];
   CGRect toViewStartFrame = [context initialFrameForViewController:toVC];
   toViewStartFrame.origin =
-  CGPointMake(- (panel_sidebar_width + panel_icon_size), 0);
-  [context.containerView addSubview:toVC.view ];
+      CGPointMake(-(panel_sidebar_width + panel_icon_size), 0);
+  [context.containerView addSubview:toVC.view];
   toView.frame = toViewStartFrame;
 
   [UIView animateWithDuration:[self transitionDuration:context]
-                        delay:0
-       usingSpringWithDamping:panel_transition_damping
-        initialSpringVelocity:0
-                      options:UIViewAnimationCurveEaseOut
-                   animations:^{
-    CGRect rect = toView.frame;
-    rect.origin = CGPointZero;
-    toView.frame = rect;
-  }
-  completion:^(BOOL finished){
-    BOOL success = ![context transitionWasCancelled];
-    if (!success) {
-      [toVC.view removeFromSuperview];
-    }
-    [context completeTransition:success];
-  }];
+      delay:0
+      usingSpringWithDamping:panel_transition_damping
+      initialSpringVelocity:0
+      options:UIViewAnimationCurveEaseOut
+      animations:^{
+        CGRect rect = toView.frame;
+        rect.origin = CGPointZero;
+        toView.frame = rect;
+      }
+      completion:^(BOOL finished) {
+        BOOL success = ![context transitionWasCancelled];
+        if (!success) {
+          [toVC.view removeFromSuperview];
+        }
+        [context completeTransition:success];
+      }];
 }
 
 @end

@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "chrome/browser/ash/policy/skyvault/migration_coordinator.h"
 
 #include <memory>
@@ -14,6 +9,7 @@
 
 #include "base/base_paths.h"
 #include "base/check_is_test.h"
+#include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -128,7 +124,7 @@ void LogError(base::File& error_log_file,
   std::string log_entry =
       absl::StrFormat("%s - %s\n", file_path.AsUTF8Unsafe(),
                       FormatErrorMessage(destination, error));
-  error_log_file.WriteAtCurrentPos(log_entry.c_str(), log_entry.size());
+  error_log_file.WriteAtCurrentPosAndCheck(base::as_byte_span(log_entry));
 }
 
 }  // namespace

@@ -19,14 +19,14 @@ ReadingListPrivateAPI* ReadingListPrivateAPI::FromBrowserContext(
 // static
 BrowserContextKeyedAPIFactory<ReadingListPrivateAPI>*
 ReadingListPrivateAPI::GetFactoryInstance() {
-  static base::NoDestructor<BrowserContextKeyedAPIFactory<ReadingListPrivateAPI>>
+  static base::NoDestructor<
+      BrowserContextKeyedAPIFactory<ReadingListPrivateAPI>>
       instance;
   return instance.get();
 }
 
 ReadingListPrivateAPI::ReadingListPrivateAPI(content::BrowserContext* context)
     : profile_(Profile::FromBrowserContext(context)) {
-
   ReadingListModel* model =
       ReadingListModelFactory::GetForBrowserContext(profile_);
   reading_list_model_scoped_observation_.Observe(model);
@@ -34,11 +34,9 @@ ReadingListPrivateAPI::ReadingListPrivateAPI(content::BrowserContext* context)
 
 ReadingListPrivateAPI::~ReadingListPrivateAPI() {}
 
-
 // ReadingListModelObserver
 void ReadingListPrivateAPI::ReadingListModelLoaded(
-    const ReadingListModel* model) {
-}
+    const ReadingListModel* model) {}
 
 void ReadingListPrivateAPI::ReadingListDidApplyChanges(
     ReadingListModel* model) {
@@ -108,7 +106,6 @@ vivaldi::reading_list_private::ReadingListEntry GetEntryData(
 }
 }  // namespace
 
-
 ExtensionFunction::ResponseAction ReadingListPrivateGetAllFunction::Run() {
   namespace Results = vivaldi::reading_list_private::GetAll::Results;
 
@@ -125,7 +122,8 @@ ExtensionFunction::ResponseAction ReadingListPrivateGetAllFunction::Run() {
   return RespondNow(ArgumentList(Results::Create(entries)));
 }
 
-ExtensionFunction::ResponseAction ReadingListPrivateSetReadStatusFunction::Run() {
+ExtensionFunction::ResponseAction
+ReadingListPrivateSetReadStatusFunction::Run() {
   using vivaldi::reading_list_private::SetReadStatus::Params;
   namespace Results = vivaldi::reading_list_private::SetReadStatus::Results;
 

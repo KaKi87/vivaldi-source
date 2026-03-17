@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,46 +8,32 @@ import '../shared_style.css.js';
 import '../user_utils_mixin.js';
 import './password_preview_item.js';
 
-import type {CrButtonElement} from 'chrome://resources/cr_elements/cr_button/cr_button.js';
+import type {CrButtonElement} from '//resources/cr_elements/cr_button/cr_button.js';
+import {loadTimeData} from '//resources/js/load_time_data.js';
 import type {CrDialogElement} from 'chrome://resources/cr_elements/cr_dialog/cr_dialog.js';
+import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
+import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
 import {assert} from 'chrome://resources/js/assert.js';
+import {PluralStringProxyImpl} from 'chrome://resources/js/plural_string_proxy.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import {PasswordManagerImpl} from '../password_manager_proxy.js';
+import {MoveToAccountStoreTrigger, recordMoveToAccountStoreAccepted, recordMoveToAccountStoreOffered} from '../sharing/metrics_utils.js';
 import {UserUtilMixin} from '../user_utils_mixin.js';
 
 import {getTemplate} from './move_passwords_dialog.html.js';
-
-/**
- * This should be kept in sync with the enum in
- * components/password_manager/core/browser/password_manager_metrics_util.h.
- * These values are persisted to logs. Entries should not be renumbered and
- * numeric values should never be reused.
- * @enum {number}
- */
-export enum MoveToAccountStoreTrigger {
-  // LINT.IfChange
-  SUCCESSFUL_LOGIN_WITH_PROFILE_STORE_PASSWORD = 0,
-  EXPLICITLY_TRIGGERED_IN_SETTINGS = 1,
-  EXPLICITLY_TRIGGERED_FOR_MULTIPLE_PASSWORDS_IN_SETTINGS = 2,
-  USER_OPTED_IN_AFTER_SAVING_LOCALLY = 3,
-  EXPLICITLY_TRIGGERED_FOR_SINGLE_PASSWORD_IN_DETAILS_IN_SETTINGS = 4,
-  COUNT = 5,
-  // LINT.ThenChange(//tools/metrics/histograms/metadata/password/enums.xml)
-}
-
+import type {PasswordPreviewItemElement} from './password_preview_item.js';
 
 export interface MovePasswordsDialogElement {
   $: {
+    acceptButton: CrButtonElement,
     accountEmail: HTMLElement,
-    avatar: HTMLImageElement,
-    cancel: CrButtonElement,
     dialog: CrDialogElement,
-    move: CrButtonElement,
   };
 }
 
-const MovePasswordsDialogElementBase = UserUtilMixin(PolymerElement);
+const MovePasswordsDialogElementBase =
+    WebUiListenerMixin(UserUtilMixin(I18nMixin(PolymerElement)));
 
 export class MovePasswordsDialogElement extends MovePasswordsDialogElementBase {
   static get is() {
@@ -61,57 +47,61 @@ export class MovePasswordsDialogElement extends MovePasswordsDialogElementBase {
   static get properties() {
     return {
       /**
-       * Password groups displayed in the UI.
+       * Passwords group displayed in the UI.
        */
       passwords: {
         type: Array,
         value: () => [],
+        observer: 'onPasswordsChanged_',
       },
+      url: {type: String},
+      hasOnlyOneDeviceCredential: {type: Boolean, value: true},
 
       selectedPasswordIds_: {
         type: Array,
         value: () => [],
       },
-
-      trigger: {
-        type: MoveToAccountStoreTrigger,
-        value: MoveToAccountStoreTrigger
-                   .EXPLICITLY_TRIGGERED_FOR_MULTIPLE_PASSWORDS_IN_SETTINGS,
+      descriptionString: {type: String},
+      passwordsTitle: {type: String},
+      trigger_: {
+        type: Object,
+        computed: 'computeTrigger_(passwords)',
       },
     };
   }
 
-  passwords: chrome.passwordsPrivate.PasswordUiEntry[];
-  private selectedPasswordIds_: number[];
-  private trigger: MoveToAccountStoreTrigger;
+  declare passwords: chrome.passwordsPrivate.PasswordUiEntry[];
+  declare private url: string;
+  declare hasOnlyOneDeviceCredential: boolean;
+  declare private selectedPasswordIds_: number[];
+  declare descriptionString: string;
+  declare passwordsTitle: string;
+  declare private trigger_: MoveToAccountStoreTrigger;
 
   override connectedCallback() {
     super.connectedCallback();
-
-    chrome.metricsPrivate.recordEnumerationValue(
-        'PasswordManager.AccountStorage.MoveToAccountStoreFlowOffered',
-        this.trigger, MoveToAccountStoreTrigger.COUNT);
+    assert(loadTimeData.getBoolean('passwordUploadUiUpdate'));
 
     this.selectedPasswordIds_ = this.passwords.map(item => item.id);
     PasswordManagerImpl.getInstance()
         .requestCredentialsDetails(this.selectedPasswordIds_)
         .then(entries => {
           this.passwords = entries;
+          recordMoveToAccountStoreOffered(this.trigger_);
           this.$.dialog.showModal();
         })
         .catch(() => {
           this.$.dialog.close();
-          this.dispatchEvent(
-              new CustomEvent('close', {bubbles: true, composed: true}));
         });
   }
 
-  private onCancel_() {
+  private onCancelClick_() {
     this.$.dialog.cancel();
   }
 
-  private onMoveButtonClick_() {
-    assert(this.isAccountStorageEnabled);
+  private onAcceptButtonClick_() {
+    assert(this.isAccountStoreUser);
+
     PasswordManagerImpl.getInstance().movePasswordsToAccount(
         this.selectedPasswordIds_);
     this.dispatchEvent(new CustomEvent('passwords-moved', {
@@ -122,21 +112,49 @@ export class MovePasswordsDialogElement extends MovePasswordsDialogElementBase {
         numberOfPasswords: this.selectedPasswordIds_.length,
       },
     }));
+    recordMoveToAccountStoreAccepted(this.trigger_);
 
     this.$.dialog.close();
   }
 
-  private getUrl_(password: chrome.passwordsPrivate.PasswordUiEntry): string {
-    assert(password.affiliatedDomains);
-    assert(password.affiliatedDomains.length > 0);
-    return password.affiliatedDomains[0].name;
+  private async updateDescriptionString_() {
+    const description = this.hasOnlyOneDeviceCredential ?
+        this.i18n('moveSinglePasswordDialogDescription') :
+        await PluralStringProxyImpl.getInstance().getPluralString(
+            'movePasswordsDialogDescription', this.passwords.length);
+    this.descriptionString = description.replace('$1', this.url);
   }
 
-  private passwordSelected_() {
+  private async updatePasswordsTitle_() {
+    const passwordsTitle =
+        await PluralStringProxyImpl.getInstance().getPluralString(
+            'movePasswordsDialogPasswordsTitle', this.passwords.length);
+    this.passwordsTitle = passwordsTitle.replace('$1', this.url);
+  }
+
+  private onPasswordsChanged_() {
+    if (this.passwords.length === 0) {
+      this.$.dialog.close();
+      return;
+    }
+
+    this.updateDescriptionString_();
+    this.updatePasswordsTitle_();
+  }
+
+  private onPasswordPreviewItemChange_() {
     this.selectedPasswordIds_ =
-        Array.from(this.shadowRoot!.querySelectorAll('password-preview-item'))
-            .filter(item => item.checked)
+        Array
+            .from(this.shadowRoot!.querySelectorAll<PasswordPreviewItemElement>(
+                'password-preview-item[checked]'))
             .map(item => item.passwordId);
+  }
+
+  private computeTrigger_() {
+    return this.passwords.length > 1 ?
+        MoveToAccountStoreTrigger
+            .EXPLICITLY_TRIGGERED_FOR_MULTIPLE_PASSWORDS_IN_SETTINGS :
+        MoveToAccountStoreTrigger.EXPLICITLY_TRIGGERED_IN_SETTINGS;
   }
 }
 

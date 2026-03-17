@@ -72,7 +72,7 @@ void VivaldiIOSTHServiceBridge::TH_ModelElementsRemoved(
   if ([observer_ respondsToSelector:selector]) {
     NSMutableArray* nsIds = [NSMutableArray arrayWithCapacity:ids.size()];
     for (const auto& id : ids) {
-      NSString *idNSSring = base::SysUTF8ToNSString(id);
+      NSString* idNSSring = base::SysUTF8ToNSString(id);
       [nsIds addObject:idNSSring];
     }
     [observer_ modelDidRemoveElementsWithIds:nsIds];

@@ -6,6 +6,7 @@
 #define CHROME_BROWSER_NAVIGATION_PREDICTOR_SEARCH_ENGINE_PRECONNECTOR_H_
 
 #include "base/feature_list.h"
+#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/numerics/clamped_math.h"
@@ -37,6 +38,13 @@ enum class RebindReceiverEvent {
 
 BASE_DECLARE_FEATURE(kRebindPreconnectReceivers);
 BASE_DECLARE_FEATURE_PARAM(RebindReceiverEvent, kRebindReceiverEvent);
+
+BASE_DECLARE_FEATURE(kAdjustPreconnectRetryInterval);
+BASE_DECLARE_FEATURE_PARAM(base::TimeDelta, kPreconnectRetryInterval);
+BASE_DECLARE_FEATURE_PARAM(base::TimeDelta, kPreconnectBackoffBaseTime);
+BASE_DECLARE_FEATURE_PARAM(double, kPreconnectBackoffMultiplier);
+BASE_DECLARE_FEATURE_PARAM(base::TimeDelta, kPreconnectNetworkChangeInterval);
+BASE_DECLARE_FEATURE_PARAM(base::TimeDelta, kPreconnectInitialRetryInterval);
 }  // namespace features
 
 // Class to keep track of the current visibility. It is used to determine if the

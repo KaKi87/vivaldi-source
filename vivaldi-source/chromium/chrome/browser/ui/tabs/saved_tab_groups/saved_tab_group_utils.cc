@@ -10,6 +10,7 @@
 
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/uuid.h"
@@ -21,6 +22,7 @@
 #include "chrome/browser/sync/sync_service_factory.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_utils.h"
+#include "chrome/browser/ui/bookmarks/bookmark_utils_desktop.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_element_identifiers.h"
@@ -61,6 +63,48 @@
 #include "content/public/browser/web_contents.h"
 #include "ui/gfx/range/range.h"
 #include "url/gurl.h"
+
+namespace {
+
+tab_groups::saved_tab_groups::metrics::SharedTabGroupRecallTypeDesktop
+GetSharedTabGroupRecallTypeMetric(
+    const tab_groups::TabGroupMenuContext& context) {
+  switch (context) {
+    case tab_groups::TabGroupMenuContext::SAVED_TAB_GROUP_BUTTON_CONTEXT_MENU:
+      return tab_groups::saved_tab_groups::metrics::
+          SharedTabGroupRecallTypeDesktop::kOpenedFromSubmenuFromBookmarksBar;
+    case tab_groups::TabGroupMenuContext::SAVED_TAB_GROUP_EVERYTHING_MENU:
+      return tab_groups::saved_tab_groups::metrics::
+          SharedTabGroupRecallTypeDesktop::kOpenedFromSubmenuFromEverythingMenu;
+    case tab_groups::TabGroupMenuContext::APP_MENU:
+      return tab_groups::saved_tab_groups::metrics::
+          SharedTabGroupRecallTypeDesktop::kOpenedFromSubmenuFromAppMenu;
+    case tab_groups::TabGroupMenuContext::MAC_SYSTEM_MENU:
+      return tab_groups::saved_tab_groups::metrics::
+          SharedTabGroupRecallTypeDesktop::kOpenedFromSubmenuFromMacSystemMenu;
+  }
+}
+
+tab_groups::saved_tab_groups::metrics::SavedTabGroupOpenedSubmenuDesktop
+GetSavedTabGroupSubmenuOpenedMetric(
+    const tab_groups::TabGroupMenuContext& context) {
+  switch (context) {
+    case tab_groups::TabGroupMenuContext::SAVED_TAB_GROUP_BUTTON_CONTEXT_MENU:
+      return tab_groups::saved_tab_groups::metrics::
+          SavedTabGroupOpenedSubmenuDesktop::kBookmarksBar;
+    case tab_groups::TabGroupMenuContext::SAVED_TAB_GROUP_EVERYTHING_MENU:
+      return tab_groups::saved_tab_groups::metrics::
+          SavedTabGroupOpenedSubmenuDesktop::kEverythingMenu;
+    case tab_groups::TabGroupMenuContext::APP_MENU:
+      return tab_groups::saved_tab_groups::metrics::
+          SavedTabGroupOpenedSubmenuDesktop::kAppMenu;
+    case tab_groups::TabGroupMenuContext::MAC_SYSTEM_MENU:
+      return tab_groups::saved_tab_groups::metrics::
+          SavedTabGroupOpenedSubmenuDesktop::kMacSystemMenu;
+  }
+}
+
+}  // namespace
 
 namespace tab_groups {
 
@@ -804,6 +848,8 @@ void SavedTabGroupUtils::PerformTabGroupMenuAction(
             "TabGroups_SavedTabGroups_OpenedFromTabGroupsAppMenu"));
       }
 
+      RecordSavedTabGroupSubmenuMetric(context);
+
       bool will_open_shared_group = false;
       if (std::optional<tab_groups::SavedTabGroup> saved_group =
               tab_group_service->GetGroup(uuid)) {
@@ -816,9 +862,7 @@ void SavedTabGroupUtils::PerformTabGroupMenuAction(
                     browser, OpeningSource::kOpenedFromRevisitUi));
 
       if (will_open_shared_group) {
-        saved_tab_groups::metrics::RecordSharedTabGroupRecallType(
-            saved_tab_groups::metrics::SharedTabGroupRecallTypeDesktop::
-                kOpenedFromSubmenu);
+        RecordOpenSharedGroupMetrics(context);
       }
       break;
     }
@@ -848,10 +892,28 @@ void SavedTabGroupUtils::PerformTabGroupMenuAction(
     case TabGroupMenuAction::Type::LEAVE_GROUP:
       SavedTabGroupUtils::LeaveSharedGroup(browser, uuid);
       break;
+    case TabGroupMenuAction::Type::CONVERT_TO_BOOKMARK:
+      if (std::optional<tab_groups::SavedTabGroup> group =
+              tab_group_service->GetGroup(uuid)) {
+        bookmarks::ShowBookmarkSavedTabGroupDialog(browser, group.value());
+      }
+      break;
     case TabGroupMenuAction::Type::OPEN_URL:
     case TabGroupMenuAction::Type::DEFAULT:
       break;
   }
+}
+
+void SavedTabGroupUtils::RecordOpenSharedGroupMetrics(
+    const TabGroupMenuContext& context) {
+  saved_tab_groups::metrics::RecordSharedTabGroupRecallType(
+      GetSharedTabGroupRecallTypeMetric(context));
+}
+
+void SavedTabGroupUtils::RecordSavedTabGroupSubmenuMetric(
+    const TabGroupMenuContext& context) {
+  saved_tab_groups::metrics::RecordSavedTabGroupOpenedSubmenu(
+      GetSavedTabGroupSubmenuOpenedMetric(context));
 }
 
 }  // namespace tab_groups

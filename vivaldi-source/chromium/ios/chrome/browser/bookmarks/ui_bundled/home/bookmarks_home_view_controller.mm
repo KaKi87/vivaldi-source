@@ -8,7 +8,6 @@
 #import <set>
 
 #import "base/apple/foundation_util.h"
-#import "base/containers/contains.h"
 #import "base/i18n/message_formatter.h"
 #import "base/ios/ios_util.h"
 #import "base/memory/raw_ptr.h"
@@ -33,9 +32,13 @@
 #import "ios/chrome/browser/authentication/ui_bundled/cells/table_view_signin_promo_item.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_coordinator.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_utils.h"
+#import "ios/chrome/browser/bookmarks/editor/coordinator/bookmarks_editor_coordinator.h"
+#import "ios/chrome/browser/bookmarks/editor/coordinator/bookmarks_editor_coordinator_delegate.h"
 #import "ios/chrome/browser/bookmarks/folder_chooser/coordinator/bookmarks_folder_chooser_coordinator.h"
 #import "ios/chrome/browser/bookmarks/folder_chooser/coordinator/bookmarks_folder_chooser_coordinator_delegate.h"
 #import "ios/chrome/browser/bookmarks/folder_chooser/ui/table_view_bookmarks_folder_item.h"
+#import "ios/chrome/browser/bookmarks/folder_editor/coordinator/bookmarks_folder_editor_coordinator.h"
+#import "ios/chrome/browser/bookmarks/folder_editor/coordinator/bookmarks_folder_editor_coordinator_delegate.h"
 #import "ios/chrome/browser/bookmarks/model/bookmark_model_bridge_observer.h"
 #import "ios/chrome/browser/bookmarks/model/bookmark_model_factory.h"
 #import "ios/chrome/browser/bookmarks/model/bookmark_storage_type.h"
@@ -46,8 +49,6 @@
 #import "ios/chrome/browser/bookmarks/ui_bundled/bookmark_path_cache.h"
 #import "ios/chrome/browser/bookmarks/ui_bundled/bookmark_utils_ios.h"
 #import "ios/chrome/browser/bookmarks/ui_bundled/cells/bookmark_table_cell_title_edit_delegate.h"
-#import "ios/chrome/browser/bookmarks/ui_bundled/home/bookmarks_coordinator.h"
-#import "ios/chrome/browser/bookmarks/ui_bundled/home/bookmarks_coordinator_delegate.h"
 #import "ios/chrome/browser/bookmarks/ui_bundled/home/bookmarks_home_consumer.h"
 #import "ios/chrome/browser/bookmarks/ui_bundled/home/bookmarks_home_mediator.h"
 #import "ios/chrome/browser/bookmarks/ui_bundled/home/bookmarks_home_node_item.h"
@@ -72,11 +73,13 @@
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
+#import "ios/chrome/browser/shared/public/commands/settings_commands.h"
 #import "ios/chrome/browser/shared/public/commands/show_signin_command.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/shared/ui/elements/home_waiting_view.h"
+#import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_url_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_styler.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_illustrated_empty_view.h"
@@ -110,6 +113,8 @@
 // Vivaldi
 #import "app/vivaldi_apptools.h"
 #import "components/bookmarks/vivaldi_bookmark_kit.h"
+#import "ios/chrome/browser/bookmarks/ui_bundled/home/bookmarks_coordinator.h"
+#import "ios/chrome/browser/bookmarks/ui_bundled/home/bookmarks_coordinator_delegate.h"
 #import "ios/chrome/browser/settings/ui_bundled/settings_navigation_controller.h"
 #import "ios/panel/panel_constants.h"
 #import "ios/ui/bookmarks_editor/vivaldi_bookmarks_sorting_mode.h"
@@ -149,8 +154,6 @@ typedef NS_ENUM(NSInteger, BookmarksContextBarState) {
   BookmarksContextBarMixedSelection,  // Multiple URL / Folders selected.
 };
 
-// Estimated TableView row height.
-constexpr CGFloat kEstimatedRowHeight = 65.0;
 // Separation between non-empty account and profile sections.
 constexpr CGFloat kSpaceBetweenAccountAndProfileSections = 32.0;
 
@@ -178,7 +181,8 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
 }  // namespace
 
 @interface BookmarksHomeViewController () <
-    BookmarksCoordinatorDelegate,
+    BookmarksEditorCoordinatorDelegate,
+    BookmarksFolderEditorCoordinatorDelegate,
     BookmarksFolderChooserCoordinatorDelegate,
     BookmarksHomeConsumer,
     BookmarkModelBridgeObserver,
@@ -187,6 +191,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
     TableViewURLDropDelegate,
 
     // Vivaldi
+    BookmarksCoordinatorDelegate,
     VivaldiSearchBarViewDelegate,
     SettingsNavigationControllerDelegate,
     // End Vivaldi
@@ -208,6 +213,14 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
 // A reference to the presented folder chooser.
 @property(nonatomic, strong)
     BookmarksFolderChooserCoordinator* folderChooserCoordinator;
+
+// A reference to the potentially presented single bookmark editor.
+@property(nonatomic, strong)
+    BookmarksEditorCoordinator* bookmarkEditorCoordinator;
+
+// A reference to the potentially presented folder editor.
+@property(nonatomic, strong)
+    BookmarksFolderEditorCoordinator* folderEditorCoordinator;
 
 // FaviconLoader is a keyed service that uses LargeIconService to retrieve
 // favicon images.
@@ -251,8 +264,6 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
 // The action sheet coordinator, if one is currently being shown.
 @property(nonatomic, strong) AlertCoordinator* actionSheetCoordinator;
 
-@property(nonatomic, strong) BookmarksCoordinator* bookmarksCoordinator;
-
 @property(nonatomic, assign) WebStateList* webStateList;
 
 // Handler for URL drag and drop interactions.
@@ -265,6 +276,8 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
 // Navigation View controller for the settings.
 @property(nonatomic, strong)
     SettingsNavigationController* settingsNavigationController;
+// Coordinator in charge of handling bookmark create/edit in Vivaldi.
+@property(nonatomic, strong) BookmarksCoordinator* bookmarksCoordinator;
 // Custom Vivaldi tableHeaderView to host search bar.
 @property(nonatomic, strong) VivaldiSearchBarView* vivaldiSearchBarView;
 // Sort button
@@ -307,6 +320,8 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   BOOL _isBeingDismissed;
   // The Signin coordinator displayed, if any.
   SigninCoordinator* _signinCoordinator;
+  // Whether the UI is disabled.
+  BOOL _UIDisabled;
 }
 
 @synthesize editingFolderCell = _editingFolderCell;
@@ -345,8 +360,8 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   [self stopSigninCoordinator];
   [self.editingFolderCell stopEdit];
   [self stopFolderChooserCoordinator];
-  [self.bookmarksCoordinator stop];
-  self.bookmarksCoordinator = nil;
+  [self stopBookmarksEditorCoordinator];
+  [self stopBookmarksFolderEditorCoordinator];
   [self.mediator disconnect];
   self.mediator.consumer = nil;
   self.mediator = nil;
@@ -357,10 +372,13 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   _bookmarkModelBridge.reset();
   [self.sharingCoordinator stop];
   self.sharingCoordinator = nil;
-}
 
-- (void)setExternalBookmark:(const BookmarkNode*)node {
-  _externalBookmark = node;
+  if (IsVivaldiRunning()) {
+    [self.bookmarksCoordinator stop];
+    self.bookmarksCoordinator.delegate = nil;
+    self.bookmarksCoordinator = nil;
+  } // End Vivaldi
+
 }
 
 - (BOOL)canDismiss {
@@ -371,7 +389,12 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
       ![self.folderChooserCoordinator canDismiss]) {
     return NO;
   }
-  if (self.bookmarksCoordinator && ![self.bookmarksCoordinator canDismiss]) {
+  if (self.bookmarkEditorCoordinator &&
+      ![self.bookmarkEditorCoordinator canDismiss]) {
+    return NO;
+  }
+  if (self.folderEditorCoordinator &&
+      ![self.folderEditorCoordinator canDismiss]) {
     return NO;
   }
   return YES;
@@ -617,7 +640,6 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   self.tableView.dragInteractionEnabled = true;
 
   self.tableView.accessibilityIdentifier = kBookmarksHomeTableViewIdentifier;
-  self.tableView.estimatedRowHeight = kEstimatedRowHeight;
   self.tableView.allowsMultipleSelectionDuringEditing = YES;
 
   // Create the mediator and hook up the table view.
@@ -681,6 +703,8 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
       editing ? kTableViewNavigationAlphaForDisabledSearchBar : 1.0;
 
   self.tableView.dragInteractionEnabled = !editing;
+
+  self.navigationItem.rightBarButtonItem = [self createNavigationBarDoneButton];
 }
 
 - (void)refreshContents {
@@ -714,28 +738,20 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
 
   // Start loading a favicon.
   __weak BookmarksHomeViewController* weakSelf = self;
-  GURL blockURL(node->url());
   auto faviconLoadedBlock = ^(FaviconAttributes* attributes, bool cached) {
-    BookmarksHomeViewController* strongSelf = weakSelf;
-    if (!strongSelf) {
-      return;
-    }
-    // Due to search filtering, we also need to validate the indexPath
-    // requested versus what is in the table now.
-    if (![strongSelf hasItemAtIndexPath:indexPath] ||
-        [strongSelf nodeAtIndexPath:indexPath] != node) {
-      return;
-    }
-    URLItem.faviconAttributes = attributes;
-    if (!cached && attributes.faviconImage) {
-      [strongSelf.tableView reconfigureRowsAtIndexPaths:@[ indexPath ]];
-    }
+    [weakSelf didFetchFaviconAttributes:attributes
+                                 cached:cached
+                                   item:URLItem
+                              indexPath:indexPath
+                                   node:node];
   };
+
+  GURL blockURL(node->url());
 
   if (IsVivaldiRunning()) {
     self.faviconLoader->FaviconForPageUrlOrHost(
         blockURL, kDesiredMediumFaviconSizePt, faviconLoadedBlock);
-  } else {
+  } else { // Vivaldi
   self.faviconLoader->FaviconForPageUrl(
       blockURL, kDesiredMediumFaviconSizePt, kMinFaviconSizePt,
       /*fallback_to_google_server=*/fallbackToGoogleServer, faviconLoadedBlock);
@@ -794,8 +810,9 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
 }
 
 - (void)showAccountSettings {
-  [self ensureBookmarksCoordinator];
-  [self.bookmarksCoordinator showAccountSettings];
+  id<SettingsCommands> settingsHandler =
+      HandlerForProtocol(_browser->GetCommandDispatcher(), SettingsCommands);
+  [settingsHandler showSyncSettingsFromViewController:self];
 }
 
 #pragma mark - BookmarksHomeConsumer Helper
@@ -969,6 +986,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   base::RecordAction(base::UserMetricsAction(userAction));
   const BookmarkNode* editedNode = *(nodes.begin());
   const BookmarkNode* selectedFolder = editedNode->parent();
+  _UIDisabled = YES;
   _folderChooserCoordinator = [[BookmarksFolderChooserCoordinator alloc]
       initWithBaseViewController:self.navigationController
                          browser:_browser.get()
@@ -1015,16 +1033,6 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   [self setTableViewEditing:NO];
 }
 
-// Ensures bookmarkInteractionController is set.
-- (void)ensureBookmarksCoordinator {
-  if (!self.bookmarksCoordinator) {
-    self.bookmarksCoordinator =
-        [[BookmarksCoordinator alloc] initWithBrowser:_browser.get()];
-    self.bookmarksCoordinator.baseViewController = self;
-    self.bookmarksCoordinator.delegate = self;
-  }
-}
-
 // Opens the editor for `nodeID` node, if it still exists. The node has to be
 // a bookmark node.
 - (void)editBookmarkNodeWithID:(int64_t)nodeID {
@@ -1037,8 +1045,22 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   DCHECK_EQ(bookmarkNode->type(), BookmarkNode::URL);
   base::RecordAction(
       base::UserMetricsAction("MobileBookmarkManagerEditBookmark"));
-  [self ensureBookmarksCoordinator];
-  [self.bookmarksCoordinator presentEditorForURLNode:bookmarkNode];
+
+  if (IsVivaldiRunning()) {
+    [self ensureBookmarksCoordinator];
+    [self.bookmarksCoordinator presentBookmarkEditorForNode:bookmarkNode];
+    return;
+  } // End Vivaldi
+
+  [self stopBookmarksEditorCoordinator];
+  self.bookmarkEditorCoordinator = [[BookmarksEditorCoordinator alloc]
+      initWithBaseViewController:self.navigationController
+                         browser:_browser.get()
+                            node:bookmarkNode
+         snackbarCommandsHandler:self.snackbarCommandsHandler];
+  self.bookmarkEditorCoordinator.delegate = self;
+  _UIDisabled = YES;
+  [self.bookmarkEditorCoordinator start];
 }
 
 // Opens the editor for `nodeID` node, if it still exists. The node has to be
@@ -1053,8 +1075,21 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   DCHECK_EQ(bookmarkNode->type(), BookmarkNode::FOLDER);
   base::RecordAction(
       base::UserMetricsAction("MobileBookmarkManagerEditFolder"));
-  [self ensureBookmarksCoordinator];
-  [self.bookmarksCoordinator presentEditorForFolderNode:bookmarkNode];
+
+  if (IsVivaldiRunning()) {
+    [self ensureBookmarksCoordinator];
+    [self.bookmarksCoordinator presentBookmarkEditorForNode:bookmarkNode];
+    return;
+  } // End Vivaldi
+
+  [self stopBookmarksFolderEditorCoordinator];
+  self.folderEditorCoordinator = [[BookmarksFolderEditorCoordinator alloc]
+      initWithBaseViewController:self.navigationController
+                         browser:_browser.get()
+                      folderNode:bookmarkNode];
+  self.folderEditorCoordinator.delegate = self;
+  [self.folderEditorCoordinator start];
+  _UIDisabled = YES;
 }
 
 - (void)openAllURLs:(std::vector<GURL>)urls
@@ -1086,6 +1121,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   if (self.actionSheetCoordinator) {
     return;
   }
+  _UIDisabled = YES;
   __weak BookmarksHomeViewController* weakSelf = self;
   [self.mediator queryLocalBookmarks:^(int local_bookmarks_count,
                                        std::string user_email) {
@@ -1113,7 +1149,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
                               view:strongSelf.tableView];
     // Create the confirm button.
     [strongSelf.actionSheetCoordinator
-        addItemWithTitle:l10n_util::GetNSString(
+        addItemWithTitle:GetNSString(
                              IDS_IOS_BOOKMARKS_HOME_BULK_UPLOAD_ALERT_BUTTON)
                   action:^{
                     base::RecordAction(base::UserMetricsAction(
@@ -1126,7 +1162,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
 
     // Create the cancel button.
     [strongSelf.actionSheetCoordinator
-        addItemWithTitle:l10n_util::GetNSString(
+        addItemWithTitle:GetNSString(
                              IDS_IOS_BOOKMARKS_HOME_BULK_UPLOAD_ALERT_CANCEL)
                   action:^{
                     base::RecordAction(base::UserMetricsAction(
@@ -1150,6 +1186,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
       "IOS.Bookmarks.BulkSaveBookmarksInAccountCount", localBookmarksCount);
 
   [self refreshContents];
+  _UIDisabled = NO;
 
   NSString* snackbarMessage = base::SysUTF16ToNSString(
       base::i18n::MessageFormatter::FormatWithNamedArgs(
@@ -1332,11 +1369,13 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
 }
 
 - (void)handleMoveNode:(const BookmarkNode*)node toPosition:(size_t)position {
-  [self.snackbarCommandsHandler
-      showSnackbarMessage:
-          bookmark_utils_ios::UpdateBookmarkPositionWithUndoSnackbar(
-              node, self.displayedFolderNode, position, _bookmarkModel.get(),
-              self.profile)];
+  SnackbarMessage* snackbarMessage =
+      bookmark_utils_ios::UpdateBookmarkPositionWithUndoSnackbar(
+          node, self.displayedFolderNode, position, _bookmarkModel.get(),
+          self.profile);
+  if (snackbarMessage) {
+    [self.snackbarCommandsHandler showSnackbarMessage:snackbarMessage];
+  }
 }
 
 - (void)handleRefreshContextBar {
@@ -1382,30 +1421,28 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
                                      (const BookmarkNode*)folder {
   CHECK(_folderChooserCoordinator, base::NotFatalUntil::M152);
   CHECK(folder, base::NotFatalUntil::M152);
+  CHECK(!folder->is_url(), base::NotFatalUntil::M152);
 
-  // Copy the list of edited nodes from BookmarksFolderChooserCoordinator
-  // as the reference may become invalid when `_folderChooserCoordinator`
-  // is set to nil (if `self` holds the last reference to the object).
+  // Copy the list of edited nodes from BookmarksFolderChooserCoordinator before
+  // `stopFolderChooserCoordinator` sets `_folderChooserCoordinator` to nil.
   std::set<const BookmarkNode*> editedNodesSet =
       _folderChooserCoordinator.editedNodes;
-  // TODO(crbug.com/40268466): Change the type of `editedNodes` to std::vector.
-  std::vector<const BookmarkNode*> editedNodesVector(editedNodesSet.begin(),
-                                                     editedNodesSet.end());
-  [self stopFolderChooserCoordinator];
+  CHECK_GE(editedNodesSet.size(), 1u, base::NotFatalUntil::M152);
 
-  CHECK(!folder->is_url(), base::NotFatalUntil::M152);
-  CHECK_GE(editedNodesVector.size(), 1u, base::NotFatalUntil::M152);
+  [self stopFolderChooserCoordinator];
 
   [self setTableViewEditing:NO];
   ProfileIOS* profile = self.profile;
-  [self.snackbarCommandsHandler
-      showSnackbarMessage:bookmark_utils_ios::MoveBookmarksWithUndoSnackbar(
-                              editedNodesVector, _bookmarkModel.get(), folder,
-                              profile,
-                              AuthenticationServiceFactory::GetForProfile(
-                                  profile)
-                                  ->GetWeakPtr(),
-                              SyncServiceFactory::GetForProfile(profile))];
+  std::vector<const BookmarkNode*> editedNodesVector(editedNodesSet.begin(),
+                                                     editedNodesSet.end());
+  SnackbarMessage* snackbarMessage =
+      bookmark_utils_ios::MoveBookmarksWithUndoSnackbar(
+          editedNodesVector, _bookmarkModel.get(), folder, profile,
+          AuthenticationServiceFactory::GetForProfile(profile)->GetWeakPtr(),
+          SyncServiceFactory::GetForProfile(profile));
+  if (snackbarMessage) {
+    [self.snackbarCommandsHandler showSnackbarMessage:snackbarMessage];
+  }
 }
 
 - (void)bookmarksFolderChooserCoordinatorDidCancel:
@@ -1415,10 +1452,40 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   [self setTableViewEditing:NO];
 }
 
-#pragma mark - BookmarksCoordinatorDelegate
+#pragma mark - BookmarksEditorCoordinatorDelegate
 
-- (void)bookmarksCoordinatorWillCommitTitleOrURLChange:
-    (BookmarksCoordinator*)coordinator {
+- (void)bookmarksEditorCoordinatorShouldStop:
+    (BookmarksEditorCoordinator*)coordinator {
+  CHECK_EQ(coordinator, self.bookmarkEditorCoordinator);
+  [self stopBookmarksEditorCoordinator];
+}
+
+- (void)bookmarkEditorWillCommitTitleOrURLChange:
+    (BookmarksEditorCoordinator*)coordinator {
+  CHECK_EQ(coordinator, self.bookmarkEditorCoordinator);
+  [self setTableViewEditing:NO];
+}
+
+#pragma mark - BookmarksFolderEditorCoordinatorDelegate
+
+- (void)bookmarksFolderEditorCoordinator:
+            (BookmarksFolderEditorCoordinator*)folderEditor
+              didFinishEditingFolderNode:
+                  (const bookmarks::BookmarkNode*)folder {
+  CHECK_EQ(folderEditor, self.folderEditorCoordinator);
+  CHECK(folder, base::NotFatalUntil::M152);
+  [self stopBookmarksFolderEditorCoordinator];
+}
+
+- (void)bookmarksFolderEditorCoordinatorShouldStop:
+    (BookmarksFolderEditorCoordinator*)coordinator {
+  CHECK_EQ(coordinator, self.folderEditorCoordinator);
+  [self stopBookmarksFolderEditorCoordinator];
+}
+
+- (void)bookmarksFolderEditorWillCommitTitleChange:
+    (BookmarksFolderEditorCoordinator*)coordinator {
+  CHECK_EQ(coordinator, self.folderEditorCoordinator);
   [self setTableViewEditing:NO];
 }
 
@@ -1511,12 +1578,106 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   if ([self isDisplayingBookmarkRoot]) {
     [self navigationBarCancel:self];
   } else {
-    [self back];
+    [self backAction];
   }
   return YES;
 }
 
-#pragma mark - private
+#pragma mark - Accessors & Mutators
+
+- (UIBarButtonItem*)deleteButton {
+  if (!_deleteButton) {
+    _deleteButton = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemTrash
+                             target:self
+                             action:@selector(leadingButtonClicked)];
+    _deleteButton.accessibilityLabel =
+        GetNSString(IDS_IOS_BOOKMARK_CONTEXT_BAR_DELETE);
+    _deleteButton.tintColor = [UIColor colorNamed:kRedColor];
+    _deleteButton.accessibilityIdentifier =
+        kBookmarksHomeLeadingButtonIdentifier;
+  }
+  return _deleteButton;
+}
+
+- (UIBarButtonItem*)moreButton {
+  if (!_moreButton) {
+    NSString* titleString = GetNSString(IDS_IOS_BOOKMARK_CONTEXT_BAR_MORE);
+    _moreButton =
+        [[UIBarButtonItem alloc] initWithTitle:titleString
+                                         style:UIBarButtonItemStylePlain
+                                        target:self
+                                        action:@selector(centerButtonClicked)];
+    _moreButton.accessibilityIdentifier = kBookmarksHomeCenterButtonIdentifier;
+  }
+  return _moreButton;
+}
+
+- (void)setContextBarState:(BookmarksContextBarState)state {
+  _contextBarState = state;
+  switch (state) {
+    case BookmarksContextBarDefault:
+      [self setBookmarksContextBarButtonsDefaultState];
+      [self setBookmarksNavigationBarButtonsDefaultState];
+      break;
+    case BookmarksContextBarBeginSelection:
+      [self setBookmarksContextBarSelectionStartState];
+      [self setBookmarksNavigationBarSelectionState];
+      self.moreButton.enabled = NO;
+      self.deleteButton.enabled = NO;
+      break;
+    case BookmarksContextBarSingleURLSelection:
+    case BookmarksContextBarMultipleURLSelection:
+    case BookmarksContextBarMultipleFolderSelection:
+    case BookmarksContextBarMixedSelection:
+    case BookmarksContextBarSingleFolderSelection:
+      // Reset to start state, and then override with customizations that apply.
+      [self setBookmarksContextBarSelectionStartState];
+      [self setBookmarksNavigationBarSelectionState];
+      self.moreButton.enabled = YES;
+      self.deleteButton.enabled = YES;
+      break;
+    case BookmarksContextBarNone:
+    default:
+      break;
+  }
+}
+
+- (void)setExternalBookmark:(const BookmarkNode*)node {
+  _externalBookmark = node;
+}
+
+#pragma mark - Private
+
+// Called when a favicon is fetched.
+- (void)didFetchFaviconAttributes:(FaviconAttributes*)attributes
+                           cached:(bool)cached
+                             item:(BookmarksHomeNodeItem*)item
+                        indexPath:(NSIndexPath*)indexPath
+                             node:(const BookmarkNode*)node {
+  // Due to search filtering, we also need to validate the indexPath
+  // requested versus what is in the table now.
+  if (![self hasItemAtIndexPath:indexPath] ||
+      [self nodeAtIndexPath:indexPath] != node) {
+    return;
+  }
+  item.faviconAttributes = attributes;
+  if (!cached && attributes.faviconImage) {
+    if ([self.tableViewModel itemAtIndexPath:indexPath] != item) {
+      return;
+    }
+    LegacyTableViewCell* cell =
+        base::apple::ObjCCastStrict<LegacyTableViewCell>(
+            [self.tableView cellForRowAtIndexPath:indexPath]);
+    if (!cell) {
+      return;
+    }
+    // Even if Apple documentation hints toward reconfiguring the row instead
+    // of just updating the cell, it creates a visible jank. Use the item
+    // configuration method instead. See crbug.com/479692041 for more info.
+    [item configureCell:cell withStyler:self.styler];
+  }
+}
 
 // Creates a delete action for the swipe menu with destructive style (and red
 // color).
@@ -1526,7 +1687,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   return [UIContextualAction
       contextualActionWithStyle:UIContextualActionStyleDestructive
                           title:
-                              l10n_util::GetNSString(
+                              GetNSString(
                                   IDS_IOS_REMINDER_NOTIFICATIONS_SWIPE_ACTION_DELETE)
                         handler:^(UIContextualAction* action,
                                   UIView* sourceView,
@@ -1545,7 +1706,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   UIContextualAction* remindAction = [UIContextualAction
       contextualActionWithStyle:UIContextualActionStyleNormal
                           title:
-                              l10n_util::GetNSString(
+                              GetNSString(
                                   IDS_IOS_REMINDER_NOTIFICATIONS_SWIPE_ACTION_REMIND)
                         handler:^(UIContextualAction* action,
                                   UIView* sourceView,
@@ -1621,6 +1782,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
 }
 
 - (void)dismissActionSheetCoordinator {
+  _UIDisabled = NO;
   [self.actionSheetCoordinator stop];
   self.actionSheetCoordinator = nil;
 }
@@ -1628,8 +1790,25 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
 // Stops the folder chooser coordinator.
 - (void)stopFolderChooserCoordinator {
   [_folderChooserCoordinator stop];
+  _UIDisabled = NO;
   _folderChooserCoordinator.delegate = nil;
   _folderChooserCoordinator = nil;
+}
+
+// Stops the bookmark editor coordinator.
+- (void)stopBookmarksEditorCoordinator {
+  _UIDisabled = NO;
+  [self.bookmarkEditorCoordinator stop];
+  self.bookmarkEditorCoordinator.delegate = nil;
+  self.bookmarkEditorCoordinator = nil;
+}
+
+// Stops the folder editor coordinator.
+- (void)stopBookmarksFolderEditorCoordinator {
+  _UIDisabled = NO;
+  [self.folderEditorCoordinator stop];
+  self.folderEditorCoordinator.delegate = nil;
+  self.folderEditorCoordinator = nil;
 }
 
 - (BOOL)isDisplayingBookmarkRoot {
@@ -1681,7 +1860,6 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
             (BookmarksHomeViewController*)viewController
                                     usingBookmarkNode:
                                         (const BookmarkNode*)node {
-  viewController.navigationItem.leftBarButtonItem.action = @selector(back);
   // Disable large titles on every VC but the root controller.
   if (node != _bookmarkModel->root_node()) {
     viewController.navigationItem.largeTitleDisplayMode =
@@ -1704,25 +1882,165 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
       return;
   } // End Vivaldi
 
-  // Add custom done button.
-  viewController.navigationItem.rightBarButtonItem =
-      [self customizedDoneButton];
+  [viewController setBookmarksNavigationBarButtonsDefaultState];
 }
 
 // Back button callback for the new ui.
-- (void)back {
+- (void)backAction {
   [self navigateAway];
   [self.navigationController popViewControllerAnimated:YES];
 }
 
-- (UIBarButtonItem*)customizedDoneButton {
+// Returns a button for the context bar that enables edit mode for bookmarks.
+- (UIBarButtonItem*)createEditButton {
+  NSString* titleString = GetNSString(IDS_IOS_SELECT_ACTION_TITLE);
+
+  UIBarButtonItem* editButton =
+      [[UIBarButtonItem alloc] initWithTitle:titleString
+                                       style:UIBarButtonItemStylePlain
+                                      target:self
+                                      action:@selector(trailingButtonClicked)];
+  editButton.accessibilityIdentifier = kBookmarksHomeTrailingButtonIdentifier;
+  // The edit button is only enabled if the displayed root folder is editable
+  // and has items. Note that Bookmarks Bar, Mobile Bookmarks, and Other
+  // Bookmarks return as "editable" since their contents can be edited.
+  // Editing bookmarks must also be allowed.
+  editButton.enabled = [self isEditBookmarksEnabled] &&
+                       [self hasBookmarksOrFolders] &&
+                       [self isNodeEditableByUser:self.mediator.displayedNode];
+  return editButton;
+}
+
+// Returns a button to add a new folder to the bookmarks.
+- (UIBarButtonItem*)createNewFolderButton {
+  UIImage* newFolderIcon =
+      DefaultSymbolWithConfiguration(kFolderBadgePlusSymbol, nil);
+
+  UIBarButtonItem* newFolderButton =
+      [[UIBarButtonItem alloc] initWithImage:newFolderIcon
+                                       style:UIBarButtonItemStylePlain
+                                      target:self
+                                      action:@selector(leadingButtonClicked)];
+  newFolderButton.accessibilityLabel =
+      GetNSString(IDS_IOS_BOOKMARK_CONTEXT_BAR_NEW_FOLDER);
+  newFolderButton.accessibilityIdentifier =
+      kBookmarksHomeLeadingButtonIdentifier;
+  newFolderButton.enabled = [self allowsNewFolder];
+  return newFolderButton;
+}
+
+// Returns a button to select/deselect all bookmark nodes.
+- (UIBarButtonItem*)createMultiSelectButton {
+  CHECK(self.mediator.currentlyInEditMode);
+
+  BOOL hasSelectedNodes = !self.mediator.selectedNodesForEditMode.empty();
+  NSString* titleText = GetNSString(
+      hasSelectedNodes ? IDS_IOS_BOOKMARK_NAVIGATION_BAR_DESELECT_ALL
+                       : IDS_IOS_BOOKMARK_NAVIGATION_BAR_SELECT_ALL);
+  NSString* accessibilityID =
+      hasSelectedNodes ? kBookmarksHomeNavigationBarDeselectAllButtonIdentifier
+                       : kBookmarksHomeNavigationBarSelectAllButtonIdentifier;
+  SEL action = hasSelectedNodes ? @selector(didTapDeselectAll)
+                                : @selector(didTapSelectAll);
+
+  UIBarButtonItem* multiSelectButton =
+      [[UIBarButtonItem alloc] initWithTitle:titleText
+                                       style:UIBarButtonItemStylePlain
+                                      target:self
+                                      action:action];
+  multiSelectButton.accessibilityIdentifier = accessibilityID;
+  return multiSelectButton;
+}
+
+// Selects all editable bookmark nodes currently displayed.
+- (void)didTapSelectAll {
+  std::set<const bookmarks::BookmarkNode*> allEditableNodes;
+  NSArray<TableViewItem*>* items = [self.tableViewModel
+      itemsInSectionWithIdentifier:BookmarksHomeSectionIdentifierBookmarks];
+
+  for (TableViewItem* item in items) {
+    if (item.type == BookmarksHomeItemTypeBookmark) {
+      BookmarksHomeNodeItem* nodeItem =
+          base::apple::ObjCCastStrict<BookmarksHomeNodeItem>(item);
+      const bookmarks::BookmarkNode* node = nodeItem.bookmarkNode;
+      if ([self isNodeEditableByUser:node]) {
+        allEditableNodes.insert(node);
+      }
+    }
+  }
+
+  self.mediator.selectedNodesForEditMode = allEditableNodes;
+  [self restoreRowSelection];
+  [self handleSelectEditNodes:self.mediator.selectedNodesForEditMode];
+}
+
+// Deselects all currently selected bookmark nodes.
+- (void)didTapDeselectAll {
+  // Deselect all rows in the table view.
+  NSArray<NSIndexPath*>* selectedIndexPaths =
+      [self.tableView indexPathsForSelectedRows];
+  if (selectedIndexPaths.count > 0) {
+    for (NSIndexPath* indexPath in selectedIndexPaths) {
+      [self.tableView deselectRowAtIndexPath:indexPath animated:YES];
+    }
+  }
+
+  // Clear the selected nodes in the mediator.
+  self.mediator.selectedNodesForEditMode.clear();
+  [self handleSelectEditNodes:self.mediator.selectedNodesForEditMode];
+}
+
+// Returns a done button for the context bar that disables edit mode in
+// bookmarks.
+- (UIBarButtonItem*)createDoneButton {
+  NSString* titleString = GetNSString(IDS_DONE);
+  UIBarButtonItem* doneButton =
+      [[UIBarButtonItem alloc] initWithTitle:titleString
+                                       style:UIBarButtonItemStylePlain
+                                      target:self
+                                      action:@selector(trailingButtonClicked)];
+  doneButton.accessibilityIdentifier = kBookmarksHomeTrailingButtonIdentifier;
+  return doneButton;
+}
+
+// Returns a spacer to separate interactable buttons.
+- (UIBarButtonItem*)createSpacerButton {
+  return [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
+                           target:nil
+                           action:nil];
+}
+
+// Returns a Done button for the right side of the navigation bar.
+- (UIBarButtonItem*)createNavigationBarDoneButton {
+  BOOL isEditingWithoutActiveSearch =
+      self.mediator.currentlyInEditMode &&
+      !self.mediator.currentlyShowingSearchResults;
+  UIBarButtonSystemItem buttonItem = isEditingWithoutActiveSearch
+                                         ? UIBarButtonSystemItemDone
+                                         : UIBarButtonSystemItemClose;
+
   UIBarButtonItem* doneButton = [[UIBarButtonItem alloc]
-      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+      initWithBarButtonSystemItem:buttonItem
                            target:self
-                           action:@selector(navigationBarCancel:)];
+                           action:@selector(didTapNavigationBarDoneButton)];
   doneButton.accessibilityIdentifier =
       kBookmarksHomeNavigationBarDoneButtonIdentifier;
   return doneButton;
+}
+
+// Called when the right navigation bar button is tapped. Exits search/edit mode
+// or dismisses the view.
+- (void)didTapNavigationBarDoneButton {
+  BOOL isEditingWithoutActiveSearch =
+      self.mediator.currentlyInEditMode &&
+      !self.mediator.currentlyShowingSearchResults;
+
+  if (isEditingWithoutActiveSearch) {
+    [self setTableViewEditing:NO];
+    return;
+  }
+  [self navigationBarCancel:nil];
 }
 
 // Saves the current position and asks the delegate to open the url, if delegate
@@ -1812,7 +2130,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
       [[BookmarksHomeViewController alloc] initWithBrowser:_browser.get()];
   controller.displayedFolderNode = displayedFolderNode;
   controller.homeDelegate = self.homeDelegate;
-  controller.applicationCommandsHandler = self.applicationCommandsHandler;
+  controller.sceneHandler = self.sceneHandler;
   controller.snackbarCommandsHandler = self.snackbarCommandsHandler;
 
   return controller;
@@ -1834,7 +2152,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
     BookmarksHomeNodeItem* nodeItem =
         base::apple::ObjCCastStrict<BookmarksHomeNodeItem>(item);
     const BookmarkNode* node = nodeItem.bookmarkNode;
-    if (base::Contains(self.mediator.selectedNodesForEditMode, node)) {
+    if (self.mediator.selectedNodesForEditMode.contains(node)) {
       newEditNodes.insert(node);
       // Reselect the row of this node.
       NSIndexPath* itemPath = [self.tableViewModel indexPathForItem:nodeItem];
@@ -1981,7 +2299,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   } else {
     // Create a vector of edit nodes in the same order as the nodes in folder.
     for (const auto& child : self.mediator.displayedNode->children()) {
-      if (base::Contains(self.mediator.selectedNodesForEditMode, child.get())) {
+      if (self.mediator.selectedNodesForEditMode.contains(child.get())) {
         nodes.push_back(child.get());
       }
     }
@@ -2011,15 +2329,23 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   [tableView addSubview:scrimView];
   // We attach our constraints to the superview because the tableView is
   // a scrollView and it seems that we get an empty frame when attaching to it.
-  [NSLayoutConstraint activateConstraints:@[
-    [scrimView.leadingAnchor constraintEqualToAnchor:superview.leadingAnchor],
-    [scrimView.trailingAnchor constraintEqualToAnchor:superview.trailingAnchor],
-    [scrimView.bottomAnchor constraintEqualToAnchor:superview.bottomAnchor],
-    [scrimView.topAnchor
-        constraintEqualToAnchor:self.navigationController.navigationBar
-                                    .bottomAnchor],
-
-  ]];
+  if (@available(iOS 26, *)) {
+    // On iOS 26+, the search bar won't be obscured by the scrim view even when
+    // the scrim view's top constraint is aligned with the superview's top,
+    // likely due to changes in UIKit's layout system or view hierarchy
+    // handling.
+    AddSameConstraints(scrimView, superview);
+  } else {
+    [NSLayoutConstraint activateConstraints:@[
+      [scrimView.leadingAnchor constraintEqualToAnchor:superview.leadingAnchor],
+      [scrimView.trailingAnchor
+          constraintEqualToAnchor:superview.trailingAnchor],
+      [scrimView.bottomAnchor constraintEqualToAnchor:superview.bottomAnchor],
+      [scrimView.topAnchor
+          constraintEqualToAnchor:self.navigationController.navigationBar
+                                      .bottomAnchor],
+    ]];
+  }
   tableView.accessibilityElementsHidden = YES;
   tableView.scrollEnabled = NO;
   [UIView animateWithDuration:kTableViewNavigationScrimFadeDuration
@@ -2084,7 +2410,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
       [[SharingCoordinator alloc] initWithBaseViewController:self
                                                      browser:_browser.get()
                                                       params:params
-                                                  originView:cellView];
+                                                  sourceItem:cellView];
   [self.sharingCoordinator start];
 }
 
@@ -2291,7 +2617,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   [self.actionSheetCoordinator start];
 }
 
-// Called when the trailing button, "Select" or "Cancel" is clicked.
+// Called when the trailing button, "Select" or "Done" is clicked.
 - (void)trailingButtonClicked {
   // Ignore the button tap if any of our controller is presenting.
   if ([self isAnyControllerPresenting]) {
@@ -2329,67 +2655,44 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
 
 #pragma mark - ContextBarStates
 
-// Customizes the context bar buttons based the `state` passed in.
-- (void)setContextBarState:(BookmarksContextBarState)state {
-  _contextBarState = state;
-  switch (state) {
-    case BookmarksContextBarDefault:
-      [self setBookmarksContextBarButtonsDefaultState];
-      break;
-    case BookmarksContextBarBeginSelection:
-      [self setBookmarksContextBarSelectionStartState];
-      break;
-    case BookmarksContextBarSingleURLSelection:
-    case BookmarksContextBarMultipleURLSelection:
-    case BookmarksContextBarMultipleFolderSelection:
-    case BookmarksContextBarMixedSelection:
-    case BookmarksContextBarSingleFolderSelection:
-      // Reset to start state, and then override with customizations that apply.
-      [self setBookmarksContextBarSelectionStartState];
-      self.moreButton.enabled = YES;
-      self.deleteButton.enabled = YES;
-      break;
-    case BookmarksContextBarNone:
-    default:
-      break;
-  }
-}
-
+// Sets the context bar buttons in their default state (non-edit mode).
 - (void)setBookmarksContextBarButtonsDefaultState {
-  // Set New Folder button
-  NSString* titleString = GetNSString(IDS_IOS_BOOKMARK_CONTEXT_BAR_NEW_FOLDER);
-  UIBarButtonItem* newFolderButton =
-      [[UIBarButtonItem alloc] initWithTitle:titleString
-                                       style:UIBarButtonItemStylePlain
-                                      target:self
-                                      action:@selector(leadingButtonClicked)];
-  newFolderButton.accessibilityIdentifier =
-      kBookmarksHomeLeadingButtonIdentifier;
-  newFolderButton.enabled = [self allowsNewFolder];
-
-  // Spacer button.
-  UIBarButtonItem* spaceButton = [[UIBarButtonItem alloc]
-      initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
-                           target:nil
-                           action:nil];
-
-  // Set Edit button.
-  titleString = GetNSString(IDS_IOS_BOOKMARK_CONTEXT_BAR_EDIT);
-  UIBarButtonItem* editButton =
-      [[UIBarButtonItem alloc] initWithTitle:titleString
-                                       style:UIBarButtonItemStylePlain
-                                      target:self
-                                      action:@selector(trailingButtonClicked)];
-  editButton.accessibilityIdentifier = kBookmarksHomeTrailingButtonIdentifier;
-  // The edit button is only enabled if the displayed root folder is editable
-  // and has items. Note that Bookmarks Bar, Mobile Bookmarks, and Other
-  // Bookmarks return as "editable" since their contents can be edited. Editing
-  // bookmarks must also be allowed.
-  editButton.enabled = [self isEditBookmarksEnabled] &&
-                       [self hasBookmarksOrFolders] &&
-                       [self isNodeEditableByUser:self.mediator.displayedNode];
 
   if (vivaldi::IsVivaldiRunning()) {
+    // Set New Folder button
+    NSString* titleString =
+        GetNSString(IDS_IOS_BOOKMARK_CONTEXT_BAR_NEW_FOLDER);
+    UIBarButtonItem* newFolderButton =
+        [[UIBarButtonItem alloc] initWithTitle:titleString
+                                         style:UIBarButtonItemStylePlain
+                                        target:self
+                                        action:@selector(leadingButtonClicked)];
+    newFolderButton.accessibilityIdentifier =
+        kBookmarksHomeLeadingButtonIdentifier;
+    newFolderButton.enabled = [self allowsNewFolder];
+
+    // Spacer button.
+    UIBarButtonItem* spaceButton = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
+                             target:nil
+                             action:nil];
+
+    // Set Edit button.
+    titleString = GetNSString(IDS_IOS_BOOKMARK_CONTEXT_BAR_EDIT);
+    UIBarButtonItem* editButton = [[UIBarButtonItem alloc]
+        initWithTitle:titleString
+                style:UIBarButtonItemStylePlain
+               target:self
+               action:@selector(trailingButtonClicked)];
+    editButton.accessibilityIdentifier = kBookmarksHomeTrailingButtonIdentifier;
+    // The edit button is only enabled if the displayed root folder is editable
+    // and has items. Note that Bookmarks Bar, Mobile Bookmarks, and Other
+    // Bookmarks return as "editable" since their contents can be edited.
+    // Editing bookmarks must also be allowed.
+    editButton.enabled =
+        [self isEditBookmarksEnabled] && [self hasBookmarksOrFolders] &&
+        [self isNodeEditableByUser:self.mediator.displayedNode];
+
     UIBarButtonItemStyle buttonStyle = UIBarButtonItemStyleDone;
     if (@available(iOS 26, *)) {
       buttonStyle = UIBarButtonItemStylePlain;
@@ -2397,91 +2700,75 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
     // Set Context Menu button for sorting and new folder
     UIImage* dotsIcon = [UIImage imageNamed:vPanelMoreAction];
     UIBarButtonItem* contextMenu =
-        [[UIBarButtonItem alloc]
-              initWithImage:dotsIcon
-                      style:buttonStyle
-                     target:self
-                     action:nil];
+        [[UIBarButtonItem alloc] initWithImage:dotsIcon
+                                         style:buttonStyle
+                                        target:self
+                                        action:nil];
     contextMenu.menu = [self contextMenuForBookmarksSortButton];
 
     if (vivaldi_bookmark_kit::IsTrash(self.displayedFolderNode)) {
       // Set empty trash button.
       titleString = GetNSString(IDS_IOS_NOTE_CONTEXT_BAR_EMPTY_TRASH);
-      UIBarButtonItem* emptyTrashButton =
-        [[UIBarButtonItem alloc]
-              initWithTitle:titleString
-                      style:UIBarButtonItemStylePlain
-                     target:self
-                     action:@selector(emptyTrashButtonClicked)];
+      UIBarButtonItem* emptyTrashButton = [[UIBarButtonItem alloc]
+          initWithTitle:titleString
+                  style:UIBarButtonItemStylePlain
+                 target:self
+                 action:@selector(emptyTrashButtonClicked)];
       emptyTrashButton.accessibilityIdentifier =
           kBookmarksHomeTrailingButtonIdentifier;
       emptyTrashButton.enabled = [self hasBookmarksOrFolders];
-      [self setToolbarItems:@[ spaceButton, spaceButton,
-                               spaceButton, spaceButton, emptyTrashButton]
+      [self setToolbarItems:@[
+        spaceButton, spaceButton, spaceButton, spaceButton, emptyTrashButton
+      ]
                    animated:NO];
       return;
     } else {
       UIImage* image = [UIImage systemImageNamed:@"plus"];
-      UIBarButtonItem* plusButton =
-          [[UIBarButtonItem alloc]
-              initWithImage:image
-                      style:buttonStyle
-                     target:self
-                     action:@selector(handleAddBarButtonTap)];
-      [self setToolbarItems:@[ contextMenu, spaceButton,
-                               plusButton, spaceButton, editButton ]
+      UIBarButtonItem* plusButton = [[UIBarButtonItem alloc]
+          initWithImage:image
+                  style:buttonStyle
+                 target:self
+                 action:@selector(handleAddBarButtonTap)];
+      [self setToolbarItems:@[
+        contextMenu, spaceButton, plusButton, spaceButton, editButton
+      ]
                    animated:NO];
       return;
     }
-  }// End Vivaldi
-
-  [self setToolbarItems:@[ newFolderButton, spaceButton, editButton ]
-               animated:NO];
-}
-
-- (void)setBookmarksContextBarSelectionStartState {
-  // Disabled Delete button.
-  NSString* titleString = GetNSString(IDS_IOS_BOOKMARK_CONTEXT_BAR_DELETE);
-  self.deleteButton =
-      [[UIBarButtonItem alloc] initWithTitle:titleString
-                                       style:UIBarButtonItemStylePlain
-                                      target:self
-                                      action:@selector(leadingButtonClicked)];
-  self.deleteButton.tintColor = [UIColor colorNamed:kRedColor];
-  self.deleteButton.enabled = NO;
-  self.deleteButton.accessibilityIdentifier =
-      kBookmarksHomeLeadingButtonIdentifier;
-
-  // Disabled More button.
-  titleString = GetNSString(IDS_IOS_BOOKMARK_CONTEXT_BAR_MORE);
-  self.moreButton =
-      [[UIBarButtonItem alloc] initWithTitle:titleString
-                                       style:UIBarButtonItemStylePlain
-                                      target:self
-                                      action:@selector(centerButtonClicked)];
-  self.moreButton.enabled = NO;
-  self.moreButton.accessibilityIdentifier =
-      kBookmarksHomeCenterButtonIdentifier;
-
-  // Enabled Cancel button.
-  titleString = GetNSString(IDS_CANCEL);
-  UIBarButtonItem* cancelButton =
-      [[UIBarButtonItem alloc] initWithTitle:titleString
-                                       style:UIBarButtonItemStylePlain
-                                      target:self
-                                      action:@selector(trailingButtonClicked)];
-  cancelButton.accessibilityIdentifier = kBookmarksHomeTrailingButtonIdentifier;
-
-  // Spacer button.
-  UIBarButtonItem* spaceButton = [[UIBarButtonItem alloc]
-      initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace
-                           target:nil
-                           action:nil];
+  }  // End Vivaldi
 
   [self setToolbarItems:@[
-    self.deleteButton, spaceButton, self.moreButton, spaceButton, cancelButton
+    [self createNewFolderButton], [self createSpacerButton],
+    [self createEditButton]
   ]
-               animated:NO];
+               animated:YES];
+}
+
+// Sets the context bar buttons in edit mode.
+- (void)setBookmarksContextBarSelectionStartState {
+  BOOL isCurrentlyShowingSearchResults =
+      self.mediator.currentlyShowingSearchResults;
+
+  [self setToolbarItems:isCurrentlyShowingSearchResults ? @[
+        self.deleteButton, [self createSpacerButton], self.moreButton,
+        [self createSpacerButton], [self createDoneButton]
+      ] : @[
+        self.deleteButton, [self createSpacerButton], self.moreButton
+      ] animated:YES];
+}
+
+// Sets the default navigation bar buttons.
+- (void)setBookmarksNavigationBarButtonsDefaultState {
+  // Restores the default back button.
+  self.navigationItem.leftBarButtonItem = nil;
+  self.navigationItem.leftBarButtonItem.action = @selector(backAction);
+  self.navigationItem.rightBarButtonItem = [self createNavigationBarDoneButton];
+}
+
+// Sets the navigation bar buttons in edit mode.
+- (void)setBookmarksNavigationBarSelectionState {
+  self.navigationItem.leftBarButtonItem = [self createMultiSelectButton];
+  self.navigationItem.rightBarButtonItem = [self createNavigationBarDoneButton];
 }
 
 #pragma mark - Context Menu
@@ -2621,7 +2908,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
     titleString = GetNSString(IDS_IOS_CONTENT_CONTEXT_OPENINNEWWINDOW);
     auto action = ^{
       [weakSelf dismissActionSheetCoordinator];
-      [weakSelf.applicationCommandsHandler
+      [weakSelf.sceneHandler
           openNewWindowWithActivity:ActivityToLoadURL(
                                         WindowActivityBookmarksOrigin,
                                         nodeURL)];
@@ -2725,7 +3012,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
 - (void)addCancelActionToCoordinator:(AlertCoordinator*)coordinator {
   __weak BookmarksHomeViewController* weakSelf = self;
   [self.actionSheetCoordinator
-      addItemWithTitle:l10n_util::GetNSString(IDS_APP_CANCEL)
+      addItemWithTitle:GetNSString(IDS_APP_CANCEL)
                 action:^{
                   [weakSelf dismissActionSheetCoordinator];
                 }
@@ -2752,7 +3039,7 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
 }
 
 - (void)handleLongPress:(UILongPressGestureRecognizer*)gestureRecognizer {
-  if (self.mediator.currentlyInEditMode ||
+  if (_UIDisabled || self.mediator.currentlyInEditMode ||
       gestureRecognizer.state != UIGestureRecognizerStateBegan) {
     return;
   }
@@ -3031,13 +3318,13 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   return configuration;
 }
 
-- (CGFloat)tableView:(UITableView*)tableView
-    heightForRowAtIndexPath:(NSIndexPath*)indexPath {
-  return UITableViewAutomaticDimension;
-}
-
 - (void)tableView:(UITableView*)tableView
     didSelectRowAtIndexPath:(NSIndexPath*)indexPath {
+  if (_UIDisabled) {
+    // Deselect row.
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+    return;
+  }
   BookmarksHomeSectionIdentifier sectionIdentifier =
       (BookmarksHomeSectionIdentifier)([self.tableViewModel
           sectionIdentifierForSectionIndex:indexPath.section]);
@@ -3104,6 +3391,12 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
 - (UIContextMenuConfiguration*)tableView:(UITableView*)tableView
     contextMenuConfigurationForRowAtIndexPath:(NSIndexPath*)indexPath
                                         point:(CGPoint)point {
+  // TODO(crbug.com/428177163): Remove this workaround when the underlying iOS
+  // issue handling context menu presentation during an active drag/drop session
+  // is resolved.
+  if (tableView.hasActiveDrag || tableView.hasActiveDrop) {
+    return nil;
+  }
   if (self.mediator.currentlyInEditMode) {
     // Don't show the context menu when currently in editing mode.
     return nil;
@@ -3373,17 +3666,26 @@ BookmarkNodeIDSet GetBookmarkNodeIDSet(
   [self presentBookmarkCreator:NO];
 }
 
-- (void)presentBookmarkCreator:(BOOL)isFolder {
+- (void)ensureBookmarksCoordinator {
   if (!self.bookmarksCoordinator) {
     self.bookmarksCoordinator =
         [[BookmarksCoordinator alloc] initWithBrowser:_browser.get()];
     self.bookmarksCoordinator.baseViewController = self;
     self.bookmarksCoordinator.delegate = self;
   }
+}
+
+- (void)presentBookmarkCreator:(BOOL)isFolder {
+  [self ensureBookmarksCoordinator];
 
   [self.bookmarksCoordinator
     presentBookmarkCreator:self.mediator.displayedNode
                   isFolder:isFolder];
+}
+
+- (void)bookmarksCoordinatorWillCommitTitleOrURLChange:
+    (BookmarksCoordinator*)coordinator {
+  [self setTableViewEditing:NO];
 }
 
 #pragma mark: VIVALDI_SEARCH_BAR_VIEW_DELEGATE

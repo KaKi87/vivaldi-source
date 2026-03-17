@@ -135,8 +135,8 @@ const NSTextAlignment kDefaultTextAlignment = NSTextAlignmentCenter;
 - (void)initStackView:(BOOL)reverse {
   // Horizontal stackView to hold label and button.
   if (![self.label.text length]) {
-    self.horizontalStackView = [[UIStackView alloc]
-        initWithArrangedSubviews:@[ self.button ]];
+    self.horizontalStackView =
+        [[UIStackView alloc] initWithArrangedSubviews:@[ self.button ]];
   } else if (reverse) {
     self.horizontalStackView = [[UIStackView alloc]
         initWithArrangedSubviews:@[ self.button, self.label ]];
@@ -161,8 +161,7 @@ const NSTextAlignment kDefaultTextAlignment = NSTextAlignmentCenter;
     _label.scrollEnabled = NO;
     _label.editable = NO;
     _label.backgroundColor = [UIColor clearColor];
-    _label.font =
-        [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+    _label.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
     _label.textAlignment = NSTextAlignmentCenter;
     _label.textContainerInset = UIEdgeInsetsZero;
     _label.linkTextAttributes =

@@ -13,7 +13,8 @@ class VivaldiSubresourceFilterAdblockingThrottleManager
     : public base::SupportsUserData::Data {
  private:
   //
-  raw_ptr<AdverseAdFilterListService> adblock_list_ = nullptr;  // owned by the profile.
+  raw_ptr<AdverseAdFilterListService> adblock_list_ =
+      nullptr;  // owned by the profile.
 
  public:
   static const char

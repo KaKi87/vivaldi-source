@@ -542,10 +542,13 @@ class BrowserFinderOptions(argparse.Namespace):
         self.tool = None
         self.adb_path = None
         self.enable_device_cache = True
+        # TODO(crbug.com/454390941): Remove after migrating using persistent
+        # shell by default.
+        self.use_persistent_shell = False
         # We don't want to use a persistent shell for setting up an emulator
         # as the persistent shell doesn't work until the emulator is already
         # running.
-        self.use_persistent_shell = False
+        self.disable_persistent_shell = True
         self.emulator_debug_tags = None
         self.emulator_enable_network = False
 
@@ -858,7 +861,7 @@ class BrowserOptions():
     """
     consolidated_args = []
     found_values = []
-    for arg in self.extra_browser_args:
+    for arg in self._extra_browser_args:
       if '=' in arg and arg.split('=', 1)[0] == flag:
         # Syntax is `--flag=A,B`.
         # Support for the `--flag A,B` syntax isn't present since the extra
@@ -871,7 +874,16 @@ class BrowserOptions():
         consolidated_args.append(arg)
 
     if found_values:
-      consolidated_args.append('%s=%s' % (flag, ','.join(found_values)))
+      # Deduplicate consolidated flag values while preserving first-seen order.
+      unique_values = []
+      seen_values = set()
+      for value in found_values:
+        for item in value.split(','):
+          if not item or item in seen_values:
+            continue
+          unique_values.append(item)
+          seen_values.add(item)
+      consolidated_args.append('%s=%s' % (flag, ','.join(unique_values)))
     self._extra_browser_args = set(consolidated_args)
 
 

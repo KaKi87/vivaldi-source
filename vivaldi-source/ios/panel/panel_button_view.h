@@ -17,7 +17,7 @@
 - (instancetype)initWithCoder:(NSCoder*)aDecoder NS_UNAVAILABLE;
 
 // DELEGATE
-@property (nonatomic, weak) id<PanelButtonViewDelegate> delegate;
+@property(nonatomic, weak) id<PanelButtonViewDelegate> delegate;
 
 // SETTERS
 - (void)selectItemWithIndex:(NSInteger)index;

@@ -76,6 +76,7 @@
 #include "./centipede/centipede_callbacks.h"
 #include "./centipede/command.h"
 #include "./centipede/control_flow.h"
+#include "./centipede/corpus.h"
 #include "./centipede/corpus_io.h"
 #include "./centipede/coverage.h"
 #include "./centipede/environment.h"
@@ -98,14 +99,21 @@
 
 namespace fuzztest::internal {
 
-Centipede::Centipede(const Environment &env, CentipedeCallbacks &user_callbacks,
-                     const BinaryInfo &binary_info,
-                     CoverageLogger &coverage_logger, std::atomic<Stats> &stats)
+Centipede::Centipede(const Environment& env, CentipedeCallbacks& user_callbacks,
+                     const BinaryInfo& binary_info,
+                     CoverageLogger& coverage_logger, std::atomic<Stats>& stats)
     : env_(env),
       user_callbacks_(user_callbacks),
       rng_(env_.seed),
       // TODO(kcc): [impl] find a better way to compute frequency_threshold.
       fs_(env_.feature_frequency_threshold, env_.MakeDomainDiscardMask()),
+      corpus_([this] {
+        const auto parsed_weight_method =
+            Corpus::ParseWeightMethod(env_.corpus_weight_method);
+        FUZZTEST_CHECK(parsed_weight_method.has_value())
+            << "Unknown corpus weight method " << env_.corpus_weight_method;
+        return *parsed_weight_method;
+      }()),
       coverage_frontier_(binary_info),
       binary_info_(binary_info),
       pc_table_(binary_info_.pc_table),
@@ -336,7 +344,8 @@ void Centipede::UpdateAndMaybeLogStats(std::string_view log_type,
      << corpus_.MemoryUsageString();
   os << " exec/s: "
      << (execs_per_sec < 1.0 ? execs_per_sec : std::round(execs_per_sec));
-  os << " mb: " << (rusage_memory.mem_rss >> 20);
+  os << " ctrl-mb: " << (rusage_memory.mem_rss >> 20);
+  os << " exec-mb: " << execution_peak_rss_mb_;
   FUZZTEST_LOG(INFO) << os.str();
 }
 
@@ -438,7 +447,6 @@ bool Centipede::RunBatch(
     return false;
   }
   FUZZTEST_CHECK_EQ(batch_result.results().size(), input_vec.size());
-  num_runs_ += input_vec.size();
   bool batch_gained_new_coverage = false;
   for (size_t i = 0; i < input_vec.size(); i++) {
     if (ShouldStop()) break;
@@ -473,6 +481,16 @@ bool Centipede::RunBatch(
             features_file->Write(PackFeaturesAndHash(input_vec[i], fv)));
       }
     }
+  }
+  num_runs_ += batch_result.num_outputs_read();
+  if (batch_result.num_outputs_read() > 0) {
+    // The reported values increase monotonically within a batch. So it suffices
+    // to look at the last value.
+    execution_peak_rss_mb_ =
+        std::max(execution_peak_rss_mb_,
+                 batch_result.results()[batch_result.num_outputs_read() - 1]
+                     .stats()
+                     .peak_rss_mb);
   }
   corpus_.UpdateWeights(fs_, coverage_frontier_, env_.exec_time_weight_scaling);
   return batch_gained_new_coverage;
@@ -519,7 +537,7 @@ void Centipede::LoadShard(const Environment &load_env, size_t shard_index,
   const std::string features_path = wd.FeaturesFilePaths().Shard(shard_index);
   if (env_.serialize_shard_loads) {
     ABSL_CONST_INIT static absl::Mutex load_shard_mu{absl::kConstInit};
-    absl::MutexLock lock(&load_shard_mu);
+    absl::MutexLock lock(load_shard_mu);
     ReadShard(corpus_path, features_path, input_features_callback);
   } else {
     ReadShard(corpus_path, features_path, input_features_callback);
@@ -904,7 +922,7 @@ void Centipede::ReportCrash(std::string_view binary,
   const size_t suspect_input_idx = std::clamp<size_t>(
       batch_result.num_outputs_read(), 0, input_vec.size() - 1);
   auto log_execution_failure = [&](std::string_view log_prefix) {
-    absl::MutexLock lock(&GetExecutionLoggingMutex());
+    absl::MutexLock lock(GetExecutionLoggingMutex());
     FUZZTEST_LOG(INFO)
         << log_prefix << "Batch execution failed:"
         << "\nBinary               : " << binary
@@ -912,7 +930,7 @@ void Centipede::ReportCrash(std::string_view binary,
         << "\nFailure              : " << batch_result.failure_description()
         << "\nSignature            : "
         << AsPrintableString(AsByteSpan(batch_result.failure_signature()),
-                             /*max_len=*/32)
+                             /*max_len=*/kHashLen)
         << "\nNumber of inputs     : " << input_vec.size()
         << "\nNumber of inputs read: " << batch_result.num_outputs_read()
         << (batch_result.IsSetupFailure()

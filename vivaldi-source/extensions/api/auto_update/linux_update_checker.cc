@@ -109,7 +109,7 @@ void LinuxUpdateChecker::CheckForUpdates(
 }
 
 void LinuxUpdateChecker::OnURLLoadComplete(
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   int net_error = url_loader_->NetError();
   int response_code = -1;
   if (url_loader_->ResponseInfo() && url_loader_->ResponseInfo()->headers) {

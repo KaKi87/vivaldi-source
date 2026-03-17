@@ -31,16 +31,19 @@ class Index_Node;
 
 class IndexLoadDetails {
  public:
-  explicit IndexLoadDetails(Index_Node* items_node, Index_Node* backup_node,
+  explicit IndexLoadDetails(Index_Node* items_node,
+                            Index_Node* backup_node,
                             Index_Node* persistent_node);
   ~IndexLoadDetails();
   IndexLoadDetails(const IndexLoadDetails&) = delete;
   IndexLoadDetails& operator=(const IndexLoadDetails&) = delete;
 
-  void SetLoadedFromFileScan(bool loaded_from_filescan)
-    {loaded_from_filescan_ = loaded_from_filescan; }
-  void SetLoadingFailed(bool loading_failed)
-    {loading_failed_ = loading_failed; }
+  void SetLoadedFromFileScan(bool loaded_from_filescan) {
+    loaded_from_filescan_ = loaded_from_filescan;
+  }
+  void SetLoadingFailed(bool loading_failed) {
+    loading_failed_ = loading_failed;
+  }
   bool get_loaded_from_filescan() const { return loaded_from_filescan_; }
   bool get_loading_failed() const { return loading_failed_; }
 

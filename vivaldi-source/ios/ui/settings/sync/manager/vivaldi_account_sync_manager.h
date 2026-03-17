@@ -19,21 +19,21 @@ class ProfileIOS;
 using syncer::UserSelectableType;
 using syncer::UserSelectableTypeSet;
 
-typedef void (^ServerRequestCompletionHandler)
-    (NSData* data, NSURLResponse* response, NSError* error);
+typedef void (^ServerRequestCompletionHandler)(NSData* data,
+                                               NSURLResponse* response,
+                                               NSError* error);
 
 // VivaldiAccountSyncManager handles the communication between UI
 // and the Sync backend.
-@interface VivaldiAccountSyncManager: NSObject
+@interface VivaldiAccountSyncManager : NSObject
 
-@property(nonatomic, weak)
-    id<VivaldiAccountSyncManagerConsumer> consumer;
+@property(nonatomic, weak) id<VivaldiAccountSyncManagerConsumer> consumer;
 
 - (instancetype)initWithBrowser:(Browser*)browser;
 - (instancetype)initWithProfile:(ProfileIOS*)profile;
 - (instancetype)initWithAccountManager:
-      (vivaldi::VivaldiAccountManager*)vivaldiAccountManager
-      syncService:(syncer::SyncService*)syncService;
+                    (vivaldi::VivaldiAccountManager*)vivaldiAccountManager
+                           syncService:(syncer::SyncService*)syncService;
 - (instancetype)init NS_UNAVAILABLE;
 
 - (void)start;

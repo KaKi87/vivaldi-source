@@ -8,28 +8,29 @@
 
 std::optional<base::Value> NSDataToDict(NSData* data) {
   const std::string_view server_reply(static_cast<const char*>([data bytes]),
-                                        [data length]);
+                                      [data length]);
   return base::JSONReader::Read(server_reply,
                                 base::JSON_PARSE_CHROMIUM_EXTENSIONS);
 }
 
-void sendRequestToServer(base::Value::Dict dict, NSURL* url,
-    ServerRequestCompletionHandler handler, NSURLSessionDataTask* task) {
+void sendRequestToServer(base::DictValue dict,
+                         NSURL* url,
+                         ServerRequestCompletionHandler handler,
+                         NSURLSessionDataTask* task) {
   std::string json;
   JSONStringValueSerializer serializer(&json);
   serializer.Serialize(base::Value(std::move(dict)));
-  NSMutableURLRequest* request = [NSMutableURLRequest requestWithURL:url
-                          cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
-                                      timeoutInterval:vConnectionTimeout];
+  NSMutableURLRequest* request = [NSMutableURLRequest
+       requestWithURL:url
+          cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+      timeoutInterval:vConnectionTimeout];
   NSData* data = [NSData dataWithBytes:json.c_str() length:json.size()];
   [request setHTTPMethod:vHttpMethod];
   [request setHTTPBody:data];
   [request setValue:vRequestValue forHTTPHeaderField:vRequestHeader];
 
   NSURLSession* session = [NSURLSession sharedSession];
-  task =
-      [session dataTaskWithRequest:request
-                completionHandler:handler];
+  task = [session dataTaskWithRequest:request completionHandler:handler];
   [task resume];
 }
 

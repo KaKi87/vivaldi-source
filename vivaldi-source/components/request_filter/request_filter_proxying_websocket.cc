@@ -90,6 +90,7 @@ RequestFilterProxyingWebSocket::RequestFilterProxyingWebSocket(
         authentication_handler,
     mojo::PendingRemote<network::mojom::TrustedHeaderClient> header_client,
     bool has_extra_headers,
+    bool has_security_info,
     int process_id,
     int render_frame_id,
     content::BrowserContext* browser_context,
@@ -106,6 +107,7 @@ RequestFilterProxyingWebSocket::RequestFilterProxyingWebSocket(
       response_(network::mojom::URLResponseHead::New()),
       additional_headers_(std::move(additional_headers)),
       has_extra_headers_(has_extra_headers || header_client),
+      has_security_info_(has_security_info || header_client),
       info_(request_id_generator->Generate(IPC::mojom::kRoutingIdNone, 0),
             process_id,
             render_frame_id,
@@ -145,7 +147,7 @@ void RequestFilterProxyingWebSocket::Start() {
   // OnBeforeSendHeaders and OnSendHeaders will be handled there. Otherwise,
   // send these events before the request starts.
   base::RepeatingCallback<void(int)> continuation;
-  if (has_extra_headers_) {
+  if (has_extra_headers_ || has_security_info_) {
     continuation = base::BindRepeating(
         &RequestFilterProxyingWebSocket::ContinueToStartRequest,
         weak_factory_.GetWeakPtr());
@@ -222,7 +224,7 @@ void RequestFilterProxyingWebSocket::OnConnectionEstablished(
 
   response_->remote_endpoint = handshake_response_->remote_endpoint;
 
-  // response_->headers will be set in OnBeforeSendHeaders if
+  // response_->headers will be set in OnHeadersReceived if
   // |receiver_as_header_client_| is set.
   if (receiver_as_header_client_.is_bound()) {
     ContinueToCompleted();
@@ -307,7 +309,13 @@ void RequestFilterProxyingWebSocket::OnHeadersReceived(
     OnHeadersReceivedCallback callback) {
   DCHECK(receiver_as_header_client_.is_bound());
 
+  if (has_security_info_ &&
+      request_handler_->HasSecurityInfoListenerForRequest(&info_)) {
+    info_.AddSslInfo(ssl_info);
+  }
+
   on_headers_received_callback_ = std::move(callback);
+
   response_->headers = base::MakeRefCounted<net::HttpResponseHeaders>(headers);
   ssl_info_ = &ssl_info;
 
@@ -326,6 +334,7 @@ void RequestFilterProxyingWebSocket::StartProxying(
         authentication_handler,
     mojo::PendingRemote<network::mojom::TrustedHeaderClient> header_client,
     bool has_extra_headers,
+    bool has_security_info,
     int process_id,
     int render_frame_id,
     RequestFilterManager::RequestIDGenerator* request_id_generator,
@@ -345,8 +354,9 @@ void RequestFilterProxyingWebSocket::StartProxying(
   auto proxy = std::make_unique<RequestFilterProxyingWebSocket>(
       std::move(factory), request, std::move(additional_headers),
       std::move(handshake_client), std::move(authentication_handler),
-      std::move(header_client), has_extra_headers, process_id, render_frame_id,
-      browser_context, request_id_generator, request_handler, proxies);
+      std::move(header_client), has_extra_headers, has_security_info,
+      process_id, render_frame_id, browser_context, request_id_generator,
+      request_handler, proxies);
 
   auto* raw_proxy = proxy.get();
   proxies->AddProxy(std::move(proxy));
@@ -435,7 +445,7 @@ void RequestFilterProxyingWebSocket::ContinueToStartRequest(int error_code) {
 
   mojo::PendingRemote<network::mojom::TrustedHeaderClient>
       trusted_header_client = mojo::NullRemote();
-  if (has_extra_headers_) {
+  if (has_extra_headers_ || has_security_info_) {
     trusted_header_client =
         receiver_as_header_client_.BindNewPipeAndPassRemote();
   }

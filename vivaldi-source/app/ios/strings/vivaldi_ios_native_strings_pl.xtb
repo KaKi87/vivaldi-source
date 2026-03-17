@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Zarządzaj źródłami blokowania reklam</translation>
 <translation id="1577761519530347814">Synchronizuj zapisane hasła do stron internetowych</translation>
 <translation id="1620921465699122417">Wprowadź tekst do przetłumaczenia</translation>
+<translation id="1624621765073396937">Przesuń, aby zamknąć kartę</translation>
 <translation id="1631998297781042533">Popularne strony</translation>
 <translation id="1644574205037202324">Historia</translation>
 <translation id="1655816024544228768">Sport</translation>
@@ -106,6 +107,7 @@
 <translation id="2330644510603114741">Zachowanie kart</translation>
 <translation id="233493642829799329">Zmiana ustawienia może spowodować odświeżenie niektórych Twoich kart</translation>
 <translation id="2336309953058658733">Opróżnij kosz</translation>
+<translation id="2336679896177818431">Otwiera przełącznik kart po przesunięciu palcem w górę lub w dół na pasku adresu</translation>
 <translation id="2359808026110333948">Kontynuuj</translation>
 <translation id="2386793615875593361">1 zaznaczona</translation>
 <translation id="2387049655823108978">Synchronizuj otwarte karty z innych urządzeń</translation>
@@ -127,6 +129,7 @@
 <translation id="261264557609353020">Strona startowa</translation>
 <translation id="2619628557366098325">Portugalska (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">Systemowy</translation>
+<translation id="2638305832232696831">Włącz gest przeciągnięcia po pasku adresu</translation>
 <translation id="2653659639078652383">Wyślij</translation>
 <translation id="2666092431469916601">Na górze</translation>
 <translation id="2677862276555105603">Zablokowana
@@ -153,6 +156,7 @@ reklama</translation>
 <translation id="2862504765180635001">Przykro nam to słyszeć!</translation>
 <translation id="2878511608894704031">Usuń wszystko</translation>
 <translation id="2884735088411646852">Sortowanie</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (blokuje różne irytujące elementy)</translation>
 <translation id="2898963176829412617">Nowy folder…</translation>
 <translation id="2918704853620385162">Otwieraj nową kartę po zamknięciu ostatniej karty</translation>
 <translation id="2924890236896835588">Nazwa grupy</translation>
@@ -172,6 +176,7 @@ reklama</translation>
 <translation id="3142562627629111859">Nowa grupa</translation>
 <translation id="3157931365184549694">Przywróć</translation>
 <translation id="3159285901314605198">Obraz tła</translation>
+<translation id="317084213044777332">Ustaw jako domyślną wyszukiwarkę</translation>
 <translation id="3177673846235066154">Serwer odrzucił twoje dane logowania.</translation>
 <translation id="3180057018690062250">Platformy streamingowe</translation>
 <translation id="3180358318770512945">Wychowanie dzieci</translation>
@@ -596,6 +601,7 @@ Otwórz ustawienia, aby to naprawić.</translation>
 <translation id="8066170816074394954">Błąd serwera.</translation>
 <translation id="8076492880354921740">Karty</translation>
 <translation id="8077675488769462025">Nieaktywne karty</translation>
+<translation id="8079925180539182073">Domyślnej wyszukiwarki nie można usunąć.</translation>
 <translation id="8112996065264879835">Ten kod nie pasuje do tego, który Ci wysłaliśmy.
          Osiągnąłeś maksymalny limit błędnych prób. Poproś o nowy kod, korzystając z opcji „Wyślij ponownie” poniżej.</translation>
 <translation id="8131740175452115882">Potwierdź</translation>
@@ -641,6 +647,7 @@ Otwórz ustawienia, aby to naprawić.</translation>
 <translation id="856439694359429369">Dotknij po więcej opcji lub naciśnij dwukrotnie, aby otworzyć.</translation>
 <translation id="8591818185775466306">Usuń <ph name="ITEM_TYPE" /></translation>
 <translation id="8605953154325672921">Nazwa użytkownika jest wymagana</translation>
+<translation id="861259508026988871">Dodaj jako wyszukiwarkę internetową</translation>
 <translation id="8675578805254882416">Pobieranie</translation>
 <translation id="8677007239430848917">Dodaj swoją pierwszą notatkę przy użyciu ikony plusa poniżej</translation>
 <translation id="8684294196284714094">Gotowy, aby ustawić Vivaldi jako domyślną przeglądarkę?</translation>

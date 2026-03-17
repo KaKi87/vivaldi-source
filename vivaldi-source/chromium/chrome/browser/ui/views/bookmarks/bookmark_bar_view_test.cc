@@ -831,7 +831,7 @@ class BookmarkContextMenuNotificationObserver {
 };
 
 // Opens a bookmark folder, right clicks on the first bookmark to get a context
-// menu, and selects the first menu item (open).
+// menu, and selects the first menu item (open in new tab).
 class BookmarkBarViewTest4 : public BookmarkBarViewEventTestBase {
  public:
   BookmarkBarViewTest4()
@@ -861,9 +861,9 @@ class BookmarkBarViewTest4 : public BookmarkBarViewEventTestBase {
     views::MenuItemView* context_menu = bb_view_->GetContextMenu();
     ASSERT_TRUE(MenuIsShowing(context_menu));
 
-    // Select the first menu item (open).
+    // Select the first menu item (open in new tab).
     ui_test_utils::MoveMouseToCenterAndClick(
-        context_menu->GetSubmenu()->GetMenuItemAt(1), ui_controls::LEFT,
+        context_menu->GetSubmenu()->GetMenuItemAt(0), ui_controls::LEFT,
         ui_controls::DOWN | ui_controls::UP,
         CreateEventTask(this, &BookmarkBarViewTest4::Step4));
   }
@@ -957,13 +957,13 @@ class BookmarkBarViewTest6 : public BookmarkBarViewEventTestBase {
   }
 };
 
-#if BUILDFLAG(IS_OZONE_WAYLAND) || BUILDFLAG(IS_WIN)
+#if BUILDFLAG(SUPPORTS_OZONE_WAYLAND) || BUILDFLAG(IS_WIN)
 // TODO (crbug/1523247): This test is failing under wayland and Windows. This
 // skips it until it can be fixed.
 #define MAYBE_OpenMenuOnClickAndHold DISABLED_OpenMenuOnClickAndHold
 #else
 #define MAYBE_OpenMenuOnClickAndHold OpenMenuOnClickAndHold
-#endif  // BUILDFLAG(IS_OZONE_WAYLAND) || BUILDFLAG(IS_WIN)
+#endif  // BUILDFLAG(SUPPORTS_OZONE_WAYLAND) || BUILDFLAG(IS_WIN)
 // If this flakes, disable and log details in http://crbug.com/523255.
 VIEW_TEST(BookmarkBarViewTest6, MAYBE_OpenMenuOnClickAndHold)
 
@@ -1174,7 +1174,7 @@ class BookmarkBarViewTest9 : public BookmarkBarViewEventTestBase {
 // hover the scroll buttons sends the mouse to the wrong location, so it never
 // winds up over the button, so the test times out.
 // TODO(crbug.com/40947483): Flaky on Windows.
-#if BUILDFLAG(IS_OZONE_WAYLAND) || BUILDFLAG(IS_WIN)
+#if BUILDFLAG(SUPPORTS_OZONE_WAYLAND) || BUILDFLAG(IS_WIN)
 #define MAYBE_ScrollButtonScrolls DISABLED_ScrollButtonScrolls
 #else
 #define MAYBE_ScrollButtonScrolls ScrollButtonScrolls
@@ -1917,11 +1917,11 @@ END_METADATA
 // TODO(crbug.com/40947483): Flaky on Windows.
 // TODO (crbug/1523247): This test is failing under wayland and Windows. This
 // skips it until it can be fixed.
-#if BUILDFLAG(IS_OZONE_WAYLAND) || BUILDFLAG(IS_WIN)
+#if BUILDFLAG(SUPPORTS_OZONE_WAYLAND) || BUILDFLAG(IS_WIN)
 #define MAYBE_ContextMenuExitTest DISABLED_ContextMenuExitTest
 #else
 #define MAYBE_ContextMenuExitTest ContextMenuExitTest
-#endif  // BUILDFLAG(IS_OZONE_WAYLAND) || BUILDFLAG(IS_WIN)
+#endif  // BUILDFLAG(SUPPORTS_OZONE_WAYLAND) || BUILDFLAG(IS_WIN)
 VIEW_TEST(BookmarkBarViewTest20, MAYBE_ContextMenuExitTest)
 
 // Tests context menu by way of opening a context menu for a empty folder menu.
@@ -2085,9 +2085,9 @@ class BookmarkBarViewTest23 : public BookmarkBarViewEventTestBase {
     views::MenuItemView* context_menu = bb_view_->GetContextMenu();
     ASSERT_TRUE(MenuIsShowing(context_menu));
 
-    // Select the first menu item (open).
+    // Select the first menu item (open in new tab).
     ui_test_utils::MoveMouseToCenterAndClick(
-        context_menu->GetSubmenu()->GetMenuItemAt(1), ui_controls::LEFT,
+        context_menu->GetSubmenu()->GetMenuItemAt(0), ui_controls::LEFT,
         ui_controls::DOWN | ui_controls::UP,
         CreateEventTask(this, &BookmarkBarViewTest23::Step6));
   }

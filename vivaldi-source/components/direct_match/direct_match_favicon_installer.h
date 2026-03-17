@@ -15,7 +15,7 @@ class DirectMatchService;
 
 class DirectMatchFaviconInstaller {
  public:
-  struct Entry: public ImageDecoder::ImageRequest {
+  struct Entry : public ImageDecoder::ImageRequest {
     Entry() = default;
     ~Entry() = default;
     std::string title_;
@@ -35,7 +35,7 @@ class DirectMatchFaviconInstaller {
   ~DirectMatchFaviconInstaller();
 
   void Start();
-  void Start(DirectMatchService *service);
+  void Start(DirectMatchService* service);
   void Completed(Entry* entry, bool success);
 
  private:
@@ -51,7 +51,6 @@ class DirectMatchFaviconInstaller {
   base::WeakPtrFactory<DirectMatchFaviconInstaller> weak_ptr_factory_{this};
 };
 
-}  // direct_match
+}  // namespace direct_match
 
-
-#endif //DIRECT_MATCH_FAVICON_INSTALLER_H_
+#endif  // DIRECT_MATCH_FAVICON_INSTALLER_H_

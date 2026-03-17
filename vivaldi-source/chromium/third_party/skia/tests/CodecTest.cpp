@@ -2280,11 +2280,11 @@ static SkBitmap make_gradient_bitmap(sk_sp<SkColorSpace> cs) {
     const int width = 50;
     const int height = 50;
       // Define the gradient shader.
-    const SkColor colors[] = { SK_ColorRED, SK_ColorYELLOW, SK_ColorGREEN, SK_ColorCYAN,
-                               SK_ColorBLUE, SK_ColorMAGENTA, SK_ColorRED };
+    const SkColor4f colors[] = { SkColors::kRed, SkColors::kYellow, SkColors::kGreen,
+                            SkColors::kCyan, SkColors::kBlue, SkColors::kMagenta, SkColors::kRed };
     const SkPoint points[] = { { 0.0f, 0.0f }, { (float)width, 0.0f } };
-    sk_sp<SkShader> rainbowShader = SkGradientShader::MakeLinear(points, colors, nullptr, 7,
-                        SkTileMode::kClamp);
+    sk_sp<SkShader> rainbowShader = SkShaders::LinearGradient(points,
+                                                            {{colors, {}, SkTileMode::kClamp}, {}});
     SkPaint gradientPaint;
     gradientPaint.setShader(rainbowShader);
 
@@ -2598,3 +2598,40 @@ DEF_TEST(PngRustHdrMetadataRoundTrip, r) {
 }
 #endif
 
+// for private SkCodec access
+class SkCodecPriv {
+public:
+    static bool needsRewind(const SkCodec* codec) { return codec->fNeedsRewind; }
+};
+
+DEF_TEST(jpeg_invalid_stream_state, r) {
+    // Invalid/corrupted jpeg data.
+    auto data = GetResourceAsData("invalid_images/b464333052.jpg");
+    REPORTER_ASSERT(r, data);
+    auto codec = SkAndroidCodec::MakeFromData(std::move(data));
+    REPORTER_ASSERT(r, codec);
+
+    REPORTER_ASSERT(r, !SkCodecPriv::needsRewind(codec->codec()));
+
+    const SkImageInfo info = codec->getInfo();
+    SkAutoPixmapStorage pm;
+    pm.alloc(info);
+
+    // Attempt a decode at an odd size, to exercise the sampledDecode path.
+    SkAndroidCodec::AndroidOptions opts;
+    opts.fSampleSize = 7;
+    const SkISize sz = codec->getSampledDimensions(opts.fSampleSize);
+    auto res =
+        codec->getAndroidPixels(info.makeDimensions(sz), pm.writable_addr(), pm.rowBytes(), &opts);
+    // Expected to fail due to bad data.
+    REPORTER_ASSERT(r, res != SkCodec::kSuccess);
+    // But the stream should be rewinded if we attempt other operations.
+    REPORTER_ASSERT(r, SkCodecPriv::needsRewind(codec->codec()));
+
+    // Attempt a decode at the natural size, to exercize the getPixels path.
+    res = codec->getAndroidPixels(info, pm.writable_addr(), pm.rowBytes());
+    // Expected to fail due to bad data.
+    REPORTER_ASSERT(r, res != SkCodec::kSuccess);
+    // But the stream should be rewinded if we attempt other operations.
+    REPORTER_ASSERT(r, SkCodecPriv::needsRewind(codec->codec()));
+}

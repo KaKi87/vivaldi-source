@@ -10,7 +10,7 @@ import android.graphics.PointF;
 import android.view.View;
 
 import org.chromium.base.Token;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.compositor.overlays.strip.AnimationHost;
@@ -70,7 +70,7 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
             TabModel model,
             TabGroupModelFilter tabGroupModelFilter,
             View containerView,
-            ObservableSupplierImpl<@Nullable Token> groupIdToHideSupplier,
+            SettableNullableObservableSupplier<Token> groupIdToHideSupplier,
             Supplier<Float> tabWidthSupplier,
             Supplier<Long> lastReorderScrollTimeSupplier,
             TabStripDragHandler tabStripDragHandler,
@@ -128,7 +128,7 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
         }
 
         // Drag did not start. Stop reorder, and fallback to reordering within the strip.
-        mReorderDelegate.stopReorderMode(stripViews, stripGroupTitles);
+        mReorderDelegate.stopReorderMode(stripViews, stripGroupTitles, false);
         mReorderDelegate.startReorderMode(
                 stripViews,
                 stripTabs,
@@ -149,6 +149,10 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
         assert mActiveSubStrategy != null : "Attempted to drag without an active sub-strategy.";
         // Delegate to the active substrategy.
         if (reorderType == ReorderType.DRAG_ONTO_STRIP) {
+            // TODO(crbug.com/467093887): A fix was added to prevent the drag shadow's touch offset
+            //  from being negative. The dragged view itself, however, isn't "snapped" to match the
+            //  drag shadow's position in this case, which we should be able to do here with the
+            //  provided touch point.
             assumeNonNull(mViewBeingDragged);
             mActiveSubStrategy.startReorderMode(
                     stripViews, stripTabs, groupTitles, mViewBeingDragged, new PointF(endX, 0f));
@@ -181,9 +185,12 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
     }
 
     @Override
-    public void stopReorderMode(StripLayoutView[] stripViews, StripLayoutGroupTitle[] groupTitles) {
+    public void stopReorderMode(
+            StripLayoutView[] stripViews,
+            StripLayoutGroupTitle[] groupTitles,
+            boolean isDragCancelled) {
         if (mActiveSubStrategy != null) {
-            mActiveSubStrategy.onStopViewDragAction(stripViews, groupTitles);
+            mActiveSubStrategy.onStopViewDragAction(stripViews, groupTitles, isDragCancelled);
         }
         mActiveSubStrategy = null;
         mViewBeingDragged = null;
@@ -288,8 +295,10 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
 
         @Override
         public void stopReorderMode(
-                StripLayoutView[] stripViews, StripLayoutGroupTitle[] groupTitles) {
-            mWrappedStrategy.stopReorderMode(stripViews, groupTitles);
+                StripLayoutView[] stripViews,
+                StripLayoutGroupTitle[] groupTitles,
+                boolean isDragCancelled) {
+            mWrappedStrategy.stopReorderMode(stripViews, groupTitles, isDragCancelled);
             mInProgress = false;
         }
 
@@ -320,11 +329,13 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
 
         /** Called when the view tearing action has completed. */
         void onStopViewDragAction(
-                StripLayoutView[] stripViews, StripLayoutGroupTitle[] groupTitles) {
+                StripLayoutView[] stripViews,
+                StripLayoutGroupTitle[] groupTitles,
+                boolean isDragCancelled) {
             // Clear the wrapped strategy's state if needed. Intentionally not calling the
             // SubStrategy implementation, as that also hides the dragged view.
             if (mInProgress) {
-                mWrappedStrategy.stopReorderMode(stripViews, groupTitles);
+                mWrappedStrategy.stopReorderMode(stripViews, groupTitles, isDragCancelled);
                 mInProgress = false;
             }
         }
@@ -356,7 +367,7 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
             mAnimationHost.finishAnimationsAndPushTabUpdates();
             bringViewOntoStripAndOffset(draggedTab);
             mStripUpdateDelegate.resizeTabStrip(
-                    /* animate= */ false, /* tabToAnimate= */ null, /* animateTabAdded= */ false);
+                    /* tabToAnimate= */ null, /* animateTabAdded= */ false);
 
             // 3. Start to reorder within strip - delegate to the wrapped strategy.
             super.startReorderMode(
@@ -365,7 +376,9 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
 
         @Override
         public void stopReorderMode(
-                StripLayoutView[] stripViews, StripLayoutGroupTitle[] groupTitles) {
+                StripLayoutView[] stripViews,
+                StripLayoutGroupTitle[] groupTitles,
+                boolean isDragCancelled) {
             StripLayoutTab draggedTab = (StripLayoutTab) mViewBeingDragged;
 
             // 1. Show compositor buttons.
@@ -388,14 +401,13 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
 
             // 3. Prompt not shown - Store reorder state, then exit reorder within strip.
             mLastOffsetX = draggedTab.getOffsetX();
-            super.stopReorderMode(stripViews, groupTitles);
+            super.stopReorderMode(stripViews, groupTitles, isDragCancelled);
 
             // 4. Immediately hide the dragged tab container, as if it were being translated off
             // like a closed tab. Resize strip views accordingly.
             mAnimationHost.finishAnimationsAndPushTabUpdates();
             removeViewOutOfStrip(draggedTab);
-            mStripUpdateDelegate.resizeTabStrip(
-                    /* animate= */ true, draggedTab, /* animateTabAdded= */ false);
+            mStripUpdateDelegate.resizeTabStrip(draggedTab, /* animateTabAdded= */ false);
         }
 
         @Override
@@ -413,7 +425,9 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
 
         @Override
         void onStopViewDragAction(
-                StripLayoutView[] stripViews, StripLayoutGroupTitle[] groupTitles) {
+                StripLayoutView[] stripViews,
+                StripLayoutGroupTitle[] groupTitles,
+                boolean isDragCancelled) {
             // If the dragged view was re-parented, it will no longer be present in model.
             // If this is not the case, attempt to restore view to its original position.
             StripLayoutTab draggedTab = (StripLayoutTab) mViewBeingDragged;
@@ -435,10 +449,9 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
 
                 // Animate the tab translating back up onto the tab strip.
                 draggedTab.setWidth(0.f);
-                mStripUpdateDelegate.resizeTabStrip(
-                        /* animate= */ true, draggedTab, /* animateTabAdded= */ true);
+                mStripUpdateDelegate.resizeTabStrip(draggedTab, /* animateTabAdded= */ true);
             }
-            super.onStopViewDragAction(stripViews, groupTitles);
+            super.onStopViewDragAction(stripViews, groupTitles, isDragCancelled);
         }
 
         @Override
@@ -481,7 +494,7 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
                 bringViewOntoStripAndOffset(view);
             }
             mStripUpdateDelegate.resizeTabStrip(
-                    /* animate= */ false, /* tabToAnimate= */ null, /* animateTabAdded= */ false);
+                    /* tabToAnimate= */ null, /* animateTabAdded= */ false);
 
             // 3. Re-select the previously selected dragged tab, if needed.
             reselectDraggedSelectedTab(mModel, mSelectedDraggedTab);
@@ -493,14 +506,16 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
 
         @Override
         public void stopReorderMode(
-                StripLayoutView[] stripViews, StripLayoutGroupTitle[] groupTitles) {
+                StripLayoutView[] stripViews,
+                StripLayoutGroupTitle[] groupTitles,
+                boolean isDragCancelled) {
             assumeNonNull(mViewBeingDragged);
             // 1. Show compositor buttons.
             mStripUpdateDelegate.setCompositorButtonsVisible(true);
 
             // 2. Store reorder state, then exit reorder within strip.
             mLastOffsetX = mViewBeingDragged.getOffsetX();
-            super.stopReorderMode(stripViews, groupTitles);
+            super.stopReorderMode(stripViews, groupTitles, isDragCancelled);
 
             // 3. Immediately hide the dragged views without animating. Resize strip accordingly.
             // TODO(crbug.com/384855584): Animate this action.
@@ -509,17 +524,19 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
                 removeViewOutOfStrip(view);
             }
             mStripUpdateDelegate.resizeTabStrip(
-                    /* animate= */ false, /* tabToAnimate= */ null, /* animateTabAdded= */ false);
+                    /* tabToAnimate= */ null, /* animateTabAdded= */ false);
         }
 
         @Override
         void onStopViewDragAction(
-                StripLayoutView[] stripViews, StripLayoutGroupTitle[] groupTitles) {
+                StripLayoutView[] stripViews,
+                StripLayoutGroupTitle[] groupTitles,
+                boolean isDragCancelled) {
             reselectDraggedSelectedTab(mModel, mSelectedDraggedTab);
             mViewsBeingDragged.clear();
             mTabsBeingDragged.clear();
             mSelectedDraggedTab = null;
-            super.onStopViewDragAction(stripViews, groupTitles);
+            super.onStopViewDragAction(stripViews, groupTitles, isDragCancelled);
         }
 
         @Override
@@ -593,7 +610,9 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
 
         @Override
         void onStopViewDragAction(
-                StripLayoutView[] stripViews, StripLayoutGroupTitle[] groupTitles) {
+                StripLayoutView[] stripViews,
+                StripLayoutGroupTitle[] groupTitles,
+                boolean isDragCancelled) {
             // If the dragged views were re-parented, they will no longer be present in model.
             // If this is not the case, attempt to restore views to their original position.
             StripLayoutTab draggedTab = (StripLayoutTab) mViewBeingDragged;
@@ -605,12 +624,10 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
                     bringViewOntoStrip(view);
                 }
                 mStripUpdateDelegate.resizeTabStrip(
-                        /* animate= */ false,
-                        /* tabToAnimate= */ null,
-                        /* animateTabAdded= */ false);
+                        /* tabToAnimate= */ null, /* animateTabAdded= */ false);
                 // TODO(crbug.com/445152399) Re-select the dragged tab, if needed.
             }
-            super.onStopViewDragAction(stripViews, groupTitles);
+            super.onStopViewDragAction(stripViews, groupTitles, isDragCancelled);
         }
     }
 
@@ -644,7 +661,9 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
 
         @Override
         void onStopViewDragAction(
-                StripLayoutView[] stripViews, StripLayoutGroupTitle[] groupTitles) {
+                StripLayoutView[] stripViews,
+                StripLayoutGroupTitle[] groupTitles,
+                boolean isDragCancelled) {
             // If the dragged group was re-parented, it will no longer be present in model.
             // If this is not the case, attempt to restore the group to its original position.
             StripLayoutGroupTitle draggedGroupTitle = (StripLayoutGroupTitle) mViewBeingDragged;
@@ -656,12 +675,10 @@ class SourceViewDragDropReorderStrategy extends ReorderStrategyBase {
                     bringViewOntoStrip(view);
                 }
                 mStripUpdateDelegate.resizeTabStrip(
-                        /* animate= */ false,
-                        /* tabToAnimate= */ null,
-                        /* animateTabAdded= */ false);
+                        /* tabToAnimate= */ null, /* animateTabAdded= */ false);
                 // TODO(crbug.com/445152399) Re-select the dragged tab, if needed.
             }
-            super.onStopViewDragAction(stripViews, groupTitles);
+            super.onStopViewDragAction(stripViews, groupTitles, isDragCancelled);
         }
     }
 

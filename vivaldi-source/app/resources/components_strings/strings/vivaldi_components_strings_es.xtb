@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">La conexión con el sitio no es totalmente segura</translation>
 <translation id="4265872034478892965">Permitido por tu administrador</translation>
 <translation id="4305666528087210886">No se ha podido acceder al archivo</translation>
-<translation id="4408413947728134509">Cookies <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544">El sitio <ph name="HOST_NAME" /> no aceptó tu certificado de inicio de sesión o es posible que no se le haya proporcionado uno.</translation>
 <translation id="4506599922270137252">Contactar con el administrador del sistema</translation>
 <translation id="4522570452068850558">Detalles</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Sin resultados</translation>
 <translation id="5017554619425969104">Texto copiado</translation>
 <translation id="5023310440958281426">Revisa las políticas del administrador</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 en uso)} other {(# en uso)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Revisar la dirección del proxy<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 bits)</translation>
 <translation id="5216942107514965959">Última visita hoy</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">No deberías introducir información confidencial en este sitio (por ejemplo, contraseñas o tarjetas de crédito), ya que los atacantes podrían robarla.</translation>
 <translation id="5863515189965725638">Editar IBAN</translation>
 <translation id="5869405914158311789">No se puede acceder a este sitio</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{1 en uso}other{# en uso}}</translation>
 <translation id="5932224571077948991">El sitio muestra anuncios invasivos o engañosos</translation>
 <translation id="6051221802930200923">Ahora mismo no puedes acceder a <ph name="SITE" /> porque el sitio web usa fijación de certificados (certificate pinning). Los ataques y errores de red suelen ser temporales, por lo que es probable que esta página funcione más tarde.</translation>
 <translation id="6146055958333702838">Revisa los cables y reinicia el router, módem o cualquier otro

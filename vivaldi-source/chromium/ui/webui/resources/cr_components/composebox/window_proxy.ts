@@ -23,4 +23,12 @@ export class WindowProxy {
   clearTimeout(id: number|null) {
     window.clearTimeout(id !== null ? id : undefined);
   }
+
+  navigate(url: string) {
+    window.location.href = url;
+  }
+
+  matchMedia(query: string): MediaQueryList {
+    return window.matchMedia(query);
+  }
 }

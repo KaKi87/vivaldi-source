@@ -5,8 +5,8 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
-#import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_switch_item.h"
+#import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/ui/ad_tracker_blocker/cells/vivaldi_atb_source_setting_item.h"
 #import "ios/ui/ad_tracker_blocker/manager/vivaldi_atb_manager.h"
@@ -28,30 +28,27 @@ typedef NS_ENUM(NSInteger, SectionIdentifier) {
   SectionIdentifierSources = kSectionIdentifierEnumZero
 };
 
-typedef NS_ENUM(NSInteger, ItemType) {
-  ItemTypeSource = kItemTypeEnumZero
-};
+typedef NS_ENUM(NSInteger, ItemType) { ItemTypeSource = kItemTypeEnumZero };
 
 CGFloat buttonCornerRadius() {
-  if (@available(iOS 26,*)) {
+  if (@available(iOS 26, *)) {
     return iOS26ActionButtonCornerRadius;
   } else {
     return actionButtonCornerRadius;
   }
 }
 
-}
+}  // namespace
 
-@interface VivaldiATBSourceSettingsViewController()<VivaldiATBConsumer>
+@interface VivaldiATBSourceSettingsViewController () <VivaldiATBConsumer>
 // The source type, e.g. Ads, Trackers
-@property(nonatomic,assign) ATBSourceType sourceType;
+@property(nonatomic, assign) ATBSourceType sourceType;
 // The manager for the adblock that provides all methods and properties for
 // adblocker.
 @property(nonatomic, strong) VivaldiATBManager* adblockManager;
 // The Browser in which blocker engine is active.
 @property(nonatomic, assign) Browser* browser;
 @end
-
 
 @implementation VivaldiATBSourceSettingsViewController
 @synthesize sourceType = _sourceType;
@@ -89,13 +86,11 @@ CGFloat buttonCornerRadius() {
   [self getSourceList];
 }
 
-
 #pragma mark - PRIVATE
 - (void)setUpTableViewFooter {
   UIView* footerView = [UIView new];
-  footerView.frame = CGRectMake(0, 0,
-                                self.view.bounds.size.width,
-                                tableFooterHeight);
+  footerView.frame =
+      CGRectMake(0, 0, self.view.bounds.size.width, tableFooterHeight);
   self.tableView.tableFooterView = footerView;
 
   UIButton* addSourceButton = [UIButton buttonWithType:UIButtonTypeSystem];
@@ -103,11 +98,9 @@ CGFloat buttonCornerRadius() {
   addSourceButton.layer.cornerRadius = buttonCornerRadius();
 
   NSString* buttonTitleString = GetNSString(IDS_ADD_NEW_SOURCE);
-  [addSourceButton setTitle:buttonTitleString
-                   forState:UIControlStateNormal];
-  [addSourceButton
-     setTitleColor:UIColor.vSystemBlue
-     forState:UIControlStateNormal];
+  [addSourceButton setTitle:buttonTitleString forState:UIControlStateNormal];
+  [addSourceButton setTitleColor:UIColor.vSystemBlue
+                        forState:UIControlStateNormal];
   [addSourceButton addTarget:self
                       action:@selector(handleAddSourceButtonTap)
             forControlEvents:UIControlEventTouchUpInside];
@@ -120,13 +113,13 @@ CGFloat buttonCornerRadius() {
   NSString* titleString = GetNSString(IDS_ADD_NEW_SOURCE);
 
   VivaldiATBAddDomainSourceViewController* controller =
-  [[VivaldiATBAddDomainSourceViewController alloc]
-         initWithBrowser:_browser
-                   title:titleString
-                  source:_sourceType
-             editingMode:ATBAddingModeSource
-           editingDomain:nil
-     siteSpecificSetting:ATBSettingNone];
+      [[VivaldiATBAddDomainSourceViewController alloc]
+              initWithBrowser:_browser
+                        title:titleString
+                       source:_sourceType
+                  editingMode:ATBAddingModeSource
+                editingDomain:nil
+          siteSpecificSetting:ATBSettingNone];
   [self.navigationController pushViewController:controller animated:YES];
 }
 
@@ -152,18 +145,15 @@ CGFloat buttonCornerRadius() {
   return sourceItem;
 }
 
--(void)reloadModelWithSources:(NSArray*)sources {
+- (void)reloadModelWithSources:(NSArray*)sources {
   TableViewModel* model = self.tableViewModel;
 
   // Delete any existing section.
-  if ([model
-          hasSectionForSectionIdentifier:SectionIdentifierSources])
-    [model
-        removeSectionWithIdentifier:SectionIdentifierSources];
+  if ([model hasSectionForSectionIdentifier:SectionIdentifierSources])
+    [model removeSectionWithIdentifier:SectionIdentifierSources];
 
   // Creates section for sources list
-  [model
-      addSectionWithIdentifier:SectionIdentifierSources];
+  [model addSectionWithIdentifier:SectionIdentifierSources];
 
   NSUInteger index = 0;
   for (id item in sources) {
@@ -181,7 +171,7 @@ CGFloat buttonCornerRadius() {
     index++;
 
     [model addItem:tableViewItem
-         toSectionWithIdentifier:SectionIdentifierSources];
+        toSectionWithIdentifier:SectionIdentifierSources];
   }
 
   [self.tableView reloadData];
@@ -210,9 +200,8 @@ CGFloat buttonCornerRadius() {
       NSIndexPath* index = [model indexPathForItem:sourceItem];
       if (!index)
         return;
-      [self.tableView
-          reloadRowsAtIndexPaths:@[ index ]
-                withRowAnimation:UITableViewRowAnimationAutomatic];
+      [self.tableView reloadRowsAtIndexPaths:@[ index ]
+                            withRowAnimation:UITableViewRowAnimationAutomatic];
     }
   }
 }
@@ -236,13 +225,11 @@ CGFloat buttonCornerRadius() {
   if (!self.adblockManager)
     return;
   if (isEnabled)
-    [self.adblockManager
-        disableRuleSourceForKey:switchItem.source.key
-                     sourceType:self.sourceType];
+    [self.adblockManager disableRuleSourceForKey:switchItem.source.key
+                                      sourceType:self.sourceType];
   else
-    [self.adblockManager
-        enableRuleSourceForKey:switchItem.source.key
-                    sourceType:self.sourceType];
+    [self.adblockManager enableRuleSourceForKey:switchItem.source.key
+                                     sourceType:self.sourceType];
 
   BOOL newSwitchValue = sender.isOn;
   switchItem.on = newSwitchValue;
@@ -252,7 +239,6 @@ CGFloat buttonCornerRadius() {
 
 - (UITableViewCell*)tableView:(UITableView*)tableView
         cellForRowAtIndexPath:(NSIndexPath*)indexPath {
-
   UITableViewCell* cell = [super tableView:tableView
                      cellForRowAtIndexPath:indexPath];
 
@@ -266,7 +252,7 @@ CGFloat buttonCornerRadius() {
   return [self contextMenuForIndexPath:indexPath];
 }
 
--(UIContextMenuConfiguration*)contextMenuForIndexPath:(NSIndexPath*)indexPath {
+- (UIContextMenuConfiguration*)contextMenuForIndexPath:(NSIndexPath*)indexPath {
   TableViewModel* model = self.tableViewModel;
 
   TableViewItem* selectedItem = [model itemAtIndexPath:indexPath];
@@ -275,98 +261,110 @@ CGFloat buttonCornerRadius() {
   BOOL isEnabled = selectedSettingItem.source.is_enabled;
   BOOL isRemoveable = !selectedSettingItem.source.is_default;
 
-  UIContextMenuConfiguration* config =
-      [UIContextMenuConfiguration configurationWithIdentifier:nil
-                                              previewProvider:nil
-                                               actionProvider:^UIMenu*
-   _Nullable(NSArray<UIMenuElement*>* _Nonnull settingActions) {
+  UIContextMenuConfiguration* config = [UIContextMenuConfiguration
+      configurationWithIdentifier:nil
+                  previewProvider:nil
+                   actionProvider:^UIMenu* _Nullable(
+                       NSArray<UIMenuElement*>* _Nonnull settingActions) {
+                     NSString* enableActionTitle =
+                         GetNSString(IDS_VIVALDI_IOS_RULE_SOURCE_ENABLE);
+                     NSString* disableActionTitle =
+                         GetNSString(IDS_VIVALDI_IOS_RULE_SOURCE_DISABLE);
+                     UIAction* stateChangeAction = [UIAction
+                         actionWithTitle:isEnabled ? disableActionTitle
+                                                   : enableActionTitle
+                                   image:nil
+                              identifier:nil
+                                 handler:^(__kindof UIAction* _Nonnull action) {
+                                   if (!self.adblockManager)
+                                     return;
+                                   if (isEnabled)
+                                     [self.adblockManager
+                                         disableRuleSourceForKey:
+                                             selectedSettingItem.source.key
+                                                      sourceType:
+                                                          self.sourceType];
+                                   else
+                                     [self.adblockManager
+                                         enableRuleSourceForKey:
+                                             selectedSettingItem.source.key
+                                                     sourceType:
+                                                         self.sourceType];
+                                 }];
 
-        NSString* enableActionTitle =
-            GetNSString(IDS_VIVALDI_IOS_RULE_SOURCE_ENABLE);
-        NSString* disableActionTitle =
-            GetNSString(IDS_VIVALDI_IOS_RULE_SOURCE_DISABLE);
-        UIAction * stateChangeAction =
-          [UIAction actionWithTitle:isEnabled ?
-                                    disableActionTitle : enableActionTitle
-                              image:nil
-                         identifier:nil
-                            handler:^(__kindof UIAction* _Nonnull action) {
-            if (!self.adblockManager)
-              return;
-            if (isEnabled)
-              [self.adblockManager
-                  disableRuleSourceForKey:selectedSettingItem.source.key
-                               sourceType:self.sourceType];
-            else
-              [self.adblockManager
-                  enableRuleSourceForKey:selectedSettingItem.source.key
-                              sourceType:self.sourceType];
-          }];
+                     NSString* removeActionTitle =
+                         GetNSString(IDS_VIVALDI_IOS_RULE_SOURCE_REMOVE);
+                     UIAction* removeAction = [UIAction
+                         actionWithTitle:removeActionTitle
+                                   image:nil
+                              identifier:nil
+                                 handler:^(__kindof UIAction* _Nonnull action) {
+                                   if (!self.adblockManager)
+                                     return;
+                                   [self.adblockManager
+                                       removeRuleSourceForKey:
+                                           selectedSettingItem.source.key
+                                                   sourceType:self.sourceType];
+                                 }];
+                     removeAction.attributes =
+                         UIMenuElementAttributesDestructive;
 
-        NSString* removeActionTitle =
-            GetNSString(IDS_VIVALDI_IOS_RULE_SOURCE_REMOVE);
-        UIAction * removeAction =
-          [UIAction actionWithTitle:removeActionTitle
-                              image:nil
-                         identifier:nil
-                            handler:^(__kindof UIAction* _Nonnull action) {
-            if (!self.adblockManager)
-              return;
-            [self.adblockManager
-                removeRuleSourceForKey:selectedSettingItem.source.key
-                            sourceType:self.sourceType];
-          }];
-        removeAction.attributes = UIMenuElementAttributesDestructive;
+                     NSString* restoreActionTitle =
+                         GetNSString(IDS_VIVALDI_IOS_RULE_SOURCE_RESTORE_LISTS);
+                     UIAction* restoreAction = [UIAction
+                         actionWithTitle:restoreActionTitle
+                                   image:nil
+                              identifier:nil
+                                 handler:^(__kindof UIAction* _Nonnull action) {
+                                   if (!self.adblockManager)
+                                     return;
+                                   [self.adblockManager
+                                       restoreRuleSourceForType:
+                                           self.sourceType];
+                                 }];
+                     restoreAction.attributes =
+                         UIMenuElementAttributesDestructive;
 
-        NSString* restoreActionTitle =
-            GetNSString(IDS_VIVALDI_IOS_RULE_SOURCE_RESTORE_LISTS);
-        UIAction * restoreAction =
-          [UIAction actionWithTitle:restoreActionTitle
-                              image:nil
-                         identifier:nil
-                            handler:^(__kindof UIAction* _Nonnull action) {
-            if (!self.adblockManager)
-              return;
-            [self.adblockManager restoreRuleSourceForType:self.sourceType];
-          }];
-        restoreAction.attributes = UIMenuElementAttributesDestructive;
-
-        UIMenu* menu;
-        switch (self.sourceType) {
-          case ATBSourceTrackers: {
-            if (isRemoveable) {
-              menu = [UIMenu menuWithTitle:@"" children:@[
-                stateChangeAction, removeAction
-              ]];
-            } else {
-              menu = [UIMenu menuWithTitle:@"" children:@[
-                stateChangeAction
-              ]];
-            }
-            break;
-          }
-          case ATBSourceAds: {
-            if (isRemoveable) {
-              menu = [UIMenu menuWithTitle:@"" children:@[
-                stateChangeAction, removeAction, restoreAction
-              ]];
-            } else {
-              menu = [UIMenu menuWithTitle:@"" children:@[
-                stateChangeAction, restoreAction
-              ]];
-            }
-            break;
-          }
-          default:
-            break;
-        }
-    return menu;
-  }];
+                     UIMenu* menu;
+                     switch (self.sourceType) {
+                       case ATBSourceTrackers: {
+                         if (isRemoveable) {
+                           menu = [UIMenu menuWithTitle:@""
+                                               children:@[
+                                                 stateChangeAction, removeAction
+                                               ]];
+                         } else {
+                           menu = [UIMenu menuWithTitle:@""
+                                               children:@[ stateChangeAction ]];
+                         }
+                         break;
+                       }
+                       case ATBSourceAds: {
+                         if (isRemoveable) {
+                           menu = [UIMenu menuWithTitle:@""
+                                               children:@[
+                                                 stateChangeAction,
+                                                 removeAction, restoreAction
+                                               ]];
+                         } else {
+                           menu =
+                               [UIMenu menuWithTitle:@""
+                                            children:@[
+                                              stateChangeAction, restoreAction
+                                            ]];
+                         }
+                         break;
+                       }
+                       default:
+                         break;
+                     }
+                     return menu;
+                   }];
 
   return config;
 }
 
-#pragma mark: - VivaldiATBConsumer
+#pragma mark : - VivaldiATBConsumer
 
 - (void)didRefreshSourcesList:(NSArray*)sources {
   [self reloadModelWithSources:sources];
@@ -378,13 +376,11 @@ CGFloat buttonCornerRadius() {
   [self updateSourceWithId:key];
 }
 
-- (void)knownSourceDidEnable:(RuleGroup)group
-                         key:(uint32_t)key {
+- (void)knownSourceDidEnable:(RuleGroup)group key:(uint32_t)key {
   [self updateSourceWithId:key];
 }
 
-- (void)knownSourceDidDisable:(RuleGroup)group
-                          key:(uint32_t)key {
+- (void)knownSourceDidDisable:(RuleGroup)group key:(uint32_t)key {
   [self updateSourceWithId:key];
 }
 

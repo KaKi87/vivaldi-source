@@ -9,7 +9,7 @@ class ProfileIOS;
 @protocol VivaldiTranslateConsumer;
 
 // The mediator for translate view
-@interface VivaldiTranslateMediator: NSObject<VivaldiTranslateViewDelegate>
+@interface VivaldiTranslateMediator : NSObject <VivaldiTranslateViewDelegate>
 
 - (instancetype)initWithSelectedText:(NSString*)selectedText
                              profile:(ProfileIOS*)profile

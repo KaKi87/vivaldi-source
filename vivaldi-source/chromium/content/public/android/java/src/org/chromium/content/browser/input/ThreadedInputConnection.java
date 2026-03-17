@@ -30,6 +30,7 @@ import android.view.inputmethod.TextAttribute;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.VisibleForTesting;
 
+import org.chromium.base.AconfigFlaggedApiDelegate;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.ThreadUtils;
@@ -38,6 +39,8 @@ import org.chromium.base.task.TaskTraits;
 import org.chromium.blink.mojom.StylusWritingGestureData;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.content_public.browser.ContentFeatureMap;
+import org.chromium.content_public.common.ContentFeatures;
 import org.chromium.net.MimeTypeFilter;
 
 import java.util.Arrays;
@@ -222,6 +225,7 @@ class ThreadedInputConnection extends BaseInputConnection implements ChromiumBas
     }
 
     private void updateSelection(@Nullable TextInputState textInputState) {
+        if (DEBUG_LOGS) Log.i(TAG, "updateSelection");
         if (textInputState == null) return;
         assertOnImeThread();
         if (mNumNestedBatchEdits != 0) return;
@@ -326,32 +330,65 @@ class ThreadedInputConnection extends BaseInputConnection implements ChromiumBas
      */
     @Override
     public boolean setComposingText(final CharSequence text, final int newCursorPosition) {
-        if (DEBUG_LOGS) Log.i(TAG, "setComposingText [%s] [%d]", text, newCursorPosition);
+        return setComposingText(text, newCursorPosition, null);
+    }
+
+    /**
+     * @see InputConnection#setComposingText(java.lang.CharSequence, int,
+     *     android.view.inputmethod.TextAttribute)
+     */
+    @Override
+    public boolean setComposingText(
+            final CharSequence text,
+            final int newCursorPosition,
+            @Nullable TextAttribute textAttribute) {
+        boolean isTextSuggestionSelected = false;
+        if (AconfigFlaggedApiDelegate.getInstance() != null) {
+            isTextSuggestionSelected =
+                    AconfigFlaggedApiDelegate.getInstance().isTextSuggestionSelected(textAttribute);
+        }
+        if (DEBUG_LOGS) {
+            Log.i(
+                    TAG,
+                    "setComposingText [%s] [%d] [isTextSuggestionSelected=%b]",
+                    text,
+                    newCursorPosition,
+                    isTextSuggestionSelected);
+        }
         if (text == null) return false;
-        return updateComposingText(text, newCursorPosition, false);
+
+        return updateComposingText(text, newCursorPosition, false, isTextSuggestionSelected);
     }
 
     /** Sends composing update to the InputMethodManager. */
     @VisibleForTesting
     public boolean updateComposingText(
-            final CharSequence text, final int newCursorPosition, final boolean isPendingAccent) {
+            final CharSequence text,
+            final int newCursorPosition,
+            final boolean isPendingAccent,
+            final boolean isTextSuggestionSelected) {
         PostTask.postTask(
                 TaskTraits.UI_DEFAULT,
                 new Runnable() {
                     @Override
                     public void run() {
-                        updateComposingTextOnUiThread(text, newCursorPosition, isPendingAccent);
+                        updateComposingTextOnUiThread(
+                                text, newCursorPosition, isPendingAccent, isTextSuggestionSelected);
                     }
                 });
         return true;
     }
 
     private void updateComposingTextOnUiThread(
-            CharSequence text, int newCursorPosition, boolean isPendingAccent) {
+            CharSequence text,
+            int newCursorPosition,
+            boolean isPendingAccent,
+            boolean isTextSuggestionSelected) {
         int accentToSend =
                 isPendingAccent ? (mPendingAccent | KeyCharacterMap.COMBINING_ACCENT) : 0;
         cancelCombiningAccentOnUiThread();
-        mImeAdapter.sendCompositionToNative(text, newCursorPosition, false, accentToSend);
+        mImeAdapter.sendCompositionToNative(
+                text, newCursorPosition, false, accentToSend, isTextSuggestionSelected);
     }
 
     /**
@@ -708,7 +745,7 @@ class ThreadedInputConnection extends BaseInputConnection implements ChromiumBas
         }
         TextInputState textInputState = requestAndWaitForTextInputState();
         if (textInputState == null) return null;
-        return textInputState.getSurroundingText(beforeLength, afterLength);
+        return textInputState.getSurroundingText(beforeLength, afterLength, flags);
     }
 
     /**
@@ -719,7 +756,7 @@ class ThreadedInputConnection extends BaseInputConnection implements ChromiumBas
         if (DEBUG_LOGS) Log.i(TAG, "getTextBeforeCursor [%d %x]", maxChars, flags);
         TextInputState textInputState = requestAndWaitForTextInputState();
         if (textInputState == null) return null;
-        return textInputState.getTextBeforeSelection(maxChars);
+        return textInputState.getTextBeforeSelection(maxChars, flags);
     }
 
     /**
@@ -730,7 +767,7 @@ class ThreadedInputConnection extends BaseInputConnection implements ChromiumBas
         if (DEBUG_LOGS) Log.i(TAG, "getTextAfterCursor [%d %x]", maxChars, flags);
         TextInputState textInputState = requestAndWaitForTextInputState();
         if (textInputState == null) return null;
-        return textInputState.getTextAfterSelection(maxChars);
+        return textInputState.getTextAfterSelection(maxChars, flags);
     }
 
     /**
@@ -741,7 +778,7 @@ class ThreadedInputConnection extends BaseInputConnection implements ChromiumBas
         if (DEBUG_LOGS) Log.i(TAG, "getSelectedText [%x]", flags);
         TextInputState textInputState = requestAndWaitForTextInputState();
         if (textInputState == null) return null;
-        return textInputState.getSelectedText();
+        return textInputState.getSelectedText(flags);
     }
 
     /**
@@ -771,6 +808,11 @@ class ThreadedInputConnection extends BaseInputConnection implements ChromiumBas
 
     /**
      * @see InputConnection#commitCorrection(android.view.inputmethod.CorrectionInfo)
+     *     <p>Note: Android spec requires committing the replacement and calling updateSelection(),
+     *     we omit the synchronous call here to avoid high input latency. There is no requirement
+     *     for this update to be synchronous. So we reply on Blink’s asynchronous calls. This also
+     *     accommodates Gboard, which treats commitCorrection as a signal rather than following the
+     *     official spec to replace text.
      */
     @Override
     public boolean commitCorrection(CorrectionInfo correctionInfo) {
@@ -779,6 +821,11 @@ class ThreadedInputConnection extends BaseInputConnection implements ChromiumBas
                     TAG,
                     "commitCorrection [%s]",
                     ImeUtils.getCorrectionInfoDebugString(correctionInfo));
+        }
+        if (ContentFeatureMap.isEnabled(ContentFeatures.ANDROID_PK_AUTOCORRECT_UNDERLINE)) {
+            PostTask.postTask(
+                    TaskTraits.UI_DEFAULT, () -> mImeAdapter.commitCorrection(correctionInfo));
+            return true;
         }
         return false;
     }

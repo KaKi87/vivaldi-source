@@ -4,19 +4,16 @@
 
 #import "base/apple/foundation_util.h"
 
-
 @implementation NoteNavigationControllerDelegate
 
 - (void)navigationController:(UINavigationController*)navigationController
       willShowViewController:(UIViewController*)viewController
                     animated:(BOOL)animated {
-
-      UIViewController<UIAdaptivePresentationControllerDelegate>*
-          adaptiveViewController = base::apple::ObjCCast<
-              UIViewController<UIAdaptivePresentationControllerDelegate>>(
-              viewController);
-      navigationController.presentationController.delegate =
-          adaptiveViewController;
+  UIViewController<UIAdaptivePresentationControllerDelegate>*
+      adaptiveViewController = base::apple::ObjCCast<
+          UIViewController<UIAdaptivePresentationControllerDelegate>>(
+          viewController);
+  navigationController.presentationController.delegate = adaptiveViewController;
 }
 
 @end

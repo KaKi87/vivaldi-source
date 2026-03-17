@@ -8,14 +8,12 @@
 #include <string>
 #include <vector>
 
-#include "base/containers/contains.h"
 #include "base/stl_util.h"
 #include "base/time/time.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/ash/browser_delegate/browser_controller.h"
 #include "chrome/browser/ash/browser_delegate/browser_delegate.h"
-#include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/ash/shelf/app_service/app_service_app_window_shelf_controller.h"
@@ -163,8 +161,7 @@ void AppServiceInstanceRegistryHelper::OnBrowserRemoved() {
             instance->Window())) {
       // The tabs in the browser should be closed, and tab windows have been
       // removed from |browser_window_to_tab_windows_|.
-      DCHECK(
-          !base::Contains(browser_window_to_tab_windows_, instance->Window()));
+      DCHECK(!browser_window_to_tab_windows_.contains(instance->Window()));
 
       // The browser is removed if the window can't be found, so update the
       // Chrome window instance as destroyed.
@@ -207,7 +204,7 @@ void AppServiceInstanceRegistryHelper::OnSetShelfIDForBrowserWindowContents(
   // Do not try to update window status on shutdown, because during the shutdown
   // phase, we can't guaranteen the window destroy sequence, and it might cause
   // crash.
-  if (browser_shutdown::HasShutdownStarted()) {
+  if (ash::BrowserController::GetInstance()->HasShutdownStarted()) {
     return;
   }
 
@@ -281,7 +278,7 @@ void AppServiceInstanceRegistryHelper::OnWindowVisibilityChanged(
   OnInstances(app_constants::kChromeAppId, window, std::string(),
               CalculateVisibilityState(window, visible));
 
-  if (!base::Contains(browser_window_to_tab_windows_, window)) {
+  if (!browser_window_to_tab_windows_.contains(window)) {
     return;
   }
 
@@ -329,7 +326,7 @@ void AppServiceInstanceRegistryHelper::SetWindowActivated(
   OnInstances(app_constants::kChromeAppId, window, std::string(),
               CalculateActivatedState(window, active));
 
-  if (!base::Contains(browser_window_to_tab_windows_, window)) {
+  if (!browser_window_to_tab_windows_.contains(window)) {
     return;
   }
 

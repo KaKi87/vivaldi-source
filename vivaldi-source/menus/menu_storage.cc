@@ -49,8 +49,8 @@ void MakeGuids(const base::FilePath& path) {
       printf("%s", buf);
       char* s = strstr(buf, "\"action\":");
       if (s) {
-        sprintf(&buf[s-buf], "\"guid\": \"%s\",", base::Uuid::GenerateRandomV4().c_str());
-        puts(buf);
+        sprintf(&buf[s-buf], "\"guid\": \"%s\",",
+base::Uuid::GenerateRandomV4().c_str()); puts(buf);
       }
     }
     fclose(fp);
@@ -148,7 +148,8 @@ void OnLoad(const base::FilePath& profile_file,
     if (base::PathExists(profile_file)) {
       std::string profile_version;
       if (!GetVersion(&profile_version, profile_file)) {
-        LOG(ERROR) << "Menu Storage: Can not check for upgrade, version missing";
+        LOG(ERROR)
+            << "Menu Storage: Can not check for upgrade, version missing";
       } else {
         std::string bundled_version = details->control()->version;
         if (HasVersionStepped(bundled_version, profile_version)) {
@@ -361,7 +362,7 @@ bool MenuStorage::SaveNow() {
     // We should only get here if we have a valid model and it's finished
     // loading.
     NOTREACHED();
-    //return false;
+    // return false;
   }
 
   std::optional<std::string> data = SerializeData();

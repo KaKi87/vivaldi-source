@@ -132,7 +132,8 @@
 
 - (void)updateLocationText:(NSString*)text
                     domain:(NSString*)domain
-                  showFull:(BOOL)showFull;
+                  showFull:(BOOL)showFull
+                  clipTail:(BOOL)clipTail;
 - (void)fadeSteadyViewContentsWithAlpha:(CGFloat)alpha;
 - (void)setLeadingButtonEnabled:(BOOL)enabled;
 - (void)setLeadingButtonIconFromATBSetting:(ATBSettingType)setting;

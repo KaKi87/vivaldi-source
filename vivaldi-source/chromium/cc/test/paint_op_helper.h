@@ -174,6 +174,9 @@ class PaintOpHelper {
       }
       case PaintOpType::kDrawRecord: {
         const auto& op = static_cast<const DrawRecordOp&>(base_op);
+        if (op.placeholder_id != ElementId()) {
+          str << "element_id=" << op.placeholder_id << ", ";
+        }
         str << "record=" << ToString(op.record);
         break;
       }
@@ -242,7 +245,8 @@ class PaintOpHelper {
       case PaintOpType::kSaveLayerFilters: {
         const auto& op = static_cast<const SaveLayerFiltersOp&>(base_op);
         str << "flags=" << ToString(op.flags)
-            << ", filters=" << ToString(op.filters);
+            << ", filters=" << ToString(op.filters)
+            << ", backdrop_filter=" << ToString(op.backdrop_filter);
         break;
       }
       case PaintOpType::kScale: {

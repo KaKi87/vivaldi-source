@@ -3,18 +3,25 @@
 // found in the LICENSE file.
 
 #include "base/test/bind.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
+#include "chrome/browser/contextual_tasks/contextual_tasks_panel_controller.h"
+#include "chrome/browser/contextual_tasks/contextual_tasks_side_panel_coordinator.h"
+#include "chrome/browser/contextual_tasks/contextual_tasks_ui.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/lens/lens_overlay_controller.h"
 #include "chrome/browser/ui/lens/lens_overlay_side_panel_coordinator.h"
 #include "chrome/browser/ui/lens/lens_overlay_wait_for_paint_utils.h"
+#include "chrome/browser/ui/lens/lens_search_contextualization_controller.h"
 #include "chrome/browser/ui/lens/lens_search_controller.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/contextual_search/contextual_search_types.h"
+#include "components/contextual_search/internal/composebox_query_controller.h"
 #include "components/contextual_tasks/public/features.h"
 #include "components/lens/lens_features.h"
 #include "components/lens/lens_overlay_invocation_source.h"
@@ -27,9 +34,40 @@
 #include "ui/views/controls/webview/webview.h"
 #include "ui/views/view_utils.h"
 
+namespace lens {
+class LensQueryFlowRouterTestApi {
+ public:
+  explicit LensQueryFlowRouterTestApi(LensQueryFlowRouter* router)
+      : router_(router) {}
+
+  auto* GetContextualSearchSessionHandle() {
+    return router_->GetContextualSearchSessionHandle();
+  }
+
+ private:
+  raw_ptr<LensQueryFlowRouter> router_;
+};
+}  // namespace lens
+
 namespace {
 
 constexpr char kDocumentWithNamedElement[] = "/select.html";
+
+class MockLensSearchContextualizationController
+    : public lens::LensSearchContextualizationController {
+ public:
+  explicit MockLensSearchContextualizationController(
+      LensSearchController* lens_search_controller)
+      : lens::LensSearchContextualizationController(lens_search_controller) {}
+  ~MockLensSearchContextualizationController() override = default;
+
+  void SetEligibility(bool eligible) { eligible_ = eligible; }
+
+  bool GetCurrentPageContextEligibility() override { return eligible_; }
+
+ private:
+  bool eligible_ = true;
+};
 
 class LensSearchControllerHelper : public LensSearchController {
  public:
@@ -38,6 +76,27 @@ class LensSearchControllerHelper : public LensSearchController {
   ~LensSearchControllerHelper() override = default;
 
   bool should_route_to_contextual_tasks() const override { return true; }
+
+  void SetContextEligibility(bool eligible) {
+    eligibility_ = eligible;
+    if (mock_controller_) {
+      mock_controller_->SetEligibility(eligible);
+    }
+  }
+
+ protected:
+  std::unique_ptr<lens::LensSearchContextualizationController>
+  CreateLensSearchContextualizationController() override {
+    auto controller =
+        std::make_unique<MockLensSearchContextualizationController>(this);
+    controller->SetEligibility(eligibility_);
+    mock_controller_ = controller.get();
+    return controller;
+  }
+
+ private:
+  bool eligibility_ = true;
+  raw_ptr<MockLensSearchContextualizationController> mock_controller_ = nullptr;
 };
 
 // Override the factory to create our helper.
@@ -48,23 +107,9 @@ std::unique_ptr<LensSearchController> CreateLensSearchControllerHelper(
 
 }  // namespace
 
-class ContextualTasksLensInteractionBrowserTest : public InProcessBrowserTest {
+class ContextualTasksLensInteractionBrowserTestBase
+    : public InProcessBrowserTest {
  public:
-  ContextualTasksLensInteractionBrowserTest() {
-    lens_search_controller_override_ =
-        tabs::TabFeatures::GetUserDataFactoryForTesting().AddOverrideForTesting(
-            base::BindRepeating(&CreateLensSearchControllerHelper));
-  }
-
-  void SetUp() override {
-    ASSERT_TRUE(embedded_test_server()->InitializeAndListen());
-    feature_list_.InitWithFeatures(
-        {contextual_tasks::kContextualTasks, lens::features::kLensOverlay,
-         lens::features::kLensOverlayContextualSearchbox},
-        {lens::features::kLensSearchZeroStateCsb});
-    InProcessBrowserTest::SetUp();
-  }
-
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
     embedded_test_server()->StartAcceptingConnections();
@@ -96,15 +141,64 @@ class ContextualTasksLensInteractionBrowserTest : public InProcessBrowserTest {
     service->SetUserSelectedDefaultSearchProvider(template_url);
   }
 
-  LensSearchControllerHelper* GetLensSearchController() {
-    return static_cast<LensSearchControllerHelper*>(
-        LensSearchController::From(browser()->GetActiveTabInterface()));
+  LensSearchController* GetLensSearchController() {
+    return LensSearchController::From(browser()->GetActiveTabInterface());
   }
 
-  bool IsSidePanelOpen() {
+  bool IsLensSidePanelOpen() {
     auto* coordinator =
         GetLensSearchController()->lens_overlay_side_panel_coordinator();
     return coordinator && coordinator->IsEntryShowing();
+  }
+
+  bool IsContextualTasksSidePanelOpen() {
+    auto* controller = contextual_tasks::ContextualTasksPanelController::From(
+        GetBrowserWindowInterface());
+    return controller && controller->IsPanelOpenForContextualTask();
+  }
+
+  bool IsContextualTasksErrorPageOpen() {
+    auto* contextual_tasks_coordinator =
+        contextual_tasks::ContextualTasksSidePanelCoordinator::From(
+            GetBrowserWindowInterface());
+    if (!contextual_tasks_coordinator ||
+        !contextual_tasks_coordinator->IsPanelOpenForContextualTask()) {
+      return false;
+    }
+    auto* contents = contextual_tasks_coordinator->GetActiveWebContents();
+    if (!contents || !contents->GetWebUI()) {
+      return false;
+    }
+    return content::EvalJs(contents,
+                           "document.querySelector('contextual-tasks-app') ?"
+                           "document.querySelector('contextual-tasks-app')."
+                           "hasAttribute('is-error-page-visible_') : false;")
+        .ExtractBool();
+  }
+
+  void SignalFileUploadSuccess(LensSearchController* controller) {
+    auto* router = controller->query_router();
+    auto file_token = router->overlay_tab_context_file_token();
+    ASSERT_TRUE(file_token.has_value());
+
+    // Cast router to our TestApi to access the protected
+    // GetContextualSearchSessionHandle
+    auto* session_handle = lens::LensQueryFlowRouterTestApi(router)
+                               .GetContextualSearchSessionHandle();
+    ASSERT_TRUE(session_handle);
+
+    // Cast the base controller to the concrete ComposeboxQueryController to
+    // access UpdateFileUploadStatus
+    auto* context_controller = static_cast<ComposeboxQueryController*>(
+        session_handle->GetController());
+    ASSERT_TRUE(context_controller);
+
+    // Manually trigger the successful status on the controller.
+    // This will satisfy MarkFileUploadAsInTerminalState and trigger URL
+    // creation.
+    context_controller->update_file_upload_status_for_testing(
+        *file_token, contextual_search::FileUploadStatus::kUploadSuccessful,
+        std::nullopt);
   }
 
   // Lens overlay takes a screenshot of the tab. In order to take a screenshot
@@ -126,6 +220,31 @@ class ContextualTasksLensInteractionBrowserTest : public InProcessBrowserTest {
       return overlay_controller->state() ==
              LensOverlayController::State::kOverlay;
     }));
+  }
+
+ private:
+  BrowserWindowInterface* GetBrowserWindowInterface() {
+    return browser()->GetActiveTabInterface()->GetBrowserWindowInterface();
+  }
+};
+
+class ContextualTasksLensInteractionBrowserTest
+    : public ContextualTasksLensInteractionBrowserTestBase {
+ public:
+  ContextualTasksLensInteractionBrowserTest() {
+    lens_search_controller_override_ =
+        tabs::TabFeatures::GetUserDataFactoryForTesting().AddOverrideForTesting(
+            base::BindRepeating(&CreateLensSearchControllerHelper));
+  }
+
+  void SetUp() override {
+    ASSERT_TRUE(embedded_test_server()->InitializeAndListen());
+    feature_list_.InitWithFeatures(
+        {contextual_tasks::kContextualTasks, lens::features::kLensOverlay,
+         lens::features::kLensOverlayContextualSearchbox,
+         contextual_tasks::kContextualTasksForceEntryPointEligibility},
+        {lens::features::kLensSearchZeroStateCsb});
+    InProcessBrowserTest::SetUp();
   }
 
  private:
@@ -164,8 +283,196 @@ IN_PROC_BROWSER_TEST_F(ContextualTasksLensInteractionBrowserTest,
   // remain open.
 
   // Verify Side Panel is NOT open (Lens results panel shouldn't open).
-  EXPECT_FALSE(IsSidePanelOpen());
+  EXPECT_FALSE(IsLensSidePanelOpen());
 
   // Verify Overlay state is STILL showing.
   EXPECT_TRUE(controller->IsShowingUI());
+}
+
+IN_PROC_BROWSER_TEST_F(ContextualTasksLensInteractionBrowserTest,
+                       OverlayClosesOnNavigation) {
+  // Wait for the page to be painted to prevent flakiness when screenshotting.
+  WaitForPaint();
+
+  auto* controller = GetLensSearchController();
+  ASSERT_TRUE(controller);
+
+  // Open Lens Overlay via App Menu.
+  controller->OpenLensOverlay(lens::LensOverlayInvocationSource::kAppMenu);
+
+  // Wait for the screenshot to be captured and overlay to be shown.
+  WaitForOverlayToOpen(controller);
+  ASSERT_TRUE(controller->IsShowingUI());
+
+  // Simulate a region selection which calls IssueLensRegionRequest.
+  auto region = lens::mojom::CenterRotatedBox::New();
+  region->box = gfx::RectF(0.5, 0.5, 0.1, 0.1);
+  region->coordinate_type =
+      lens::mojom::CenterRotatedBox_CoordinateType::kNormalized;
+  controller->lens_overlay_controller()->IssueLensRegionRequestForTesting(
+      std::move(region), /*is_click=*/false);
+  SignalFileUploadSuccess(controller);
+
+  // This should trigger the logic to capture the region, but the overlay should
+  // remain open. It should also open the side panel.
+  ASSERT_TRUE(
+      base::test::RunUntil([&]() { return IsContextualTasksSidePanelOpen(); }));
+  ASSERT_TRUE(controller->IsShowingUI());
+
+  // Navigate to a new URL.
+  const GURL new_url = embedded_test_server()->GetURL("/title1.html");
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), new_url));
+
+  // Verify Overlay state is kOff.
+  auto* overlay_controller = controller->lens_overlay_controller();
+  ASSERT_TRUE(base::test::RunUntil([&]() {
+    return overlay_controller->state() == LensOverlayController::State::kOff;
+  }));
+  ASSERT_FALSE(controller->IsShowingUI());
+}
+
+IN_PROC_BROWSER_TEST_F(ContextualTasksLensInteractionBrowserTest,
+                       ProtectedPageTriggersErrorPage) {
+  base::HistogramTester histogram_tester;
+  // Wait for the page to be painted to prevent flakiness when screenshotting.
+  WaitForPaint();
+
+  auto* controller =
+      static_cast<LensSearchControllerHelper*>(GetLensSearchController());
+  ASSERT_TRUE(controller);
+  controller->SetContextEligibility(false);
+
+  // Open Lens Overlay via App Menu.
+  controller->OpenLensOverlay(lens::LensOverlayInvocationSource::kAppMenu);
+
+  // Wait for the screenshot to be captured and overlay to be shown.
+  WaitForOverlayToOpen(controller);
+  ASSERT_TRUE(controller->IsShowingUI());
+
+  // Simulate a region selection which calls IssueLensRegionRequest.
+  auto region = lens::mojom::CenterRotatedBox::New();
+  region->box = gfx::RectF(0.5, 0.5, 0.1, 0.1);
+  region->coordinate_type =
+      lens::mojom::CenterRotatedBox_CoordinateType::kNormalized;
+  controller->lens_overlay_controller()->IssueLensRegionRequestForTesting(
+      std::move(region), /*is_click=*/false);
+
+  SignalFileUploadSuccess(controller);
+
+  // This should trigger the logic to capture the region, but the overlay should
+  // remain open. It should also open the side panel.
+  ASSERT_TRUE(
+      base::test::RunUntil([&]() { return IsContextualTasksSidePanelOpen(); }));
+
+  ASSERT_TRUE(
+      base::test::RunUntil([&]() { return IsContextualTasksErrorPageOpen(); }));
+  ASSERT_TRUE(controller->IsShowingUI());
+  histogram_tester.ExpectUniqueSample(
+      "ContextualSearch.ErrorPageShown.Lens",
+      contextual_search::ContextualSearchErrorPage::kPageContextNotEligible, 1);
+}
+
+IN_PROC_BROWSER_TEST_F(ContextualTasksLensInteractionBrowserTest,
+                       NonProtectedPageDoesNotTriggerErrorPage) {
+  base::HistogramTester histogram_tester;
+  // Wait for the page to be painted to prevent flakiness when screenshotting.
+  WaitForPaint();
+
+  auto* controller =
+      static_cast<LensSearchControllerHelper*>(GetLensSearchController());
+  ASSERT_TRUE(controller);
+  controller->SetContextEligibility(true);
+
+  // Open Lens Overlay via App Menu.
+  controller->OpenLensOverlay(lens::LensOverlayInvocationSource::kAppMenu);
+
+  // Wait for the screenshot to be captured and overlay to be shown.
+  WaitForOverlayToOpen(controller);
+  ASSERT_TRUE(controller->IsShowingUI());
+
+  // Simulate a region selection which calls IssueLensRegionRequest.
+  auto region = lens::mojom::CenterRotatedBox::New();
+  region->box = gfx::RectF(0.5, 0.5, 0.1, 0.1);
+  region->coordinate_type =
+      lens::mojom::CenterRotatedBox_CoordinateType::kNormalized;
+  controller->lens_overlay_controller()->IssueLensRegionRequestForTesting(
+      std::move(region), /*is_click=*/false);
+
+  SignalFileUploadSuccess(controller);
+
+  // This should trigger the logic to capture the region, but the overlay should
+  // remain open. It should also open the side panel.
+  ASSERT_TRUE(
+      base::test::RunUntil([&]() { return IsContextualTasksSidePanelOpen(); }));
+  // The error page should not be open.
+  EXPECT_FALSE(IsContextualTasksErrorPageOpen());
+  ASSERT_TRUE(controller->IsShowingUI());
+  histogram_tester.ExpectTotalCount("ContextualSearch.ErrorPageShown.Lens", 0);
+}
+
+class ContextualTasksRoutingEnabledTest
+    : public ContextualTasksLensInteractionBrowserTestBase {
+ public:
+  void SetUp() override {
+    ASSERT_TRUE(embedded_test_server()->InitializeAndListen());
+    feature_list_.InitWithFeaturesAndParameters(
+        {{contextual_tasks::kContextualTasks,
+          {{"ContextualTasksEnableLensInContextualTasks", "false"}}},
+         {contextual_tasks::kContextualTasksForceEntryPointEligibility, {}},
+         {lens::features::kLensOverlay, {}},
+         {lens::features::kLensOverlayContextualSearchbox, {}}},
+        {});
+    InProcessBrowserTest::SetUp();
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_F(ContextualTasksRoutingEnabledTest,
+                       RoutingEnabledIfEligibleAndInvocationIsComposeBox) {
+  auto* controller = GetLensSearchController();
+  ASSERT_TRUE(controller);
+
+  controller->OpenLensOverlay(
+      lens::LensOverlayInvocationSource::kContextualTasksComposebox);
+
+  EXPECT_TRUE(controller->should_route_to_contextual_tasks());
+}
+
+IN_PROC_BROWSER_TEST_F(ContextualTasksRoutingEnabledTest,
+                       RoutingDisabledIfInvocationIsNotComposeBox) {
+  auto* controller = GetLensSearchController();
+  ASSERT_TRUE(controller);
+
+  controller->OpenLensOverlay(lens::LensOverlayInvocationSource::kAppMenu);
+
+  EXPECT_FALSE(controller->should_route_to_contextual_tasks());
+}
+
+class ContextualTasksRoutingIneligibleTest
+    : public ContextualTasksLensInteractionBrowserTestBase {
+ public:
+  void SetUp() override {
+    ASSERT_TRUE(embedded_test_server()->InitializeAndListen());
+    feature_list_.InitWithFeatures(
+        {contextual_tasks::kContextualTasks, lens::features::kLensOverlay,
+         lens::features::kLensOverlayContextualSearchbox},
+        {contextual_tasks::kContextualTasksForceEntryPointEligibility});
+    InProcessBrowserTest::SetUp();
+  }
+
+ private:
+  base::test::ScopedFeatureList feature_list_;
+};
+
+IN_PROC_BROWSER_TEST_F(ContextualTasksRoutingIneligibleTest,
+                       RoutingDisabledIfIneligibleEvenIfComposeBox) {
+  auto* controller = GetLensSearchController();
+  ASSERT_TRUE(controller);
+
+  controller->OpenLensOverlay(
+      lens::LensOverlayInvocationSource::kContextualTasksComposebox);
+
+  EXPECT_FALSE(controller->should_route_to_contextual_tasks());
 }

@@ -13,9 +13,8 @@ bool KeywordTable::MigrateToVivaldiVersion(int version) {
   return true;
 }
 
-bool KeywordTable::MigrateToVivaldiVersion1AddPositionColumn () {
+bool KeywordTable::MigrateToVivaldiVersion1AddPositionColumn() {
   if (!db()->DoesTableExist("keywords"))
     return true;
-  return db()->Execute(
-      "ALTER TABLE keywords ADD COLUMN position VARCHAR");
+  return db()->Execute("ALTER TABLE keywords ADD COLUMN position VARCHAR");
 }

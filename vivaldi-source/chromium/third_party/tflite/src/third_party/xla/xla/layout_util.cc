@@ -32,7 +32,6 @@ limitations under the License.
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xla/layout.h"
-#include "xla/primitive_util.h"
 #include "xla/printer.h"
 #include "xla/shape.h"
 #include "xla/shape_util.h"
@@ -91,7 +90,7 @@ void SetDefaultLayoutToContainer(T* minor_to_major) {
   for (const SplitConfig& split_config : split_configs) {
     layout.add_split_configs(split_config);
   }
-  if (physical_shape != std::nullopt) {
+  if (physical_shape.has_value()) {
     *layout.mutable_physical_shape() = *std::move(physical_shape);
   }
   layout.set_dynamic_shape_metadata_prefix_bytes(
@@ -101,7 +100,7 @@ void SetDefaultLayoutToContainer(T* minor_to_major) {
 
 /* static */ Layout LayoutUtil::MakeDescendingLayout(int64_t num_dims) {
   std::vector<int64_t> layout(num_dims);
-  std::iota(layout.rbegin(), layout.rend(), static_cast<int64_t>(0));
+  std::iota(layout.rbegin(), layout.rend(), 0);
   return MakeLayout(layout);
 }
 
@@ -111,7 +110,7 @@ void SetDefaultLayoutToContainer(T* minor_to_major) {
 
 /* static */ Layout LayoutUtil::MakeAscendingLayout(int64_t num_dims) {
   std::vector<int64_t> layout(num_dims);
-  std::iota(layout.begin(), layout.end(), static_cast<int64_t>(0));
+  absl::c_iota(layout, 0);
   return MakeLayout(layout);
 }
 
@@ -205,7 +204,8 @@ Layout CreateDefaultLayoutForRank(int64_t num_dims) {
           ValidateLayoutInShape(element_shape, allow_missing_layouts));
     }
     return absl::OkStatus();
-  } else if (shape.IsArray()) {
+  }
+  if (shape.IsArray()) {
     if (!shape.has_layout()) {
       if (allow_missing_layouts) {
         return absl::OkStatus();
@@ -214,10 +214,9 @@ Layout CreateDefaultLayoutForRank(int64_t num_dims) {
                              ShapeUtil::HumanString(shape));
     }
     return ValidateLayoutForShape(shape.layout(), shape);
-  } else {
-    // Token, opaque, etc. shape.
-    return absl::OkStatus();
   }
+  // Token, opaque, etc. shape.
+  return absl::OkStatus();
 }
 
 /* static */ absl::Status LayoutUtil::ValidateLayoutForShape(
@@ -370,7 +369,8 @@ Layout CreateDefaultLayoutForRank(int64_t num_dims) {
   if (shape.IsTuple()) {
     return absl::c_any_of(shape.tuple_shapes(),
                           LayoutUtil::HasCustomElementSizeInBits);
-  } else if (!shape.IsArray()) {
+  }
+  if (!shape.IsArray()) {
     // Opaque or token types have no custom element size in bits.
     return false;
   }
@@ -494,7 +494,9 @@ absl::Status LayoutUtil::CopyLayoutBetweenShapes(const Shape& src, Shape* dst) {
 
 /*static*/ Layout LayoutUtil::MoveDimToMajor(const Layout& layout,
                                              int64_t dim) {
-  if (dim == MinorToMajor(layout).back()) return layout;
+  if (dim == MinorToMajor(layout).back()) {
+    return layout;
+  }
   Layout ret = layout;
   ret.clear_minor_to_major();
   for (auto d : MinorToMajor(layout)) {
@@ -626,14 +628,18 @@ Layout LayoutUtil::MoveDimToMinor(const Layout& layout, const int64_t dim) {
 
 /*static*/ std::optional<SplitConfig> LayoutUtil::GetSplitConfig(
     const Shape& shape) {
-  CHECK_LE(shape.layout().split_configs().size(), 1);
-  return shape.layout().split_configs().size() > 0
-             ? std::make_optional(shape.layout().split_configs(0))
-             : std::nullopt;
+  const absl::Span<const SplitConfig>& configs = shape.layout().split_configs();
+  CHECK_LE(configs.size(), 1);
+
+  if (configs.empty()) {
+    return std::nullopt;
+  }
+  return configs[0];
 }
 
 /*static*/ bool LayoutUtil::IsUntiledLayout(absl::Span<const Tile> tiles,
-                                            absl::Span<const int64_t> shape) {
+                                            absl::Span<const int64_t> shape,
+                                            bool allow_trailing_padding) {
   // Tiles are applied recursively to expand current_shape
   // Example: (t0, t1) tile applied to (..., n, m) expands it to
   // (..., ceildiv(n, t0), ceildiv(m, t1), t0, t1)
@@ -641,28 +647,40 @@ Layout LayoutUtil::MoveDimToMinor(const Layout& layout, const int64_t dim) {
   for (const Tile& tile : tiles) {
     const int64_t tile_ndims = tile.dimensions().size();
     CHECK_LE(tile_ndims, current_shape.size());
-    const absl::Span<const int64_t> tiled_shape =
+    const absl::Span<const int64_t> dims_to_tile =
         absl::Span<const int64_t>(current_shape).last(tile_ndims);
-    // new_tiled_shape will hold the tiled shape after the tile is applied.
-    std::vector<int64_t> new_tiled_shape(2 * tile_ndims);
-    bool allow_multiple_tiles = true;
+    // expanded_tile_dims will hold the tiled shape after the tile is applied.
+    std::vector<int64_t> expanded_tile_dims(2 * tile_ndims);
+    bool seen_nontrivial_tile_dim = false;
+    bool seen_nontrivial_major_dim = !absl::c_all_of(
+        absl::MakeSpan(current_shape).first(current_shape.size() - tile_ndims),
+        [](int64_t x) { return x == 1; });
+
     for (int64_t i = 0; i < tile_ndims; ++i) {
-      if (tiled_shape[i] % tile.dimension(i) != 0) {
-        return false;
-      }
       CHECK_GT(tile.dimension(i), 0);
-      new_tiled_shape[i] = tiled_shape[i] / tile.dimension(i);
-      new_tiled_shape[tile_ndims + i] = tile.dimension(i);
-      if (!allow_multiple_tiles && new_tiled_shape[i] != 1) {
+      const int64_t tile_count =
+          CeilOfRatio(dims_to_tile[i], tile.dimension(i));
+      if (seen_nontrivial_tile_dim && tile_count != 1) {
+        // Cannot span multiple tiles in a minor dimension if a major dimension
+        // within the tile is non-trivial.
         return false;
       }
-      if (tile.dimension(i) != 1) {
-        allow_multiple_tiles = false;
+      bool has_padding = dims_to_tile[i] % tile.dimension(i) != 0;
+      if (has_padding &&
+          (seen_nontrivial_tile_dim || seen_nontrivial_major_dim ||
+           !allow_trailing_padding)) {
+        return false;
       }
+
+      seen_nontrivial_tile_dim |= (tile.dimension(i) != 1);
+      seen_nontrivial_major_dim |= (tile_count != 1);
+
+      expanded_tile_dims[i] = tile_count;
+      expanded_tile_dims[tile_ndims + i] = tile.dimension(i);
     }
     current_shape.erase(current_shape.end() - tile_ndims, current_shape.end());
-    current_shape.insert(current_shape.end(), new_tiled_shape.begin(),
-                         new_tiled_shape.end());
+    current_shape.insert(current_shape.end(), expanded_tile_dims.begin(),
+                         expanded_tile_dims.end());
   }
   return true;
 }

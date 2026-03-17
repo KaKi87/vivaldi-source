@@ -27,8 +27,9 @@ size_t TabCollection::VivaldiTabCountRecursive() const {
   for (const auto& child : GetChildren()) {
     if (std::holds_alternative<std::unique_ptr<tabs::TabInterface>>(child)) {
       real_count++;
-    } else if (std::holds_alternative<std::unique_ptr<tabs::TabCollection>>(child)) {
-      auto &ptr = std::get<std::unique_ptr<tabs::TabCollection>>(child);
+    } else if (std::holds_alternative<std::unique_ptr<tabs::TabCollection>>(
+                   child)) {
+      auto& ptr = std::get<std::unique_ptr<tabs::TabCollection>>(child);
       if (ptr->type() == TabCollection::Type::VIVALDI)
         continue;
       real_count += ptr->TabCountRecursive();

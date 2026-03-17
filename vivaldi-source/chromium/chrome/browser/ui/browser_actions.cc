@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "base/check_deref.h"
 #include "base/check_op.h"
@@ -52,7 +53,9 @@
 #include "chrome/browser/ui/search/omnibox_utils.h"
 #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_bubble.h"
 #include "chrome/browser/ui/send_tab_to_self/send_tab_to_self_toolbar_icon_controller.h"
+#include "chrome/browser/ui/tab_search_feature.h"
 #include "chrome/browser/ui/tabs/features.h"
+#include "chrome/browser/ui/tabs/projects/projects_panel_state_controller.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
@@ -120,7 +123,7 @@
 #include "chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.h"
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
@@ -403,25 +406,30 @@ void BrowserActions::InitializeBrowserActions() {
             base::BindRepeating(
                 [](BrowserWindowInterface* bwi, actions::ActionItem* item,
                    actions::ActionInvocationContext context) {
-                  views::View* anchor_view =
+                  auto anchor =
                       bwi->GetBrowserForMigrationOnly()
                           ->GetBrowserView()
                           .toolbar_button_provider()
-                          ->GetAnchorView(kActionShowJsOptimizationsIcon);
+                          ->GetBubbleAnchor(kActionShowJsOptimizationsIcon);
 
                   bwi->GetActiveTabInterface()
                       ->GetTabFeatures()
                       ->js_optimizations_page_action_controller()
-                      ->ShowBubble(anchor_view, item);
+                      ->ShowBubble(anchor, item);
                 },
                 bwi))
             .SetActionId(kActionShowJsOptimizationsIcon)
             .SetTooltipText(l10n_util::GetStringUTF16(
                 IDS_JS_OPTIMIZATIONS_DISABLED_ICON_TOOLTIP))
             .SetImage(ui::ImageModel::FromVectorIcon(
-                // TODO(crbug.com/457422266): Use v8 icon.
-                vector_icons::kCodeIcon, ui::kColorIcon,
-                ui::SimpleMenuModel::kDefaultIconSize))
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+                vector_icons::kV8OffIcon,
+#else
+                // TODO(crbug.com/457422266): Figure out which icon to use for
+                // non-branded builds.
+                vector_icons::kCodeIcon,
+#endif
+                ui::kColorIcon, ui::SimpleMenuModel::kDefaultIconSize))
             .SetEnabled(true)
             .Build());
   }
@@ -618,7 +626,7 @@ void BrowserActions::InitializeBrowserActions() {
                 },
                 bwi),
             kActionTabSearch, IDS_TAB_SEARCH_MENU, IDS_TAB_SEARCH_MENU,
-            vector_icons::kTabSearchIcon)
+            kTabSearchTabStripIcon)
             .Build());
   }
 
@@ -629,15 +637,26 @@ void BrowserActions::InitializeBrowserActions() {
                 [](BrowserWindowInterface* bwi, actions::ActionItem* item,
                    actions::ActionInvocationContext context) {
                   auto* controller =
-                      bwi->GetFeatures().vertical_tab_strip_state_controller();
+                      tabs::VerticalTabStripStateController::From(bwi);
                   controller->SetCollapsed(!controller->IsCollapsed());
                 },
                 bwi))
             .SetActionId(kActionToggleCollapseVertical)
-            .SetText(BrowserActions::GetCleanTitleAndTooltipText(
-                l10n_util::GetStringUTF16(IDS_COLLAPSE_VERTICAL_TABS)))
-            .SetTooltipText(BrowserActions::GetCleanTitleAndTooltipText(
-                l10n_util::GetStringUTF16(IDS_COLLAPSE_VERTICAL_TABS)))
+            .Build());
+  }
+
+  if (tabs::IsProjectsPanelFeatureEnabled()) {
+    root_action_item_->AddChild(
+        actions::ActionItem::Builder(
+            base::BindRepeating(
+                [](BrowserWindowInterface* bwi, actions::ActionItem* item,
+                   actions::ActionInvocationContext context) {
+                  auto* controller = ProjectsPanelStateController::From(bwi);
+                  controller->SetProjectsVisible(
+                      !controller->IsProjectsPanelVisible());
+                },
+                bwi))
+            .SetActionId(kActionToggleProjectsPanel)
             .Build());
   }
 
@@ -1132,7 +1151,7 @@ void BrowserActions::InitializeBrowserActions() {
                 if ((page_action_trigger !=
                      page_actions::kInvalidPageActionTrigger) &&
                     page_action_trigger ==
-                        base::to_underlying(
+                        std::to_underlying(
                             page_actions::PageActionTrigger::kKeyboard)) {
                   via_keyboard = true;
                 }
@@ -1353,9 +1372,31 @@ void BrowserActions::InitializeBrowserActions() {
                     actions::ActionPinnableState::kNotPinnable))
             .Build());
   }
+
+  if (base::FeatureList::IsEnabled(features::kTabGroupsFocusing)) {
+    root_action_item_->AddChild(
+        actions::ActionItem::Builder(
+            base::BindRepeating(
+                [](BrowserWindowInterface* bwi, actions::ActionItem* item,
+                   actions::ActionInvocationContext context) {
+                  if (!bwi || !bwi->GetTabStripModel()) {
+                    return;
+                  }
+                  bwi->GetTabStripModel()->SetFocusedGroup(std::nullopt);
+                },
+                bwi))
+            .SetActionId(kActionUnfocusTabGroup)
+            .SetTooltipText(BrowserActions::GetCleanTitleAndTooltipText(
+                l10n_util::GetStringUTF16(
+                    IDS_TAB_GROUP_HEADER_CXMENU_UNFOCUS_GROUP)))
+            .SetImage(ui::ImageModel::FromVectorIcon(
+                vector_icons::kArrowBackIcon, ui::kColorIcon))
+            .Build());
+  }
+
 // TODO(crbug.com/454112198): Delete this after Multi Instance launches. This
 // is currently only used in the experimental single instance side panel.
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   auto* glic_service = glic::GlicKeyedService::Get(bwi->GetProfile());
   if (glic_service && !glic::GlicEnabling::IsMultiInstanceEnabled()) {
     actions::ActionItem::InvokeActionCallback toggle_glic_callback =
@@ -1390,7 +1431,7 @@ void BrowserActions::InitializeBrowserActions() {
             .SetProperty(actions::kActionItemPinnableKey, true)
             .Build());
   }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
   AddListeners();
 }

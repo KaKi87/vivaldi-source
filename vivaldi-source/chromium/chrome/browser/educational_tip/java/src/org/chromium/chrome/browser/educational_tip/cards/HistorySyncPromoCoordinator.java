@@ -4,6 +4,8 @@
 
 package org.chromium.chrome.browser.educational_tip.cards;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import androidx.annotation.DrawableRes;
 
 import org.chromium.base.CallbackController;
@@ -15,8 +17,6 @@ import org.chromium.chrome.browser.educational_tip.R;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.signin.services.IdentityServicesProvider;
 import org.chromium.chrome.browser.sync.SyncServiceFactory;
-import org.chromium.components.signin.SigninFeatureMap;
-import org.chromium.components.signin.SigninFeatures;
 import org.chromium.components.signin.identitymanager.ConsentLevel;
 import org.chromium.components.signin.identitymanager.IdentityManager;
 import org.chromium.components.signin.identitymanager.PrimaryAccountChangeEvent;
@@ -34,9 +34,6 @@ public class HistorySyncPromoCoordinator
         implements EducationalTipCardProvider,
                 IdentityManager.Observer,
                 SyncService.SyncStateChangedListener {
-
-    private static final String HISTORY_OPT_IN_EDUCATIONAL_TIP_PARAM =
-            "history_opt_in_educational_tip_param";
 
     private final EducationTipModuleActionDelegate mActionDelegate;
     private final Runnable mOnClickedRunnable;
@@ -67,7 +64,8 @@ public class HistorySyncPromoCoordinator
                             onModuleClickedCallback.run();
                         });
 
-        Profile profile = mActionDelegate.getProfileSupplier().get().getOriginalProfile();
+        Profile profile =
+                assumeNonNull(mActionDelegate.getProfileSupplier().get()).getOriginalProfile();
         assert profile != null;
 
         mIdentityManager = IdentityServicesProvider.get().getIdentityManager(profile);
@@ -93,30 +91,9 @@ public class HistorySyncPromoCoordinator
 
     @Override
     public String getCardButtonText() {
-        int buttonStringParam =
-                SigninFeatureMap.getInstance()
-                        .getFieldTrialParamByFeatureAsInt(
-                                SigninFeatures.HISTORY_OPT_IN_EDUCATIONAL_TIP,
-                                HISTORY_OPT_IN_EDUCATIONAL_TIP_PARAM,
-                                /* defaultValue= */ 0);
-
-        switch (buttonStringParam) {
-            case 0:
-                return mActionDelegate
-                        .getContext()
-                        .getString(R.string.educational_tip_history_sync_button_turn_on);
-            case 1:
-                return mActionDelegate
-                        .getContext()
-                        .getString(R.string.educational_tip_history_sync_button_lets_go);
-            case 2:
-                return mActionDelegate
-                        .getContext()
-                        .getString(R.string.educational_tip_history_sync_button_continue);
-            default:
-                throw new IllegalStateException(
-                        "Invalid variation state for kHistoryOptInEducationalTip");
-        }
+        return mActionDelegate
+                .getContext()
+                .getString(R.string.educational_tip_history_sync_button_lets_go);
     }
 
     @Override

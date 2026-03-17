@@ -4,10 +4,13 @@
 
 #include "chrome/browser/ui/web_applications/navigation_capturing_process.h"
 
+#include <utility>
+
 #include "base/debug/crash_logging.h"
 #include "base/feature_list.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/string_split.h"
+#include "base/strings/to_string.h"
 #include "base/time/clock.h"
 #include "base/types/optional_util.h"
 #include "chrome/browser/profiles/profile.h"
@@ -23,8 +26,8 @@
 #include "chrome/browser/ui/web_applications/web_app_launch_navigation_handle_user_data.h"
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
-#include "chrome/browser/web_applications/isolated_web_apps/window_management/isolated_web_apps_opened_tabs_counter_service.h"
-#include "chrome/browser/web_applications/isolated_web_apps/window_management/isolated_web_apps_opened_tabs_counter_service_factory.h"
+#include "chrome/browser/web_applications/isolated_web_apps/window_management/isolated_web_apps_window_open_permission_service.h"
+#include "chrome/browser/web_applications/isolated_web_apps/window_management/isolated_web_apps_window_open_permission_service_factory.h"
 #include "chrome/browser/web_applications/link_capturing_features.h"
 #include "chrome/browser/web_applications/navigation_capturing_log.h"
 #include "chrome/browser/web_applications/navigation_capturing_metrics.h"
@@ -91,7 +94,7 @@ bool IsPageTransitionValidForNavigationCapturing(
     default:
       NOTREACHED();
   }
-  if (base::to_underlying(ui::PageTransitionGetQualifier(transition)) != 0) {
+  if (std::to_underlying(ui::PageTransitionGetQualifier(transition)) != 0) {
     // Qualifiers indicate that this navigation was the result of a click on a
     // forward/back button, typing in the URL bar, or client-side redirections.
     // Don't handle any of those types of navigations.
@@ -362,6 +365,15 @@ NavigationCapturingProcess::NavigationCapturingProcess(
     CHECK(registrar.GetAppById(*first_navigation_app_id_));
     first_navigation_app_display_mode_ =
         registrar.GetAppEffectiveDisplayMode(*first_navigation_app_id_);
+
+    first_navigation_parent_app_id_ =
+        registrar.GetAppById(*first_navigation_app_id_)->parent_app_id();
+
+    CHECK(
+        !first_navigation_parent_app_id_ ||
+        url::IsSameOriginWith(
+            params.url, registrar.GetAppById(*first_navigation_parent_app_id_)
+                            ->start_url()));
   }
 
   isolated_web_app_navigation_ =
@@ -724,7 +736,9 @@ NavigationCapturingProcess::HandleIsolatedWebAppNavigation(
   // Prefer `params.browser` if it's a compatible IWA browser.
   bool iwa_browser =
       params.browser &&
-      web_app::AppBrowserController::IsForWebApp(params.browser, iwa_id);
+      (web_app::AppBrowserController::IsForWebApp(params.browser, iwa_id) ||
+       web_app::AppBrowserController::IsForIsolatedSubApp(
+           params.browser, first_navigation_parent_app_id_));
 
   bool capturing_disabled = [&]() {
     switch (disposition_) {
@@ -763,7 +777,9 @@ NavigationCapturingProcess::HandleIsolatedWebAppNavigation(
                                    ui::PAGE_TRANSITION_LINK)) {
     // Any links: same-IWA or cross-IWA window.open(), same-IWA or cross-IWA
     // anchor link, cross-IWA meta tag redirect.
-    if (source_browser_app_id_ != iwa_id) {
+    if (source_browser_app_id_ != iwa_id &&
+        (!first_navigation_parent_app_id_.has_value() ||
+         source_browser_app_id_ != first_navigation_parent_app_id_.value())) {
       // TODO(crbug.com/424422466): Support cross-IWA navigations to start_url.
       return CancelInitialNavigation(
           NavigationCapturingInitialResult::kNavigationCanceled);
@@ -868,13 +884,12 @@ void NavigationCapturingProcess::MaybeNotifyIwaTabCounterService(
   }
 
   auto* counter_service =
-      IsolatedWebAppsOpenedTabsCounterServiceFactory::GetForProfile(profile);
+      IsolatedWebAppsWindowOpenPermissionServiceFactory::GetForProfile(profile);
   if (!counter_service) {
     return;
   }
 
-  counter_service->OnWebContentsCreated(*iwa_opener_app_id, &web_contents,
-                                        provider->clock().Now());
+  counter_service->OnWebContentsCreated(*iwa_opener_app_id);
 }
 
 // static
@@ -1791,7 +1806,7 @@ bool NavigationCapturingProcess::IsHandledByNavigationCapturing() const {
   }
 }
 
-base::Value::Dict& NavigationCapturingProcess::PopulateAndGetDebugData() {
+base::DictValue& NavigationCapturingProcess::PopulateAndGetDebugData() {
   debug_data_.Set("!navigation_params_url",
                   navigation_params_url_.possibly_invalid_spec());
   debug_data_.Set("navigation_params_browser",

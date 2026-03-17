@@ -15,11 +15,10 @@
 
 class Browser;
 
-
 namespace content {
 struct ContextMenuParams;
 class WebContents;
-}
+}  // namespace content
 
 namespace vivaldi {
 
@@ -28,7 +27,8 @@ class VivaldiRenderViewContextMenu;
 class DeviceMenuController {
  public:
   DeviceMenuController(VivaldiRenderViewContextMenu* rv_context_menu,
-                       GURL& url, std::string url_title);
+                       GURL& url,
+                       std::string url_title);
   ~DeviceMenuController();
 
   static bool HasSupport(content::WebContents* web_contents);
@@ -44,6 +44,7 @@ class DeviceMenuController {
                           const content::ContextMenuParams& params,
                           bool* enabled);
   bool GetHighlightText(int command_id, std::string& text);
+
  private:
   bool GetHasInstalledDevices();
 

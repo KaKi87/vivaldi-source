@@ -14,10 +14,10 @@ import static org.chromium.chrome.browser.task_manager.ui.TaskManagerProperties.
 import static org.chromium.chrome.browser.task_manager.ui.TaskManagerProperties.NETWORK_USAGE;
 import static org.chromium.chrome.browser.task_manager.ui.TaskManagerProperties.PROCESS_ID;
 import static org.chromium.chrome.browser.task_manager.ui.TaskManagerProperties.SORT_DESCRIPTOR;
+import static org.chromium.chrome.browser.task_manager.ui.TaskManagerProperties.TASK_ICON;
 import static org.chromium.chrome.browser.task_manager.ui.TaskManagerProperties.TASK_ID;
 import static org.chromium.chrome.browser.task_manager.ui.TaskManagerProperties.TASK_NAME;
 
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import org.chromium.base.Callback;
@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
-import java.util.NoSuchElementException;
 
 /**
  * The class works as a mediator between the underlyning model (ModelList) and the task manager
@@ -212,19 +211,22 @@ class TaskManagerMediator {
     private ListItem createTaskModel(long taskId) {
         PropertyKey[] keys =
                 PropertyModel.concatKeys(
-                        ALL_COLUMN_KEYS, new PropertyKey[] {TASK_ID, IS_SELECTED, IS_KILLABLE});
+                        ALL_COLUMN_KEYS,
+                        new PropertyKey[] {TASK_ID, IS_SELECTED, IS_KILLABLE, TASK_ICON});
         return new ListItem(
                 RowType.TASK,
                 new PropertyModel.Builder(keys)
                         .with(TASK_ID, taskId)
                         .with(IS_SELECTED, false)
                         .with(IS_KILLABLE, mBridge.isTaskKillable(taskId))
+                        .with(TASK_ICON, mBridge.getIcon(taskId))
                         .build());
     }
 
     // TODO(crbug.com/380165957): Confirm pid and task name never change and stop
     // refreshing them.
     private void updateTaskModel(ListItem task, long taskId) {
+        task.model.set(TASK_ICON, mBridge.getIcon(taskId));
         for (PropertyKey columnKey : ALL_COLUMN_KEYS) {
             if (columnKey == TASK_NAME) {
                 task.model.set(TASK_NAME, mBridge.getTitle(taskId));
@@ -270,7 +272,9 @@ class TaskManagerMediator {
 
             @Override
             public void onTaskToBeRemoved(long taskId) {
-                mTasks.removeAt(getIndexForTaskId(taskId));
+                Integer index = getIndexForTaskId(taskId);
+                if (index == null) return;
+                mTasks.removeAt(index);
                 checkAndNotifyIfHasKillableSelectedTaskChanged();
             }
 
@@ -279,7 +283,9 @@ class TaskManagerMediator {
                 // TODO(crbug.com/380165957): Asynchronously get values if performance issues are
                 // observed.
                 for (long taskId : taskIds) {
-                    ListItem task = mTasks.get(getIndexForTaskId(taskId));
+                    Integer index = getIndexForTaskId(taskId);
+                    if (index == null) continue;
+                    ListItem task = mTasks.get(index);
 
                     updateTaskModel(task, taskId);
                 }
@@ -298,13 +304,13 @@ class TaskManagerMediator {
         };
     }
 
-    private int getIndexForTaskId(long taskId) {
+    private @Nullable Integer getIndexForTaskId(long taskId) {
         for (int i = 0; i < mTasks.size(); i++) {
             if (mTasks.get(i).model.get(TASK_ID) == taskId) {
                 return i;
             }
         }
-        throw new NoSuchElementException("Task id " + taskId + " not found");
+        return null;
     }
 
     private void checkAndNotifyIfHasKillableSelectedTaskChanged() {
@@ -351,7 +357,8 @@ class TaskManagerMediator {
         mTasks.set(tasks);
     }
 
-    private static Comparator<ListItem> getTaskComparator(@NonNull SortDescriptor descriptor) {
+    @SuppressWarnings("NullMarked")
+    private static Comparator<ListItem> getTaskComparator(SortDescriptor descriptor) {
         Comparator<ListItem> ascComparator =
                 (a, b) -> {
                     if (descriptor.key == TASK_NAME) {

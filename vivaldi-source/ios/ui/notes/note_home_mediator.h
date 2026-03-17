@@ -38,7 +38,7 @@ class ProfileIOS;
 // Deletes any existing data first.  If no items found, an entry with
 // |noResults' message is added to the table.
 - (void)computeNoteTableViewDataMatching:(NSString*)searchText
-                  orShowMessageWhenNoResults:(NSString*)noResults;
+              orShowMessageWhenNoResults:(NSString*)noResults;
 @end
 
 #endif  // IOS_UI_NOTES_NOTE_HOME_MEDIATOR_H_

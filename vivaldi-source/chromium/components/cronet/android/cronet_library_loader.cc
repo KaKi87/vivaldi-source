@@ -56,7 +56,7 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "components/cronet/android/cronet_jni_headers/CronetLibraryLoader_jni.h"
 
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
 
 namespace cronet {
@@ -159,8 +159,16 @@ void InitializePerfetto() {
 }  // namespace
 
 static void JNI_CronetLibraryLoader_NativeInit(JNIEnv* env,
-                                               jboolean initializePerfetto) {
+                                               bool initializePerfetto) {
   logging::InitLogging(logging::LoggingSettings());
+
+  ApplyBaseFeatureOverrides(GetBaseFeatureOverrides(env));
+
+  if (base::FeatureList::IsEnabled(kLogMe)) {
+    LOG(/* Bypass log spam warning regex */ INFO)
+        << "CronetLogMe feature flag set, logging as instructed. Message: "
+        << kLogMeMessage.Get();
+  }
 
   if (!base::ThreadPoolInstance::Get()) {
     base::ThreadPoolInstance::CreateAndStartWithDefaultParams("Cronet");
@@ -171,14 +179,6 @@ static void JNI_CronetLibraryLoader_NativeInit(JNIEnv* env,
     InitializePerfetto();
     ATrace_endSection();
   }
-
-  ApplyBaseFeatureOverrides(GetBaseFeatureOverrides(env));
-
-  if (base::FeatureList::IsEnabled(kLogMe)) {
-    LOG(/* Bypass log spam warning regex */ INFO)
-        << "CronetLogMe feature flag set, logging as instructed. Message: "
-        << kLogMeMessage.Get();
-  }
 }
 
 bool OnInitThread() {
@@ -187,7 +187,7 @@ bool OnInitThread() {
 }
 
 // Checks the available version of JNI. Also, caches Java reflection artifacts.
-jint CronetOnLoad(JavaVM* vm, void* reserved) {
+int32_t CronetOnLoad(JavaVM* vm, void* reserved) {
   base::android::InitVM(vm);
   JNIEnv* env = base::android::AttachCurrentThread();
   if (!RegisterNatives(env)) {
@@ -266,7 +266,7 @@ static ScopedJavaLocalRef<jstring> JNI_CronetLibraryLoader_GetCronetVersion(
 }
 
 static void JNI_CronetLibraryLoader_SetMinLogLevel(JNIEnv* env,
-                                                   jint jlog_level) {
+                                                   int32_t jlog_level) {
   logging::SetMinLogLevel(jlog_level);
 }
 

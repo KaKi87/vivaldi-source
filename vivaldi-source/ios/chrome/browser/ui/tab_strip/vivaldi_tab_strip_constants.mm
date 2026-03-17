@@ -28,7 +28,6 @@ NSString* const vTabViewNotSelectedTintColor =
 // Opacity for background tab view for tint color
 CGFloat const vTabViewBackgroundColorOpacity = 0.2;
 
-
 // Corner radius for vivaldi tab view background
 CGFloat const vTabViewBackgroundCornerRadius = 6.f;
 // Tab overlap padding for unstacked state

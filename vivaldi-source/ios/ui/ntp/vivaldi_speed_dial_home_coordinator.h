@@ -15,7 +15,7 @@ class Browser;
 // Designated initializer.
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                                    browser:(Browser*)browser
-NS_DESIGNATED_INITIALIZER;
+    NS_DESIGNATED_INITIALIZER;
 
 // View controller for the speed dial home/start page.
 @property(nonatomic, strong, readonly)

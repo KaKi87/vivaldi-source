@@ -15,11 +15,9 @@
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/test/test_browser_dialog.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/bubble/webui_bubble_dialog_view.h"
 #include "chrome/browser/ui/views/bubble/webui_bubble_manager.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
 #include "chrome/browser/ui/views/tab_search_bubble_host.h"
 #include "chrome/browser/ui/views/tabs/tab_search_button.h"
@@ -32,10 +30,7 @@
 class TabSearchButtonBrowserTest : public InProcessBrowserTest {
  public:
   TabSearchButtonBrowserTest() {
-    feature_list_.InitWithFeaturesAndParameters(
-        {{features::kTabstripComboButton,
-          {{"tab_search_toolbar_button", "false"}}}},
-        {});
+    feature_list_.InitAndDisableFeature(features::kGlic);
   }
 
   BrowserView* browser_view() {
@@ -82,10 +77,7 @@ IN_PROC_BROWSER_TEST_F(TabSearchButtonBrowserTest, ButtonClickCreatesBubble) {
 class TabSearchButtonBrowserUITest : public DialogBrowserTest {
  public:
   TabSearchButtonBrowserUITest() {
-    feature_list_.InitWithFeaturesAndParameters(
-        {{features::kTabstripComboButton,
-          {{"tab_search_toolbar_button", "false"}}}},
-        {});
+    feature_list_.InitAndDisableFeature(features::kGlic);
   }
 
   // DialogBrowserTest:

@@ -3,7 +3,6 @@
 
 #import "ios/chrome/browser/popup_menu/ui_bundled/vivaldi_popup_menu_constants.h"
 
-NSString* const kToolsMenuShareId = @"kToolsMenuShareId";
 NSString* const vToolsMenuTextZoomId = @"vToolsMenuTextZoomId";
 NSString* const vToolsMenuFindInPageId = @"vToolsMenuFindInPageId";
 NSString* const vToolsMenuMobileSiteId = @"vToolsMenuMobileSiteId";

@@ -195,8 +195,9 @@ void AddExtraBookmarkMenuItems(NSMenu* menu,
     AppController* appController =
         static_cast<AppController*>([NSApp delegate]);
     [item setTarget:appController];
-    if (appController && [appController respondsToSelector:@selector
-                                        (setVivaldiMenuItemAction:)]) {
+    if (appController &&
+        [appController
+            respondsToSelector:@selector(setVivaldiMenuItemAction:)]) {
       [appController setVivaldiMenuItemAction:item];
     }
     [item setRepresentedObject:[NSString stringWithFormat:@"%lld", node->id()]];
@@ -231,8 +232,9 @@ void AddExtraBookmarkMenuItems(NSMenu* menu,
     AppController* appController =
         static_cast<AppController*>([NSApp delegate]);
     [item setTarget:appController];
-    if (appController && [appController respondsToSelector:@selector
-                                        (setVivaldiMenuItemAction:)]) {
+    if (appController &&
+        [appController
+            respondsToSelector:@selector(setVivaldiMenuItemAction:)]) {
       [appController setVivaldiMenuItemAction:item];
     }
     [item setRepresentedObject:[NSString stringWithFormat:@"%lld", node->id()]];

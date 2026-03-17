@@ -65,14 +65,14 @@
   // Observe tap action
   [self.viewProvider
       observeOpenWithDidChangeEvent:^(VivaldiStartPageStartItemType item) {
-    [VivaldiStartPagePrefs setReopenStartPageWithItem:item];
+        [VivaldiStartPagePrefs setReopenStartPageWithItem:item];
 
-    // If Top Sites is selected, enable Top Sites if not already enabled.
-    if (item == VivaldiStartPageStartItemTypeTopSites &&
-        ![self topSitesEnabled]) {
-      [VivaldiStartPagePrefs setShowFrequentlyVisitedPages:YES];
-    }
-  }];
+        // If Top Sites is selected, enable Top Sites if not already enabled.
+        if (item == VivaldiStartPageStartItemTypeTopSites &&
+            ![self topSitesEnabled]) {
+          [VivaldiStartPagePrefs setShowFrequentlyVisitedPages:YES];
+        }
+      }];
 }
 
 - (void)stop {

@@ -35,13 +35,12 @@ class VivaldiMenuModelAdapterViews : public views::MenuModelAdapter {
     }
   }
 
-  void VivaldiExecutePersistent(
-      views::MenuItemView* menu_item,
-      int event_flags,
-      bool* success) override {
+  void VivaldiExecutePersistent(views::MenuItemView* menu_item,
+                                int event_flags,
+                                bool* success) override {
     if (delegate_) {
-      delegate_->ExecuteIfPersistent(
-        menu_item->GetCommand(), event_flags, success);
+      delegate_->ExecuteIfPersistent(menu_item->GetCommand(), event_flags,
+                                     success);
     } else {
       *success = false;
     }
@@ -63,7 +62,7 @@ views::MenuItemView* ToolkitDelegateViews::VivaldiInit(
   menu_adapter_.reset(new VivaldiMenuModelAdapterViews(menu_model, delegate));
   std::unique_ptr<views::MenuItemView> menu_view = menu_adapter_->CreateMenu();
   menu_view_ = menu_view.get();
-  menu_runner_= std::make_unique<views::MenuRunner>(
+  menu_runner_ = std::make_unique<views::MenuRunner>(
       std::move(menu_view),
       views::MenuRunner::HAS_MNEMONICS | views::MenuRunner::CONTEXT_MENU);
 

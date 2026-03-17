@@ -14,6 +14,7 @@
 
 #include "base/memory/ref_counted_memory.h"
 #include "base/memory/scoped_refptr.h"
+#include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "third_party/skia/include/core/SkBitmap.h"
@@ -44,14 +45,16 @@ class ThumbnailCaptureContents : protected content::WebContentsDelegate,
   using CaptureCallback =
       base::OnceCallback<void(scoped_refptr<base::RefCountedMemory> png_data)>;
   // Starts the navigation with the given size.
-  static ThumbnailCaptureContents* Capture(content::BrowserContext* browser_context,
-                      const GURL& start_url,
-                      gfx::Size initial_size,
-                      gfx::Size target_size,
-                      CaptureCallback callback);
+  static ThumbnailCaptureContents* Capture(
+      content::BrowserContext* browser_context,
+      const GURL& start_url,
+      gfx::Size initial_size,
+      gfx::Size target_size,
+      CaptureCallback callback);
 
-
-  content::WebContents* GetWebContents() {return offscreen_tab_web_contents_.get();}
+  content::WebContents* GetWebContents() {
+    return offscreen_tab_web_contents_.get();
+  }
 
   // "this" is no longer valid after the call
   void RespondAndDelete(SkBitmap bitmap = SkBitmap());
@@ -72,7 +75,7 @@ class ThumbnailCaptureContents : protected content::WebContentsDelegate,
   void CloseContents(content::WebContents* source) override;
   bool ShouldSuppressDialogs(content::WebContents* source) override;
   bool ShouldFocusLocationBarByDefault(content::WebContents* source) override;
-  bool ShouldFocusPageAfterCrash(content::WebContents * source) override;
+  bool ShouldFocusPageAfterCrash(content::WebContents* source) override;
   void CanDownload(const GURL& url,
                    const std::string& request_method,
                    base::OnceCallback<void(bool)> callback) override;
@@ -110,7 +113,7 @@ class ThumbnailCaptureContents : protected content::WebContentsDelegate,
   // second.
   void TryCapture(bool last_try);
 
-  void OnCopyImageReady(const viz::CopyOutputBitmapWithMetadata& bitmap);
+  void OnCopyImageReady(const content::CopyFromSurfaceResult& result);
 
   void CaptureViaIpc();
 

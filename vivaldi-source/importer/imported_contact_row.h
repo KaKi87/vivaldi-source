@@ -13,7 +13,7 @@
 
 // Used as the target for importing contacts from Thunderbird
 struct ImportedContact {
-public:
+ public:
   ImportedContact();
   ImportedContact(const ImportedContact&);
   ImportedContact& operator=(const ImportedContact&);

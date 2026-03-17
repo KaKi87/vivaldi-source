@@ -3716,7 +3716,7 @@ TEST_P(SimpleStateChangeTestES3, ClearThenNoopClearThenRebindAttachment)
 
 // Test that clear followed by rebind of framebuffer attachment works (with 0-sized scissor clear in
 // between).
-TEST_P(SimpleStateChangeTestES3, ClearThenZeroSizeScissoredClearThenRebindAttachment)
+TEST_P(SimpleStateChangeTest, ClearThenZeroSizeScissoredClearThenRebindAttachment)
 {
     // Create a texture with red
     const GLColor kInitColor1 = GLColor::red;
@@ -8121,18 +8121,36 @@ void main()
         EGLSurface surface         = eglCreatePbufferSurface(dpy, config, pbufferAttributes);
         EGLContext ctx             = window->createContext(EGL_NO_CONTEXT, nullptr);
         EXPECT_EGL_SUCCESS();
+        EGLSurface mainSurface = window->getSurface();
+        EGLContext mainContext = window->getContext();
+        EXPECT_EGL_TRUE(eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT));
+
         std::thread flushThread = std::thread([&]() {
             EXPECT_EGL_TRUE(eglMakeCurrent(dpy, surface, surface, ctx));
             EXPECT_EGL_SUCCESS();
+
+            GLFramebuffer threadFbo;
+            GLTexture threadTexture;
+            glBindTexture(GL_TEXTURE_2D, threadTexture);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+            glBindFramebuffer(GL_FRAMEBUFFER, threadFbo);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
+                                   threadTexture, 0);
+            ASSERT_GL_FRAMEBUFFER_COMPLETE(GL_FRAMEBUFFER);
 
             glClearColor(1, 0, 0, 1);
             glClear(GL_COLOR_BUFFER_BIT);
             EXPECT_GL_NO_ERROR();
 
             EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::red);
+
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+            EXPECT_EGL_TRUE(eglMakeCurrent(dpy, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT));
         });
         flushThread.join();
 
+        EXPECT_EGL_TRUE(eglMakeCurrent(dpy, mainSurface, mainSurface, mainContext));
         eglDestroySurface(dpy, surface);
         eglDestroyContext(dpy, ctx);
     }
@@ -11580,7 +11598,7 @@ TEST_P(StateChangeTest, ViewportChangeWithinRenderPass)
 
 // Tests that scissor changes within a render pass are correct. WebGPU sets a default scissor, cover
 // the omission of setScissorRect in the backend.
-TEST_P(StateChangeTest, ScissortChangeWithinRenderPass)
+TEST_P(StateChangeTest, ScissorChangeWithinRenderPass)
 {
     glClearColor(0, 0, 0, 0);
     glClear(GL_COLOR_BUFFER_BIT);

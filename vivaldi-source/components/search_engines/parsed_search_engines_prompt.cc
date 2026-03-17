@@ -45,9 +45,9 @@ ParsedSearchEnginesPrompt::FromJsonString(std::string_view json_string,
     return nullptr;
   }
 
-  base::Value::Dict& root = json->GetDict();
+  base::DictValue& root = json->GetDict();
 
-  base::Value::Dict* int_variables = root.FindDict(kIntVariables);
+  base::DictValue* int_variables = root.FindDict(kIntVariables);
 
   if (!int_variables) {
     error = base::StrCat({"Missing key: ", kIntVariables});
@@ -74,11 +74,11 @@ ParsedSearchEnginesPrompt::FromJsonString(std::string_view json_string,
   }
 
   auto get_domains =
-      [](const base::Value::Dict& parent,
+      [](const base::DictValue& parent,
          std::string_view key) -> std::optional<std::vector<std::string>> {
     std::vector<std::string> domains;
 
-    const base::Value::List* domain_list = parent.FindList(key);
+    const base::ListValue* domain_list = parent.FindList(key);
     if (!domain_list) {
       return std::nullopt;
     }
@@ -97,11 +97,11 @@ ParsedSearchEnginesPrompt::FromJsonString(std::string_view json_string,
   };
 
   auto get_type =
-      [](const base::Value::Dict& parent,
+      [](const base::DictValue& parent,
          std::string_view key) -> std::optional<std::set<SearchEngineType>> {
     std::set<SearchEngineType> types;
 
-    const base::Value::List* type_list = parent.FindList(key);
+    const base::ListValue* type_list = parent.FindList(key);
     if (!type_list) {
       return std::nullopt;
     }
@@ -137,7 +137,7 @@ ParsedSearchEnginesPrompt::FromJsonString(std::string_view json_string,
   std::vector<std::string> exclude_if_domain;
   std::set<SearchEngineType> exclude_if_type;
 
-  base::Value::Dict* excludes = root.FindDict(kExcludes);
+  base::DictValue* excludes = root.FindDict(kExcludes);
   // If the exclude list is missing, we assume it is empty.
   if (excludes) {
     exclude_if_domain = get_domains(*excludes, kExcludeDomain)

@@ -29,9 +29,9 @@
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/view_class_properties.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/public/glic_enabling.h"
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
 LensOverlayHomeworkPageActionIconView::LensOverlayHomeworkPageActionIconView(
     IconLabelBubbleView::Delegate* parent_delegate,
@@ -68,7 +68,7 @@ void LensOverlayHomeworkPageActionIconView::UpdateImpl() {
     // ShowCallToAction() more than once while the chip is showing.
     if (!scoped_window_call_to_action_ptr_) {
       scoped_window_call_to_action_ptr_ = browser_->ShowCallToAction();
-      lens::IncrementLensOverlayEduActionChipShownCount(browser_->GetProfile());
+      lens::RecordLensOverlayEduActionChipShown(browser_->GetProfile());
     }
   } else {
     scoped_window_call_to_action_ptr_.reset();
@@ -87,13 +87,13 @@ bool LensOverlayHomeworkPageActionIconView::ShouldShow() {
     return false;
   }
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (lens::features::IsLensOverlayEduActionChipDisabledByGlic() &&
       glic::GlicEnabling::IsEligibleForGlicTieredRollout(
           browser_->GetProfile())) {
     return false;
   }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
   // Hide the homework chip if the broader lens feature is disabled.
   const auto* controller =

@@ -96,29 +96,58 @@ class NoteDataTypeProcessor : public syncer::DataTypeProcessor,
   bool IsConnectedForTest() const;
 
   // Reset max notes till which sync is enabled.
-  void SetMaxNotesTillSyncEnabledForTest(size_t limit);
+  void SetLocalNotesLimitForTesting(size_t limit);
 
   base::WeakPtr<syncer::DataTypeControllerDelegate> GetWeakPtr();
 
  private:
   SEQUENCE_CHECKER(sequence_checker_);
 
-  // Returns true if the note count exceeded the limit and an error was
-  // reported. Also disconnects sync and resets the `start_callback_`.
-  bool MaybeReportNoteCountLimitExceededError(
-      syncer::ModelError::Type error_type);
+  // Migrates the legacy `last_initial_merge_remote_updates_exceeded_limit` bool
+  // to the timestamp representation.
+  void MigrateLegacyExceededLimitError(
+      sync_pb::NotesModelMetadata* model_metadata);
+
+  // Resets the error for exceeding note limit if enough time has passed.
+  void MaybeResetExceededLimitError(
+      sync_pb::NotesModelMetadata* model_metadata);
+
+  // Handles the error state from the given `model_metadata` if a previous sync
+  // cycle reported an error. Returns true if there was an error to be handled.
+  [[nodiscard]] bool HandlePreviousErrorState(
+      const sync_pb::NotesModelMetadata& model_metadata);
+
+  // Parses and validates the metadata. Returns the metadata if it is valid and
+  // there was no previous error.
+  std::optional<sync_pb::NotesModelMetadata> ParseAndValidateMetadata(
+      const std::string& metadata_str);
+
+  // Initializes the tracker.
+  void InitTracker(sync_pb::NotesModelMetadata model_metadata,
+                   const std::string& metadata_str);
+
+  // Handles the case where metadata needs to be cleared when the model is
+  // ready. Returns true if there was a pending clear metadata operation.
+  [[nodiscard]] bool HandlePendingClearMetadata(
+      const std::string& metadata_str);
 
   // If preconditions are met, inform sync that we are ready to connect.
   void ConnectIfReady();
+
+  // Returns true if the given `count` of notes exceeds the sync limit. An
+  // `offset` can be provided for cases where the exact count is not known.
+  bool DoesCountExceedLocalNotesSyncLimit(size_t count,
+                                          size_t offset = 0) const;
+
+  // Returns true if the note count exceeded the limit and an error was
+  // reported. Also disconnects sync and resets the `start_callback_`.
+  bool MaybeReportLocalNotesCountLimitExceededError(
+      syncer::ModelError::Type error_type);
 
   // Nudges worker if there are any local entities to be committed. Should only
   // be called after initial sync is done and processor is tracking sync
   // entities.
   void NudgeForCommitIfNeeded();
-
-  // Returns true if the given `count` of notes exceeds the sync limit. An
-  // `offset` can be provided for cases where the exact count is not known.
-  bool DoesCountExceedNotesSyncLimit(size_t count, size_t offset = 0) const;
 
   // Performs the required clean up when note model is being deleted.
   void OnNotesModelBeingDeleted();
@@ -138,6 +167,9 @@ class NoteDataTypeProcessor : public syncer::DataTypeProcessor,
       const sync_pb::DataTypeState& type_state,
       syncer::UpdateResponseDataList updates);
 
+  // Returns true if the number of remote updates exceeds the limit.
+  bool ExceedsRemoteUpdatesLimit(size_t count) const;
+
   // Instantiates the required objects to track metadata and starts observing
   // changes from the note model. Note that this does not include tracking
   // of metadata fields managed by the processor but only those tracked by the
@@ -153,34 +185,6 @@ class NoteDataTypeProcessor : public syncer::DataTypeProcessor,
   // notes in the model depending on the selected behavior.
   void TriggerWipeModelUponSyncDisabledBehavior();
 
-  // Migrates the legacy `last_initial_merge_remote_updates_exceeded_limit` bool
-  // to the timestamp representation.
-  void MigrateLegacyExceededLimitError(
-      sync_pb::NotesModelMetadata* model_metadata);
-
-  // Resets the error for exceeding note limit if enough time has passed.
-  void MaybeResetExceededLimitError(
-      sync_pb::NotesModelMetadata* model_metadata);
-
-  // Handles the error state from the given `model_metadata` if a previous sync
-  // cycle reported an error. Returns true if there was an error to be handled.
-  [[nodiscard]] bool HandlePreviousErrorState(
-      const sync_pb::NotesModelMetadata& model_metadata);
-
-  // Handles the case where metadata needs to be cleared when the model is
-  // ready. Returns true if there was a pending clear metadata operation.
-  [[nodiscard]] bool HandlePendingClearMetadata(
-      const std::string& metadata_str);
-
-  // Parses and validates the metadata. Returns the metadata if it is valid and
-  // there was no previous error.
-  std::optional<sync_pb::NotesModelMetadata> ParseAndValidateMetadata(
-      const std::string& metadata_str);
-
-  // Initializes the tracker.
-  void InitTracker(sync_pb::NotesModelMetadata model_metadata,
-                   const std::string& metadata_str);
-
   // Creates a DictionaryValue for local and remote debugging information about
   // `node` and appends it to `all_nodes`. It does the same for child nodes
   // recursively. `index` is the index of `node` within its parent. `index`
@@ -188,7 +192,7 @@ class NoteDataTypeProcessor : public syncer::DataTypeProcessor,
   // since we iterate over child nodes already in the calling sites.
   void AppendNodeAndChildrenForDebugging(const vivaldi::NoteNode* node,
                                          int index,
-                                         base::Value::List* all_nodes) const;
+                                         base::ListValue* all_nodes) const;
 
   const raw_ptr<file_sync::SyncedFileStore> synced_file_store_;
 
@@ -245,7 +249,7 @@ class NoteDataTypeProcessor : public syncer::DataTypeProcessor,
   std::unique_ptr<NotesModelObserverImpl> notes_model_observer_;
 
   // This member variable exists only to allow tests to override the limit.
-  std::optional<size_t> sync_notes_limit_for_tests_;
+  std::optional<size_t> sync_local_notes_limit_for_tests_;
 
   // Marks whether metadata should be cleared upon ModelReadyToSync(). True if
   // ClearMetadataIfStopped() is called before ModelReadyToSync().

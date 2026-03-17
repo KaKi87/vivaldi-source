@@ -172,11 +172,10 @@ public class TabListEditorPinAction extends TabListEditorAction {
             mState = State.UNSUPPORTED;
         }
 
-        // Note(david@vivaldi.com): Do not support pin tab(s) option when tab pinning is not
-        // available.
+        // Note(david@vivaldi.com): Remove or disable items if applicable.
         if (mState == State.PIN
-                && !VivaldiTabModelUtils.checkPinAvailabilityAndMaybeRemoveMenuItem(
-                        getTabGroupModelFilter().getTabModel(), selectedTabs, null, 0))
+                && !VivaldiTabModelUtils.maybeRemoveOrDisableTabActionMenuItem(
+                        getTabGroupModelFilter().getTabModel(), selectedTabs, null, this))
             mState = State.UNSUPPORTED;
     }
 }

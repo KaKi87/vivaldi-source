@@ -21,7 +21,6 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/render_view_host.h"
-#include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "mojo/public/cpp/bindings/callback_helpers.h"
 #include "skia/ext/image_operations.h"
@@ -130,7 +129,7 @@ ExtensionFunction::ResponseAction WebViewPrivateGetThumbnailFunction::RunImpl(
       std::max(1, source_rect.height() - gfx::scrollbar_size()));
 
   embedder_view->CopyFromSurface(
-      source_rect, source_rect.size(),
+      source_rect, source_rect.size(), base::TimeDelta(),
       base::BindOnce(
           &WebViewPrivateGetThumbnailFunction::CopyFromBackingStoreComplete,
           this));
@@ -139,14 +138,19 @@ ExtensionFunction::ResponseAction WebViewPrivateGetThumbnailFunction::RunImpl(
 }
 
 void WebViewPrivateGetThumbnailFunction::CopyFromBackingStoreComplete(
-    const viz::CopyOutputBitmapWithMetadata& bitmap) {
+    const content::CopyFromSurfaceResult& result) {
+  if (!result.has_value()) {
+    Respond(Error("Internal Thumbnail error"));
+    return;
+  }
+
   base::ThreadPool::PostTaskAndReply(
       FROM_HERE,
       {base::TaskPriority::USER_VISIBLE, base::MayBlock(),
        base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
       base::BindOnce(
           &WebViewPrivateGetThumbnailFunction::ScaleAndEncodeOnWorkerThread,
-          this, bitmap.bitmap),
+          this, result->bitmap),
       base::BindOnce(&WebViewPrivateGetThumbnailFunction::SendResult, this));
 }
 
@@ -274,8 +278,8 @@ ExtensionFunction::ResponseAction
 WebViewPrivateGetPageSelectionFunction::Run() {
   content::RenderWidgetHostView* rwhv =
       guest_->web_contents()->GetRenderWidgetHostView();
-    std::u16string text(*rwhv->GetVisibleSelectedText());
-    return RespondNow(WithArguments(std::move(text)));
+  std::u16string text(*rwhv->GetVisibleSelectedText());
+  return RespondNow(WithArguments(std::move(text)));
 }
 
 }  // namespace vivaldi

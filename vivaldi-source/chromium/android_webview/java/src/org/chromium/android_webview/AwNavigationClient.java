@@ -4,6 +4,8 @@
 
 package org.chromium.android_webview;
 
+import org.jni_zero.CalledByNative;
+
 import org.chromium.android_webview.common.Lifetime;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -131,13 +133,23 @@ public class AwNavigationClient implements Page.PageDeletionListener {
         }
     }
 
-    public void onFirstContentfulPaint(Page page, long durationUs) {
+    @CalledByNative
+    public void onFirstContentfulPaint(Page page, long durationMs) {
         AwPage awPage = getAwPageFor(page);
         for (AwNavigationListener listener : mNavigationListeners) {
-            listener.onFirstContentfulPaint(awPage, durationUs);
+            listener.onFirstContentfulPaint(awPage, durationMs);
         }
     }
 
+    @CalledByNative
+    public void onLargestContentfulPaint(Page page, long durationMs) {
+        AwPage awPage = getAwPageFor(page);
+        for (AwNavigationListener listener : mNavigationListeners) {
+            listener.onLargestContentfulPaint(awPage, durationMs);
+        }
+    }
+
+    @CalledByNative
     public void onPerformanceMark(Page page, String markName, long markTimeMs) {
         AwPage awPage = getAwPageFor(page);
         for (AwNavigationListener listener : mNavigationListeners) {
@@ -178,7 +190,7 @@ public class AwNavigationClient implements Page.PageDeletionListener {
         AwPage awPage = new AwPage(page);
         // We only keep track of pages that have been the primary page (either the current primary
         // page, or a previously primary but now bfcached / pending deletion page).
-        assert !awPage.isPrerendering();
+        assert !page.isPrerendering();
         // Make sure we always track deletion of a non-prerendering page.
         page.setPageDeletionListener(this);
         mPageMap.put(page, new WeakReference<>(awPage));

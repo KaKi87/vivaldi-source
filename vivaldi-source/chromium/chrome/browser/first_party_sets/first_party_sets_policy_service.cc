@@ -13,7 +13,6 @@
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/first_party_sets/first_party_sets_pref_names.h"
 #include "chrome/browser/privacy_sandbox/privacy_sandbox_settings_factory.h"
-#include "chrome/browser/privacy_sandbox/tracking_protection_settings_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/content_settings/core/browser/content_settings_utils.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
@@ -21,7 +20,6 @@
 #include "components/prefs/pref_service.h"
 #include "components/privacy_sandbox/privacy_sandbox_prefs.h"
 #include "components/privacy_sandbox/privacy_sandbox_settings.h"
-#include "components/privacy_sandbox/tracking_protection_settings.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/first_party_sets_handler.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -50,8 +48,7 @@ network::mojom::FirstPartySetsReadyEventPtr MakeReadyEvent(
   return ready_event;
 }
 
-const base::Value::Dict* GetOverridesPolicyForProfile(
-    const PrefService* prefs) {
+const base::DictValue* GetOverridesPolicyForProfile(const PrefService* prefs) {
   if (!prefs) {
     return nullptr;
   }

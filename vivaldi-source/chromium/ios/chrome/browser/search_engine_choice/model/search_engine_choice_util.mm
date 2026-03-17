@@ -53,13 +53,13 @@ bool ShouldDisplaySearchEngineChoiceScreen(
   ios::SearchEngineChoiceTriggeringService* triggering_service =
       ios::SearchEngineChoiceTriggeringServiceFactory::GetForProfile(&profile);
 
-  search_engines::SearchEngineChoiceScreenConditions condition;
+  regional_capabilities::SearchEngineChoiceScreenConditions condition;
   if (triggering_service) {
     condition = triggering_service->EvaluateTriggeringConditions(
         is_first_run_entrypoint, app_started_via_external_intent);
     search_engine_choice_service->RecordTriggeringEligibility(condition);
   } else {
-    // TODO(crbug.com/438717568): This branch is added only to record the legacy
+    // TODO(crbug.com/468249096): This branch is added only to record the legacy
     // histograms. Investigate whether we need to keep it, or if we're fine with
     // updating the record timing of these old histogram.
     const policy::PolicyService& policy_service =
@@ -68,19 +68,17 @@ bool ShouldDisplaySearchEngineChoiceScreen(
         ios::TemplateURLServiceFactory::GetForProfile(original_profile);
     condition = search_engine_choice_service->GetStaticChoiceScreenConditions(
         policy_service, CHECK_DEREF(template_url_service));
-    if (condition ==
-        search_engines::SearchEngineChoiceScreenConditions::kEligible) {
+    if (regional_capabilities::IsEligible(condition)) {
       // If we didn't get a `triggering_service`, the search engine should not
       // be eligible for choice screens either.
-      condition = search_engines::SearchEngineChoiceScreenConditions::
+      condition = regional_capabilities::SearchEngineChoiceScreenConditions::
           kUnsupportedBrowserType;
     }
   }
 
   // This is today recording a combination of the static & dynamic
   // eligibilities.
-  // TODO(crbug.com/426533078): Split this.
+  // TODO(crbug.com/468249096): Remove the explicit legacy histogram recording.
   search_engine_choice_service->RecordLegacyStaticEligibility(condition);
-  return condition ==
-         search_engines::SearchEngineChoiceScreenConditions::kEligible;
+  return regional_capabilities::IsEligible(condition);
 }

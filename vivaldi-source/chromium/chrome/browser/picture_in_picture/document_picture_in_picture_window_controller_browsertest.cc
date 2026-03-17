@@ -29,6 +29,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/picture_in_picture_browser_frame_view.h"
+#include "chrome/browser/ui/views/tabs/tab_accessibility.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/test/web_app_browsertest_util.h"
 #include "chrome/browser/ui/web_applications/web_app_browsertest_base.h"
@@ -506,15 +507,23 @@ IN_PROC_BROWSER_TEST_F(DocumentPictureInPictureWindowControllerBrowserTest,
   base::RunLoop().RunUntilIdle();
 }
 
-// Window controller bounds should be same as the web content bounds.
+// Window controller bounds should be greater or equal to the web content
+// bounds.
 IN_PROC_BROWSER_TEST_F(DocumentPictureInPictureWindowControllerBrowserTest,
-                       CheckWindowBoundsSameAsWebContents) {
+                       CheckWindowBoundsGreaterOrEqualToWebContents) {
   LoadTabAndEnterPictureInPicture(browser());
   auto* web_contents = window_controller()->GetChildWebContents();
   ASSERT_TRUE(web_contents);
 
-  EXPECT_EQ(web_contents->GetContainerBounds(),
-            window_controller()->GetWindowBounds());
+  std::optional<gfx::Rect> pip_window_bounds =
+      PictureInPictureWindowManager::GetInstance()
+          ->GetPictureInPictureWindowBoundsInScreen();
+  ASSERT_TRUE(pip_window_bounds.has_value());
+
+  gfx::Rect container_bounds = web_contents->GetContainerBounds();
+
+  EXPECT_GE(pip_window_bounds->width(), container_bounds.width());
+  EXPECT_GE(pip_window_bounds->height(), container_bounds.height());
 }
 
 #if BUILDFLAG(IS_WIN)
@@ -715,7 +724,7 @@ IN_PROC_BROWSER_TEST_F(DocumentPictureInPictureWindowControllerBrowserTest,
   // Ozone/wayland doesn't support getting/setting window position in global
   // screen coordinates. So this test is not applicable there as it essentially
   // validates that.
-  if (ui::OzonePlatform::GetPlatformNameForTest() == "wayland") {
+  if (ui::OzonePlatform::RunningOnWaylandForTest()) {
     GTEST_SKIP();
   }
 #endif
@@ -952,7 +961,8 @@ IN_PROC_BROWSER_TEST_F(DocumentPictureInPictureWindowControllerBrowserTest,
   auto* pip_web_contents = window_controller()->GetChildWebContents();
   ASSERT_NE(nullptr, pip_web_contents);
   WaitForPageLoad(pip_web_contents);
-  auto* browser_view = static_cast<BrowserView*>(
+
+  auto* pip_browser_view = static_cast<BrowserView*>(
       BrowserWindow::FindBrowserWindowWithWebContents(pip_web_contents));
 
   // Verify that the pip window page title is empty and, the opener window page
@@ -966,8 +976,9 @@ IN_PROC_BROWSER_TEST_F(DocumentPictureInPictureWindowControllerBrowserTest,
   // Verify that the accessible label returns the opener window page title, when
   // the pip window page title is not set.
   EXPECT_EQ(base::UTF8ToUTF16(window_page_title),
-            browser_view->GetAccessibleTabLabel(
-                browser()->tab_strip_model()->active_index()));
+            tabs::GetAccessibleTabLabel(
+                pip_browser_view->browser()->tab_strip_model()->GetActiveTab(),
+                /*is_for_tab=*/false));
 
   // Set the pip window page title and ensure that the pip and opener window
   // page titles are different.
@@ -980,8 +991,9 @@ IN_PROC_BROWSER_TEST_F(DocumentPictureInPictureWindowControllerBrowserTest,
   // Verify that, although the pip window page title is set, the accessible
   // label returns the opener window page title.
   EXPECT_EQ(base::UTF8ToUTF16(window_page_title),
-            browser_view->GetAccessibleTabLabel(
-                browser()->tab_strip_model()->active_index()));
+            tabs::GetAccessibleTabLabel(
+                pip_browser_view->browser()->tab_strip_model()->GetActiveTab(),
+                /*is_for_tab=*/false));
 }
 
 // A dialog that checks if the picture-in-picture window is force-tucked

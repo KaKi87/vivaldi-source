@@ -23,7 +23,7 @@ NSString* kDisableDarkModeFunction =
 
 // static
 WebsiteDarkModeJavaScriptFeature*
-  WebsiteDarkModeJavaScriptFeature::GetInstance() {
+WebsiteDarkModeJavaScriptFeature::GetInstance() {
   static base::NoDestructor<WebsiteDarkModeJavaScriptFeature> instance;
   return instance.get();
 }
@@ -39,7 +39,6 @@ WebsiteDarkModeJavaScriptFeature::WebsiteDarkModeJavaScriptFeature()
 
 WebsiteDarkModeJavaScriptFeature::~WebsiteDarkModeJavaScriptFeature() = default;
 
-
 void WebsiteDarkModeJavaScriptFeature::ToggleDarkMode(web::WebState* web_state,
                                                       bool enabled) {
   for (web::WebFrame* frame :
@@ -51,8 +50,8 @@ void WebsiteDarkModeJavaScriptFeature::ToggleDarkMode(web::WebState* web_state,
   id<CRWWebViewProxy> webProxy = web_state->GetWebViewProxy();
   CRWWebViewScrollViewProxy* scrollProxy = webProxy.scrollViewProxy;
   UIScrollView* scrollView = scrollProxy.asUIScrollView;
-  scrollView.indicatorStyle = enabled ?
-      UIScrollViewIndicatorStyleWhite : UIScrollViewIndicatorStyleDefault;
+  scrollView.indicatorStyle = enabled ? UIScrollViewIndicatorStyleWhite
+                                      : UIScrollViewIndicatorStyleDefault;
 }
 
 void WebsiteDarkModeJavaScriptFeature::ToggleDarkMode(web::WebFrame* web_frame,

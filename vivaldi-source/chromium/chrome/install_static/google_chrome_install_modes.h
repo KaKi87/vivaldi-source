@@ -15,6 +15,17 @@
 
 namespace install_static {
 
+// The brand-specific company name to be included as a component of the install
+// and user data directory paths. May be empty if no such dir is to be used.
+inline constexpr wchar_t kCompanyPathName[] = L"Google";
+
+// The brand-specific product name to be included as a component of the install
+// and user data directory paths.
+inline constexpr wchar_t kProductPathName[] = L"Chrome";
+
+// The brand-specific safe browsing client name.
+inline constexpr char kSafeBrowsingName[] = "googlechrome";
+
 // Note: This list of indices must be kept in sync with the brand-specific
 // resource strings in chrome/installer/util/prebuild/create_string_rc.
 enum InstallConstantIndex {
@@ -109,7 +120,8 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
         .browser_prog_id_prefix = L"ChromeBHTML",  // Browser ProgID prefix.
         .browser_prog_id_description =
             L"Chrome Beta HTML Document",  // Browser ProgID description.
-        .direct_launch_url_scheme = "google-chrome-beta",
+        // Empty URL scheme for secondary modes.
+        .direct_launch_url_scheme = "",
         .pdf_prog_id_prefix = L"ChromeBPDF",  // PDF ProgID prefix.
         .pdf_prog_id_description =
             L"Chrome Beta PDF Document",  // PDF ProgID description.
@@ -182,7 +194,8 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
         .browser_prog_id_prefix = L"ChromeDHTML",  // ProgID prefix.
         .browser_prog_id_description =
             L"Chrome Dev HTML Document",  // Browser ProgID description.
-        .direct_launch_url_scheme = "google-chrome-dev",
+        // Empty URL scheme for secondary modes.
+        .direct_launch_url_scheme = "",
         .pdf_prog_id_prefix = L"ChromeDPDF",  // PDF ProgID prefix.
         .pdf_prog_id_description =
             L"Chrome Dev PDF Document",  // PDF ProgID description.
@@ -254,7 +267,8 @@ inline constexpr auto kInstallModes = std::to_array<InstallConstants>({
         .browser_prog_id_prefix = L"ChromeSSHTM",  // ProgID prefix.
         .browser_prog_id_description =
             L"Chrome Canary HTML Document",  // Browser ProgID description.
-        .direct_launch_url_scheme = "google-chrome-canary",
+        // Empty URL scheme for secondary modes.
+        .direct_launch_url_scheme = "",
         .pdf_prog_id_prefix = L"ChromeSSPDF",  // PDF ProgID prefix.
         .pdf_prog_id_description =
             L"Chrome Canary PDF Document",  // PDF ProgID description.

@@ -57,7 +57,7 @@ IsolationData& IsolationData::operator=(IsolationData&&) = default;
 
 base::Value IsolationData::AsDebugValue() const {
   auto debug_dict =
-      base::Value::Dict()
+      base::DictValue()
           .Set("isolated_web_app_location", location_.ToDebugValue())
           .Set("version", version_.GetString())
           .Set("controlled_frame_partitions (on-disk)",
@@ -101,7 +101,7 @@ IsolationData::PendingUpdateInfo& IsolationData::PendingUpdateInfo::operator=(
 
 base::Value IsolationData::PendingUpdateInfo::AsDebugValue() const {
   return base::Value(
-      base::Value::Dict()
+      base::DictValue()
           .Set("isolated_web_app_location", location.ToDebugValue())
           .Set("version", version.GetString())
           .Set("integrity_block_data",
@@ -216,9 +216,6 @@ IsolationData::Builder&& IsolationData::Builder::SetIntegrityBlockData(
 
 IsolationData::Builder& IsolationData::Builder::SetUpdateManifestUrl(
     GURL update_manifest_url) & {
-  CHECK(location_.dev_mode())
-      << "This field is supposed to be used only with dev mode installs via "
-         "chrome://web-app-internals.";
   CHECK(update_manifest_url.is_valid(), base::NotFatalUntil::M138);
   update_manifest_url_ = std::move(update_manifest_url);
   return *this;
@@ -226,9 +223,6 @@ IsolationData::Builder& IsolationData::Builder::SetUpdateManifestUrl(
 
 IsolationData::Builder&& IsolationData::Builder::SetUpdateManifestUrl(
     GURL update_manifest_url) && {
-  CHECK(location_.dev_mode())
-      << "This field is supposed to be used only with dev mode installs via "
-         "chrome://web-app-internals.";
   CHECK(update_manifest_url.is_valid(), base::NotFatalUntil::M138);
   update_manifest_url_ = std::move(update_manifest_url);
   return std::move(*this);

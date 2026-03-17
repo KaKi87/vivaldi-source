@@ -101,6 +101,7 @@ public class ChromeNullAwayLibraryModel implements LibraryModels {
         // TODO(https://github.com/uber/NullAway/issues/1212): Add FutureTask:
         //      .put("java.util.concurrent.FutureTask", 0)
         return new ImmutableSetMultimap.Builder<String, Integer>()
+                .put("java.util.function.Supplier", 0)
                 .put("java.util.concurrent.Callable", 0)
                 .put("java.util.concurrent.CompletableFuture", 0)
                 .put("java.util.concurrent.CompletionStage", 0)
@@ -118,7 +119,6 @@ public class ChromeNullAwayLibraryModel implements LibraryModels {
                 .put("java.util.function.Function", 1)
                 .put("java.util.function.LongFunction", 0)
                 .put("java.util.function.Predicate", 0)
-                .put("java.util.function.Supplier", 0)
                 .build();
     }
 

@@ -26,7 +26,8 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.R;
@@ -56,7 +57,6 @@ public class CustomTabHistoryIphControllerUnitTest {
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
 
-    @Mock private ActivityTabProvider mTabProvider;
     @Mock private UserEducationHelper mUserEducationHelper;
     @Mock private Profile mMockProfile;
     @Mock private AppMenuHandler mAppMenuHandler;
@@ -64,6 +64,7 @@ public class CustomTabHistoryIphControllerUnitTest {
     @Mock private Tab mTab;
 
     @Mock private Activity mActivity;
+    private final ActivityTabProvider mActivityTabProvider = new ActivityTabProvider();
     private CustomTabHistoryIphController mController;
 
     @Before
@@ -72,10 +73,12 @@ public class CustomTabHistoryIphControllerUnitTest {
         when(mTracker.wouldTriggerHelpUi(FeatureConstants.CCT_HISTORY_FEATURE)).thenReturn(true);
         TrackerFactory.setTrackerForTests(mTracker);
         when(mMockProfile.isOffTheRecord()).thenReturn(false);
-        var profileSupplier = new ObservableSupplierImpl<>(mMockProfile);
+        var profileSupplier =
+                (NonNullObservableSupplier<Profile>)
+                        ObservableSuppliers.createNonNull(mMockProfile);
         mController =
                 new CustomTabHistoryIphController(
-                        mActivity, mTabProvider, profileSupplier, mAppMenuHandler);
+                        mActivity, mActivityTabProvider, profileSupplier, mAppMenuHandler);
         mController.setUserEducationHelperForTesting(mUserEducationHelper);
     }
 

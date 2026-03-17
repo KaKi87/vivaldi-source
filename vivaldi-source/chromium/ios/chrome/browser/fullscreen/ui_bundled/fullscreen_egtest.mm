@@ -45,24 +45,6 @@ void HideToolbarUsingUI() {
       performAction:grey_swipeSlowInDirection(kGREYDirectionUp)];
 }
 
-// Asserts that the current URL is the `expectedURL` one.
-void AssertURLIs(const GURL& expectedURL) {
-  NSString* description = [NSString
-      stringWithFormat:@"Timeout waiting for the url to be %@",
-                       base::SysUTF8ToNSString(expectedURL.GetContent())];
-
-  ConditionBlock condition = ^{
-    NSError* error = nil;
-    [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
-                                            expectedURL.GetContent())]
-        assertWithMatcher:grey_notNil()
-                    error:&error];
-    return (error == nil);
-  };
-  GREYAssert(WaitUntilConditionOrTimeout(kWaitForPageLoadTimeout, condition),
-             description);
-}
-
 // A PDF itself can take a little longer to appear even after the page is
 // loaded. Instead, do an additional wait for the internal PDF class to appear
 // in the view hierarchy.
@@ -174,7 +156,7 @@ std::unique_ptr<net::test_server::HttpResponse> CreateHttpResponse(
 
   // Test that the toolbar is hidden after a user swipes up.
   [[EarlGrey selectElementWithMatcher:WebStateScrollViewMatcher()]
-      performAction:grey_scrollInDirection(kGREYDirectionDown, 150)];
+      performAction:grey_scrollInDirection(kGREYDirectionDown, 200)];
   [ChromeEarlGreyUI waitForToolbarVisible:NO];
 
   // Test that the toolbar is visible after a user swipes down.
@@ -184,7 +166,7 @@ std::unique_ptr<net::test_server::HttpResponse> CreateHttpResponse(
 
   // Test that the toolbar is hidden after a user swipes up.
   [[EarlGrey selectElementWithMatcher:WebStateScrollViewMatcher()]
-      performAction:grey_scrollInDirection(kGREYDirectionDown, 150)];
+      performAction:grey_scrollInDirection(kGREYDirectionDown, 200)];
   [ChromeEarlGreyUI waitForToolbarVisible:NO];
 }
 
@@ -259,6 +241,12 @@ std::unique_ptr<net::test_server::HttpResponse> CreateHttpResponse(
 // Tests that reloading of a page shows the header even if it was not shown
 // previously.
 - (void)testShowHeaderOnReload {
+// TODO(crbug.com/482416484): Test fails on iphone device.
+#if !TARGET_IPHONE_SIMULATOR
+  if (![ChromeEarlGrey isIPadIdiom]) {
+    EARL_GREY_TEST_DISABLED(@"Fails on iPhone device.");
+  }
+#endif
   self.testServer->RegisterRequestHandler(base::BindRepeating(
       [](const net::test_server::HttpRequest& request)
           -> std::unique_ptr<net::test_server::HttpResponse> {
@@ -325,7 +313,7 @@ std::unique_ptr<net::test_server::HttpResponse> CreateHttpResponse(
   [ChromeEarlGrey waitForWebStateContainingText:"link2"];
   [ChromeEarlGrey waitForMainTabCount:2];
 
-  AssertURLIs(destinationURL);
+  [ChromeEarlGrey waitForWebStateVisibleURL:destinationURL];
 
   // Hide the toolbar.
   HideToolbarUsingUI();
@@ -454,7 +442,8 @@ std::unique_ptr<net::test_server::HttpResponse> CreateHttpResponse(
   [ChromeEarlGreyUI waitForToolbarVisible:NO];
 
   [ChromeEarlGrey tapWebStateElementWithID:@"link"];
-  AssertURLIs(ErrorPageResponseProvider::GetDnsFailureUrl());
+  [ChromeEarlGrey
+      waitForWebStateVisibleURL:ErrorPageResponseProvider::GetDnsFailureUrl()];
   [ChromeEarlGreyUI waitForToolbarVisible:YES];
 }
 
@@ -523,6 +512,8 @@ std::unique_ptr<net::test_server::HttpResponse> CreateHttpResponse(
 - (AppLaunchConfiguration)appConfigurationForTestCase {
   AppLaunchConfiguration config;
   config.features_enabled.push_back(web::features::kSmoothScrollingDefault);
+  config.features_disabled.push_back(
+      web::features::kSmoothScrollingUseDelegate);
   return config;
 }
 
@@ -552,6 +543,28 @@ std::unique_ptr<net::test_server::HttpResponse> CreateHttpResponse(
 
 - (void)testLongPDFScroll {
   [super testLongPDFScroll];
+}
+
+@end
+
+#pragma mark - No broadcaster tests
+
+// Fullscreens tests for Smooth scrolling implementation listenning to
+// UIScrollViewDelegate instead of using broadcaster.
+@interface FullscreenNoBroadcasterTestCase : ZZZFullscreenTestCase
+@end
+
+@implementation FullscreenNoBroadcasterTestCase
+
+- (AppLaunchConfiguration)appConfigurationForTestCase {
+  AppLaunchConfiguration config;
+  config.features_enabled.push_back(web::features::kSmoothScrollingDefault);
+  config.features_enabled.push_back(web::features::kSmoothScrollingUseDelegate);
+  return config;
+}
+
+// This is currently needed to prevent this test case from being ignored.
+- (void)testEmpty {
 }
 
 @end

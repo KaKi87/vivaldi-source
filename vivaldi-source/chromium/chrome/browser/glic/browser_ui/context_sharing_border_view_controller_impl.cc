@@ -33,7 +33,8 @@ void ContextSharingBorderViewControllerImpl::Initialize(
       GlicKeyedServiceFactory::GetGlicKeyedService(browser->GetProfile());
 
   // Subscribe to glow updates from the actor border controller.
-  if (features::kGlicActorUiBorderGlow.Get()) {
+  if (base::FeatureList::IsEnabled(features::kGlicActorUi) &&
+      features::kGlicActorUiBorderGlow.Get()) {
     actor_border_view_controller_subscription_ =
         ActorBorderViewController::From(browser)
             ->AddOnActorBorderGlowUpdatedCallback(
@@ -210,7 +211,7 @@ void ContextSharingBorderViewControllerImpl::UpdateBorderView(
           // There is be a chance that the border view has already stopped
           // showing. In that case, gracefully handle the crash case in
           // crbug.com/398319435 by closing(minimizing) the glic window.
-          glic_service_->window_controller().Close();
+          glic_service_->window_controller().Close({});
         }
 
         border_view_->ResetAnimationCycle();

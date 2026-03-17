@@ -141,7 +141,7 @@
 <translation id="3129173833825111527">左側の余裕</translation>
 <translation id="3144647712221361880">別のユーザーとしてリンク開く</translation>
 <translation id="3222066309010235055">事前レンダリング: <ph name="PRERENDER_CONTENTS_NAME" /></translation>
-<translation id="3228985231489269630">{NUM\_EXTENSIONS, plural,
+<translation id="3228985231489269630">{NUM_EXTENSIONS, plural,
  =1 {１つの拡張機能消すか、<ph name="BEGIN_LINK" />Chromeウェブストア<ph name="END_LINK" />から似たような拡張機能に置き換えてちょうだい。}
  other {拡張機能消すか、<ph name="BEGIN_LINK" />Chromeウェブストア<ph name="END_LINK" />から似たような拡張機能に置き換えてちょうだい。}
 }</translation>
@@ -303,7 +303,6 @@
 <translation id="5624959475330585145">安全やない接続使う前に確認する</translation>
 <translation id="5638309510554459422"><ph name="BEGIN_LINK" />Chrome ウェブストア<ph name="END_LINK" />で拡張機能とかテーマ探せるで</translation>
 <translation id="5677928146339483299">ブロックしてるで</translation>
-<translation id="5707185214361380026">拡張機能、読み込めまれへんかったわ：</translation>
 <translation id="5713171467967533494">Vivaldiブラウザで開く</translation>
 <translation id="5746169159649715125">PDFで保存</translation>
 <translation id="5747809636523347288">貼り付けて <ph name="URL" /> に行く (&amp;S)</translation>

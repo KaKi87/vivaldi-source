@@ -30,6 +30,8 @@
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #if BUILDFLAG(ENABLE_SESSION_SERVICE)
 #include "chrome/browser/sessions/session_data_service.h"
 #include "chrome/browser/sessions/session_data_service_factory.h"
@@ -84,7 +86,8 @@ bool LaunchVivaldi(const base::CommandLine& command_line,
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   // Default is now launching the Vivaldi App.
   // TODO(sverrir@vivaldi.com): Remove
-  const Extension* extension = GetPlatformApp(profile_info.profile, vivaldi::kVivaldiAppId);
+  const Extension* extension =
+      GetPlatformApp(profile_info.profile, vivaldi::kVivaldiAppId);
   // If |vivaldi::kVivaldiAppId| is a disabled platform app we handle it
   // specially here, otherwise it will be handled below.
   if (extension) {
@@ -94,10 +97,10 @@ bool LaunchVivaldi(const base::CommandLine& command_line,
   LaunchUpdateNotifier(profile_info.profile);
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
-  apps::AppLaunchParams params(
-      extension->name(), apps::LaunchContainer::kLaunchContainerNone,
-      WindowOpenDisposition::NEW_WINDOW,
-      apps::LaunchSource::kFromChromeInternal);
+  apps::AppLaunchParams params(extension->name(),
+                               apps::LaunchContainer::kLaunchContainerNone,
+                               WindowOpenDisposition::NEW_WINDOW,
+                               apps::LaunchSource::kFromChromeInternal);
   params.command_line = command_line;
   params.current_directory = cur_dir;
 
@@ -125,16 +128,20 @@ bool AddVivaldiNewPage(bool welcome_run_none, std::vector<GURL>* startup_urls) {
 bool DoCleanShutdownIfNeeded(const base::CommandLine& command_line) {
   if (command_line.HasSwitch(switches::kCleanShutdown)) {
     // Make sure we save current session.
-    for (Browser* browser : *BrowserList::GetInstance()) {
-      browser->profile()->SaveSessionState();
+    ForEachCurrentAndNewBrowserWindowInterfaceOrderedByActivation(
+        [&](BrowserWindowInterface* browser_interface) {
+          Profile* profile = browser_interface->GetProfile();
+          profile->SaveSessionState();
 #if BUILDFLAG(ENABLE_SESSION_SERVICE)
-      auto* session_data_service =
-          SessionDataServiceFactory::GetForProfile(browser->profile());
-      if (session_data_service) {
-        session_data_service->SetForceKeepSessionState();
-      }
-#endif  // BUILDFLAG(ENABLE_SESSION_SERVICE)
-    }
+          auto* session_data_service =
+              SessionDataServiceFactory::GetForProfile(profile);
+          if (session_data_service) {
+            session_data_service->SetForceKeepSessionState();
+          }
+#endif
+          // BUILDFLAG(ENABLE_SESSION_SERVICE)
+          return true;  // continue iterating
+        });
     chrome::ExitIgnoreUnloadHandlers();
     return true;
   }

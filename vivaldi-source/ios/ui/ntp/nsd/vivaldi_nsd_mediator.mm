@@ -10,8 +10,8 @@
 #import "ios/chrome/browser/bookmarks/model/bookmarks_utils.h"
 #import "ios/chrome/browser/bookmarks/model/managed_bookmark_service_factory.h"
 #import "ios/chrome/browser/bookmarks/ui_bundled/bookmark_utils_ios.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/cells/content_suggestions_most_visited_item.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/cells/most_visited_tiles_config.h"
+#import "ios/chrome/browser/content_suggestions/most_visited_tiles/ui/most_visited_item.h"
+#import "ios/chrome/browser/content_suggestions/most_visited_tiles/ui/most_visited_tiles_config.h"
 #import "ios/chrome/browser/favicon/model/favicon_loader.h"
 #import "ios/chrome/browser/favicon/model/ios_chrome_favicon_loader_factory.h"
 #import "ios/chrome/browser/favicon/ui_bundled/favicon_attributes_provider.h"
@@ -27,7 +27,7 @@
 
 using bookmarks::BookmarkNode;
 
-@interface VivaldiNSDMediator ()<VivaldiMostVisitedSitesConsumer> {
+@interface VivaldiNSDMediator () <VivaldiMostVisitedSitesConsumer> {
   ProfileIOS* _profile;
   BookmarkModel* _bookmarkModel;
   direct_match::DirectMatchService* _directMatchService;
@@ -35,16 +35,16 @@ using bookmarks::BookmarkNode;
 }
 
 // Favicon loaded to fetch favicons from cache.
-@property(nonatomic,assign) FaviconLoader* faviconLoader;
+@property(nonatomic, assign) FaviconLoader* faviconLoader;
 // Manager that provides most visited sites
-@property(nonatomic,strong)
+@property(nonatomic, strong)
     VivaldiMostVisitedSitesManager* mostVisitedSiteManager;
 // Most visited items from the MostVisitedSites service currently displayed.
-@property(nonatomic,strong) MostVisitedTilesConfig* mostVisitedConfig;
+@property(nonatomic, strong) MostVisitedTilesConfig* mostVisitedConfig;
 // The item that keeps track of the location where new items will be added.
 // This only lives on this view and doesn't affect the initial folder incase
 // user changes the location by folder selection option.
-@property(nonatomic,strong) VivaldiSpeedDialItem* locationFolderItem;
+@property(nonatomic, strong) VivaldiSpeedDialItem* locationFolderItem;
 
 @end
 
@@ -60,8 +60,7 @@ using bookmarks::BookmarkNode;
 
     // Construct the folder item from the initial location item
     VivaldiSpeedDialItem* locationFolderItem =
-        [[VivaldiSpeedDialItem alloc]
-            initWithBookmark:folderItem.bookmarkNode];
+        [[VivaldiSpeedDialItem alloc] initWithBookmark:folderItem.bookmarkNode];
     _locationFolderItem = locationFolderItem;
 
     _bookmarkModel = bookmarkModel;
@@ -70,12 +69,10 @@ using bookmarks::BookmarkNode;
 
     _directMatchService =
         direct_match::DirectMatchServiceFactory::GetForProfile(_profile);
-    _faviconLoader =
-        IOSChromeFaviconLoaderFactory::GetForProfile(profile);
+    _faviconLoader = IOSChromeFaviconLoaderFactory::GetForProfile(profile);
 
     VivaldiMostVisitedSitesManager* mostVisitedSiteManager =
-        [[VivaldiMostVisitedSitesManager alloc]
-            initWithProfile:profile];
+        [[VivaldiMostVisitedSitesManager alloc] initWithProfile:profile];
     mostVisitedSiteManager.consumer = self;
     _mostVisitedSiteManager = mostVisitedSiteManager;
     [_mostVisitedSiteManager start];
@@ -110,8 +107,7 @@ using bookmarks::BookmarkNode;
                         folderIsGroup:self.locationFolderItem.isSpeedDial];
 }
 
-- (void)saveItemWithTitle:(NSString*)title
-                      url:(NSString*)urlString {
+- (void)saveItemWithTitle:(NSString*)title url:(NSString*)urlString {
   [self save:title url:urlString];
   [self.consumer editorWantsDismissal];
 }
@@ -149,8 +145,7 @@ using bookmarks::BookmarkNode;
 }
 
 #pragma mark - Private
-- (void)save:(NSString*)title
-         url:(NSString*)urlString {
+- (void)save:(NSString*)title url:(NSString*)urlString {
   GURL url = bookmark_utils_ios::ConvertUserDataToGURL(urlString);
   if (!url.is_valid())
     return;
@@ -162,9 +157,9 @@ using bookmarks::BookmarkNode;
 
   std::u16string titleString = base::SysNSStringToUTF16(title);
   _bookmarkModel->AddURL(
-        self.locationFolderItem.bookmarkNode,
-        self.locationFolderItem.bookmarkNode->children().size(),
-        titleString, url);
+      self.locationFolderItem.bookmarkNode,
+      self.locationFolderItem.bookmarkNode->children().size(), titleString,
+      url);
 }
 
 - (void)deleteItem:(NSString*)urlString {
@@ -172,8 +167,8 @@ using bookmarks::BookmarkNode;
       [self nodesForURLString:urlString];
 
   if (!nodesToDelete.empty()) {
-    bookmark_utils_ios::DeleteBookmarks(
-        nodesToDelete, _bookmarkModel, FROM_HERE);
+    bookmark_utils_ios::DeleteBookmarks(nodesToDelete, _bookmarkModel,
+                                        FROM_HERE);
   }
 }
 
@@ -181,7 +176,7 @@ using bookmarks::BookmarkNode;
   std::vector<const direct_match::DirectMatchService::DirectMatchUnit*> units =
       _directMatchService->GetDirectMatchesForCategory(category.idValue);
 
-  NSMutableArray<VivaldiNSDDirectMatchItem*> *categoryItems =
+  NSMutableArray<VivaldiNSDDirectMatchItem*>* categoryItems =
       [self matchItemsFromUnits:units];
 
   [self.consumer directMatchCategoryItemsDidLoad:categoryItems
@@ -189,11 +184,10 @@ using bookmarks::BookmarkNode;
 }
 
 - (void)preparePopularSitesAndNotifyConsumersIfNeeded {
-
   std::vector<const direct_match::DirectMatchService::DirectMatchUnit*> units =
       _directMatchService->GetPopularSites();
 
-  NSMutableArray<VivaldiNSDDirectMatchItem*> *popularSites =
+  NSMutableArray<VivaldiNSDDirectMatchItem*>* popularSites =
       [self matchItemsFromUnits:units];
 
   [self.consumer popularSitesDidLoad:popularSites];
@@ -203,8 +197,7 @@ using bookmarks::BookmarkNode;
   NSMutableArray<VivaldiNSDTopSiteItem*>* topSites =
       [[NSMutableArray alloc] init];
 
-  for (ContentSuggestionsMostVisitedItem* tile in
-          _mostVisitedConfig.mostVisitedItems) {
+  for (MostVisitedItem* tile in _mostVisitedConfig.mostVisitedItems) {
     NSString* urlString = base::SysUTF8ToNSString(tile.URL.spec());
     BOOL added = [self isURLAddedToCurrentLocation:urlString];
 
@@ -253,10 +246,10 @@ using bookmarks::BookmarkNode;
 
 /// Returns mapped `VivaldiNSDDirectMatchItem` from the fetched
 /// `DirectMatchUnit` from the service.
-- (NSMutableArray<VivaldiNSDDirectMatchItem*>*)matchItemsFromUnits:(
-  std::vector<const direct_match::DirectMatchService::DirectMatchUnit*>)units {
-
-  NSMutableArray<VivaldiNSDDirectMatchItem*> *items = [NSMutableArray array];
+- (NSMutableArray<VivaldiNSDDirectMatchItem*>*)matchItemsFromUnits:
+    (std::vector<const direct_match::DirectMatchService::DirectMatchUnit*>)
+        units {
+  NSMutableArray<VivaldiNSDDirectMatchItem*>* items = [NSMutableArray array];
 
   for (size_t i = 0; i < units.size(); ++i) {
     const auto* unit = units[i];
@@ -269,14 +262,14 @@ using bookmarks::BookmarkNode;
       NSInteger position = unit->position;
       BOOL added = [self isURLAddedToCurrentLocation:urlString];
 
-      VivaldiNSDDirectMatchItem* item = [[VivaldiNSDDirectMatchItem alloc]
-                                            initWithTitle:title
-                                                urlString:urlString
-                                                     name:name
-                                              faviconPath:faviconPath
-                                                 category:categoryId
-                                                 position:position
-                                                    added:added];
+      VivaldiNSDDirectMatchItem* item =
+          [[VivaldiNSDDirectMatchItem alloc] initWithTitle:title
+                                                 urlString:urlString
+                                                      name:name
+                                               faviconPath:faviconPath
+                                                  category:categoryId
+                                                  position:position
+                                                     added:added];
       [items addObject:item];
     }
   }
@@ -314,7 +307,7 @@ using bookmarks::BookmarkNode;
   };
 
   self.faviconLoader->FaviconForPageUrlOrHost(
-        blockURL, kDesiredMediumFaviconSizePt, faviconLoadedBlock);
+      blockURL, kDesiredMediumFaviconSizePt, faviconLoadedBlock);
 }
 
 @end

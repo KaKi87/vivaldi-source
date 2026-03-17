@@ -8,6 +8,7 @@
 
 #import "base/functional/bind.h"
 #import "base/functional/callback_helpers.h"
+#import "base/strings/strcat.h"
 #import "base/strings/string_number_conversions.h"
 #import "base/test/metrics/histogram_tester.h"
 #import "base/test/scoped_feature_list.h"
@@ -35,7 +36,7 @@ using SaveCreditCardOptions =
 constexpr int kNavEntryId = 10;
 constexpr std::string_view kSaveCreditCardPromptOfferBaseHistogram =
     "Autofill.SaveCreditCardPromptOffer.IOS";
-const std::string kSaveCreditCardPromptResultIOSPrefix =
+constexpr std::string_view kSaveCreditCardPromptResultIOSPrefix =
     "Autofill.SaveCreditCardPromptResult.IOS";
 }  // namespace
 
@@ -362,11 +363,12 @@ TEST_F(AutofillSaveCardInfoBarDelegateTest, LogPromptOfferMetric_ForLocalSave) {
                                  SaveCreditCardPromptOverlayType::kBanner);
 
   histogram_tester.ExpectBucketCount(
-      base::StrCat({kSaveCreditCardPromptOfferBaseHistogram, ".Local.Banner"}),
+      base::StrCat({kSaveCreditCardPromptOfferBaseHistogram,
+                    ".Local.Banner.SavingWithoutCvc"}),
       SaveCardPromptOffer::kShown, 1);
   histogram_tester.ExpectBucketCount(
       base::StrCat({kSaveCreditCardPromptOfferBaseHistogram,
-                    ".Local.Banner.NumStrikes.0.NoFixFlow"}),
+                    ".Local.Banner.NumStrikes.0.NoFixFlow.SavingWithoutCvc"}),
       SaveCardPromptOffer::kShown, 1);
 }
 
@@ -385,11 +387,12 @@ TEST_F(AutofillSaveCardInfoBarDelegateTest,
                                  SaveCreditCardPromptOverlayType::kBanner);
 
   histogram_tester.ExpectBucketCount(
-      base::StrCat({kSaveCreditCardPromptOfferBaseHistogram, ".Server.Banner"}),
+      base::StrCat({kSaveCreditCardPromptOfferBaseHistogram,
+                    ".Server.Banner.SavingWithoutCvc"}),
       SaveCardPromptOffer::kShown, 1);
   histogram_tester.ExpectBucketCount(
       base::StrCat({kSaveCreditCardPromptOfferBaseHistogram,
-                    ".Server.Banner.NumStrikes.0.NoFixFlow"}),
+                    ".Server.Banner.NumStrikes.0.NoFixFlow.SavingWithoutCvc"}),
       SaveCardPromptOffer::kShown, 1);
 }
 
@@ -410,7 +413,7 @@ TEST_F(AutofillSaveCardInfoBarDelegateTest,
 
   histogram_tester.ExpectUniqueSample(
       base::StrCat({kSaveCreditCardPromptResultIOSPrefix,
-                    ".Local.Banner.NumStrikes.0.NoFixFlow"}),
+                    ".Local.Banner.NumStrikes.0.NoFixFlow.SavingWithoutCvc"}),
       SaveCreditCardPromptResultIOS::kShown, 1);
 }
 
@@ -431,7 +434,7 @@ TEST_F(AutofillSaveCardInfoBarDelegateTest,
 
   histogram_tester.ExpectUniqueSample(
       base::StrCat({kSaveCreditCardPromptResultIOSPrefix,
-                    ".Server.Banner.NumStrikes.0.NoFixFlow"}),
+                    ".Server.Banner.NumStrikes.0.NoFixFlow.SavingWithoutCvc"}),
       SaveCreditCardPromptResultIOS::kShown, 1);
 }
 
@@ -471,7 +474,7 @@ TEST_P(AutofillSaveCardInfoBarDelegateMetricsTest,
       base::StrCat(
           {kSaveCreditCardPromptResultIOSPrefix, ".Server",
            SaveCreditCardPromptOverlayTypeToMetricSuffix(OverlayType()),
-           ".NumStrikes.0.NoFixFlow"}),
+           ".NumStrikes.0.NoFixFlow.SavingWithoutCvc"}),
       Metric(), 1);
 }
 
@@ -539,13 +542,15 @@ TEST_P(AutofillSaveCardInfoBarDelegateMetricsTestWithFixFlow,
                                  SaveCreditCardPromptOverlayType::kModal);
 
   histogram_tester.ExpectBucketCount(
-      base::StrCat({kSaveCreditCardPromptOfferBaseHistogram, ".Server.Modal"}),
+      base::StrCat({kSaveCreditCardPromptOfferBaseHistogram,
+                    ".Server.Modal.SavingWithoutCvc"}),
       SaveCardPromptOffer::kShown, 1);
   histogram_tester.ExpectBucketCount(
       base::StrCat({kSaveCreditCardPromptOfferBaseHistogram,
                     ".Server.Modal.NumStrikes.0",
                     SaveCreditCardPromptFixFlowSuffix(
-                        RequestingCardHolderName(), RequestingExpiryDate())}),
+                        RequestingCardHolderName(), RequestingExpiryDate()),
+                    ".SavingWithoutCvc"}),
       SaveCardPromptOffer::kShown, 1);
 }
 
@@ -572,7 +577,8 @@ TEST_P(AutofillSaveCardInfoBarDelegateMetricsTestWithFixFlow,
       base::StrCat({kSaveCreditCardPromptResultIOSPrefix,
                     ".Server.Modal.NumStrikes.0",
                     SaveCreditCardPromptFixFlowSuffix(
-                        RequestingCardHolderName(), RequestingExpiryDate())}),
+                        RequestingCardHolderName(), RequestingExpiryDate()),
+                    ".SavingWithoutCvc"}),
       SaveCreditCardPromptResultIOS::kShown, 1);
 }
 
@@ -601,16 +607,17 @@ TEST_P(AutofillSaveCardInfoBarDelegateMetricsTestWithNumStrikes,
                                  SaveCreditCardPromptOverlayType::kModal);
 
   histogram_tester.ExpectBucketCount(
-      base::StrCat({kSaveCreditCardPromptOfferBaseHistogram, ".Server.Modal"}),
+      base::StrCat({kSaveCreditCardPromptOfferBaseHistogram,
+                    ".Server.Modal.SavingWithoutCvc"}),
       SaveCardPromptOffer::kShown, 1);
 
   // Strike counts that are out of the range [0, 2] should be ignored.
   int expected_samples = GetParam() > 2 ? 0 : 1;
 
   histogram_tester.ExpectBucketCount(
-      base::StrCat({kSaveCreditCardPromptOfferBaseHistogram,
-                    ".Server.Modal.NumStrikes.",
-                    base::NumberToString(GetParam()), ".NoFixFlow"}),
+      base::StrCat(
+          {kSaveCreditCardPromptOfferBaseHistogram, ".Server.Modal.NumStrikes.",
+           base::NumberToString(GetParam()), ".NoFixFlow.SavingWithoutCvc"}),
       SaveCardPromptOffer::kShown, expected_samples);
 }
 
@@ -634,9 +641,9 @@ TEST_P(AutofillSaveCardInfoBarDelegateMetricsTestWithNumStrikes,
   int expected_samples = GetParam() > 2 ? 0 : 1;
 
   histogram_tester.ExpectUniqueSample(
-      base::StrCat({kSaveCreditCardPromptResultIOSPrefix,
-                    ".Server.Modal.NumStrikes.",
-                    base::NumberToString(GetParam()), ".NoFixFlow"}),
+      base::StrCat(
+          {kSaveCreditCardPromptResultIOSPrefix, ".Server.Modal.NumStrikes.",
+           base::NumberToString(GetParam()), ".NoFixFlow.SavingWithoutCvc"}),
       SaveCreditCardPromptResultIOS::kShown, expected_samples);
 }
 
@@ -657,7 +664,7 @@ class AutofillSaveCardInfoBarDelegateMetricsTestWithCardSaveType
       case payments::PaymentsAutofillClient::CardSaveType::kCvcSaveOnly:
         return ".SavingWithCvc";
       case payments::PaymentsAutofillClient::CardSaveType::kCardSaveOnly:
-        return "";
+        return ".SavingWithoutCvc";
     }
   }
 };
@@ -705,10 +712,15 @@ TEST_P(AutofillSaveCardInfoBarDelegateMetricsTestWithCardSaveType,
       SaveCreditCardPromptResultIOS::kShown,
       SaveCreditCardPromptOverlayType::kBanner);
 
+  std::string suffix =
+      save_type ==
+              payments::PaymentsAutofillClient::CardSaveType::kCardSaveWithCvc
+          ? ".SavingWithCvc"
+          : ".SavingWithoutCvc";
+
   histogram_tester.ExpectUniqueSample(
       base::StrCat({kSaveCreditCardPromptResultIOSPrefix,
-                    ".Server.Banner.NumStrikes.0.NoFixFlow",
-                    CardSaveTypeToMetricSuffix(save_type)}),
+                    ".Server.Banner.NumStrikes.0.NoFixFlow", suffix}),
       SaveCreditCardPromptResultIOS::kShown, 1);
 }
 

@@ -21,7 +21,7 @@ namespace feed {
 namespace android {
 namespace {
 
-jlong ConvertTimestamp(base::TimeTicks ticks) {
+int64_t ConvertTimestamp(base::TimeTicks ticks) {
   return ticks.since_origin().InNanoseconds();
 }
 
@@ -102,9 +102,9 @@ int CombinedNetworkStatusCodeToCanonicalStatus(
 
 }  // namespace
 
-static jlong JNI_FeedReliabilityLoggingBridge_Init(
+static int64_t JNI_FeedReliabilityLoggingBridge_Init(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& j_this) {
+    const base::android::JavaRef<jobject>& j_this) {
   return reinterpret_cast<intptr_t>(new FeedReliabilityLoggingBridge(j_this));
 }
 

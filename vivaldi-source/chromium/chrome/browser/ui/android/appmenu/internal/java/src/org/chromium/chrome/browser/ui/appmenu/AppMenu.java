@@ -67,7 +67,9 @@ import android.os.Build;
 import java.util.function.Supplier;
 
 import org.chromium.build.BuildConfig;
+import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
 import org.chromium.ui.base.DeviceFormFactor;
+import org.chromium.ui.widget.ChromeImageButton;
 
 import org.vivaldi.browser.preferences.VivaldiPreferences;
 
@@ -279,6 +281,7 @@ class AppMenu implements OnKeyListener {
 
     // Vivaldi
     private @Nullable Supplier<Boolean> mIsInOverviewModeSupplier;
+    private @Nullable BrowserControlsStateProvider mBrowserControlsStateProvider;
 
     /**
      * Creates and sets up the App Menu.
@@ -509,44 +512,16 @@ class AppMenu implements OnKeyListener {
 
         // Vivaldi - Offset the menu list to keep the vivaldi icon visible
         if (!isInOverviewMode) {
-            boolean isTabStripOn = VivaldiPreferences.getSharedPreferencesManager().readBoolean(
-                    VivaldiPreferences.SHOW_TAB_STRIP, true);
-            boolean isTabStackVisible = VivaldiPreferences.getSharedPreferencesManager().readBoolean(
-                    VivaldiPreferences.TAB_STACK_VISIBLE, false);
-            boolean isTabStackToolbarVisible = VivaldiPreferences.getSharedPreferencesManager().readBoolean(
-                    VivaldiPreferences.TAB_STACK_TOOLBAR_VISIBLE, false);
-            boolean isTablet = DeviceFormFactor.isNonMultiDisplayContextOnTablet(context);
-
-            int tabStripHeight =
-                    (int) context.getResources().getDimension(R.dimen.tab_strip_height);
-
-            int popupHeightOffset = tabStripHeight;
-            if (isTabStripOn) popupHeightOffset += tabStripHeight;
-            if (isTabStackVisible) popupHeightOffset += tabStripHeight;
-            int screenHeight = context.getResources().getDisplayMetrics().heightPixels;
-
+            int vButtonHeight = ((ChromeImageButton) anchorView).getDrawable().getIntrinsicHeight();
             if (isToolbarAtBottom) {
-                if (isTabStackToolbarVisible) popupHeightOffset += tabStripHeight;
-                // Adjust the popup height as per the available screen space
-                if (getPopup() != null
-                        && getPopup().getHeight() + popupHeightOffset + padding.bottom
-                                > screenHeight)
-                    getPopup().setHeight(getPopup().getHeight() - popupHeightOffset);
-                // Vivaldi VAB-12158
-                popupPosition[1] =
-                        (int) context.getResources().getDimension(R.dimen.menu_vertical_offset);
-                int offsetPadding = (int) context.getResources().getDimension(
-                        R.dimen.menu_vertical_offset_padding);
-                if (isTabStripOn) popupPosition[1] += offsetPadding;
-                if (isTabStackVisible) popupPosition[1] += offsetPadding;
-                if (isTabStackToolbarVisible) popupPosition[1] += offsetPadding;
+                // Adjust the Y-position of the popup
+                popupPosition[1] = (visibleDisplayFrame.top + visibleDisplayFrame.bottom)
+                        - visibleDisplayFrame.height() - vButtonHeight;
             } else {
                 // Adjust the Y-position of the popup
-                popupPosition[1] += tabStripHeight;
-                if (isTablet) popupPosition[1] += padding.top;
-                // Adjust the popup height as per the available screen space
-                if (getPopup() != null && getPopup().getHeight() + popupPosition[1] > screenHeight)
-                    getPopup().setHeight(getPopup().getHeight() - popupHeightOffset);
+                if (mBrowserControlsStateProvider != null)
+                    popupPosition[1] =
+                            mBrowserControlsStateProvider.getTopControlsHeight() + vButtonHeight;
             }
         }
         // End Vivaldi
@@ -1006,5 +981,10 @@ class AppMenu implements OnKeyListener {
     /** Vivaldi */
     public void setIsInOverviewModeSupplier(Supplier<Boolean> supplier) {
         mIsInOverviewModeSupplier = supplier;
+    }
+
+    /** Vivaldi */
+    public void setBrowserControlsStateProvider( BrowserControlsStateProvider provider) {
+        mBrowserControlsStateProvider = provider;
     }
 }

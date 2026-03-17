@@ -7,28 +7,30 @@
 
 namespace content {
 struct GlobalRenderFrameHostId;
-} // namespace content
+}  // namespace content
 
 namespace permissions {
 class PermissionRequest;
 class PermissionRequestID;
-} // namespace permissions
+}  // namespace permissions
 
 namespace vivaldi {
 namespace permissions {
 
-/** Called on every notification change. Allows the permission icons to be synchronized. */
+/** Called on every notification change. Allows the permission icons to be
+ * synchronized. */
 void NotifyPermissionSet(const ::permissions::PermissionRequestID& id,
                          ContentSettingsType type,
                          ContentSetting setting);
 
 /** Tries to handle the permission request on vivaldi side.
- * @returns true if permission request will be handled by vivaldi, false otherwise */
+ * @returns true if permission request will be handled by vivaldi, false
+ * otherwise */
 bool HandlePermissionRequest(
     const content::GlobalRenderFrameHostId& source_frame_id,
     ::permissions::PermissionRequest* request);
 
-} // namespace permissions
-} // namespace vivaldi
+}  // namespace permissions
+}  // namespace vivaldi
 
 #endif /* COMONENTS_PERMISSIONS_VIVALDI_PERMISSION_HANDLER_H */

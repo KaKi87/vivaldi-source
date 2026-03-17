@@ -13,6 +13,7 @@
 #import "base/files/file_util.h"
 #import "base/memory/ptr_util.h"
 #import "base/path_service.h"
+#import "base/strings/strcat.h"
 #import "base/strings/string_util.h"
 #import "base/strings/stringprintf.h"
 #import "base/strings/sys_string_conversions.h"
@@ -160,7 +161,7 @@ class FormStructureBrowserTest
 
   // Serializes the given `forms` into a string.
   std::string FormStructuresToString(
-      const std::map<FormGlobalId, std::unique_ptr<FormStructure>>& forms);
+      base::span<const FormStructure* const> forms);
 
   web::WebState* web_state() const { return web_state_.get(); }
   static base::Time GetTestTime() { return test_time_; }
@@ -217,6 +218,10 @@ FormStructureBrowserTest::FormStructureBrowserTest()
           features::kAutofillIgnoreCheckableElements,
           // TODO(crbug.com/369503318): Remove once launched.
           features::kAutofillSupportSplitZipCode,
+          // TODO(crbug.com/479503511): Remove once launched.
+          features::kAutofillNewRegexForPhoneCountryCode,
+          // TODO(crbug.com/479503511): Remove once launched.
+          features::kAutofillImprovePhoneFieldParser,
       },
       // Disabled
       {
@@ -300,17 +305,17 @@ void FormStructureBrowserTest::GenerateResults(const std::string& input,
       autofill_manager_injector_->GetForMainFrame();
   ASSERT_NE(nullptr, autofill_manager);
   ASSERT_TRUE(autofill_manager->waiter().Wait(1));
-  *output = FormStructuresToString(autofill_manager->form_structures());
+  *output =
+      FormStructuresToString(test_api(*autofill_manager).form_structures());
 }
 
 std::string FormStructureBrowserTest::FormStructuresToString(
-    const std::map<FormGlobalId, std::unique_ptr<FormStructure>>& forms) {
+    base::span<const FormStructure* const> forms) {
   std::vector<std::string> forms_string;
   // The forms are sorted by their global ID, which should make the order
   // deterministic.
-  for (const auto& form_kv : forms) {
+  for (const FormStructure* form : forms) {
     std::string form_string;
-    const auto* form = form_kv.second.get();
     std::map<std::string, int> section_to_index;
     for (const auto& field : *form) {
       std::string name = base::UTF16ToUTF8(field->name());
@@ -362,44 +367,44 @@ namespace {
 #if !BUILDFLAG(USE_INTERNAL_AUTOFILL_PATTERNS)
 // To disable a data driven test, please add the name of the test file
 // (i.e., "NNN_some_site.html") as a literal to the initializer_list given
-// to the failing_test_names constructor.
-const auto& GetFailingTestNames() {
-  static std::set<std::string> failing_test_names{
-      // TODO(crbug.com/40266699): These pages contains iframes. Until filling
-      // across iframes is also supported on iOS, iOS has has different
-      // expectations compared to non-iOS platforms.
-      "049_register_ebay.com.html",
-      "148_payment_dickblick.com.html",
-      // TODO(crbug.com/40229922): These pages contain labels which are only
-      // inferred by the label detection improvements that haven't been
-      // implemented on iOS.
-      "074_register_threadless.com.html",
-      "097_register_alaskaair.com.html",
-      "115_checkout_walgreens.com.html",
-      "116_cc_checkout_walgreens.com.html",
-      "150_checkout_venus.com_search_field.html",
-      // TODO(crbug.com/473467160): Analyze the root causes of these
-      // regressions.
-      "110_checkout_harryanddavid.com.html",
-      "123_bug_459132.html",
-      "132_bug_469012.html",
-  };
-  return failing_test_names;
+// to the kFailingTestNames constructor.
+bool IsFailingTestName(const std::string& test_name) {
+  static constexpr auto kFailingTestNames =
+      base::MakeFixedFlatSet<std::string_view>({
+          // TODO(crbug.com/40266699): These pages contains iframes. Until
+          // filling across iframes is also supported on iOS, iOS has has
+          // different expectations compared to non-iOS platforms.
+          "049_register_ebay.com.html",
+          "148_payment_dickblick.com.html",
+          // TODO(crbug.com/40229922): These pages contain labels which are only
+          // inferred by the label detection improvements that haven't been
+          // implemented on iOS.
+          "074_register_threadless.com.html",
+          "097_register_alaskaair.com.html",
+          "115_checkout_walgreens.com.html",
+          "116_cc_checkout_walgreens.com.html",
+          "150_checkout_venus.com_search_field.html",
+          // TODO(crbug.com/473467160): Analyze the root causes of these
+          // regressions.
+          "110_checkout_harryanddavid.com.html",
+          "123_bug_459132.html",
+          "132_bug_469012.html",
+      });
+  return kFailingTestNames.contains(test_name);
 }
 #endif
 
 }  // namespace
 
 // If disabling a test, prefer to add the name names of the specific test cases
-// to GetFailingTestNames(), directly above, instead of renaming the test to
+// to IsFailingTestName(), directly above, instead of renaming the test to
 // DISABLED_DataDrivenHeuristics.
 TEST_P(FormStructureBrowserTest, DataDrivenHeuristics) {
 #if BUILDFLAG(USE_INTERNAL_AUTOFILL_PATTERNS)
   GTEST_SKIP() << "DataDrivenHeuristics tests are only supported with legacy "
                   "parsing patterns";
 #else
-  bool is_expected_to_pass =
-      !base::Contains(GetFailingTestNames(), GetParam().BaseName().value());
+  bool is_expected_to_pass = !IsFailingTestName(GetParam().BaseName().value());
   RunOneDataDrivenTest(GetParam(), GetIOSOutputDirectory(),
                        is_expected_to_pass);
 #endif

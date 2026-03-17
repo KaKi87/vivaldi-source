@@ -16,7 +16,8 @@
 - (void)updateBackgroundColor:(UIColor*)backgroundColor;
 - (void)updateLocationText:(NSString*)text
                     domain:(NSString*)domain
-                  showFull:(BOOL)showFull;
+                  showFull:(BOOL)showFull
+                  clipTail:(BOOL)clipTail;
 - (void)setLocationImage:(UIImage*)locationImage;
 - (void)setTintColor:(UIColor*)tintColor;
 - (void)setSecurityLevelAccessibilityString:(NSString*)string;

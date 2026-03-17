@@ -38,7 +38,12 @@ class ECSigningKey : public crypto::UnexportableSigningKey {
 
 #if BUILDFLAG(IS_MAC)
   SecKeyRef GetSecKeyRef() const override;
+#elif BUILDFLAG(IS_WIN)
+  bool SupportsTls13() override { return true; }
 #endif  // BUILDFLAG(IS_MAC)
+
+  crypto::StatefulUnexportableSigningKey* AsStatefulUnexportableSigningKey()
+      override;
 
  private:
   crypto::keypair::PrivateKey key_;
@@ -74,6 +79,11 @@ SecKeyRef ECSigningKey::GetSecKeyRef() const {
 }
 #endif  // BUILDFLAG(IS_MAC)
 
+crypto::StatefulUnexportableSigningKey*
+ECSigningKey::AsStatefulUnexportableSigningKey() {
+  return nullptr;
+}
+
 }  // namespace
 
 ECSigningKeyProvider::ECSigningKeyProvider() = default;
@@ -84,8 +94,9 @@ ECSigningKeyProvider::SelectAlgorithm(
     base::span<const crypto::SignatureVerifier::SignatureAlgorithm>
         acceptable_algorithms) {
   for (auto algo : acceptable_algorithms) {
-    if (algo == crypto::SignatureVerifier::ECDSA_SHA256)
+    if (algo == crypto::SignatureVerifier::ECDSA_SHA256) {
       return crypto::SignatureVerifier::ECDSA_SHA256;
+    }
   }
 
   return std::nullopt;
@@ -96,8 +107,9 @@ ECSigningKeyProvider::GenerateSigningKeySlowly(
     base::span<const crypto::SignatureVerifier::SignatureAlgorithm>
         acceptable_algorithms) {
   auto algo = SelectAlgorithm(acceptable_algorithms);
-  if (!algo)
+  if (!algo) {
     return nullptr;
+  }
 
   CHECK_EQ(crypto::SignatureVerifier::ECDSA_SHA256, *algo);
   return std::make_unique<ECSigningKey>();

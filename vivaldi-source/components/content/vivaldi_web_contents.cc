@@ -19,14 +19,14 @@ void WebContentsImpl::SetVivExtData(const std::string& viv_ext_data) {
   std::optional<base::Value> new_json_data =
       base::JSONReader::Read(viv_ext_data, base::JSON_PARSE_RFC);
 
-  base::Value::Dict merged_dict;
+  base::DictValue merged_dict;
   if (old_json_data && old_json_data->is_dict()) {
     merged_dict = std::move(old_json_data->GetDict());
   }
 
   bool changed = false;
   if (new_json_data && new_json_data->is_dict()) {
-    const base::Value::Dict& new_dict = new_json_data->GetDict();
+    const base::DictValue& new_dict = new_json_data->GetDict();
 
     for (const auto [key, new_val] : new_dict) {
       const base::Value* old_val = merged_dict.Find(key);
@@ -64,7 +64,6 @@ bool WebContentsImpl::GetIgnoreLinkRouting() const {
   return ignore_link_routing_;
 }
 
-
 void WebContentsImpl::SetResumePending(bool resume) {
   is_resume_pending_ = resume;
 }
@@ -86,7 +85,6 @@ bool WebContentsImpl::IsVivaldiUI(const gfx::Point& point) {
   std::vector<WebContentsImpl*> relevant_contents(1, this);
   for (size_t i = 0; i != relevant_contents.size(); ++i) {
     for (auto* inner : relevant_contents[i]->GetInnerWebContents()) {
-
       if (inner->GetVisibility() == Visibility::VISIBLE &&
           inner->GetViewBounds().Contains(point)) {
         if (vivaldi::IsVivaldiUrl(inner->GetVisibleURL().spec())) {

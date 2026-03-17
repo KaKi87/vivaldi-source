@@ -22,7 +22,6 @@ namespace extensions {
 
 namespace context_menu = vivaldi::context_menu;
 
-
 // How it works
 // * Menus from UI. The ContextMenuShowFunction() will create a
 // ContextMenuController instance which will build the menu model based on the
@@ -33,7 +32,8 @@ namespace context_menu = vivaldi::context_menu;
 // object we pass to JS using  ContextMenuAPI::RequestMenu(). JS will then use
 // that information to set up menu content and pass it to C++ again (here). From
 // then on handling is for the most part tha same as with "Menus from UI" above
-// (some exceptions where we test for the VivaldiRenderViewContextMenu instance).
+// (some exceptions where we test for the VivaldiRenderViewContextMenu
+// instance).
 
 // static
 void ContextMenuAPI::RequestMenu(
@@ -57,9 +57,8 @@ ExtensionFunction::ResponseAction ContextMenuShowFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   VivaldiBrowserWindow* window =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          VivaldiBrowserWindowFromId(
-            params->properties.window_id);
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->properties.window_id);
   if (!window) {
     return RespondNow(Error("No such window"));
   }
@@ -90,9 +89,9 @@ ExtensionFunction::ResponseAction ContextMenuShowFunction::Run() {
               "and call preventDefault() to block the standard menu"));
   }
 
-  ::vivaldi::ContextMenuController::Create(window,
-                                           rv_context_menu,
-                                           std::move(params))->Show();
+  ::vivaldi::ContextMenuController::Create(window, rv_context_menu,
+                                           std::move(params))
+      ->Show();
 
   return RespondNow(ArgumentList(context_menu::Show::Results::Create()));
 }
@@ -101,12 +100,11 @@ ExtensionFunction::ResponseAction ContextMenuUpdateFunction::Run() {
   auto params = context_menu::Update::Params::Create(args());
   EXTENSION_FUNCTION_VALIDATE(params);
   ::vivaldi::ContextMenuController* controller =
-    ::vivaldi::ContextMenuController::GetActive();
+      ::vivaldi::ContextMenuController::GetActive();
   if (controller) {
     controller->Update(params->properties);
   }
   return RespondNow(ArgumentList(context_menu::Update::Results::Create()));
 }
-
 
 }  // namespace extensions

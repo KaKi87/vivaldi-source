@@ -9,26 +9,51 @@
 
 #import "base/ios/block_types.h"
 
-namespace bwg {
+namespace gemini {
 enum class EntryPoint;
-}
+enum class FloatyUpdateSource;
+}  // namespace gemini
+
+namespace web {
+class WebState;
+}  // namespace web
 
 // Commands relating to the BWG flow.
-@protocol BWGCommands
+@protocol BWGCommands <NSObject>
 
-// Starts the BWG flow.
-- (void)startBWGFlowWithEntryPoint:(bwg::EntryPoint)entryPoint;
+// Starts the Gemini flow with an entry point.
+- (void)startGeminiFlowWithEntryPoint:(gemini::EntryPoint)entryPoint;
 
-// Starts the BWG flow with a provided image as attachment.
-- (void)startBWGFlowWithImageAttachment:(UIImage*)image
-                             entryPoint:(bwg::EntryPoint)entryPoint;
+// Starts the Gemini flow with a provided image as attachment.
+- (void)startGeminiFlowWithImageAttachment:(UIImage*)image
+                                entryPoint:(gemini::EntryPoint)entryPoint;
 
-// Dismiss the BWG flow with a completion block.
-- (void)dismissBWGFlowWithCompletion:(ProceduralBlock)completion;
+// Dismiss the Gemini flow with a completion block.
+- (void)dismissGeminiFlowWithCompletion:(ProceduralBlock)completion;
 
 // Attempts to display the automatic BWG promo depending on whether the active
 // web state is eligible. If the page is ineligible, does nothing.
 - (void)showBWGPromoIfPageIsEligible;
+
+// Handles hiding the Gemini floaty from an update `source`. When in a hidden
+// state, the floaty still persists in memory and needs to be properly cleaned
+// up.
+- (void)hideFloatyIfInvokedAnimated:(BOOL)animated
+                         fromSource:(gemini::FloatyUpdateSource)source;
+
+// Updates Gemini floaty's visibility based on eligibility from an update
+// `source`. Can be used to re-show an invoked Gemini floaty or hide the floaty
+// for ineligible sites.
+- (void)updateFloatyVisibilityIfEligibleAnimated:(BOOL)animated
+                                      fromSource:
+                                          (gemini::FloatyUpdateSource)source;
+
+// Updates the Gemini floaty with a trait collection change.
+- (void)updateFloatyWithTraitCollection:(UITraitCollection*)traitCollection;
+
+// Starts the FRE flow with a completion block.
+- (void)startGeminiFREWithCompletion:(void (^)(BOOL success))completion
+                      fromEntryPoint:(gemini::EntryPoint)entryPoint;
 
 @end
 

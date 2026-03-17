@@ -4,6 +4,8 @@
 
 #include "chrome/browser/ui/webui/browser_command/browser_command_handler.h"
 
+#include <algorithm>
+
 #include "base/command_line.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/user_metrics.h"
@@ -49,14 +51,14 @@
 #include "ui/base/window_open_disposition.h"
 #include "ui/base/window_open_disposition_utils.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/glic_settings_util.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #include "chrome/browser/glic/widget/glic_window_controller.h"
 #include "chrome/browser/ui/webui/webui_embedding_context.h"
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
 using browser_command::mojom::ClickInfoPtr;
 using browser_command::mojom::Command;
@@ -88,7 +90,7 @@ BrowserCommandHandler::~BrowserCommandHandler() = default;
 void BrowserCommandHandler::CanExecuteCommand(
     browser_command::mojom::Command command_id,
     CanExecuteCommandCallback callback) {
-  if (!base::Contains(supported_commands_, command_id)) {
+  if (!std::ranges::contains(supported_commands_, command_id)) {
     std::move(callback).Run(false);
     return;
   }
@@ -158,7 +160,6 @@ void BrowserCommandHandler::CanExecuteCommand(
       can_execute = true;
       break;
     case Command::kOpenSplitView:
-      // What's new module is gated on the kSideBySide flag already.
       can_execute = true;
       break;
   }
@@ -168,7 +169,7 @@ void BrowserCommandHandler::CanExecuteCommand(
 void BrowserCommandHandler::ExecuteCommand(Command command_id,
                                            ClickInfoPtr click_info,
                                            ExecuteCommandCallback callback) {
-  if (!base::Contains(supported_commands_, command_id)) {
+  if (!std::ranges::contains(supported_commands_, command_id)) {
     std::move(callback).Run(false);
     return;
   }
@@ -365,7 +366,7 @@ void BrowserCommandHandler::StartSavedTabGroupTutorial() {
 }
 
 void BrowserCommandHandler::OpenGlic() {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 
   glic::GlicKeyedService* glic_service = glic::GlicKeyedService::Get(profile_);
 
@@ -375,15 +376,14 @@ void BrowserCommandHandler::OpenGlic() {
 
   auto* browser_window = webui::GetBrowserWindowInterface(web_contents_);
 
-  glic_service->window_controller().Toggle(
-      browser_window, /*prevent_close=*/false,
-      glic::mojom::InvocationSource::kWhatsNew,
-      /*prompt_suggestion=*/std::nullopt);
-#endif  // BUILDFLAG(ENABLE_GLIC)
+  glic_service->ToggleUI(browser_window, /*prevent_close=*/false,
+                         glic::mojom::InvocationSource::kWhatsNew,
+                         /*prompt_suggestion=*/std::nullopt);
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 }
 
 void BrowserCommandHandler::OpenGlicSettings() {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (glic::GlicEnabling::ShouldShowSettingsPage(profile_)) {
     glic::OpenGlicKeyboardShortcutSetting(profile_);
   } else {
@@ -412,12 +412,12 @@ void BrowserCommandHandler::OpenGlicSettings() {
 }
 
 void BrowserCommandHandler::PrewarmGlicFre() {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   glic::GlicKeyedService* glic_service = glic::GlicKeyedService::Get(profile_);
   if (glic_service) {
     glic_service->TryPreloadFre(glic::GlicPrewarmingFreSource::kBrowserCommand);
   }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 }
 
 void BrowserCommandHandler::OpenSplitView() {

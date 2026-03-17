@@ -59,6 +59,7 @@ import org.chromium.content_public.browser.test.util.JavaScriptUtils;
 import org.chromium.content_public.common.ContentSwitches;
 import org.chromium.media.MediaFeatures;
 import org.chromium.media.MediaSwitches;
+import org.chromium.ui.base.DeviceFormFactor;
 
 import java.util.List;
 import java.util.concurrent.TimeoutException;
@@ -145,6 +146,8 @@ public class AutoPictureInPictureTabHelperTest {
 
     @Test
     @MediumTest
+    // TODO(crbug.com/469068794): fix test flakiness before launch on all android devices
+    @Restriction(DeviceFormFactor.DESKTOP)
     public void testCanAutopipWithConferenceCall() {
         WebContents webContents = loadUrlAndInitializeForTest(VIDEO_CONFERENCING_PAGE);
         // Verify if the loaded page registers auto pip.
@@ -236,6 +239,7 @@ public class AutoPictureInPictureTabHelperTest {
 
     @Test
     @MediumTest
+    @DisableIf.Device(DeviceFormFactor.DESKTOP) // https://crbug.com/481445841
     public void testBackToTabFromAutoPip() throws TimeoutException {
         WebContents webContents = loadUrlAndInitializeForTest(AUTO_PIP_VIDEO_PAGE);
         assertTrue(
@@ -433,6 +437,7 @@ public class AutoPictureInPictureTabHelperTest {
 
     @Test
     @MediumTest
+    @DisableIf.Device(DeviceFormFactor.DESKTOP) // https://crbug.com/481445841
     public void testQuickDismissalIncrementsDismissCount() throws TimeoutException {
         WebContents webContents = loadUrlAndInitializeForTest(AUTO_PIP_VIDEO_PAGE);
         String url = mActivityTestRule.getTestServer().getURL(AUTO_PIP_VIDEO_PAGE);
@@ -463,6 +468,7 @@ public class AutoPictureInPictureTabHelperTest {
 
     @Test
     @MediumTest
+    @DisableIf.Device(DeviceFormFactor.DESKTOP) // https://crbug.com/481445841
     public void testSwitchingBackToTabDoesNotIncrementDismissCount() throws TimeoutException {
         WebContents webContents = loadUrlAndInitializeForTest(AUTO_PIP_VIDEO_PAGE);
         String url = mActivityTestRule.getTestServer().getURL(AUTO_PIP_VIDEO_PAGE);
@@ -494,6 +500,7 @@ public class AutoPictureInPictureTabHelperTest {
 
     @Test
     @MediumTest
+    @DisableIf.Device(DeviceFormFactor.DESKTOP) // https://crbug.com/481445841
     public void testClosingAfterTimerExpiresDoesNotIncrementDismissCount() throws TimeoutException {
         WebContents webContents = loadUrlAndInitializeForTest(AUTO_PIP_VIDEO_PAGE);
         String url = mActivityTestRule.getTestServer().getURL(AUTO_PIP_VIDEO_PAGE);
@@ -584,6 +591,13 @@ public class AutoPictureInPictureTabHelperTest {
         // Start playing the video.
         DOMUtils.playMedia(webContents, VIDEO_ID);
         DOMUtils.waitForMediaPlay(webContents, VIDEO_ID);
+
+        // Wait for the video to be audible.
+        CriteriaHelper.pollInstrumentationThread(
+                () -> AutoPictureInPictureTabHelperTestUtils.isCurrentlyAudible(webContents),
+                "Video did not become audible.",
+                PIP_TIMEOUT_MS,
+                CriteriaHelper.DEFAULT_POLLING_INTERVAL);
     }
 
     /**

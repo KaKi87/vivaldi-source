@@ -26,7 +26,7 @@ class VivaldiReaderModeJavaScriptFeature : public web::JavaScriptFeature {
    public:
     virtual ~Observer() = default;
     virtual void OnReaderModeAvailabilityResult(web::WebState* web_state,
-                                                 bool available) = 0;
+                                                bool available) = 0;
     virtual void OnReaderModeEnabledStateResult(web::WebState* web_state,
                                                 bool enabled) = 0;
   };
@@ -50,8 +50,9 @@ class VivaldiReaderModeJavaScriptFeature : public web::JavaScriptFeature {
   // Result will be delivered via Observer::OnReaderModeAvailabilityResult
   void CheckReaderModeAvailability(web::WebState* web_state);
 
-  // Checks if reader mode is currently enabled for the current page asynchronously.
-  // Result will be delivered via Observer::OnReaderModeEnabledStateResult
+  // Checks if reader mode is currently enabled for the current page
+  // asynchronously. Result will be delivered via
+  // Observer::OnReaderModeEnabledStateResult
   void CheckReaderModeEnabledState(web::WebState* web_state);
 
   // MARK: - Reader Mode Settings
@@ -95,17 +96,15 @@ class VivaldiReaderModeJavaScriptFeature : public web::JavaScriptFeature {
   // Disables reader mode for the given web frame.
   void DisableReaderMode(web::WebFrame* web_frame);
 
-
-
   // MARK: - Private Member Variables
   // Observer for availability check results
   Observer* observer_ = nullptr;
 
   // Disallow copy and assign.
-  VivaldiReaderModeJavaScriptFeature(const
-    VivaldiReaderModeJavaScriptFeature&) = delete;
-  VivaldiReaderModeJavaScriptFeature&
-    operator=(const VivaldiReaderModeJavaScriptFeature&) = delete;
+  VivaldiReaderModeJavaScriptFeature(
+      const VivaldiReaderModeJavaScriptFeature&) = delete;
+  VivaldiReaderModeJavaScriptFeature& operator=(
+      const VivaldiReaderModeJavaScriptFeature&) = delete;
 };
 
 #endif  // IOS_READER_MODE_READER_MODE_JAVA_SCRIPT_FEATURE_H_

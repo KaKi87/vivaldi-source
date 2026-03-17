@@ -33,10 +33,8 @@ NSString* vTabGridEmptyStateRegularTabsImage = @"tab_grid_regular_tabs_empty";
 NSString* vTabGridInactiveTabsEduIcon = @"vivaldi_inactive_tabs_edu_icon";
 
 // Colors for grid cell item
-NSString* const vTabGridSelectedColor =
-    @"grid_selected_color";
-NSString* const vTabGridNotSelectedColor =
-    @"grid_not_selected_color";
+NSString* const vTabGridSelectedColor = @"grid_selected_color";
+NSString* const vTabGridNotSelectedColor = @"grid_not_selected_color";
 
 // Edge padding for tab grid empty state view label
 CGFloat const vTabGridEmptyStateViewContainerPadding = 16.0;
@@ -66,3 +64,5 @@ const CGFloat vRecentTabsEmptyStateEnableSyncButtonWidth = 180.0;
 const CGFloat vPinnedViewHorizontalPadding = 16;
 const CGFloat vPinnedCellHeight = 40.0f;
 const CGFloat vPinnedCellHorizontalLayoutInsets = 12.0f;
+
+const CGFloat vTabGridBGChangeAnimationDuration = 0.2f;

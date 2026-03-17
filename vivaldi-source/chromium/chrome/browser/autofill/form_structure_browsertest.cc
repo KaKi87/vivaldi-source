@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/feature_list.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
@@ -31,6 +30,7 @@
 #include "components/autofill/content/browser/content_autofill_driver.h"
 #include "components/autofill/content/browser/content_autofill_driver_factory.h"
 #include "components/autofill/content/browser/test_autofill_manager_injector.h"
+#include "components/autofill/core/browser/foundations/autofill_manager_test_api.h"
 #include "components/autofill/core/browser/foundations/browser_autofill_manager.h"
 #include "components/autofill/core/browser/foundations/test_autofill_manager_waiter.h"
 #include "components/autofill/core/browser/heuristic_source.h"
@@ -110,12 +110,12 @@ std::vector<base::FilePath> GetTestFiles() {
 }
 
 std::string FormStructuresToString(
-    const std::map<FormGlobalId, std::unique_ptr<FormStructure>>& forms) {
+    base::span<const FormStructure* const> forms) {
   std::vector<std::string> string_forms;
   string_forms.reserve(forms.size());
   // The forms are sorted by their global ID, which should make the order
   // deterministic.
-  for (const auto& [form_id, form_structure] : forms) {
+  for (const FormStructure* form_structure : forms) {
     std::string string_form;
     std::map<std::string, int> section_to_index;
     for (const auto& field : *form_structure) {
@@ -225,6 +225,10 @@ FormStructureBrowserTest::FormStructureBrowserTest()
           features::kAutofillIgnoreCheckableElements,
           // TODO(crbug.com/369503318): Remove once launched.
           features::kAutofillSupportSplitZipCode,
+          // TODO(crbug.com/479503511): Remove once launched.
+          features::kAutofillNewRegexForPhoneCountryCode,
+          // TODO(crbug.com/479503511): Remove once launched.
+          features::kAutofillImprovePhoneFieldParser,
       },
       // Disabled
       {
@@ -291,7 +295,8 @@ void FormStructureBrowserTest::GenerateResults(const std::string& input,
   TestAutofillManager* autofill_manager =
       autofill_manager_injector_[web_contents()];
   ASSERT_TRUE(autofill_manager->waiter().Wait(1));
-  *output = FormStructuresToString(autofill_manager->form_structures());
+  *output =
+      FormStructuresToString(test_api(*autofill_manager).form_structures());
 }
 
 std::unique_ptr<HttpResponse> FormStructureBrowserTest::HandleRequest(
@@ -311,7 +316,7 @@ IN_PROC_BROWSER_TEST_P(FormStructureBrowserTest, DataDrivenHeuristics) {
   // Prints the path of the test to be executed.
   LOG(INFO) << GetParam().MaybeAsASCII();
   bool is_expected_to_pass =
-      !base::Contains(GetFailingTestNames(), GetParam().BaseName().value());
+      !GetFailingTestNames().contains(GetParam().BaseName().value());
   RunOneDataDrivenTest(GetParam(), GetOutputDirectory(), is_expected_to_pass);
 #endif
 }

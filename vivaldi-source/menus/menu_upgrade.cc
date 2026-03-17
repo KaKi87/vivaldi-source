@@ -34,8 +34,8 @@ std::unique_ptr<base::Value> MenuUpgrade::Run(
     return nullptr;
   }
 
-  base::Value::List& profile_list = profile_root->GetList();
-  base::Value::List& bundled_list = bundled_root->GetList();
+  base::ListValue& profile_list = profile_root->GetList();
+  base::ListValue& bundled_list = bundled_root->GetList();
 
   // First we need access to the control segment of the profile file.
   base::Value* profile_control = FindControlNode(profile_list);
@@ -62,9 +62,8 @@ std::unique_ptr<base::Value> MenuUpgrade::Run(
   // the upgrade speed (except for the setup code below).
   // TODO: Look into a C++ based upgrade system as we have in JS.
   std::vector<std::string> candidates = {
-    // Add commands here if needed. Once added it can not be removed.
-    "COMMAND_OPEN_NEW_OR_REOPEN_LAST_CLOSED_WINDOW"
-  };
+      // Add commands here if needed. Once added it can not be removed.
+      "COMMAND_OPEN_NEW_OR_REOPEN_LAST_CLOSED_WINDOW"};
   expired_.clear();
   // The expired list we read from file contains all actions we have tested for.
   base::Value* expired = profile_control->GetDict().Find("expired");
@@ -85,7 +84,7 @@ std::unique_ptr<base::Value> MenuUpgrade::Run(
 
   // Add new elements in the profile based tree.
   for (const auto& top_node : bundled_root->GetList()) {
-    if (const base::Value::Dict* top_dict = top_node.GetIfDict()) {
+    if (const base::DictValue* top_dict = top_node.GetIfDict()) {
       const std::string* type = top_dict->FindString("type");
       if (type && *type == "menu") {
         if (!AddFromBundle(*top_dict, "", 0, profile_list)) {
@@ -97,7 +96,7 @@ std::unique_ptr<base::Value> MenuUpgrade::Run(
   }
   // Remove old elements in the profile based tree.
   for (const auto& top_node : profile_list) {
-    if (const base::Value::Dict* top_dict = top_node.GetIfDict()) {
+    if (const base::DictValue* top_dict = top_node.GetIfDict()) {
       const std::string* type = top_dict->FindString("type");
       if (type && *type == "menu") {
         if (!RemoveFromProfile(*top_dict, "", bundled_list, profile_list)) {
@@ -130,7 +129,8 @@ std::unique_ptr<base::Value> MenuUpgrade::Run(
   // after adding nodes so we must set it up once again.
   profile_control = FindControlNode(profile_list);
   if (!profile_control) {
-    LOG(ERROR) << "Menu Upgrade: Aborted, control segment missing after upgrade";
+    LOG(ERROR)
+        << "Menu Upgrade: Aborted, control segment missing after upgrade";
     return nullptr;
   }
   deleted = profile_control->GetDict().Find("deleted");
@@ -144,7 +144,7 @@ std::unique_ptr<base::Value> MenuUpgrade::Run(
 
   // Write all candidates to the expired list. This will ensure we do not
   // spend time testing for those (for each menu item) in future updates.
-  base::Value  expired_list(base::Value::Type::LIST);
+  base::Value expired_list(base::Value::Type::LIST);
   for (const auto& elm : candidates) {
     expired_list.GetList().Append(elm);
   }
@@ -153,7 +153,7 @@ std::unique_ptr<base::Value> MenuUpgrade::Run(
   return profile_root;
 }
 
-base::Value* MenuUpgrade::FindControlNode(base::Value::List& list) {
+base::Value* MenuUpgrade::FindControlNode(base::ListValue& list) {
   for (auto& top_node : list) {
     if (top_node.is_dict()) {
       std::string* type = top_node.GetDict().FindString("type");
@@ -165,11 +165,11 @@ base::Value* MenuUpgrade::FindControlNode(base::Value::List& list) {
   return nullptr;
 }
 
-base::Value::Dict* MenuUpgrade::FindNodeByGuid(base::Value::List& list,
-                                               const std::string& needle_guid) {
+base::DictValue* MenuUpgrade::FindNodeByGuid(base::ListValue& list,
+                                             const std::string& needle_guid) {
   for (auto& item : list) {
-    if (base::Value::Dict* dict = item.GetIfDict()) {
-      if (base::Value::Dict* matched = FindNodeByGuid(*dict, needle_guid)) {
+    if (base::DictValue* dict = item.GetIfDict()) {
+      if (base::DictValue* matched = FindNodeByGuid(*dict, needle_guid)) {
         return matched;
       }
     }
@@ -177,15 +177,15 @@ base::Value::Dict* MenuUpgrade::FindNodeByGuid(base::Value::List& list,
   return nullptr;
 }
 
-base::Value::Dict* MenuUpgrade::FindNodeByGuid(base::Value::Dict& dict,
-                                               const std::string& needle_guid) {
+base::DictValue* MenuUpgrade::FindNodeByGuid(base::DictValue& dict,
+                                             const std::string& needle_guid) {
   if (const std::string* guid = dict.FindString("guid")) {
     if (*guid == needle_guid) {
       return &dict;
     }
-    base::Value::List* children = dict.FindList("children");
+    base::ListValue* children = dict.FindList("children");
     if (children) {
-      if (base::Value::Dict* matched = FindNodeByGuid(*children, needle_guid)) {
+      if (base::DictValue* matched = FindNodeByGuid(*children, needle_guid)) {
         return matched;
       }
     }
@@ -193,12 +193,12 @@ base::Value::Dict* MenuUpgrade::FindNodeByGuid(base::Value::Dict& dict,
   return nullptr;
 }
 
-base::Value::Dict* MenuUpgrade::FindNodeByAction(
-    base::Value::List& list,
+base::DictValue* MenuUpgrade::FindNodeByAction(
+    base::ListValue& list,
     bool include_children,
     const std::string& needle_action) {
   for (auto& item : list) {
-    base::Value::Dict* dict = item.GetIfDict();
+    base::DictValue* dict = item.GetIfDict();
     if (!dict)
       continue;
 
@@ -210,8 +210,8 @@ base::Value::Dict* MenuUpgrade::FindNodeByAction(
       return dict;
     }
     if (include_children) {
-      if (base::Value::List* children = dict->FindList("children")) {
-        if (base::Value::Dict* matched =
+      if (base::ListValue* children = dict->FindList("children")) {
+        if (base::DictValue* matched =
                 FindNodeByAction(*children, include_children, needle_action)) {
           return matched;
         }
@@ -221,18 +221,18 @@ base::Value::Dict* MenuUpgrade::FindNodeByAction(
   return nullptr;
 }
 
-bool MenuUpgrade::AddFromBundle(const base::Value::Dict& bundle_dict,
+bool MenuUpgrade::AddFromBundle(const base::DictValue& bundle_dict,
                                 const std::string& parent_guid,
                                 int bundle_index,
-                                base::Value::List& profile_list) {
+                                base::ListValue& profile_list) {
   const std::string* guid = bundle_dict.FindString("guid");
   if (guid && !IsDeleted(*guid)) {
     if (!FindNodeByGuid(profile_list, *guid)) {
       // Any children of bundle_dict must be added recursivly so that we can
       // test if they should be added.
       if (bundle_dict.FindList("children")) {
-        base::Value::Dict copy(bundle_dict.Clone());
-        base::Value::List empty;
+        base::DictValue copy(bundle_dict.Clone());
+        base::ListValue empty;
         copy.Set("children", std::move(empty));
         if (!Insert(copy, parent_guid, bundle_index, profile_list)) {
           return false;
@@ -244,7 +244,7 @@ bool MenuUpgrade::AddFromBundle(const base::Value::Dict& bundle_dict,
       }
     }
     bundle_index = 0;
-    if (const base::Value::List* children = bundle_dict.FindList("children")) {
+    if (const base::ListValue* children = bundle_dict.FindList("children")) {
       for (auto& child : *children) {
         if (child.is_dict()) {
           if (!AddFromBundle(child.GetDict(), *guid, bundle_index,
@@ -252,7 +252,7 @@ bool MenuUpgrade::AddFromBundle(const base::Value::Dict& bundle_dict,
             return false;
           }
         }
-        bundle_index ++;
+        bundle_index++;
       }
     }
   }
@@ -260,11 +260,10 @@ bool MenuUpgrade::AddFromBundle(const base::Value::Dict& bundle_dict,
   return true;
 }
 
-
-bool MenuUpgrade::RemoveFromProfile(const base::Value::Dict& profile_dict,
+bool MenuUpgrade::RemoveFromProfile(const base::DictValue& profile_dict,
                                     const std::string& parent_guid,
-                                    base::Value::List& bundle_list,
-                                    base::Value::List& profile_list) {
+                                    base::ListValue& bundle_list,
+                                    base::ListValue& profile_list) {
   const std::string* guid = profile_dict.FindString("guid");
   if (!guid) {
     return false;
@@ -295,7 +294,7 @@ bool MenuUpgrade::RemoveFromProfile(const base::Value::Dict& profile_dict,
       // should be removed as well in profile. Note, we do not do this if user
       // has added an element, only modified it.
       if (!FindNodeByGuid(bundle_list, *guid)) {
-        std::string guid_copy(*guid); // Points to data that will be removed.
+        std::string guid_copy(*guid);  // Points to data that will be removed.
         bool success = Remove(profile_dict, parent_guid, profile_list);
         if (success) {
           PruneDeleted(guid_copy);
@@ -308,10 +307,10 @@ bool MenuUpgrade::RemoveFromProfile(const base::Value::Dict& profile_dict,
       needs_fixup_ = true;
     }
   }
-  if (const base::Value::List* children = profile_dict.FindList("children")) {
+  if (const base::ListValue* children = profile_dict.FindList("children")) {
     for (size_t i = children->size(); i != 0;) {
       --i;
-      if (const base::Value::Dict* child = (*children)[i].GetIfDict()) {
+      if (const base::DictValue* child = (*children)[i].GetIfDict()) {
         if (!RemoveFromProfile(*child, *guid, bundle_list, profile_list)) {
           return false;
         }
@@ -330,10 +329,10 @@ bool MenuUpgrade::RemoveFromProfile(const base::Value::Dict& profile_dict,
   return true;
 }
 
-bool MenuUpgrade::FixupProfile(base::Value::Dict& profile_dict,
+bool MenuUpgrade::FixupProfile(base::DictValue& profile_dict,
                                const std::string& parent_guid,
-                               base::Value::List& bundle_root,
-                               base::Value::List& profile_root,
+                               base::ListValue& bundle_root,
+                               base::ListValue& profile_root,
                                const std::string& menu_action) {
   const std::string* guid = profile_dict.FindString("guid");
   if (!guid) {
@@ -355,15 +354,15 @@ bool MenuUpgrade::FixupProfile(base::Value::Dict& profile_dict,
     if (!action) {
       return false;
     }
-    base::Value::Dict* menu = FindNodeByAction(bundle_root, true, menu_action);
+    base::DictValue* menu = FindNodeByAction(bundle_root, true, menu_action);
     if (!menu) {
       return false;
     }
 
-    base::Value::Dict* folder = FindNodeByGuid(*menu, parent_guid);
+    base::DictValue* folder = FindNodeByGuid(*menu, parent_guid);
     if (folder) {
       if (auto* children = folder->FindList("children")) {
-        base::Value::Dict* match = FindNodeByAction(*children, false, *action);
+        base::DictValue* match = FindNodeByAction(*children, false, *action);
         if (match) {
           const std::string* match_guid = match->FindString("guid");
           if (match_guid && IsDeleted(*match_guid)) {
@@ -377,10 +376,10 @@ bool MenuUpgrade::FixupProfile(base::Value::Dict& profile_dict,
     }
   }
 
-  if (base::Value::List* children = profile_dict.FindList("children")) {
+  if (base::ListValue* children = profile_dict.FindList("children")) {
     for (size_t i = children->size(); i != 0;) {
       --i;
-      if (base::Value::Dict* item_dict = (*children)[i].GetIfDict()) {
+      if (base::DictValue* item_dict = (*children)[i].GetIfDict()) {
         if (!FixupProfile(*item_dict, *guid, bundle_root, profile_root,
                           menu_action)) {
           return false;
@@ -411,24 +410,23 @@ bool MenuUpgrade::PruneDeleted(const std::string& guid) {
   return false;
 }
 
-
 // Inserts 'bundle_dict' into the profile list. 'bundle_dict' is assumed to not
 // exist (guid wise) in the profile list.
-bool MenuUpgrade::Insert(const base::Value::Dict& bundle_dict,
+bool MenuUpgrade::Insert(const base::DictValue& bundle_dict,
                          const std::string& parent_guid,
                          int index,
-                         base::Value::List& profile_list) {
+                         base::ListValue& profile_list) {
   if (parent_guid.empty()) {
     // Special case for top level. Index is not imporant.
     profile_list.Append(bundle_dict.Clone());
     return true;
   }
 
-  base::Value::Dict* matched = FindNodeByGuid(profile_list, parent_guid);
+  base::DictValue* matched = FindNodeByGuid(profile_list, parent_guid);
   if (matched) {
     base::Value* children = matched->Find("children");
     if (children && children->is_list()) {
-      base::Value::List list;
+      base::ListValue list;
       int i = 0;
       bool added = false;
       for (auto& child : children->GetList()) {
@@ -451,17 +449,17 @@ bool MenuUpgrade::Insert(const base::Value::Dict& bundle_dict,
 
 namespace {
 
-size_t EraseDictionaryFromList(const base::Value::Dict& dict,
-                               base::Value::List& list) {
+size_t EraseDictionaryFromList(const base::DictValue& dict,
+                               base::ListValue& list) {
   return list.EraseIf(
       [&](base::Value& v) { return v.is_dict() && v.GetDict() == dict; });
 }
 
 }  // namespace
 
-bool MenuUpgrade::Remove(const base::Value::Dict& profile_dict,
+bool MenuUpgrade::Remove(const base::DictValue& profile_dict,
                          const std::string& parent_guid,
-                         base::Value::List& profile_list) {
+                         base::ListValue& profile_list) {
   if (parent_guid.empty()) {
     // An entire menu.
     const std::string* guid = profile_dict.FindString("guid");
@@ -483,9 +481,9 @@ bool MenuUpgrade::Remove(const base::Value::Dict& profile_dict,
     }
   } else {
     // A folder or item within a menu.
-    base::Value::Dict* matched = FindNodeByGuid(profile_list, parent_guid);
+    base::DictValue* matched = FindNodeByGuid(profile_list, parent_guid);
     if (matched) {
-      base::Value::List* children = matched->FindList("children");
+      base::ListValue* children = matched->FindList("children");
       if (children) {
         // We used to return true when exactly one element was removed, but
         // due to some duplicate ids that got added to a bundled file, some

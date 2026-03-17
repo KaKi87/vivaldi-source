@@ -1,7 +1,9 @@
 <?xml version="1.0" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="te">
+<translation id="1035560095760914532">Chromeను ఎప్పుడైనా యాక్సెస్ చేయడానికి దాన్ని దిగువ ప్రాంతంలో ఉంచండి</translation>
 <translation id="1076643793026027628">Chrome ఆటోమేటిక్‌గా అజ్ఞాత విండోలో YouTube అజ్ఞాత లింక్‌లను తెరుస్తుంది.</translation>
+<translation id="1081114897601629648">కింది పాస్‌వర్డ్‌లు Google Password Managerకు దిగుమతి కాలేదు, ఎందుకంటే అవి ఆవశ్యకతలతో మ్యాచ్ కాలేదు.</translation>
 <translation id="1086486568852410168">Google Lensతో సెర్చ్ చేయండి</translation>
 <translation id="1088490543924960890">Google Password Managerతో పాస్-కీలను సేవ్ చేయడం ప్రారంభించండి</translation>
 <translation id="1143896152279775643">మీ పాస్‌వర్డ్ <ph name="EMAIL" /> కోసం Google Password Managerకు సేవ్ చేయబడుతుంది.</translation>
@@ -16,6 +18,7 @@
 <translation id="124228879633599436">మీ Chrome వెర్షన్ కాలం చెల్లింది. సురక్షితంగా ఉండటానికి దీన్ని అప్‌డేట్ చేయండి.</translation>
 <translation id="1258531953614971819">Chrome చిట్కా: Chromeను మీ మొదటి స్క్రీన్‌కు తరలించండి</translation>
 <translation id="1333745675627230582">Chrome Dino గేమ్‌ను ఆడండి</translation>
+<translation id="1343830902827845050">Chromeకు సైన్ ఇన్ చేయండి</translation>
 <translation id="1352919863522755794">Google Password Manager మీ పాస్‌వర్డ్‌లను చెక్ చేయలేకపోయింది. మీ ఇంటర్నెట్ కనెక్షన్‌ను చెక్ చేయడానికి ట్రై చేయండి.</translation>
 <translation id="1394995526009609883">మీరు Chrome సెట్టింగ్‌లలో ఎప్పుడైనా మీ ఎంపికలను అప్‌డేట్ చేయవచ్చు.</translation>
 <translation id="1407843355326180937">మీ పరికరాలన్నింటిలో మీ బుక్‌మార్క్‌లతో పాటు మరిన్నింటిని పొందడానికి ఈ సైట్‌కు, Chromeకు సైన్ ఇన్ చేయండి.</translation>
@@ -84,6 +87,10 @@
 <translation id="2767464022270041271">సేవ్ చేసిన పాస్‌వర్డ్‌లు ఏవీ లేవు. మీరు వాటిని సేవ్ చేసినప్పుడు Google Password Manager మీ పాస్‌వర్డ్‌లను చెక్ చేయవచ్చు.</translation>
 <translation id="2788811701191021538">Chromeలో పేమెంట్ ఆప్షన్‌ల సెట్టింగ్ పేజీని తెరుస్తుంది.</translation>
 <translation id="2876628302275096482"><ph name="BEGIN_LINK" />Chrome మీ డేటాను ఎలా ప్రైవేట్‌గా ఉంచుతుంది<ph name="END_LINK" /> అనే దాని గురించి మరింత తెలుసుకోండి</translation>
+<translation id="288992067439702510">Google Chrome <ph name="LIMIT" /> బుక్‌మార్క్‌ల పరిమితిని మీరు చేరుకున్నారు, కాబట్టి మీ బుక్‌మార్క్‌లలో కొన్ని ఇంకా మీ Google ఖాతాలో సేవ్ కాలేదు.
+
+మీరు కొన్ని బుక్‌మార్క్‌లను తొలగించే వరకు మీ ఖాతాలో కొత్త బుక్‌మార్క్‌లను సేవ్ చేయడం సాధ్యపడదు. మీరు ఇప్పుడు సైన్ అవుట్ చేస్తే, సేవ్ చేయని బుక్‌మార్క్‌లు తొలగించబడతాయి.</translation>
+<translation id="2901621928549457170">మీరు iPadలో ఉన్నప్పుడు Chromeను తక్షణమే తెరవండి</translation>
 <translation id="2922914028977213693">మీ iPadలో Chrome నుండి అత్యధిక ప్రయోజనాలను పొందడానికి ఇక్కడ ట్యాప్ చేయండి.</translation>
 <translation id="292371311537977079">Chrome సెట్టింగ్‌లు</translation>
 <translation id="2923827943290349720">మీరు Chromeను మూసివేసినప్పుడు అజ్ఞాత ట్యాబ్‌లను లాక్ చేయండి</translation>
@@ -100,10 +107,9 @@
 <translation id="3109170945534582468">Chrome చర్యలు</translation>
 <translation id="3140589780564632473">Chromeలో విజువల్ లిస్ట్‌ను సెర్చ్ చేయండి</translation>
 <translation id="314782365035065913">మీ మొదటి స్క్రీన్ డాక్ నుండి Chromeను మరింత వేగంగా యాక్సెస్ చేయండి</translation>
-<translation id="3167189358072330585">మీ ఖాతా Google Chromeలో పని చేయదు. దయచేసి మీ డొమైన్ నిర్వాహకుడిని సంప్రదించండి లేదా సైన్ ఇన్ చేయడానికి సాధారణ Google ఖాతాను ఉపయోగించండి.</translation>
+<translation id="3167189358072330585">మీ ఖాతా Google Chromeలో పని చేయదు. దయచేసి మీ డొమైన్ అడ్మినిస్ట్రేటర్‌ను సంప్రదించండి లేదా సైన్ ఇన్ చేయడానికి సాధారణ Google ఖాతాను ఉపయోగించండి.</translation>
 <translation id="320747600144551583">Chrome చిట్కా: మెరుగైన సురక్షిత బ్రౌజింగ్ మీ రోజును ఆదా చేస్తుంది</translation>
 <translation id="322254490661677575">మీ Google ఖాతాలో Chrome డేటాను ఉపయోగించడానికి, సేవ్ చేయడానికి, మీ రహస్య పదబంధాన్ని ఎంటర్ చేయండి.</translation>
-<translation id="3282568296779691940">Chromeకు సైన్ ఇన్ చేయండి</translation>
 <translation id="3303503998967553377">iOSలో Chrome చర్యలను ఉపయోగించండి</translation>
 <translation id="3348862487678490430">Chromeకు చదవాల్సిన లిస్ట్ ఐటెమ్‌ను జోడించండి</translation>
 <translation id="3357827134511189025">ఆటోఫిల్ చేయడం కోసం Chrome ఉపయోగించి ఏదైనా యాప్ నుండి మీ సేవ్ చేయబడిన పాస్‌వర్డ్‌లు, పాస్-కీలతో సైన్ ఇన్ చేయండి</translation>
@@ -115,6 +121,7 @@
 <translation id="3460369101684070455">మీ సేవ్ చేసిన పాస్‌వర్డ్‌లను మీ ఇతర యాప్‌లలో సులభంగా పొందడానికి, ఆటోఫిల్ చేయడం కోసం Chromeను ఎంచుకోండి</translation>
 <translation id="3472587960215700950">కనుగొనబడిన అడ్రస్‌లపై మీకు దిశలను, స్థానిక సమాచారాన్ని అందించడానికి Chrome, Google Mapsను ఉపయోగిస్తుంది.</translation>
 <translation id="3482807551645716768">మీ iPad మొదటి స్క్రీన్ నుండి Chromeను మరింత వేగంగా యాక్సెస్ చేయండి.</translation>
+<translation id="3491067552520121605">చూపబడిన సైట్‌ల కోసం మీ Google Password Managerలో ఇప్పటికే పాస్‌వర్డ్‌లు లేదా పాస్-కీలు ఉన్నాయి. Google Password Managerలో ఉన్న వాటిని ఓవర్‌రైట్ చేస్తూ, చూపబడిన సైన్-ఇన్ సమాచారాన్ని ఉంచడానికి ఖాతాను ఎంచుకోండి.</translation>
 <translation id="3503014945441706099">ఈ Chrome ప్రొఫైల్ కోసం కూడా మెరుగైన సురక్షిత బ్రౌజింగ్‌ను పొందండి</translation>
 <translation id="3522659714780527202">మీరు Chromeను ఎక్కడ ఉపయోగించినా మీ ట్యాబ్‌లను చూడటానికి, సింక్‌ను ఆన్ చేయండి</translation>
 <translation id="364480321352456989">మీ Chrome వెర్షన్ కాలం చెల్లింది.</translation>
@@ -134,6 +141,7 @@
 <translation id="4167555379306984168">Chromeలో కొత్తగా వచ్చిన వాటిని చూడండి</translation>
 <translation id="417201473131094001">Chrome కెనరీలో సపోర్ట్ చేయదు</translation>
 <translation id="424864128008805179">Chrome నుండి సైన్ అవుట్ చేయాలా?</translation>
+<translation id="4409545895715116037">కింది పాస్-కీలు Google Password Managerకు దిగుమతి కాలేదు, ఎందుకంటే అవి ఆవశ్యకతలతో మ్యాచ్ కాలేదు.</translation>
 <translation id="4430797724889237570">Gmail, Maps, YouTube నుండి లింక్‌లను, ఇతర యాప్‌లను Chromeలో తెరవండి</translation>
 <translation id="447252321002412580">Chrome ఫీచర్‌లు మరియు పనితీరును మెరుగుపరచడంలో సహాయపడండి</translation>
 <translation id="4523886039239821078">కొన్ని యాడ్-ఆన్‌లు Chrome క్రాష్ అయ్యేలా చేశాయి. దయచేసి వీటిని అన్‌ఇన్‌స్టాల్ చేయండి:</translation>
@@ -167,6 +175,8 @@
 <translation id="5119391094379141756">Chromeను ఎంచుకోండి</translation>
 <translation id="5123188916260706415">Chromeలో Voiceతో సెర్చ్ చేయండి</translation>
 <translation id="5162467219239570114">Chrome వెర్షన్ కాలం చెల్లింది. <ph name="BEGIN_LINK" />యాప్ స్టోర్<ph name="END_LINK" />లో ఎలాంటి అప్‌డేట్ అందుబాటులో లేకపోతే, మీ పరికరం ఇకపై కొత్త Chrome వెర్షన్‌లను సపోర్ట్ చేయకపోవచ్చు.</translation>
+<translation id="5172049865623113551">మీరు మీ iPhoneలో ఉన్నప్పుడు Chromeను తక్షణమే తెరవండి</translation>
+<translation id="5179095426828744632">మీ డాక్ నుండి Chromeను మరింత వేగంగా యాక్సెస్ చేయండి</translation>
 <translation id="5184329579814168207">Chromeలో తెరువు</translation>
 <translation id="5190139289262548459">మీరు సైన్ ఇన్ చేసి ఉన్న ఖాతాను, Chrome ఎలా ఉపయోగించబడుతుంది అనే విషయాన్ని మీ సంస్థ, <ph name="DOMAIN" /> మేనేజ్ చేస్తాయి.</translation>
 <translation id="5209238444239954363">Chrome అప్‌డేట్‌లు ఏమైనా ఉన్నాయో లేదో చెక్ చేయలేకపోయింది. తర్వాత మళ్లీ ట్రై చేయండి.</translation>
@@ -272,6 +282,7 @@
 <translation id="7284245284340063465">మీ రహస్య పదబంధాన్ని మీరు మర్చిపోయినా లేదా ఈ సెట్టింగ్‌ను మార్చాలనుకున్నా, <ph name="BEGIN_LINK" />మీ ఖాతాలోని Chrome డేటాను తొలగించండి<ph name="END_LINK" />.</translation>
 <translation id="7296102444587051536">iOS కోసం Chrome</translation>
 <translation id="7299681342915173313">ఈమెయిల్స్, డాక్యుమెంట్‌లు, ఇతర యాప్‌లలో లింక్‌లను ట్యాప్ చేయడం ద్వారా, మీరు ఎప్పుడైనా Chromeను ఉపయోగించవచ్చు.</translation>
+<translation id="7334364820047587268">మీ Google Password Managerలో ఈ ఖాతాలకు ఇప్పటికే పాస్‌వర్డ్‌లు ఉన్నాయి. మీరు కింద ఉన్న పాస్‌వర్డ్‌ల నుండి ఒకదాన్ని దిగుమతి చేయాలని ఎంచుకుంటే, అది ఇప్పటికే ఉన్న పాస్‌వర్డ్‌ను రీప్లేస్ చేస్తుంది.</translation>
 <translation id="7344094882820374540">ప్రమాదకరమైన సైట్‌ల నుండి Chrome అత్యంత సురక్షితమైన సెక్యూరిటీని పొందండి</translation>
 <translation id="7349129508108954623">కనుగొనబడిన అడ్రస్‌లపై మీకు దిశలను, స్థానిక సమాచారాన్ని అందించడం కోసం Google Mapsను ఉపయోగించడానికి Chromeను అనుమతించండి.</translation>
 <translation id="7371674917547846460">సహాయకరమైన Chrome చిట్కాలు, మరిన్నింటితో కొనసాగండి.</translation>
@@ -304,7 +315,6 @@
 <translation id="787226752901403048">Chromeకు సైన్ ఇన్ చేసి ట్యాబ్ గ్రూప్‌లలో షేర్ చేయండి, చేరండి, వచ్చిన ఐడియాలపై కలిసి పని చేయండి</translation>
 <translation id="7897703007638178753">Chrome ఇటీవలి ట్యాబ్‌లను చూడండి</translation>
 <translation id="7948283758957877064">Chromeలో కొత్త అప్‌డేట్‌లు ఏంటి</translation>
-<translation id="7996707498590516621">Chromeలో Geminiతో ఇమేజ్‌ను క్రియేట్ చేయండి</translation>
 <translation id="8000174216052461231">Chrome చిట్కా: Chrome తాలూకు శక్తివంతమైన సెక్యూరిటీని పొందండి</translation>
 <translation id="8006014511203279255">మెసేజ్‌లలో, ఇతర యాప్‌లలో కనిపించే లింక్‌లను ట్యాప్ చేయడం ద్వారా ఎప్పుడైనా, ఎక్కడైనా Chromeను ఉపయోగించండి.</translation>
 <translation id="8014670471808569312">మీకు Chrome మీ పాస్‌వర్డ్‌ను సేవ్ చేసే ఆప్షన్‌ను ఇస్తుంది.</translation>

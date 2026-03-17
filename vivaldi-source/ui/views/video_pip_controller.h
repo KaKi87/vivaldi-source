@@ -1,20 +1,19 @@
 // Copyright (c) 2020 Vivaldi Technologies AS. All rights reserved
 
 #include "base/containers/flat_set.h"
+#include "content/browser/picture_in_picture/picture_in_picture_session.h"
 #include "content/public/browser/media_player_id.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "ui/views/controls/slider.h"
-#include "content/browser/picture_in_picture/picture_in_picture_session.h"
 
 namespace vivaldi {
 class VideoProgress;
 class MuteButton;
 
-class VideoPIPController
-    : public content::WebContentsObserver,
-      public views::SliderListener {
+class VideoPIPController : public content::WebContentsObserver,
+                           public views::SliderListener {
  public:
   class Delegate {
    public:
@@ -38,9 +37,9 @@ class VideoPIPController
   void DidUpdateAudioMutingState(bool muted) override;
 
   void SliderValueChanged(views::Slider* sender,
-                                  float value,
-                                  float old_value,
-                                  views::SliderChangeReason reason) override;
+                          float value,
+                          float old_value,
+                          views::SliderChangeReason reason) override;
   // Invoked when a drag starts or ends (more specifically, when the mouse
   // button is pressed or released).
   void SliderDragStarted(views::Slider* sender) override;

@@ -4,25 +4,23 @@
 
 #import "base/strings/sys_string_conversions.h"
 #import "components/notes/note_node.h"
-#import "components/notes/note_node.h"
-#import "components/notes/notes_model.h"
 #import "components/notes/notes_model.h"
 #import "components/pref_registry/pref_registry_syncable.h"
 #import "components/prefs/pref_service.h"
 #import "ios/chrome/browser/default_browser/model/utils.h"
-#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
+#import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/shared/ui/util/url_with_title.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/notes/notes_factory.h"
 #import "ios/ui/notes/note_utils_ios.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 #import "ui/base/l10n/l10n_util.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-using vivaldi::NotesModel;
 using vivaldi::NoteNode;
+using vivaldi::NotesModel;
 
 namespace {
 const int64_t kLastUsedFolderNone = -1;

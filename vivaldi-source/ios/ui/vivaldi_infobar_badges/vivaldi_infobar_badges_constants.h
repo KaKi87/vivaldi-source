@@ -39,5 +39,4 @@ extern NSString* vInfobarBadgeCreditCardSelected;
 extern NSString* vInfobarBadgeCamera;
 extern NSString* vInfobarBadgeCameraSelected;
 
-
 #endif  // IOS_UI_VIVALDI_INFOBAR_BADGES_VIVALDI_INFOBAR_BADGES_CONSTANTS_H_

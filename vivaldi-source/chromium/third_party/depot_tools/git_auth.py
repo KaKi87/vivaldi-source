@@ -312,8 +312,6 @@ class ConfigWizard(object):
         self._println(f"Repo remote is {remote_url}")
 
         local_email = self._check_local_email()
-        email = global_email
-        scope = 'global'
         if local_email and local_email != global_email:
             self._println()
             self._println(
@@ -323,6 +321,13 @@ class ConfigWizard(object):
             )
             email = local_email
             scope = 'local'
+        else:
+            self._println(
+                "Since you don't have a different local email, we'll set up auth in your global config"
+            )
+            self._println('alongside your globally configured email.')
+            email = global_email
+            scope = 'global'
         self._println()
         parts = urllib.parse.urlsplit(remote_url)
         return self._configure_host(parts, email, scope=scope)
@@ -335,6 +340,9 @@ class ConfigWizard(object):
             self._configure_sso(parts, scope=scope)
             return _ConfigInfo(method=_ConfigMethod.SSO)
         self._configure_oauth(parts, scope=scope)
+        if scope == 'global':
+            # Clear any potential overriding local config
+            self._clear_local_host_config(parts)
         return _ConfigInfo(method=_ConfigMethod.OAUTH)
 
     def _configure_sso(self, parts: urllib.parse.SplitResult, *,
@@ -352,6 +360,20 @@ class ConfigWizard(object):
             # Override a potential SSO rewrite set in the global config
             self._set_url_rewrite_override(parts, scope=scope)
         self._clear_sso_rewrite(parts, scope=scope)
+
+    def _clear_local_host_config(self, parts: urllib.parse.SplitResult):
+        """Clear auth config for one Gerrit host.
+
+        This is used to clear any local config that might override a
+        correct global config, as we default to configuring the global
+        config if the local config has the same email, but the local
+        config might have stale settings.
+        """
+        # Skip this if we're not inside a Git repo.
+        if not self._remote_url_func():
+            return
+        self._clear_url_rewrite_override(parts, scope='local')
+        self._clear_sso_rewrite(parts, scope='local')
 
     # Fixing competing auth
 
@@ -590,19 +612,21 @@ class ConfigWizard(object):
 
     def _set_oauth_helper(self, parts: urllib.parse.SplitResult, *,
                           scope: scm.GitConfigScope) -> None:
-        cred_key = _creds_helper_key(parts)
+        cred_key = f'credential.{_url_host_url(parts)}.helper'
         self._set_config(cred_key, '', modify_all=True, scope=scope)
         self._set_config(cred_key, 'luci', append=True, scope=scope)
-        self._set_config(_creds_use_http_path_key(parts),
+        self._set_config(f'credential.{_url_host_url(parts)}.useHttpPath',
                          'yes',
                          modify_all=True,
                          scope=scope)
 
     def _set_sso_rewrite(self, parts: urllib.parse.SplitResult, *,
                          scope: scm.GitConfigScope) -> None:
-        self._set_url_rewrites(_url_gerrit_sso_url(parts),
-                               [_url_root_url(parts)],
-                               scope=scope)
+        self._set_url_rewrites(
+            _url_gerrit_sso_url(parts),
+            [_url_git_root_url(parts),
+             _url_review_root_url(parts)],
+            scope=scope)
 
     def _clear_sso_rewrite(self, parts: urllib.parse.SplitResult, *,
                            scope: scm.GitConfigScope) -> None:
@@ -798,19 +822,31 @@ def _is_gerrit_url(url: str) -> bool:
     return False
 
 
-def _creds_helper_key(parts: urllib.parse.SplitResult) -> str:
-    """Return Git config key for credential helpers."""
-    return f'credential.{_url_host_url(parts)}.helper'
-
-
-def _creds_use_http_path_key(parts: urllib.parse.SplitResult) -> str:
-    """Return Git config key for using path with helpers."""
-    return f'credential.{_url_host_url(parts)}.useHttpPath'
-
-
 def _url_gerrit_sso_url(parts: urllib.parse.SplitResult) -> str:
     """Return the base SSO URL for a Gerrit host URL."""
     return f'sso://{_url_shortname(parts)}/'
+
+
+def _url_git_root_url(parts: urllib.parse.SplitResult) -> str:
+    """Format URL as Gerrit host URL with root path.
+
+    Example: https://chromium.googlesource.com/
+    """
+    return parts._replace(netloc=_url_git_host(parts),
+                          path='/',
+                          query='',
+                          fragment='').geturl()
+
+
+def _url_review_root_url(parts: urllib.parse.SplitResult) -> str:
+    """Format URL as Gerrit review host URL with root path.
+
+    Example: https://chromium-review.googlesource.com/
+    """
+    return parts._replace(netloc=_url_review_host(parts),
+                          path='/',
+                          query='',
+                          fragment='').geturl()
 
 
 def _url_host_url(parts: urllib.parse.SplitResult) -> str:
@@ -822,13 +858,12 @@ def _url_host_url(parts: urllib.parse.SplitResult) -> str:
     return parts._replace(path='', query='', fragment='').geturl()
 
 
-def _url_root_url(parts: urllib.parse.SplitResult) -> str:
-    """Format URL with root path.
+def _url_git_host(parts: urllib.parse.SplitResult) -> str:
+    """Format URL as Gerrit host.
 
-    Example: https://chromium.googlesource.com/
-    Example: https://chromium-review.googlesource.com/
+    Example: chromium.googlesource.com
     """
-    return parts._replace(path='/', query='', fragment='').geturl()
+    return f'{_url_shortname(parts)}.googlesource.com'
 
 
 def _url_review_host(parts: urllib.parse.SplitResult) -> str:

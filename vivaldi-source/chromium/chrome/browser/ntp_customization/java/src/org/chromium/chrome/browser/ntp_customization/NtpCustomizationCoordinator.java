@@ -16,6 +16,7 @@ import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationView
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationViewProperties.VIEW_FLIPPER_KEYS;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ViewFlipper;
@@ -33,6 +34,7 @@ import org.chromium.chrome.browser.ntp_customization.ntp_cards.NtpCardsCoordinat
 import org.chromium.chrome.browser.ntp_customization.theme.NtpThemeCoordinator;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
+import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyKey;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
@@ -60,6 +62,7 @@ public class NtpCustomizationCoordinator {
     private @Nullable FeedSettingsCoordinator mFeedSettingsCoordinator;
     private @Nullable NtpThemeCoordinator mNtpThemeCoordinator;
     private ViewFlipper mViewFlipperView;
+    private boolean mHasMainBottomSheetShown;
 
     /**
      * New Tab Page Customization bottom sheet type.
@@ -123,7 +126,8 @@ public class NtpCustomizationCoordinator {
             Context context,
             BottomSheetController bottomSheetController,
             Supplier<@Nullable Profile> profileSupplier,
-            @BottomSheetType int bottomSheetType) {
+            @BottomSheetType int bottomSheetType,
+            WindowAndroid windowAndroid) {
         mContext = context;
         mBottomSheetController = bottomSheetController;
         mProfileSupplier = profileSupplier;
@@ -132,6 +136,8 @@ public class NtpCustomizationCoordinator {
                 LayoutInflater.from(mContext)
                         .inflate(R.layout.ntp_customization_bottom_sheet, /* root= */ null);
         mViewFlipperView = contentView.findViewById(R.id.ntp_customization_view_flipper);
+        mHasMainBottomSheetShown =
+                NtpCustomizationUtils.getNtpCustomizationBottomSheetShownFromSharedPreference();
 
         // This empty OnClickListener is added to the ViewFlipper to prevent TalkBack from
         // unexpectedly triggering the click listeners of its child list items.
@@ -168,7 +174,8 @@ public class NtpCustomizationCoordinator {
                         bottomSheetContent,
                         viewFlipperPropertyModel,
                         containerPropertyModel,
-                        mProfileSupplier);
+                        mProfileSupplier,
+                        windowAndroid);
         mMediator.registerBottomSheetLayout(MAIN);
 
         mDelegate = createBottomSheetDelegate();
@@ -182,7 +189,9 @@ public class NtpCustomizationCoordinator {
             }
             mMediator.registerClickListener(NTP_CARDS, getOptionClickListener(NTP_CARDS));
             mMediator.registerClickListener(FEED, getOptionClickListener(FEED));
-            mMediator.registerClickListener(THEME, getOptionClickListener(THEME));
+            if (NtpCustomizationUtils.isNtpThemeCustomizationEnabled()) {
+                mMediator.registerClickListener(THEME, getOptionClickListener(THEME));
+            }
             mMediator.renderListContent();
         }
     }
@@ -207,7 +216,14 @@ public class NtpCustomizationCoordinator {
      */
     public void showBottomSheet() {
         switch (mBottomSheetType) {
-            case MAIN -> mMediator.showBottomSheet(MAIN);
+            case MAIN -> {
+                mMediator.showBottomSheet(MAIN);
+                if (!mHasMainBottomSheetShown) {
+                    NtpCustomizationUtils.setNtpCustomizationBottomSheetShownToSharedPreferences(
+                            /* hasShown= */ true);
+                    mHasMainBottomSheetShown = true;
+                }
+            }
             case NTP_CARDS -> showNtpCardsBottomSheet();
             case FEED -> showFeedBottomSheet();
             case THEME -> showThemeBottomSheet();
@@ -326,6 +342,11 @@ public class NtpCustomizationCoordinator {
             @Override
             public void onNewColorSelected(boolean isDifferentColor) {
                 mMediator.onNewColorSelected(isDifferentColor);
+            }
+
+            @Override
+            public void onNewThemeCollectionImageSelected(@Nullable Bitmap bitmap) {
+                mMediator.onNewThemeCollectionImageSelected(bitmap);
             }
         };
     }

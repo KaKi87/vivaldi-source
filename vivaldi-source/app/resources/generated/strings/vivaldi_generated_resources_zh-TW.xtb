@@ -303,7 +303,6 @@
 <translation id="5624959475330585145">在使用不安全連線前先詢問</translation>
 <translation id="5638309510554459422">歡迎前往 <ph name="BEGIN_LINK" />Chrome 線上應用程式商店<ph name="END_LINK" />尋找擴充功能和主題</translation>
 <translation id="5677928146339483299">已封鎖</translation>
-<translation id="5707185214361380026">擴充功能載入失敗：</translation>
 <translation id="5713171467967533494">在 Vivaldi 瀏覽器中開啟</translation>
 <translation id="5746169159649715125">另存為 PDF</translation>
 <translation id="5747809636523347288">貼上 <ph name="URL" /> 並前往該網址 (&amp;S)</translation>
@@ -354,7 +353,7 @@
 <translation id="6498249116389603658">所選全部語言 (&amp;A)</translation>
 <translation id="6503077044568424649">最常造訪</translation>
 <translation id="6508261954199872201">應用程式：<ph name="APP_NAME" /></translation>
-<translation id="6516243500644829484">新增無痕視窗 (&amp;P)</translation>
+<translation id="6516243500644829484">新增私密視窗 (&amp;P)</translation>
 <translation id="6518014396551869914">複製圖片 (&amp;Y)</translation>
 <translation id="6550675742724504774">選項</translation>
 <translation id="6579369886355986318">顯示所有控制項 (&amp;C)</translation>
@@ -422,7 +421,7 @@
 <translation id="7903925330883316394">公用程式：<ph name="UTILITY_TYPE" /></translation>
 <translation id="7947962633355574091">複製影片網址 (&amp;O)</translation>
 <translation id="7966241909927244760">複製圖片網址 (&amp;O)</translation>
-<translation id="7973394300052703468">新增無痕視窗 (&amp;P)</translation>
+<translation id="7973394300052703468">新增私密視窗 (&amp;P)</translation>
 <translation id="7978412674231730200">私鑰</translation>
 <translation id="7982789257301363584">網路</translation>
 <translation id="7997826902155442747">處理優先順序</translation>

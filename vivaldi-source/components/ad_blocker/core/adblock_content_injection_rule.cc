@@ -9,62 +9,36 @@ namespace adblock_filter {
 
 namespace {
 constexpr int kAlignemntPosition = 20;
-constexpr int kAlignemntPositionNoColon = kAlignemntPosition - 1;
-
-void PrintStrings(std::ostream& os, std::set<std::string> strings) {
-  if (strings.empty()) {
-    os << ":<NULL>\n";
-    return;
-  }
-
-  std::string result;
-  for (const auto& string : strings) {
-    os << ':' << string << "\n" << std::string(kAlignemntPosition, ' ');
-  }
-  os.seekp(-kAlignemntPosition, std::ios_base::cur);
-}
 }  // namespace
 
-ContentInjectionRuleCore::ContentInjectionRuleCore() = default;
+ContentInjectionRuleCore::ContentInjectionRuleCore(bool invert)
+    : domain_constraints(invert) {}
 ContentInjectionRuleCore::~ContentInjectionRuleCore() = default;
 ContentInjectionRuleCore::ContentInjectionRuleCore(
     ContentInjectionRuleCore&& other) = default;
-ContentInjectionRuleCore::ContentInjectionRuleCore(
-    const ContentInjectionRuleCore& other) = default;
 ContentInjectionRuleCore& ContentInjectionRuleCore::operator=(
     ContentInjectionRuleCore&& other) = default;
 bool ContentInjectionRuleCore::operator==(
-    const ContentInjectionRuleCore& other) const {
-  return is_allow_rule == other.is_allow_rule &&
-         excluded_domains == other.excluded_domains &&
-         included_domains == other.included_domains;
-}
-
-ContentInjectionRuleCore ContentInjectionRuleCore::Clone() {
-  return ContentInjectionRuleCore(*this);
-}
+    const ContentInjectionRuleCore& other) const = default;
 
 std::ostream& operator<<(std::ostream& os,
                          const ContentInjectionRuleCore& rule) {
+  rule.domain_constraints.set_print_indent_(kAlignemntPosition);
+
   os << "\n"
-     << std::setw(kAlignemntPosition) << "Allow rule:" << rule.is_allow_rule
-     << "\n"
-     << std::setw(kAlignemntPositionNoColon) << "Included domains";
-  PrintStrings(os, rule.included_domains);
-  os << std::setw(kAlignemntPositionNoColon) << "Excluded domains";
-  PrintStrings(os, rule.excluded_domains);
+     << std::setw(kAlignemntPosition)
+     << "Domain constraints:" << rule.domain_constraints;
 
   return os;
 }
 
-CosmeticRule::CosmeticRule() = default;
+CosmeticRule::CosmeticRule(ContentInjectionRuleCore core)
+    : core(std::move(core)) {}
 CosmeticRule::~CosmeticRule() = default;
 CosmeticRule::CosmeticRule(CosmeticRule&& other) = default;
 CosmeticRule& CosmeticRule::operator=(CosmeticRule&& other) = default;
 
-bool CosmeticRule::operator==(const CosmeticRule& other) const {
-  return core == other.core && selector == other.selector;
-}
+bool CosmeticRule::operator==(const CosmeticRule& other) const = default;
 
 std::ostream& operator<<(std::ostream& os, const CosmeticRule& rule) {
   return os << "\n"
@@ -72,26 +46,32 @@ std::ostream& operator<<(std::ostream& os, const CosmeticRule& rule) {
             << rule.core;
 }
 
-ScriptletInjectionRule::ScriptletInjectionRule() = default;
+ScriptletInjectionRule::ScriptletInjectionRule(ContentInjectionRuleCore core)
+    : core(std::move(core)) {}
 ScriptletInjectionRule::~ScriptletInjectionRule() = default;
 ScriptletInjectionRule::ScriptletInjectionRule(ScriptletInjectionRule&& other) =
     default;
 ScriptletInjectionRule& ScriptletInjectionRule::operator=(
     ScriptletInjectionRule&& other) = default;
 bool ScriptletInjectionRule::operator==(
-    const ScriptletInjectionRule& other) const {
-  return scriptlet_name == other.scriptlet_name &&
-         arguments == other.arguments && core == other.core;
-}
+    const ScriptletInjectionRule& other) const = default;
+
+bool ScriptletInjectionRule::Scriptlet::operator==(
+    const Scriptlet& other) const = default;
 
 std::ostream& operator<<(std::ostream& os, const ScriptletInjectionRule& rule) {
-  os << "\n"
-     << std::setw(kAlignemntPosition) << "Scriptlet:" << rule.scriptlet_name
-     << "\n"
-     << std::setw(kAlignemntPosition) << "Arguments:";
+  os << "\n" << std::setw(kAlignemntPosition) << "Scriptlets:";
 
-  for (const auto& argument : rule.arguments)
-    os << argument << " ";
+  for (const auto& scriptlet : rule.scriptlets) {
+    os << "\n"
+       << std::setw(kAlignemntPosition + 4) << "Scriptlet:" << scriptlet.name
+       << "\n"
+       << std::setw(kAlignemntPosition + 4) << "Arguments:";
+
+    for (const auto& argument : scriptlet.arguments) {
+      os << argument << " ";
+    }
+  }
   return os << rule.core;
 }
 

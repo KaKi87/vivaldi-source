@@ -101,10 +101,11 @@
   // View controller that lays down the table views for the edit profile view.
   _AutofillProfileEditTableViewHelper =
       [[AutofillProfileEditTableViewHelper alloc]
-          initWithDelegate:_autofillProfileEditMediator
-                 userEmail:[_handler userEmail]
-                controller:editModalViewController
-            addressContext:saveAddressContext];
+           initWithDelegate:_autofillProfileEditMediator
+                  userEmail:[_handler userEmail]
+                 controller:editModalViewController
+          textFieldDelegate:editModalViewController
+             addressContext:saveAddressContext];
   _autofillProfileEditMediator.consumer = _AutofillProfileEditTableViewHelper;
   // `editModalViewController` lays down the bottom sheet view and communicates
   // with `_AutofillProfileEditTableViewHelper` via
@@ -117,12 +118,7 @@
 
   _navigationController =
       [[TableViewNavigationController alloc] initWithTable:_viewController];
-  BOOL isIPad =
-      UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad;
-  _navigationController.modalPresentationStyle =
-      isIPad ? UIModalPresentationFormSheet : UIModalPresentationPageSheet;
-  _navigationController.modalTransitionStyle =
-      UIModalTransitionStyleCoverVertical;
+  _navigationController.modalPresentationStyle = UIModalPresentationFormSheet;
   _navigationController.presentationController.delegate = self;
 
   [self.baseViewController presentViewController:_navigationController

@@ -17,7 +17,6 @@
 #include "ash/public/cpp/new_window_delegate.h"
 #include "ash/public/cpp/system_tray.h"
 #include "ash/public/cpp/update_types.h"
-#include "ash/webui/settings/public/constants/routes.mojom-forward.h"
 #include "ash/webui/settings/public/constants/routes.mojom.h"
 #include "ash/webui/settings/public/constants/setting.mojom.h"
 #include "base/check_deref.h"
@@ -722,6 +721,9 @@ void SystemTrayClientImpl::ShowNetworkSettingsHelper(
 
 void SystemTrayClientImpl::ShowMultiDeviceSetup() {
   ash::multidevice_setup::MultiDeviceSetupDialog::Show();
+  ash::phonehub::util::LogMultiDeviceSetupDialogEntryPoint(
+      ash::phonehub::util::MultiDeviceSetupDialogEntrypoint::
+          kSetupNotification);
 }
 
 void SystemTrayClientImpl::ShowFirmwareUpdate() {

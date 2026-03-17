@@ -207,6 +207,11 @@
             "type": "boolean",
             "optional": true,
             "description": "Whether the extension is blocked or not."
+          },
+          "explicitly_set_icon_path": {
+            "type": "string",
+            "optional": true,
+            "description": "Path to icon set via action.setIcon."
           }
         }
       },

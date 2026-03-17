@@ -3,6 +3,8 @@
 #ifndef APP_VIVALDI_COMMANDS_H_
 #define APP_VIVALDI_COMMANDS_H_
 
+// clang-format off
+
 // Definitions used in the Vivaldi is running dialog.
 #define IDD_EXIT_WAIT_DLG               129
 #define IDC_EXIT_PROGRESS               1001

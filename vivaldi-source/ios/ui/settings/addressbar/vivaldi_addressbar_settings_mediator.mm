@@ -8,7 +8,7 @@
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/utils/observable_boolean.h"
 #import "ios/ui/settings/addressbar/vivaldi_addressbar_settings_prefs.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 #import "vivaldi/prefs/vivaldi_gen_prefs.h"
 
 @interface VivaldiAddressBarSettingsMediator () <BooleanObserver> {
@@ -37,88 +37,78 @@
   if (self) {
     _prefService = originalPrefService;
 
-    _addressBarSwipeGestureEnabled =
-      [[PrefBackedBoolean alloc]
+    _addressBarSwipeGestureEnabled = [[PrefBackedBoolean alloc]
         initWithPrefService:originalPrefService
-          prefName:vivaldiprefs::kVivaldiAddressBarSwipeGestureEnabled];
+                   prefName:vivaldiprefs::
+                                kVivaldiAddressBarSwipeGestureEnabled];
     [_addressBarSwipeGestureEnabled setObserver:self];
     [self booleanDidChange:_addressBarSwipeGestureEnabled];
 
     PrefService* localPrefs = GetApplicationContext()->GetLocalState();
-    _showFullAddressEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:localPrefs
-                 prefName:vivaldiprefs::kVivaldiShowFullAddressEnabled];
+    _showFullAddressEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:localPrefs
+                   prefName:vivaldiprefs::kVivaldiShowFullAddressEnabled];
     [_showFullAddressEnabled setObserver:self];
     [self booleanDidChange:_showFullAddressEnabled];
 
-    _showXForSuggestionsEnabled =
-        [[PrefBackedBoolean alloc]
-           initWithPrefService:localPrefs
-              prefName:vivaldiprefs::kVivaldiShowXForSuggestionEnabled];
+    _showXForSuggestionsEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:localPrefs
+                   prefName:vivaldiprefs::kVivaldiShowXForSuggestionEnabled];
     [_showXForSuggestionsEnabled setObserver:self];
     [self booleanDidChange:_showXForSuggestionsEnabled];
 
-    _searchSuggestionsEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                prefName:prefs::kSearchSuggestEnabled];
+    _searchSuggestionsEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:prefs::kSearchSuggestEnabled];
     [_searchSuggestionsEnabled setObserver:self];
     [self booleanDidChange:_searchSuggestionsEnabled];
 
-    _showTypedHistoryOnFocusEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                prefName:vivaldiprefs::kAddressBarOmniboxShowTypedHistory];
+    _showTypedHistoryOnFocusEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kAddressBarOmniboxShowTypedHistory];
     [_showTypedHistoryOnFocusEnabled setObserver:self];
     [self booleanDidChange:_showTypedHistoryOnFocusEnabled];
 
-    _historyEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                 prefName:vivaldiprefs::kAddressBarOmniboxShowBrowserHistory];
+    _historyEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kAddressBarOmniboxShowBrowserHistory];
     [_historyEnabled setObserver:self];
     [self booleanDidChange:_historyEnabled];
 
-    _searchHistoryEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                 prefName:vivaldiprefs::kAddressBarOmniboxSearchHistoryEnable];
+    _searchHistoryEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::
+                                kAddressBarOmniboxSearchHistoryEnable];
     [_searchHistoryEnabled setObserver:self];
     [self booleanDidChange:_searchHistoryEnabled];
 
-    _bookmarksEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                 prefName:vivaldiprefs::kAddressBarOmniboxBookmarks];
+    _bookmarksEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kAddressBarOmniboxBookmarks];
     [_bookmarksEnabled setObserver:self];
     [self booleanDidChange:_bookmarksEnabled];
 
-    _bookmarksBoostedEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                 prefName:vivaldiprefs::kAddressBarOmniboxBookmarksBoosted];
+    _bookmarksBoostedEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kAddressBarOmniboxBookmarksBoosted];
     [_bookmarksBoostedEnabled setObserver:self];
     [self booleanDidChange:_bookmarksBoostedEnabled];
 
-    _bookmarkNicknamesEnabled =
-        [[PrefBackedBoolean alloc]
-           initWithPrefService:originalPrefService
-              prefName:vivaldiprefs::kAddressBarOmniboxShowNicknames];
+    _bookmarkNicknamesEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kAddressBarOmniboxShowNicknames];
     [_bookmarkNicknamesEnabled setObserver:self];
     [self booleanDidChange:_bookmarkNicknamesEnabled];
 
-    _directMatchEnabled =
-        [[PrefBackedBoolean alloc]
-           initWithPrefService:originalPrefService
-              prefName:vivaldiprefs::kAddressBarSearchDirectMatchEnabled];
+    _directMatchEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kAddressBarSearchDirectMatchEnabled];
     [_directMatchEnabled setObserver:self];
     [self booleanDidChange:_directMatchEnabled];
 
-    _directMatchPrioritizationEnabled =
-        [[PrefBackedBoolean alloc]
-           initWithPrefService:originalPrefService
-              prefName:vivaldiprefs::kAddressBarSearchDirectMatchBoosted];
+    _directMatchPrioritizationEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kAddressBarSearchDirectMatchBoosted];
     [_directMatchPrioritizationEnabled setObserver:self];
     [self booleanDidChange:_directMatchPrioritizationEnabled];
   }
@@ -270,30 +260,27 @@
   // Options
   [self.consumer setPreferenceForShowFullAddress:[self showFullAddressEnabled]];
   [self.consumer
-      setPreferenceForShowXForSugggestions:
-          [self isShowXForSuggestionsEnabled]];
+      setPreferenceForShowXForSugggestions:[self isShowXForSuggestionsEnabled]];
   [self.consumer
       setPreferenceForEnableSearchSuggestions:[self searchSuggestionsEnabled]];
-  [self.consumer
-      setPreferenceForShowTypedHistoryOnFocus:
-          [self showTypedHistoryOnFocusEnabled]];
+  [self.consumer setPreferenceForShowTypedHistoryOnFocus:
+                     [self showTypedHistoryOnFocusEnabled]];
 
   // Priorities
   [self.consumer setPreferenceForEnableHistory:[self isHistoryEnabled]];
   [self.consumer
       setPreferenceForEnableSearchHistory:[self isSearchHistoryEnabled]];
   [self.consumer setPreferenceForEnableBookmarks:[self isBookmarksEnabled]];
-  [self.consumer setPreferenceForEnableBookmarksBoosted:
-      [self isBookmarksBoostedEnabled]];
-  [self.consumer setPreferenceForEnableBookmarkNicknames:
-      [self isBookmarkNicknamesEnabled]];
+  [self.consumer
+      setPreferenceForEnableBookmarksBoosted:[self isBookmarksBoostedEnabled]];
+  [self.consumer
+      setPreferenceForEnableBookmarkNicknames:[self
+                                                  isBookmarkNicknamesEnabled]];
   [self.consumer setPreferenceForEnableDirectMatch:[self isDirectMatchEnabled]];
-  [self.consumer
-      setPreferenceForEnableDirectMatchPrioritization:
-          [self isDirectMatchPrioritizationEnabled]];
-  [self.consumer
-      setPreferenceForEnableAddressBarSwipeGesture:
-          [self isAddressBarSwipeGestureEnabled]];
+  [self.consumer setPreferenceForEnableDirectMatchPrioritization:
+                     [self isDirectMatchPrioritizationEnabled]];
+  [self.consumer setPreferenceForEnableAddressBarSwipeGesture:
+                     [self isAddressBarSwipeGestureEnabled]];
 }
 
 #pragma mark - VivaldiAddressBarSettingsConsumer
@@ -382,14 +369,14 @@
     [self.consumer
         setPreferenceForEnableBookmarksBoosted:[observableBoolean value]];
   } else if (observableBoolean == _bookmarkNicknamesEnabled) {
-    [self.consumer setPreferenceForEnableBookmarkNicknames:
-        [observableBoolean value]];
+    [self.consumer
+        setPreferenceForEnableBookmarkNicknames:[observableBoolean value]];
   } else if (observableBoolean == _directMatchEnabled) {
     [self.consumer setPreferenceForEnableDirectMatch:[observableBoolean value]];
   } else if (observableBoolean == _directMatchPrioritizationEnabled) {
     [self.consumer
-        setPreferenceForEnableDirectMatchPrioritization:
-            [observableBoolean value]];
+        setPreferenceForEnableDirectMatchPrioritization:[observableBoolean
+                                                            value]];
   } else if (observableBoolean == _addressBarSwipeGestureEnabled) {
     [self.consumer
         setPreferenceForEnableAddressBarSwipeGesture:[observableBoolean value]];

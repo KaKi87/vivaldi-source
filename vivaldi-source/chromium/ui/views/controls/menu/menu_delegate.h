@@ -228,6 +228,7 @@ class VIEWS_EXPORT MenuDelegate {
   virtual MenuItemView* GetVivaldiSiblingMenu(views::MenuItemView* menu,
                                               const gfx::Point& screen_point,
                                               gfx::Rect* rect,
+                                              bool* has_mnemonics,
                                               MenuAnchorPosition* anchor);
   virtual MenuItemView* GetNextSiblingMenu(bool next,
                                            bool* has_mnemonics,

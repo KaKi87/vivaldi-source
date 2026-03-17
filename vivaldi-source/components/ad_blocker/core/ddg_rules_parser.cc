@@ -6,6 +6,7 @@
 #include "components/ad_blocker/core/parse_result.h"
 #include "components/ad_blocker/core/parse_utils.h"
 
+namespace adblock_filter {
 namespace {
 const char kTrackersKey[] = "trackers";
 const char kEntitiesKey[] = "entities";
@@ -70,9 +71,22 @@ std::string MaybeConvertRegexToPlainPattern(const std::string& regex) {
   }
   return result;
 }
-}  // namespace
 
-namespace adblock_filter {
+void AddFromDomains(const std::set<std::string>& domains,
+                    bool excluded,
+                    DomainConstraintsTree& constraint_tree) {
+  for (const auto& domain : domains) {
+    std::optional<std::string> constraint =
+        NormalizePlainDomainConstraint(domain);
+    if (constraint) {
+      constraint_tree.Add(
+          {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+           .excluded = excluded,
+           .constraint = std::move(*constraint)});
+    }
+  }
+}
+}  // namespace
 
 DuckDuckGoRulesParser::DuckDuckGoRulesParser(ParseResult* parse_result)
     : parse_result_(parse_result) {}
@@ -93,7 +107,7 @@ void DuckDuckGoRulesParser::Parse(const base::Value& root) {
     return;
   }
 
-  parse_result_->tracker_infos = base::Value::Dict();
+  parse_result_->tracker_infos = base::DictValue();
 
   for (const auto [domain, tracker] : trackers->GetDict()) {
     if (!tracker.is_dict()) {
@@ -109,16 +123,16 @@ void DuckDuckGoRulesParser::Parse(const base::Value& root) {
       continue;
     }
 
-    const base::Value::List* excluded_origins = nullptr;
+    std::optional<std::set<std::string>> excluded_origins;
     const std::string* owner =
         tracker.GetDict().FindStringByDottedPath(kOwnerNamePath);
     if (owner) {
       const base::Value* entity = entities->GetDict().Find(*owner);
       if (entity)
-        excluded_origins = entity->GetDict().FindList(kDomainsKey);
+        excluded_origins = GetDomains(entity);
     }
 
-    base::Value::Dict tracker_info;
+    base::DictValue tracker_info;
     const base::Value* owner_dict = tracker.GetDict().Find(kOwnerKey);
     if (owner_dict)
       tracker_info.Set(kOwnerKey, owner_dict->Clone());
@@ -136,7 +150,7 @@ void DuckDuckGoRulesParser::Parse(const base::Value& root) {
       AddBlockingRuleForDomain(domain, excluded_origins);
     }
 
-    const base::Value::List* rules = tracker.GetDict().FindList(kRulesKey);
+    const base::ListValue* rules = tracker.GetDict().FindList(kRulesKey);
     if (!rules)
       continue;
 
@@ -153,7 +167,7 @@ void DuckDuckGoRulesParser::Parse(const base::Value& root) {
 
 void DuckDuckGoRulesParser::AddBlockingRuleForDomain(
     const std::string& domain,
-    const base::Value::List* excluded_origins) {
+    const std::optional<std::set<std::string>>& excluded_origins) {
   RequestFilterRule rule;
   rule.original_rule_text = domain;
   rule.resource_types.PutAll(RegularResourceTypes::All());
@@ -162,10 +176,7 @@ void DuckDuckGoRulesParser::AddBlockingRuleForDomain(
   rule.pattern = domain;
 
   if (excluded_origins) {
-    for (const auto& origin : *excluded_origins) {
-      if (origin.is_string())
-        rule.excluded_domains.insert(origin.GetString());
-    }
+    AddFromDomains(*excluded_origins, true, rule.from_domain_constraints);
   }
 
   parse_result_->request_filter_rules.push_back(std::move(rule));
@@ -176,7 +187,7 @@ void DuckDuckGoRulesParser::ParseRule(
     const base::Value& rule,
     const std::string& domain,
     bool default_ignore,
-    const base::Value::List* excluded_origins) {
+    const std::optional<std::set<std::string>>& excluded_origins) {
   if (!rule.is_dict())
     return;
 
@@ -273,7 +284,7 @@ void DuckDuckGoRulesParser::ParseRule(
       // Under the DDG implementation, if a block rule has options and
       // exceptions, the rule is matched if the options are matched and the
       // request is then ignored if the exceptions are matched in turn. So, to
-      // implement this, we need an pass rule that matches both the options and
+      // implement this, we need a pass rule that matches both the options and
       // exceptions in the original rule.
       if (option_domains && exception_domains) {
         // Domain must have a match in both lists to be included.
@@ -311,13 +322,23 @@ void DuckDuckGoRulesParser::ParseRule(
             }
           }
           if (!potential_domain.empty()) {
-            filter_rule.included_domains.insert(std::string(potential_domain));
+            std::optional<std::string> constraint =
+                NormalizePlainDomainConstraint(potential_domain);
+            if (constraint) {
+              filter_rule.from_domain_constraints.Add(
+                  {.kind =
+                       DomainConstraintsTree::NormalizedConstraint::kHostname,
+                   .excluded = false,
+                   .constraint = std::move(*constraint)});
+            }
           }
         }
       } else if (option_domains) {
-        filter_rule.included_domains.swap(option_domains.value());
+        AddFromDomains(*option_domains, false,
+                       filter_rule.from_domain_constraints);
       } else if (exception_domains) {
-        filter_rule.included_domains.swap(exception_domains.value());
+        AddFromDomains(*exception_domains, false,
+                       filter_rule.from_domain_constraints);
       }
       filter_rule.resource_types = option_types.value();
       if (exception_types) {
@@ -326,18 +347,23 @@ void DuckDuckGoRulesParser::ParseRule(
         filter_rule.resource_types.RemoveAll(to_remove);
       }
     } else {
-      if (option_domains)
-        filter_rule.included_domains.swap(option_domains.value());
+      if (option_domains) {
+        AddFromDomains(*option_domains, false,
+                       filter_rule.from_domain_constraints);
+      }
       filter_rule.resource_types = option_types.value();
       if (!ignore) {
         DCHECK(default_ignore && filter_rule.decision != RuleDecision::kPass);
         // Under the DDG implementation, exceptions always mean ignore, so
         // they're only meaningful for block rules
-        if (exception_domains)
-          filter_rule.excluded_domains.swap(exception_domains.value());
+        if (exception_domains) {
+          AddFromDomains(*exception_domains, true,
+                         filter_rule.from_domain_constraints);
+        }
         // Exceptions have priority over options.
-        if (exception_types)
+        if (exception_types) {
           filter_rule.resource_types.RemoveAll(exception_types.value());
+        }
       }
     }
 
@@ -356,10 +382,8 @@ void DuckDuckGoRulesParser::ParseRule(
     filter_rule.host = domain;
 
     if (excluded_origins && filter_rule.decision == RuleDecision::kModify) {
-      for (const auto& origin : *excluded_origins) {
-        if (origin.is_string())
-          filter_rule.excluded_domains.insert(origin.GetString());
-      }
+      AddFromDomains(*excluded_origins, true,
+                     filter_rule.from_domain_constraints);
     }
 
     parse_result_->request_filter_rules.push_back(std::move(filter_rule));
@@ -369,16 +393,21 @@ void DuckDuckGoRulesParser::ParseRule(
   if (make_redirect_rule) {
     RequestFilterRule redirect_rule;
     redirect_rule.original_rule_text = domain + ":" + *pattern;
-    if (option_domains)
-      redirect_rule.included_domains.swap(option_domains.value());
+    if (option_domains) {
+      AddFromDomains(*option_domains, false,
+                     redirect_rule.from_domain_constraints);
+    }
     redirect_rule.resource_types = option_types.value();
     if (default_ignore) {
       // If we are blocking for the tracker, the exceptions are handled by
       // an pass rule instead
-      if (exception_domains)
-        redirect_rule.excluded_domains.swap(exception_domains.value());
-      if (exception_types)
+      if (exception_domains) {
+        AddFromDomains(*exception_domains, true,
+                       redirect_rule.from_domain_constraints);
+      }
+      if (exception_types) {
         redirect_rule.resource_types.RemoveAll(exception_types.value());
+      }
     }
     if (redirect_rule.resource_types.empty()) {
       parse_result_->rules_info.unsupported_rules++;
@@ -395,10 +424,8 @@ void DuckDuckGoRulesParser::ParseRule(
     redirect_rule.host = domain;
 
     if (excluded_origins) {
-      for (const auto& origin : *excluded_origins) {
-        if (origin.is_string())
-          redirect_rule.excluded_domains.insert(origin.GetString());
-      }
+      AddFromDomains(*excluded_origins, true,
+                     redirect_rule.from_domain_constraints);
     }
 
     redirect_rule.modifier = ModifierType::kRedirect;
@@ -412,7 +439,7 @@ void DuckDuckGoRulesParser::ParseRule(
 std::optional<RegularResourceTypes> DuckDuckGoRulesParser::GetTypes(
     const base::Value* rule_properties) {
   RegularResourceTypes types;
-  const base::Value::List* types_value =
+  const base::ListValue* types_value =
       rule_properties->GetDict().FindList(kTypesKey);
   if (!types_value)
     return std::nullopt;
@@ -434,7 +461,7 @@ std::optional<RegularResourceTypes> DuckDuckGoRulesParser::GetTypes(
 std::optional<std::set<std::string>> DuckDuckGoRulesParser::GetDomains(
     const base::Value* rule_properties) {
   std::set<std::string> domains;
-  const base::Value::List* domains_value =
+  const base::ListValue* domains_value =
       rule_properties->GetDict().FindList(kDomainsKey);
   if (!domains_value)
     return std::nullopt;

@@ -14,19 +14,19 @@
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry {
   // Register pref to store last sync error dialog shown date
   registry->RegisterStringPref(
-              vivaldiprefs::kVivaldiLastSyncErrorDialogShownDate, "");
+      vivaldiprefs::kVivaldiLastSyncErrorDialogShownDate, "");
   // Register pref to store flag for asking user again, default to YES
-  registry->RegisterBooleanPref(
-              vivaldiprefs::kVivaldiShouldAskSyncErrorAgain, YES);
+  registry->RegisterBooleanPref(vivaldiprefs::kVivaldiShouldAskSyncErrorAgain,
+                                YES);
 }
 
 #pragma mark - GETTERS
 
 /// Returns the date when the sync error dialog was last shown
 + (NSDate*)getLastSyncErrorDialogShownDateWithPrefService:
-             (PrefService*)prefService {
-  std::string dateString =
-    prefService->GetString(vivaldiprefs::kVivaldiLastSyncErrorDialogShownDate);
+    (PrefService*)prefService {
+  std::string dateString = prefService->GetString(
+      vivaldiprefs::kVivaldiLastSyncErrorDialogShownDate);
   if (dateString.empty()) {
     return nil;
   }
@@ -42,20 +42,18 @@
 
 /// Sets the date when the sync error dialog was last shown
 + (void)setLastSyncErrorDialogShownDate:(NSDate*)date
-                         withPrefService:(PrefService*)prefService {
+                        withPrefService:(PrefService*)prefService {
   std::string dateString = std::to_string([date timeIntervalSince1970]);
-  prefService->SetString(
-                  vivaldiprefs::kVivaldiLastSyncErrorDialogShownDate,
-                  dateString);
+  prefService->SetString(vivaldiprefs::kVivaldiLastSyncErrorDialogShownDate,
+                         dateString);
 }
 
 /// Sets the flag indicating if we should ask
 /// the user again about the sync error
 + (void)setShouldAskUserAgain:(BOOL)shouldAskAgain
               withPrefService:(PrefService*)prefService {
-  prefService->SetBoolean(
-                   vivaldiprefs::kVivaldiShouldAskSyncErrorAgain,
-                   shouldAskAgain);
+  prefService->SetBoolean(vivaldiprefs::kVivaldiShouldAskSyncErrorAgain,
+                          shouldAskAgain);
 }
 
 @end

@@ -16,7 +16,7 @@
 
 // VivaldiTableViewTextSpinnerButtonCell contains an activity indicator
 // laid out vertically and centered.
-@interface VivaldiTableViewTextSpinnerButtonCell: TableViewTextButtonCell
+@interface VivaldiTableViewTextSpinnerButtonCell : TableViewTextButtonCell
 
 - (void)setUpViewWithActivityIndicator;
 - (void)setActivityIndicatorEnabled:(BOOL)enable;

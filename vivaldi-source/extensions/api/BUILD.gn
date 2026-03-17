@@ -95,6 +95,7 @@ static_library("apis") {
     # "//chrome/browser/media/router",
     "//chrome/browser/resources/certificate_manager:mojom",
     "//chrome/browser/ui/zoom",
+    "//chrome/common:actor_webui_mojom",
     "//chrome/common:buildflags",
     "//chrome/common/apps/platform_apps",
     "//chrome/common/extensions/api",

@@ -37,7 +37,6 @@
 #include "chrome/browser/policy/dm_token_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/safe_browsing/chrome_enterprise_url_lookup_service_factory.h"
-#include "chrome/browser/safe_browsing/cloud_content_scanning/binary_upload_service.h"
 #include "chrome/browser/safe_browsing/cloud_content_scanning/deep_scanning_utils.h"
 #include "chrome/browser/safe_browsing/cloud_content_scanning/file_analysis_request.h"
 #include "chrome/browser/safe_browsing/download_protection/check_client_download_request.h"
@@ -48,6 +47,7 @@
 #include "components/enterprise/common/files_scan_data.h"
 #include "components/enterprise/common/proto/connectors.pb.h"
 #include "components/enterprise/connectors/core/analysis_settings.h"
+#include "components/enterprise/connectors/core/cloud_content_scanning/binary_upload_service.h"
 #include "components/enterprise/connectors/core/common.h"
 #include "components/enterprise/connectors/core/features.h"
 #include "components/enterprise/connectors/core/reporting_constants.h"
@@ -65,14 +65,13 @@
 #include "crypto/secure_hash.h"
 #include "crypto/sha2.h"
 #include "net/base/mime_util.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/ui_base_types.h"
 
 #if BUILDFLAG(ENTERPRISE_LOCAL_CONTENT_ANALYSIS)
 #include "chrome/browser/enterprise/connectors/analysis/content_analysis_sdk_manager.h"  // nogncheck
 #endif
-
-using safe_browsing::BinaryUploadService;
 
 namespace enterprise_connectors {
 
@@ -101,13 +100,13 @@ void OnContentAnalysisComplete(
     ContentAnalysisDelegate::ForFilesCompletionCallback callback,
     const ContentAnalysisDelegate::Data& data,
     ContentAnalysisDelegate::Result& result) {
-  std::set<size_t> file_indexes_to_block =
+  absl::flat_hash_set<size_t> file_indexes_to_block =
       files_scan_data->IndexesToBlock(result.paths_results);
 
   std::vector<bool> allowed;
   allowed.reserve(files_scan_data->base_paths().size());
   for (size_t i = 0; i < files_scan_data->base_paths().size(); ++i) {
-    allowed.push_back(file_indexes_to_block.count(i) == 0);
+    allowed.push_back(!file_indexes_to_block.contains(i));
   }
 
   std::move(callback).Run(files_scan_data->take_base_paths(),
@@ -228,7 +227,7 @@ void ContentAnalysisDelegate::Cancel(bool warning) {
   }
 
   // Ask the binary upload service to cancel requests if it can.
-  auto cancel = std::make_unique<BinaryUploadService::CancelRequests>(
+  auto cancel = std::make_unique<BinaryUploadCancelRequests>(
       data_.settings.cloud_or_local_settings);
   cancel->set_user_action_id(user_action_id_);
 
@@ -291,8 +290,11 @@ ContentAnalysisDelegate::GetCustomRuleMessageRanges() const {
 }
 
 bool ContentAnalysisDelegate::BypassRequiresJustification() const {
-  return data_.settings.tags.count(final_result_tag_) &&
-         data_.settings.tags.at(final_result_tag_).requires_justification;
+  auto it = data_.settings.tags.find(final_result_tag_);
+  if (it == data_.settings.tags.end()) {
+    return false;
+  }
+  return it->second.requires_justification;
 }
 
 std::u16string ContentAnalysisDelegate::GetBypassJustificationLabel() const {
@@ -318,6 +320,10 @@ std::u16string ContentAnalysisDelegate::GetBypassJustificationLabel() const {
 
 std::optional<std::u16string>
 ContentAnalysisDelegate::OverrideCancelButtonText() const {
+  return std::nullopt;
+}
+
+std::optional<std::u16string> ContentAnalysisDelegate::GetFilename() const {
   return std::nullopt;
 }
 
@@ -369,6 +375,7 @@ void ContentAnalysisDelegate::CreateForWebContents(
                       : testing_factory->Run(web_contents, std::move(data),
                                              std::move(callback));
 
+  delegate->creation_time_ = base::TimeTicks::Now();
   UploadDataStatus upload_data_status = delegate->UploadData();
 
   // Only show UI if one of the two conditions is met:
@@ -563,7 +570,7 @@ void ContentAnalysisDelegate::FilesRequestCallback(
   // Remember to send acks for any responses.
   files_request_handler_->AppendFinalActionsTo(&final_actions_);
 
-  // No reporting here, because the MultiFileRequestHandler does that.
+  // No reporting here, because the FilesRequestHandler does that.
   DCHECK_EQ(results.size(), result_.paths_results.size());
   for (size_t index = 0; index < results.size(); ++index) {
     FinalContentAnalysisResult result = results[index].final_result;
@@ -656,12 +663,12 @@ ContentAnalysisDelegate::UploadData() {
 
   if (!data_.paths.empty()) {
     // Passing the settings using a reference is safe here, because
-    // MultiFileRequestHandler is owned by this class.
+    // FilesRequestHandler is owned by this class.
     files_request_handler_ = FilesRequestHandler::Create(
         this, GetBinaryUploadService(), profile_, url_, "", "",
         GetContentTransferMethod(), access_point_, data_.paths,
         base::BindOnce(&ContentAnalysisDelegate::FilesRequestCallback,
-                       GetWeakPtr()));
+                       weak_ptr_factory_.GetWeakPtr()));
     files_request_complete_ = !files_request_handler_->UploadData();
   } else {
     // If no files should be uploaded, the file request is complete.
@@ -797,8 +804,7 @@ void ContentAnalysisDelegate::FillAllResultsWith(bool status) {
 }
 
 BinaryUploadService* ContentAnalysisDelegate::GetBinaryUploadService() {
-  return safe_browsing::BinaryUploadService::GetForProfile(profile_,
-                                                           data_.settings);
+  return GetBinaryUploadServiceForConnector(profile_, data_.settings);
 }
 
 safe_browsing::SafeBrowsingNavigationObserverManager*
@@ -823,6 +829,17 @@ void ContentAnalysisDelegate::MaybeCompleteScanRequest() {
     DVLOG(1) << __func__ << ": scan request is incomplete.";
     return;
   }
+
+  base::UmaHistogramCustomTimes(
+      base::ReplaceStringPlaceholders(
+          "Enterprise.$1ContentAnalysis.$2.$3.Duration",
+          {data_.settings.cloud_or_local_settings.is_cloud_analysis() ? ""
+                                                                      : "Local",
+           DeepScanAccessPointToString(access_point_),
+           FinalContentAnalysisResultToString(final_result_)},
+          nullptr),
+      base::TimeTicks::Now() - creation_time_, base::Milliseconds(1),
+      base::Minutes(30), 50);
 
   // If showing the warning message, wait before running the callback. The
   // callback will be called either in BypassWarnings or Cancel.
@@ -916,7 +933,7 @@ void ContentAnalysisDelegate::AckAllRequests() {
     // the agent never received the request for some reason (size, encryption,
     // etc.) so it doesn't make sense to send an ack.
     if (!token_and_action.first.empty()) {
-      auto ack = std::make_unique<safe_browsing::BinaryUploadService::Ack>(
+      auto ack = std::make_unique<BinaryUploadAck>(
           data_.settings.cloud_or_local_settings);
       ack->set_request_token(token_and_action.first);
       ack->set_status(ContentAnalysisAcknowledgement::SUCCESS);

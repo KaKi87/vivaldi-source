@@ -113,8 +113,15 @@ const char kWebViewStartupTasksYieldToNative[] =
 const char kWebViewStartupTasksPlusMultiProcess[] =
     "webview-startup-tasks-plus-multi-process";
 
+// Stop browser startup in isMultiProcessEnabled.
+const char kWebViewStopBrowserStartupInIsMultiProcessEnabled[] =
+    "webview-stop-browser-startup-in-is-multi-process-enabled";
+
 const char kStartupNonBlockingWebViewConstructor[] =
     "startup-non-blocking-webview-constructor";
+
+// Defers GMS calls during startup.
+const char kWebViewDeferStartupGmsCalls[] = "webview-defer-startup-gms-calls";
 
 // Opts in WebView to GMSCore's bindService optimizations
 const char kWebViewOptInToGmsBindServiceOptimization[] =

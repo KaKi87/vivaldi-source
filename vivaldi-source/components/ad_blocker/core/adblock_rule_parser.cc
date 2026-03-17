@@ -28,14 +28,16 @@
 namespace adblock_filter {
 
 namespace {
-const char kHomepageTag[] = "Homepage:";
-const char kTitleTag[] = "Title:";
-const char kLicenseTag[] = "Licence:";
-const char kRedirectTag[] = "Redirect:";
-const char kExpiresTag[] = "Expires:";
-const char kVersionTag[] = "Version:";
+constexpr char kConstraintExclusion = '~';
 
-const char kRewritePrefix[] = "abp-resource:";
+constexpr char kHomepageTag[] = "Homepage:";
+constexpr char kTitleTag[] = "Title:";
+constexpr char kLicenseTag[] = "Licence:";
+constexpr char kRedirectTag[] = "Redirect:";
+constexpr char kExpiresTag[] = "Expires:";
+constexpr char kVersionTag[] = "Version:";
+
+constexpr char kRewritePrefix[] = "abp-resource:";
 
 enum class OptionType {
   kBadFilter,
@@ -57,6 +59,8 @@ enum class OptionType {
   kAdQueryTrigger,
   kAdAttributionTracker,
 };
+
+enum class DomainExclusionHandling { kForbidden, kAllowed, kInverted };
 
 struct OptionDefinition {
   OptionType type;
@@ -169,21 +173,6 @@ bool GetMetadata(std::string_view comment,
   *result = base::TrimWhitespaceASCII(comment.substr(tag_name.length()),
                                       base::TRIM_LEADING);
   return true;
-}
-
-std::optional<GURL> GetUrlFromDomainString(std::string_view domain) {
-  if (domain.find_first_of("/?") != std::string_view::npos)
-    return std::nullopt;
-
-  std::string url_str = "https://";
-  url_str.append(domain);
-  // This should result in a valid URL with only a host part.
-  GURL validation_url(url_str);
-  if (!validation_url.is_valid() || validation_url.has_port() ||
-      validation_url.has_username())
-    return std::nullopt;
-
-  return validation_url;
 }
 
 /**
@@ -409,32 +398,91 @@ OptionParseResult ParseRequestFilterRuleOptionRecursive(
   }
 }
 
-bool ParseDomains(std::string_view domain_string,
-                  std::string separator,
-                  bool allow_exclusions,
-                  std::set<std::string>& included_domains,
-                  std::set<std::string>& excluded_domains) {
-  for (auto domain :
-       base::SplitStringPiece(domain_string, separator, base::TRIM_WHITESPACE,
-                              base::SPLIT_WANT_NONEMPTY)) {
-    bool excluded = domain[0] == '~';
+bool ParseDomainConstraints(std::string_view constraints,
+                            char separator,
+                            bool allow_exclusions,
+                            bool allow_entity,
+                            bool allow_regex,
+                            DomainConstraintsTree& domain_constraints) {
+  while (!constraints.empty()) {
+    bool excluded = constraints.front() == kConstraintExclusion;
     if (excluded) {
       if (!allow_exclusions) {
         return false;
       }
-      domain.remove_prefix(1);
+      constraints.remove_prefix(1);
     }
-    std::optional<GURL> url_for_domain = GetUrlFromDomainString(domain);
 
-    if (!url_for_domain) {
+    bool is_regex = false;
+    size_t constraint_end = std::string_view::npos;
+    size_t separator_length = 1;
+
+    std::optional<std::string> regex_suffix;
+    if (constraints.front() == '/') {
+      is_regex = true;
+      constraints.remove_prefix(1);
+      constraint_end = constraints.find("/");
+    } else if (constraints.starts_with("[$domain=/")) {
+      /* Support for some Adguard-formatted hostname regexes*/
+      is_regex = true;
+      constraints.remove_prefix(10);
+      constraint_end = constraints.find("/]");
+      separator_length = 2;
+    } else {
+      constraint_end = constraints.find(separator);
+    }
+
+    std::string_view constraint(constraints.substr(0, constraint_end));
+    constraints.remove_prefix(constraint.length());
+    if (constraint_end != std::string_view::npos) {
+      constraints.remove_prefix(separator_length);
+    }
+
+    if (is_regex) {
+      if (!allow_regex) {
+        return false;
+      }
+
+      if (constraint.empty() || !re2::RE2(constraint).ok()) {
+        return false;
+      }
+
+      domain_constraints.Add(
+          {.kind = DomainConstraintsTree::NormalizedConstraint::kRegex,
+           .excluded = excluded,
+           .constraint = std::string(constraint)});
+
+      if (!constraints.empty() && constraints.front() == separator) {
+        constraints.remove_prefix(1);
+      }
+
+      continue;
+    }
+
+    bool is_entity = allow_entity && constraint.ends_with(".*");
+    if (is_entity) {
+      constraint.remove_suffix(2);
+    }
+
+    if (constraint.empty()) {
       return false;
     }
 
-    if (excluded)
-      excluded_domains.insert(url_for_domain->GetHost());
-    else
-      included_domains.insert(url_for_domain->GetHost());
+    std::optional<std::string> host =
+        NormalizePlainDomainConstraint(constraint);
+
+    if (!host) {
+      return false;
+    }
+
+    domain_constraints.Add(
+        {.kind = is_entity
+                     ? DomainConstraintsTree::NormalizedConstraint::kEntity
+                     : DomainConstraintsTree::NormalizedConstraint::kHostname,
+         .excluded = excluded,
+         .constraint = std::move(*host)});
   }
+
   return true;
 }
 
@@ -570,12 +618,14 @@ std::optional<RuleParser::Result> RuleParser::ParseContentInjectionRule(
   std::string_view body = rule_string.substr(second_separator + 1);
 
   size_t position = first_separator + 1;
-  ContentInjectionRuleCore core;
 
+  bool is_allow_rule = false;
   if (rule_string[position] == '@') {
-    core.is_allow_rule = true;
+    is_allow_rule = true;
     position++;
   }
+
+  ContentInjectionRuleCore core(is_allow_rule);
 
   Result result = Result::kCosmeticRule;
   if (rule_string[position] == '%' || rule_string[position] == '?') {
@@ -588,7 +638,7 @@ std::optional<RuleParser::Result> RuleParser::ParseContentInjectionRule(
       // Assume that if abp snippet rules are not allowed, we are dealing with
       // an adg CSS injection rule and vice-versa
       result = Result::kUnsupported;
-    } else if (core.is_allow_rule) {
+    } else if (is_allow_rule) {
       // Snippet rules exceptions are not a thing.
       result = Result::kError;
     } else {
@@ -612,17 +662,17 @@ std::optional<RuleParser::Result> RuleParser::ParseContentInjectionRule(
     return std::nullopt;
   }
 
-  if (!ParseDomains(rule_string.substr(0, first_separator), ",", true,
-                    core.included_domains, core.excluded_domains))
+  if (!ParseDomainConstraints(rule_string.substr(0, first_separator), ',',
+                              true /*allow_exclusions*/, true /*allow_entity*/,
+                              true /*allow_regex*/, core.domain_constraints))
     return Result::kError;
   if (result == Result::kScriptletInjectionRule &&
-      core.included_domains.empty())
+      core.domain_constraints.IsGeneric())
     return Result::kError;
 
   switch (result) {
     case Result::kCosmeticRule: {
-      if (!ParseCosmeticRule(body, std::move(core)))
-        result = Result::kError;
+      result = ParseCosmeticRule(body, std::move(core));
       break;
     }
     case Result::kScriptletInjectionRule: {
@@ -637,42 +687,61 @@ std::optional<RuleParser::Result> RuleParser::ParseContentInjectionRule(
   return result;
 }
 
-bool RuleParser::ParseCosmeticRule(std::string_view body,
-                                   ContentInjectionRuleCore rule_core) {
-  // Rules should consist of a list of selectors. No actual CSS rules allowed.
-  if (body.empty() || body.find('{') != std::string_view::npos ||
-      body.find('}') != std::string_view::npos)
-    return false;
-
-  // The easylist uses has-text, even though this is not a valid selector and we
-  // don't yet have an implementation for it in cosmetic rules.
-  if (body.find(":has-text") != std::string_view::npos) {
-    return false;
+RuleParser::Result RuleParser::ParseCosmeticRule(
+    std::string_view body,
+    ContentInjectionRuleCore rule_core) {
+  if (body.empty()) {
+    return Result::kError;
   }
 
-  // The fanboy annoyance list uses +js scriptlet rules. We don't support those
-  // yet.
-  if (body.starts_with("+js")) {
-    return false;
+  // We don't suport uBlock script injection or html filters yet
+  if (body.starts_with("+js") || body.starts_with("^")) {
+    return Result::kUnsupported;
   }
 
-  CosmeticRule rule;
+  std::string_view body_validation = body;
+
+  while (!body_validation.empty()) {
+    if (body_validation.front() == '{' || body_validation.front() == '}') {
+      // We don't allow full CSS rules, only selectors.
+      return Result::kUnsupported;
+    }
+
+    if (body_validation.front() == ':') {
+      // Exclude a number of "pseudo-classes" used by abp or ublock, that we
+      // don't support yet
+      if (body_validation.starts_with(":has-text") ||
+          body_validation.starts_with(":-abp") ||
+          body_validation.starts_with(":xpath") ||
+          body_validation.starts_with(":style") ||
+          body_validation.starts_with(":matches") ||
+          body_validation.starts_with(":min-text-length") ||
+          body_validation.starts_with(":others") ||
+          body_validation.starts_with(":upwards") ||
+          body_validation.starts_with(":watch-attr") ||
+          body_validation.starts_with(":remove")) {
+        return Result::kUnsupported;
+      }
+    }
+
+    body_validation.remove_prefix(1);
+  }
+
+  CosmeticRule rule(std::move(rule_core));
   rule.selector = std::string(body);
-  rule.core = std::move(rule_core);
   parse_result_->cosmetic_rules.push_back(std::move(rule));
-  return true;
+  return Result::kCosmeticRule;
 }
 
 bool RuleParser::ParseScriptletInjectionRule(
     std::string_view body,
     ContentInjectionRuleCore rule_core) {
-  ScriptletInjectionRule main_world_rule;
-  ScriptletInjectionRule isolated_world_rule;
-  main_world_rule.core = rule_core.Clone();
-  isolated_world_rule.core = std::move(rule_core);
+  ScriptletInjectionRule::Scriptlet main_world_scriptlet;
+  ScriptletInjectionRule::Scriptlet isolated_world_scriptlet;
+  ScriptletInjectionRule rule(std::move(rule_core));
   // Use these names to signal an abp snippet filter.
-  main_world_rule.scriptlet_name = kAbpSnippetsMainScriptletName;
-  isolated_world_rule.scriptlet_name = kAbpSnippetsIsolatedScriptletName;
+  main_world_scriptlet.name = kAbpSnippetsMainScriptletName;
+  isolated_world_scriptlet.name = kAbpSnippetsIsolatedScriptletName;
 
   std::string main_world_arguments_list;
   std::string isolated_world_arguments_list;
@@ -684,7 +753,7 @@ bool RuleParser::ParseScriptletInjectionRule(
     bool after_quotes = false;
     bool parsing_code_point = false;
     std::string code_point_str;
-    base::Value::List arguments;
+    base::ListValue arguments;
     std::string argument;
 
     for (const char c : injection) {
@@ -742,12 +811,10 @@ bool RuleParser::ParseScriptletInjectionRule(
     std::string serialized_arguments;
     JSONStringValueSerializer(&serialized_arguments)
         .Serialize(base::Value(std::move(arguments)));
-    bool valid = false;
 
-    auto add_to_list = [&serialized_arguments, &valid](std::string& list) {
+    auto add_to_list = [&serialized_arguments](std::string& list) {
       list.append(serialized_arguments);
       list.append(",");
-      valid = true;
     };
 
     if (kAbpMainSnippetNames.contains(command_name)) {
@@ -757,10 +824,6 @@ bool RuleParser::ParseScriptletInjectionRule(
     if (kAbpIsolatedSnippetNames.contains(command_name)) {
       add_to_list(isolated_world_arguments_list);
     }
-
-    if (!valid) {
-      return false;
-    }
   }
 
   // We purposefully leave a trailing comma after the last item of the list
@@ -768,17 +831,22 @@ bool RuleParser::ParseScriptletInjectionRule(
   // ContentInjectionIndexTraversalResults::ToInjectionData
 
   if (!main_world_arguments_list.empty()) {
-    main_world_rule.arguments.push_back(std::move(main_world_arguments_list));
-    parse_result_->scriptlet_injection_rules.push_back(
-        std::move(main_world_rule));
+    main_world_scriptlet.arguments.push_back(
+        std::move(main_world_arguments_list));
+    rule.scriptlets.push_back(std::move(main_world_scriptlet));
   }
 
   if (!isolated_world_arguments_list.empty()) {
-    isolated_world_rule.arguments.push_back(
+    isolated_world_scriptlet.arguments.push_back(
         std::move(isolated_world_arguments_list));
-    parse_result_->scriptlet_injection_rules.push_back(
-        std::move(isolated_world_rule));
+    rule.scriptlets.push_back(std::move(isolated_world_scriptlet));
   }
+
+  if (rule.scriptlets.empty()) {
+    return false;
+  }
+
+  parse_result_->scriptlet_injection_rules.push_back(std::move(rule));
 
   return true;
 }
@@ -905,10 +973,6 @@ RuleParser::Result RuleParser::ParseRequestFilterRule(
         (code_point >= 0xFFF9 && code_point <= 0xFFFC)) {
       return kError;
     }
-  }
-
-  if (pattern.find_first_of(base::kWhitespaceASCII) != std::string_view::npos) {
-    return kError;
   }
 
   if (pattern.size() <= 1 && *options_start == std::string_view::npos) {
@@ -1319,8 +1383,10 @@ RuleParser::Result RuleParser::ParseRequestFilterRuleOptions(
         break;
 
       case OptionType::kDomain:
-        if (!ParseDomains(*parsed_option.value, "|", true,
-                          rule.included_domains, rule.excluded_domains))
+        if (!ParseDomainConstraints(*parsed_option.value, '|',
+                                    true /*allow_exclusions*/,
+                                    true /*allow_entity*/, true /*allow_regex*/,
+                                    rule.from_domain_constraints))
           return Result::kError;
         break;
 
@@ -1423,13 +1489,14 @@ RuleParser::Result RuleParser::ParseRequestFilterRuleOptions(
           return kError;
         }
         for (const auto& [domain, query_trigger] : domain_and_query_trigger) {
-          std::optional<GURL> url_for_domain = GetUrlFromDomainString(domain);
-          if (!url_for_domain) {
+          std::optional<std::string> normalized =
+              NormalizePlainDomainConstraint(domain);
+          if (!normalized) {
             return kError;
           }
 
-          rule.ad_domains_and_query_triggers.insert(url_for_domain->GetHost() +
-                                                    "|" + query_trigger);
+          rule.ad_domains_and_query_triggers.insert(*normalized + "|" +
+                                                    query_trigger);
         }
         break;
       }

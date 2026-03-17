@@ -5,6 +5,7 @@
 #include "base/i18n/case_conversion.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "url/gurl.h"
 
 namespace adblock_filter {
 std::string BuildNgramSearchString(const std::string_view& pattern) {
@@ -103,6 +104,45 @@ std::string BuildNgramSearchString(const std::string_view& pattern) {
   std::string result;
   base::TrimString(ngram_search_string, "*", &result);
   return base::UTF16ToUTF8(base::i18n::FoldCase(base::UTF8ToUTF16(result)));
+}
+
+std::optional<std::string> NormalizePlainDomainConstraint(
+    std::string_view constraint) {
+  std::string url_str = "https://";
+  if (constraint.ends_with(".")) {
+    constraint.remove_suffix(1);
+  }
+
+  if (constraint.starts_with(".")) {
+    return std::nullopt;
+  }
+
+  bool last_was_dot = false;
+
+  for (char c : constraint) {
+    bool is_dot = c == '.';
+    if (is_dot && last_was_dot) {
+      return std::nullopt;
+    }
+    last_was_dot = is_dot;
+
+    // Unicode character as well as specific ASCII characters are allowed
+    if (c >= 0 && c != '%' && c != '-' && c != '.' && c != ':' && c != '[' &&
+        c != ']' && c != '_' && !base::IsAsciiAlphaNumeric(c)) {
+      return std::nullopt;
+    }
+
+    url_str.push_back(c);
+  }
+
+  // This should result in a valid URL with only a host part.
+  GURL validation_url(url_str);
+  if (!validation_url.is_valid() || validation_url.has_port() ||
+      validation_url.has_username()) {
+    return std::nullopt;
+  }
+
+  return validation_url.GetHost();
 }
 
 }  // namespace adblock_filter

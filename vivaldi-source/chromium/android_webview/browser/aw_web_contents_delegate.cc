@@ -47,7 +47,7 @@
 using base::android::AttachCurrentThread;
 using base::android::ConvertUTF16ToJavaString;
 using base::android::ConvertUTF8ToJavaString;
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
 using blink::mojom::FileChooserFileInfo;
 using blink::mojom::FileChooserFileInfoPtr;
@@ -419,11 +419,11 @@ AwWebContentsDelegate::TakeFileSelectListener() {
 
 static void JNI_AwWebContentsDelegate_FilesSelectedInChooser(
     JNIEnv* env,
-    jint process_id,
-    jint render_id,
-    jint mode_flags,
-    const JavaParamRef<jobjectArray>& file_paths,
-    const JavaParamRef<jobjectArray>& display_names) {
+    int32_t process_id,
+    int32_t render_id,
+    int32_t mode_flags,
+    const JavaRef<jobjectArray>& file_paths,
+    const JavaRef<jobjectArray>& display_names) {
   content::RenderFrameHost* rfh =
       content::RenderFrameHost::FromID(process_id, render_id);
   auto* web_contents = WebContents::FromRenderFrameHost(rfh);

@@ -166,6 +166,9 @@ extern NSString* const kSettingsBlockPopupsCellId;
 // The accessibility identifier of the Show Link Preview cell.
 extern NSString* const kSettingsShowLinkPreviewCellId;
 
+// The accessibility identifier of the Show Reading Mode Available cell.
+extern NSString* const kSettingsShowReadingModeAvailableCellId;
+
 // The accessibility identifier of the Detect Addresses cell.
 extern NSString* const kSettingsDetectAddressesCellId;
 
@@ -192,6 +195,9 @@ extern NSString* const kSettingsDefaultSiteModeCellId;
 
 // The accessibility identifier of the Web Inspector cell.
 extern NSString* const kSettingsWebInspectorCellId;
+
+// The accessibility identifier of the Reader Mode cell.
+extern NSString* const kSettingsReaderModeCellId;
 
 // The accessibility identifier of the Safety Check cell.
 extern NSString* const kSettingsSafetyCheckCellId;
@@ -225,17 +231,12 @@ extern NSString* const kSettingsMoveInactiveTabsCellId;
 // devices settings cell.
 extern NSString* const kSettingsAutomaticallyOpenTabGroupsCellId;
 
-// The accessibility identifier of the Privacy Guide settings cell.
-extern NSString* const kSettingsPrivacyGuideCellId;
-
 // The accessibility identifier of the Detect Units cell.
 extern NSString* const kSettingsDetectUnitsCellId;
 
 // Vivaldi
 // The accessibility identifier of the Prefer Translate Panel cell.
 extern NSString* const kSettingsPreferTranslatePanelCellId;
-// The accessibility identifier of the Reader Mode cell.
-extern NSString* const kSettingsReaderModeCellId;
 // End Vivaldi
 
 #endif  // IOS_CHROME_BROWSER_SETTINGS_UI_BUNDLED_SETTINGS_TABLE_VIEW_CONTROLLER_CONSTANTS_H_

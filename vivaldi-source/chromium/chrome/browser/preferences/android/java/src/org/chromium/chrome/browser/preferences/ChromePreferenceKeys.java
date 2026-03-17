@@ -195,8 +195,17 @@ public final class ChromePreferenceKeys {
     public static final String CONTEXT_MENU_SHOP_IMAGE_WITH_GOOGLE_LENS_CLICKED =
             "Chrome.ContextMenu.ShopImageWithGoogleLensClicked";
 
+    public static final String CROSS_DEVICE_IMPORTED_BOTTOM_OMNIBOX =
+            "Chrome.CrossDeviceImport.FinishedBottomOmnibox";
+
+    public static final String CROSS_DEVICE_IMPORTED_ALL_SETTINGS =
+            "Chrome.CrossDeviceImport.FinishedAllSettings";
+
+    public static final String NTP_CUSTOMIZATION_BACKGROUND_ENABLED =
+            "Chrome.Policy.NtpCustomBackgroundEnabled";
+
     /** The Uri of the NTP's background image. */
-    public static final String NTP_CUSTOMIZATION_BACKGROUND_IMAGE_TYPE =
+    public static final String NTP_CUSTOMIZATION_BACKGROUND_TYPE =
             "Chrome.NtpCustomization.NtpBackgroundImageType";
 
     /** The background color of NTP. */
@@ -212,20 +221,55 @@ public final class ChromePreferenceKeys {
             "Chrome.NtpCustomization.NtpThemeColorId";
 
     /** The transformation matrix for the NTP background image in portrait orientation. */
-    public static final String NTP_BACKGROUND_IMAGE_PORTRAIT_MATRIX =
-            "Chrome.NtpCustomization.BackgroundImagePortraitMatrix";
+    public static final String NTP_BACKGROUND_IMAGE_PORTRAIT_INFO =
+            "Chrome.NtpCustomization.BackgroundImagePortraitInfo";
 
     /** The transformation matrix for the NTP background image in landscape orientation. */
-    public static final String NTP_BACKGROUND_IMAGE_LANDSCAPE_MATRIX =
-            "Chrome.NtpCustomization.BackgroundImageLandscapeMatrix";
+    public static final String NTP_BACKGROUND_IMAGE_LANDSCAPE_INFO =
+            "Chrome.NtpCustomization.BackgroundImageLandscapeInfo";
 
     /** The {@link CustomBackgroundInfo} used for the NTP theme collection background image. */
     public static final String NTP_CUSTOMIZATION_BACKGROUND_INFO =
             "Chrome.NtpCustomization.BackgroundInfo";
 
+    /** Whether the NTP customization bottom sheet has been opened. */
+    public static final String NTP_CUSTOMIZATION_MAIN_BOTTOM_SHEET_SHOWN =
+            "Chrome.NtpCustomization.MainBottomSheetShown";
+
     /** Whether daily refresh is enabled for Chrome Color. */
     public static final String NTP_CUSTOMIZATION_CHROME_COLOR_DAILY_REFRESH_ENABLED =
             "Chrome.NtpCustomization.ChromeColorDailyRefreshEnabled";
+
+    /**
+     * The timestamp of the last time when a daily refreshed theme color or background image is set.
+     */
+    public static final String NTP_CUSTOMIZATION_LAST_DAILY_REFRESH_TIMESTAMP =
+            "Chrome.NtpCustomization.LastDailyRefreshTimestamp";
+
+    /** The primary color prepared for the next daily refresh of a theme collection image. */
+    public static final String NTP_CUSTOMIZATION_PRIMARY_COLOR_FOR_DAILY_REFRESH =
+            "Chrome.NtpCustomization.NtpCustomizationPrimaryColorForDailyRefresh";
+
+    /**
+     * The transformation matrix for the portrait NTP background image, prepared for the next daily
+     * refresh of a theme collection.
+     */
+    public static final String NTP_BACKGROUND_IMAGE_PORTRAIT_INFO_FOR_DAILY_REFRESH =
+            "Chrome.NtpCustomization.BackgroundImagePortraitInfoForDailyRefresh";
+
+    /**
+     * The transformation matrix for the landscape NTP background image, prepared for the next daily
+     * refresh of a theme collection.
+     */
+    public static final String NTP_BACKGROUND_IMAGE_LANDSCAPE_INFO_FOR_DAILY_REFRESH =
+            "Chrome.NtpCustomization.BackgroundImageLandscapeInfoForDailyRefresh";
+
+    /**
+     * The {@link CustomBackgroundInfo} prepared for the next daily refreshed theme collection
+     * image.
+     */
+    public static final String NTP_CUSTOMIZATION_BACKGROUND_INFO_FOR_DAILY_REFRESH =
+            "Chrome.NtpCustomization.BackgroundInfoForDailyRefresh";
 
     public static final String CRASH_UPLOAD_FAILURE_BROWSER = "browser_crash_failure_upload";
     public static final String CRASH_UPLOAD_FAILURE_GPU = "gpu_crash_failure_upload";
@@ -487,6 +531,9 @@ public final class ChromePreferenceKeys {
 
     // Start timestamp of 1-day period for measuring the max count of instances used simultaneously.
     public static final String MULTI_INSTANCE_MAX_COUNT_TIME = "Chrome.MultiInstance.MaxCountTime";
+    // Max count of active Chrome instances used in a day.
+    public static final String MULTI_INSTANCE_MAX_ACTIVE_INSTANCE_COUNT =
+            "Chrome.MultiInstance.MaxActiveInstanceCount";
     // Max count of Chrome instances used in a day.
     public static final String MULTI_INSTANCE_MAX_INSTANCE_COUNT =
             "Chrome.MultiInstance.MaxInstanceCount";
@@ -514,20 +561,22 @@ public final class ChromePreferenceKeys {
             new KeyPrefix("Chrome.MultiInstance.CustomTitle.*");
     public static final KeyPrefix MULTI_INSTANCE_LAST_ACCESSED_TIME =
             new KeyPrefix("Chrome.MultiInstance.LastAccessedTime.*");
+    public static final KeyPrefix MULTI_INSTANCE_CLOSURE_TIME =
+            new KeyPrefix("Chrome.MultiInstance.ClosureTime.*");
     public static final KeyPrefix MULTI_INSTANCE_URL = new KeyPrefix("Chrome.MultiInstance.Url.*");
-    public static final KeyPrefix MULTI_INSTANCE_CLOSED_BY_USER =
-            new KeyPrefix("Chrome.MultiInstance.ClosedByUser.*");
+    public static final KeyPrefix MULTI_INSTANCE_MARKED_FOR_DELETION =
+            new KeyPrefix("Chrome.MultiInstance.MarkedForDeletion.*");
 
     // Start timestamp of 1-day period for measuring the duration of disjoint time spent in various
     // windowing modes.
     public static final String MULTI_WINDOW_MODE_CYCLE_START_TIME =
             "Chrome.MultiWindowMode.CycleStartTime";
     // Start timestamp of the current windowing mode.
-    public static final KeyPrefix MULTI_WINDOW_MODE_START_TIME =
-            new KeyPrefix("Chrome.MultiWindowMode.StartTime.*");
-    // Number of activities in the current windowing mode.
-    public static final KeyPrefix MULTI_WINDOW_MODE_ACTIVITY_COUNT =
-            new KeyPrefix("Chrome.MultiWindowMode.ActivityCount.*");
+    public static final KeyPrefix MULTI_WINDOW_MODE_START_TIME2 =
+            new KeyPrefix("Chrome.MultiWindowMode.StartTime2.*");
+    // Tracks window IDs of activities in a given windowing mode.
+    public static final KeyPrefix MULTI_WINDOW_MODE_ACTIVITIES =
+            new KeyPrefix("Chrome.MultiWindowMode.Activities.*");
     // Aggregated duration of time spent in a given windowing mode.
     public static final KeyPrefix MULTI_WINDOW_MODE_DURATION_MS =
             new KeyPrefix("Chrome.MultiWindowMode.DurationMs.*");
@@ -545,6 +594,10 @@ public final class ChromePreferenceKeys {
     // the notification permission.
     public static final String NOTIFICATION_PERMISSION_REQUEST_COUNT =
             "Chrome.NotificationPermission.RequestCount";
+
+    /** Indicates whether a chrome page URL has been overridden by an enterprise policy. */
+    public static final String NTP_LOCATION_POLICY_ENABLED =
+            "Chrome.PolicyUrlOverrides.NewTabPageLocation";
 
     public static final String NTP_SNIPPETS_IS_SCHEDULED = "ntp_snippets.is_scheduled";
 
@@ -636,7 +689,7 @@ public final class ChromePreferenceKeys {
     public static final KeyPrefix PAYMENTS_PAYMENT_INSTRUMENT_USE_DATE =
             new KeyPrefix("payment_instrument_use_date_*");
 
-    /** Preference to indicate whether payment request has been completed successfully once.*/
+    /** Preference to indicate whether payment request has been completed successfully once. */
     public static final String PAYMENTS_PAYMENT_COMPLETE_ONCE = "payment_complete_once";
 
     /**
@@ -856,6 +909,19 @@ public final class ChromePreferenceKeys {
 
     // Segmentation platform related prefs.
     public static final String SEGMENTATION_FEED_ACTIVE_USER = "Chrome.Segmentation.FeedActiveUser";
+
+    /** Timestamp for when the user first saw the Setup List on the New Tab Page. */
+    public static final String SETUP_LIST_FIRST_SHOWN_TIMESTAMP =
+            "Chrome.SetupList.FirstShownTimestamp";
+
+    /**
+     * Key prefix for boolean preferences indicating whether a specific Setup List item has been
+     * completed by the user. The ModuleType integer is appended to this prefix to form the unique
+     * key for each item. For example, "Chrome.SetupList.Completed.15" would be the key for the
+     * SIGN_IN_PROMO.
+     */
+    public static final KeyPrefix SETUP_LIST_COMPLETED_KEY_PREFIX =
+            new KeyPrefix("Chrome.SetupList.Completed.*");
 
     // Tracks which GUIDs there is an active notification for.
     public static final String SEND_TAB_TO_SELF_ACTIVE_NOTIFICATIONS =
@@ -1138,14 +1204,23 @@ public final class ChromePreferenceKeys {
                 CONTEXT_MENU_OPEN_IN_EPHEMERAL_TAB_CLICKED,
                 CONTEXT_MENU_SEARCH_WITH_GOOGLE_LENS_CLICKED,
                 CONTEXT_MENU_SHOP_IMAGE_WITH_GOOGLE_LENS_CLICKED,
-                NTP_CUSTOMIZATION_BACKGROUND_IMAGE_TYPE,
+                CROSS_DEVICE_IMPORTED_BOTTOM_OMNIBOX,
+                CROSS_DEVICE_IMPORTED_ALL_SETTINGS,
+                NTP_CUSTOMIZATION_BACKGROUND_ENABLED,
+                NTP_CUSTOMIZATION_BACKGROUND_TYPE,
                 NTP_CUSTOMIZATION_THEME_COLOR_ID,
                 NTP_CUSTOMIZATION_BACKGROUND_COLOR,
                 NTP_CUSTOMIZATION_PRIMARY_COLOR,
-                NTP_BACKGROUND_IMAGE_PORTRAIT_MATRIX,
-                NTP_BACKGROUND_IMAGE_LANDSCAPE_MATRIX,
+                NTP_BACKGROUND_IMAGE_PORTRAIT_INFO,
+                NTP_BACKGROUND_IMAGE_LANDSCAPE_INFO,
                 NTP_CUSTOMIZATION_BACKGROUND_INFO,
+                NTP_CUSTOMIZATION_MAIN_BOTTOM_SHEET_SHOWN,
                 NTP_CUSTOMIZATION_CHROME_COLOR_DAILY_REFRESH_ENABLED,
+                NTP_CUSTOMIZATION_LAST_DAILY_REFRESH_TIMESTAMP,
+                NTP_CUSTOMIZATION_PRIMARY_COLOR_FOR_DAILY_REFRESH,
+                NTP_BACKGROUND_IMAGE_PORTRAIT_INFO_FOR_DAILY_REFRESH,
+                NTP_BACKGROUND_IMAGE_LANDSCAPE_INFO_FOR_DAILY_REFRESH,
+                NTP_CUSTOMIZATION_BACKGROUND_INFO_FOR_DAILY_REFRESH,
                 CUSTOM_TABS_LAST_CLIENT_PACKAGE,
                 CUSTOM_TABS_LAST_CLOSE_TAB_INTERACTION,
                 CUSTOM_TABS_LAST_CLOSE_TIMESTAMP,
@@ -1202,9 +1277,11 @@ public final class ChromePreferenceKeys {
                 MULTI_INSTANCE_IS_INCOGNITO_SELECTED.pattern(),
                 MULTI_INSTANCE_INCOGNITO_TAB_COUNT.pattern(),
                 MULTI_INSTANCE_MAX_COUNT_TIME,
+                MULTI_INSTANCE_MAX_ACTIVE_INSTANCE_COUNT,
                 MULTI_INSTANCE_MAX_INSTANCE_COUNT,
                 MULTI_INSTANCE_MAX_INSTANCE_COUNT_INCOGNITO,
                 MULTI_INSTANCE_LAST_ACCESSED_TIME.pattern(),
+                MULTI_INSTANCE_CLOSURE_TIME.pattern(),
                 MULTI_INSTANCE_START_TIME,
                 MULTI_INSTANCE_TAB_COUNT.pattern(),
                 MULTI_INSTANCE_TAB_COUNT_FOR_RELAUNCH.pattern(),
@@ -1212,13 +1289,14 @@ public final class ChromePreferenceKeys {
                 MULTI_INSTANCE_TITLE.pattern(),
                 MULTI_INSTANCE_CUSTOM_TITLE.pattern(),
                 MULTI_INSTANCE_URL.pattern(),
-                MULTI_INSTANCE_CLOSED_BY_USER.pattern(),
-                MULTI_WINDOW_MODE_ACTIVITY_COUNT.pattern(),
+                MULTI_INSTANCE_MARKED_FOR_DELETION.pattern(),
+                MULTI_WINDOW_MODE_ACTIVITIES.pattern(),
                 MULTI_WINDOW_MODE_CYCLE_START_TIME,
                 MULTI_WINDOW_MODE_DURATION_MS.pattern(),
-                MULTI_WINDOW_MODE_START_TIME.pattern(),
+                MULTI_WINDOW_MODE_START_TIME2.pattern(),
                 NOTIFICATION_PERMISSION_RATIONALE_TIMESTAMP_KEY,
                 NOTIFICATION_PERMISSION_REQUEST_COUNT,
+                NTP_LOCATION_POLICY_ENABLED,
                 OFFLINE_INDICATOR_V2_WALL_TIME_SHOWN_MS,
                 OFFLINE_INDICATOR_V2_LAST_UPDATE_WALL_TIME_MS,
                 OFFLINE_INDICATOR_V2_TIME_IN_FOREGROUND_MS,
@@ -1263,6 +1341,8 @@ public final class ChromePreferenceKeys {
                 SEARCH_ENGINE_CHOICE_PENDING_OS_CHOICE_DIALOG_SHOWN_ATTEMPTS,
                 SEGMENTATION_FEED_ACTIVE_USER,
                 SERIAL_NOTIFICATION_IDS,
+                SETUP_LIST_FIRST_SHOWN_TIMESTAMP,
+                SETUP_LIST_COMPLETED_KEY_PREFIX.pattern(),
                 SETTINGS_SAFETY_CHECK_LAST_RUN_TIMESTAMP,
                 SETTINGS_SAFETY_CHECK_RUN_COUNTER,
                 SHARING_LAST_SHARED_COMPONENT_NAME,

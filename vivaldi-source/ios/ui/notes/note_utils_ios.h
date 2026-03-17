@@ -20,7 +20,7 @@ class GURL;
 namespace vivaldi {
 class NotesModel;
 class NoteNode;
-}  // namespace notes
+}  // namespace vivaldi
 
 namespace note_utils_ios {
 
@@ -30,16 +30,14 @@ typedef std::set<const vivaldi::NoteNode*> NodeSet;
 // Finds note nodes from passed in |ids|. The optional is only set if all
 // the |ids| have been found.
 std::optional<NodeSet> FindNodesByIds(vivaldi::NotesModel* model,
-                                       const std::set<int64_t>& ids);
+                                      const std::set<int64_t>& ids);
 
 // Finds note node passed in |id|, in the |model|.
-const vivaldi::NoteNode* FindNodeById(vivaldi::NotesModel* model,
-                                            int64_t id);
+const vivaldi::NoteNode* FindNodeById(vivaldi::NotesModel* model, int64_t id);
 
 // Finds note node passed in |id|, in the |model|. Returns null if the
 // node is found but not a folder.
-const vivaldi::NoteNode* FindFolderById(vivaldi::NotesModel* model,
-                                              int64_t id);
+const vivaldi::NoteNode* FindFolderById(vivaldi::NotesModel* model, int64_t id);
 
 // Returns the title string & normalizes it.
 NSString* NormalizeTitle(const NSString* title);
@@ -68,33 +66,30 @@ SnackbarMessage* CreateToastWithWrapper(NSString* text);
 // successful or there's nothing to undo.
 // TODO(crbug.com/1099901): Refactor to include position and replace two
 // functions below.
-SnackbarMessage* CreateOrUpdateNoteWithToast(
-    const vivaldi::NoteNode* node,
-    NSString* title,
-    const GURL& url,
-    const vivaldi::NoteNode* folder,
-    vivaldi::NotesModel* note_model,
-    ProfileIOS* profile);
+SnackbarMessage* CreateOrUpdateNoteWithToast(const vivaldi::NoteNode* node,
+                                             NSString* title,
+                                             const GURL& url,
+                                             const vivaldi::NoteNode* folder,
+                                             vivaldi::NotesModel* note_model,
+                                             ProfileIOS* profile);
 
 // Creates a new note with |title|, |url|, at |position| under parent
 // |folder|. Returns a snackbar with an undo action. Returns nil if operation
 // failed or there's nothing to undo.
-SnackbarMessage* CreateNoteAtPositionWithToast(
-    NSString* title,
-    const GURL& url,
-    const vivaldi::NoteNode* folder,
-    int position,
-    vivaldi::NotesModel* note_model,
-    ProfileIOS* profile);
+SnackbarMessage* CreateNoteAtPositionWithToast(NSString* title,
+                                               const GURL& url,
+                                               const vivaldi::NoteNode* folder,
+                                               int position,
+                                               vivaldi::NotesModel* note_model,
+                                               ProfileIOS* profile);
 
 // Updates a note node position, and returns a snackbar with an undo action.
 // Returns nil if the operation wasn't successful or there's nothing to undo.
-SnackbarMessage* UpdateNotePositionWithToast(
-    const vivaldi::NoteNode* node,
-    const vivaldi::NoteNode* folder,
-    size_t position,
-    vivaldi::NotesModel* note_model,
-    ProfileIOS* profile);
+SnackbarMessage* UpdateNotePositionWithToast(const vivaldi::NoteNode* node,
+                                             const vivaldi::NoteNode* folder,
+                                             size_t position,
+                                             vivaldi::NotesModel* note_model,
+                                             ProfileIOS* profile);
 
 // Deletes all notes in |model| that are in |notes|, and returns a
 // snackbar with an undo action. Returns nil if the operation wasn't successful
@@ -106,7 +101,7 @@ SnackbarMessage* DeleteNotesWithToast(
 
 // Deletes all nodes in |notes|.
 void DeleteNotes(const std::set<const vivaldi::NoteNode*>& notes,
-                     vivaldi::NotesModel* model);
+                 vivaldi::NotesModel* model);
 
 // Move all |notes| to the given |folder|, and returns a snackbar with an
 // undo action. Returns nil if the operation wasn't successful or there's
@@ -121,8 +116,8 @@ SnackbarMessage* MoveNotesWithToast(
 // Returns whether this method actually moved notes (for example, only
 // moving a folder to its parent will return |false|).
 bool MoveNotes(const std::set<const vivaldi::NoteNode*>& notes,
-                   vivaldi::NotesModel* model,
-                   const vivaldi::NoteNode* folder);
+               vivaldi::NotesModel* model,
+               const vivaldi::NoteNode* folder);
 
 // Category name for all notes related snackbars.
 extern NSString* const kNotesSnackbarCategory;

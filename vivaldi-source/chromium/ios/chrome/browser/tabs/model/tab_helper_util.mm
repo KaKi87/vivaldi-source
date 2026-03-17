@@ -26,7 +26,7 @@
 #import "ios/chrome/browser/autofill/model/autofill_tab_helper.h"
 #import "ios/chrome/browser/autofill/model/bottom_sheet/autofill_bottom_sheet_tab_helper.h"
 #import "ios/chrome/browser/autofill/model/form_suggestion_tab_helper.h"
-#import "ios/chrome/browser/browser_container/model/edit_menu_tab_helper.h"
+#import "ios/chrome/browser/browser_content/model/edit_menu_tab_helper.h"
 #import "ios/chrome/browser/collaboration/model/data_sharing_tab_helper.h"
 #import "ios/chrome/browser/commerce/model/price_alert_util.h"
 #import "ios/chrome/browser/commerce/model/price_notifications/price_notifications_tab_helper.h"
@@ -62,13 +62,13 @@
 #import "ios/chrome/browser/infobars/model/overlays/translate_overlay_tab_helper.h"
 #import "ios/chrome/browser/intelligence/bwg/model/bwg_tab_helper.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
+#import "ios/public/provider/chrome/browser/intelligence/classification_metrics_tab_helper_api.h"
 #import "ios/chrome/browser/itunes_urls/model/itunes_urls_handler_tab_helper.h"
 #import "ios/chrome/browser/lens/model/lens_tab_helper.h"
 #import "ios/chrome/browser/lens_overlay/coordinator/lens_overlay_availability.h"
 #import "ios/chrome/browser/lens_overlay/model/lens_overlay_tab_helper.h"
 #import "ios/chrome/browser/link_to_text/model/link_to_text_tab_helper.h"
 #import "ios/chrome/browser/metrics/model/pageload_foreground_duration_tab_helper.h"
-#import "ios/chrome/browser/mini_map/model/mini_map_tab_helper.h"
 #import "ios/chrome/browser/ntp/model/new_tab_page_tab_helper.h"
 #import "ios/chrome/browser/optimization_guide/model/optimization_guide_service.h"
 #import "ios/chrome/browser/optimization_guide/model/optimization_guide_service_factory.h"
@@ -76,8 +76,8 @@
 #import "ios/chrome/browser/optimization_guide/model/optimization_guide_validation_tab_helper.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_request_queue.h"
 #import "ios/chrome/browser/overscroll_actions/model/overscroll_actions_tab_helper.h"
+#import "ios/chrome/browser/page_info/features/features.h"
 #import "ios/chrome/browser/page_info/model/about_this_site_tab_helper.h"
-#import "ios/chrome/browser/page_info/ui_bundled/features.h"
 #import "ios/chrome/browser/passwords/model/password_controller.h"
 #import "ios/chrome/browser/passwords/model/password_tab_helper.h"
 #import "ios/chrome/browser/passwords/model/well_known_change_password_tab_helper.h"
@@ -309,9 +309,7 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
   // created before AppLauncherTabHelper, which will filter out
   // unhandled schemes.
   attacher.CreateWhen<LensTabHelper>(attacher.IsNotInTabHelperFilter());
-  attacher.CreateWhen<LensOverlayTabHelper>(
-      attacher.IsNotInTabHelperFilter() &&
-      IsLensOverlayAvailable(profile->GetPrefs()));
+  attacher.CreateWhen<LensOverlayTabHelper>(attacher.IsNotInTabHelperFilter());
   attacher
       .CreateDeferredWhen<AppLauncherTabHelper>(!attacher.IsForLensOverlay() &&
                                                 !attacher.IsForPrerender())
@@ -323,7 +321,7 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
       .WithFactory<DistillerServiceFactory>(profile);
 
   attacher.Create<security_interstitials::IOSBlockingPageTabHelper>();
-  attacher.Create<password_manager::WellKnownChangePasswordTabHelper>();
+  attacher.Create<WellKnownChangePasswordTabHelper>();
   attacher.Create<InvalidUrlTabHelper>();
 
   attacher.CreateWhen<InfobarOverlayRequestInserter>(
@@ -401,6 +399,11 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
       attacher.IsNotInTabHelperFilter());
   attacher.CreateWhen<AutofillTabHelper>(attacher.IsNotInTabHelperFilter());
 
+  // Special case for use of GetOrCreateForWebState.
+  if (attacher.IsForStandardNavigation()) {
+    InfobarBadgeTabHelper::GetOrCreateForWebState(web_state);
+  }
+
 #if defined(VIVALDI_BUILD)
   attacher.CreateWhen<VivaldiIOSTranslateClient>(
       attacher.IsNotInTabHelperFilter());
@@ -409,15 +412,11 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
   attacher.CreateWhen<BackgroundAudioTabHelper>(
       attacher.IsNotInTabHelperFilter());
 #else
+  // Needs to be created after `InfobarBadgeTabHelper`.
   attacher.CreateWhen<ChromeIOSTranslateClient>(
       attacher.IsNotInTabHelperFilter(),
       InfoBarManagerImpl::FromWebState(web_state));
 #endif // End Vivaldi
-
-  // Special case for use of GetOrCreateForWebState.
-  if (!attacher.IsForStandardNavigation()) {
-    InfobarBadgeTabHelper::GetOrCreateForWebState(web_state);
-  }
 
   attacher
       .CreateDeferredWhen<webauthn::PasskeyTabHelper>(
@@ -453,7 +452,7 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
 
   attacher
       .CreateDeferredWhen<ContextualPanelTabHelper>(
-          attacher.IsForStandardNavigation() && IsContextualPanelEnabled())
+          attacher.IsForStandardNavigation())
       .With([&]() {
         ContextualPanelModelService* model_service =
             ContextualPanelModelServiceFactory::GetForProfile(profile);
@@ -481,9 +480,6 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
 
   attacher.Create<EditMenuTabHelper>();
 
-  attacher.CreateWhen<MiniMapTabHelper>(
-      !attacher.IsOffTheRecord() &&
-      base::FeatureList::IsEnabled(kIOSMiniMapUniversalLink));
 
   attacher.CreateWhen<BwgTabHelper>(!attacher.IsOffTheRecord() &&
                                     !attacher.IsForPrerender() &&
@@ -498,4 +494,9 @@ void AttachTabHelpers(web::WebState* web_state, TabHelperFilter filter_flags) {
   attacher.CreateWhen<LastTapLocationTabHelper>(
       attacher.IsNotInTabHelperFilter() &&
       base::FeatureList::IsEnabled(kIOSCustomFileUploadMenu));
+
+  if (!attacher.IsOffTheRecord() && !attacher.IsForPrerender() &&
+      IsModelBasedPageClassificationEnabled()) {
+    ios::provider::AttachClassificationMetricsTabHelper(web_state);
+  }
 }

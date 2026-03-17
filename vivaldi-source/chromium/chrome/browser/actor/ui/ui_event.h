@@ -9,7 +9,7 @@
 #include <variant>
 
 #include "chrome/browser/actor/actor_task.h"
-#include "chrome/browser/actor/shared_types.h"
+#include "chrome/common/actor.mojom-forward.h"
 #include "chrome/common/actor/task_id.h"
 #include "components/tabs/public/tab_interface.h"
 #include "ui/gfx/geometry/point.h"
@@ -18,11 +18,18 @@ namespace actor::ui {
 
 // The source of a target on a page.
 enum class TargetSource {
-  kUnresolvableInApc = 0,  // The ToolRequest DomTarget couldn't be resolved
-                           // from the AnnotatedPageContent.
-  kToolRequest = 1,        // The target came directly from the ToolRequest.
-  kDerivedFromApc = 2,     // The target was derived from AnnotatedPageContent.
-  kMaxValue = kDerivedFromApc,
+  // The ToolRequest DomTarget couldn't be resolved from the
+  // AnnotatedPageContent.
+  kUnresolvableInApc = 0,
+  // The target came directly from the ToolRequest.
+  kToolRequest = 1,
+  // The target was derived from AnnotatedPageContent.
+  kDerivedFromApc = 2,
+  // The target couldn't be resolved from the renderer.
+  kUnresolvableFromRenderer = 3,
+  // The target came from the renderer validation step.
+  kRendererResolved = 4,
+  kMaxValue = kRendererResolved,
 };
 
 // STATUS: Dispatched when ActorTask state changes from Created to Acting.
@@ -34,13 +41,29 @@ struct StartTask {
   ~StartTask();
 };
 
+// STATUS: Dispatched when ActorTask state changes to a Final State (Completed,
+// Cancelled, Failed). This should be tracked separately as information about a
+// stopped task is no longer being persisted.
+struct StopTask {
+  actor::TaskId task_id;
+  ActorTask::State final_state;
+  std::string title;
+  tabs::TabInterface::Handle last_acted_on_tab_handle;
+
+  StopTask(actor::TaskId,
+           ActorTask::State,
+           const std::string& title,
+           tabs::TabInterface::Handle);
+  StopTask(const StopTask&);
+  ~StopTask();
+};
+
 // STATUS: Dispatched when ActorTask state changes.
 struct TaskStateChanged {
   actor::TaskId task_id;
   ActorTask::State state;
-  std::string title;
 
-  TaskStateChanged(actor::TaskId, ActorTask::State, const std::string& title);
+  TaskStateChanged(actor::TaskId, ActorTask::State);
   TaskStateChanged(const TaskStateChanged&);
   ~TaskStateChanged();
 };
@@ -80,10 +103,12 @@ struct MouseMove {
 // STATUS: Dispatched pre-tool invocation.
 struct MouseClick {
   tabs::TabInterface::Handle tab_handle;
-  MouseClickType click_type;
-  MouseClickCount click_count;
+  actor::mojom::ClickType click_type;
+  actor::mojom::ClickCount click_count;
 
-  MouseClick(tabs::TabInterface::Handle, MouseClickType, MouseClickCount);
+  MouseClick(tabs::TabInterface::Handle,
+             actor::mojom::ClickType,
+             actor::mojom::ClickCount);
   MouseClick(const MouseClick&);
   ~MouseClick();
 };
@@ -99,9 +124,10 @@ using AsyncUiEvent = std::variant<StartingToActOnTab, MouseClick, MouseMove>;
 // these events or for callers to wait for ActorUiStateManager to finish async
 // work before proceeding.
 using SyncUiEvent =
-    std::variant<StartTask, TaskStateChanged, StoppedActingOnTab>;
+    std::variant<StartTask, StopTask, TaskStateChanged, StoppedActingOnTab>;
 
 using UiEvent = std::variant<StartTask,
+                             StopTask,
                              StartingToActOnTab,
                              StoppedActingOnTab,
                              TaskStateChanged,

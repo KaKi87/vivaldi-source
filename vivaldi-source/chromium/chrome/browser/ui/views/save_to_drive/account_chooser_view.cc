@@ -4,6 +4,7 @@
 
 #include "chrome/browser/ui/views/save_to_drive/account_chooser_view.h"
 
+#include "base/strings/strcat.h"
 #include "build/branding_buildflags.h"
 #include "chrome/browser/ui/views/chrome_layout_provider.h"
 #include "chrome/browser/ui/views/save_to_drive/account_chooser_radio_group_view.h"
@@ -24,6 +25,7 @@
 #include "ui/views/layout/flex_layout.h"
 #include "ui/views/layout/flex_layout_types.h"
 #include "ui/views/layout/flex_layout_view.h"
+#include "ui/views/metadata/view_factory.h"
 #include "ui/views/style/platform_style.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
@@ -91,7 +93,8 @@ std::unique_ptr<views::View> AccountChooserView::CreateBodySingleAccount(
           .Build();
   single_account_row->GetViewAccessibility().SetRole(ax::mojom::Role::kRow);
   single_account_row->GetViewAccessibility().SetName(
-      base::StrCat({account.full_name, " ", account.email}));
+      base::UTF8ToUTF16(base::StrCat(
+          {account.GetFullName().value_or(""), " ", account.GetEmail()})));
   return single_account_row;
 }
 

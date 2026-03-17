@@ -35,6 +35,28 @@
       width: 20%;
       float: right;
     }
+    /* Invisible elements for bounding box error testing */
+    #f {
+      width: 0px;
+      height: 0px;
+      position: absolute;
+      overflow: hidden;
+      opacity: 0;
+    }
+    #g {
+      width: 0px;
+      height: 10px;
+      position: absolute;
+      overflow: hidden;
+      opacity: 0;
+    }
+    #h {
+      width: 10px;
+      height: 0px;
+      position: absolute;
+      overflow: hidden;
+      opacity: 0;
+    }
   </style>
   <script>
     window.isIframeLoaded = false;
@@ -47,13 +69,39 @@
 <body>
   <script>
     /**
+     * Helper to convert physical pixels to logical pixels.
+     * @param {number} physicalX - The X coordinate in physical pixels.
+     * @param {number} physicalY - The Y coordinate in physical pixels.
+     * @return {{x: number, y: number}} The equivalent logical coordinates.
+     */
+    function toLogicalCoords(physicalX, physicalY) {
+      const scale = window.devicePixelRatio;
+      return {
+        x: physicalX / scale,
+        y: physicalY / scale
+      };
+    }
+
+    /**
+     * Returns the text content of the element at the given physical coordinates.
+     * @param {number} physicalX - The horizontal coordinate (from the left edge of the page) in physical pixels.
+     * @param {number} physicalY - The vertical coordinate (from the top edge of the page) in physical pixels.
+     * @return {string} The text content of the element found.
+     */
+    function getElementTextAtPoint(physicalX, physicalY) {
+      const {x, y} = toLogicalCoords(physicalX, physicalY);
+      return document.elementFromPoint(x, y).textContent;
+    }
+
+    /**
      * Creates a colored dot and places it on the page at specific coordinates.
-     * @param {number} x - The horizontal coordinate (from the left edge of the page).
-     * @param {number} y - The vertical coordinate (from the top edge of the page).
+     * @param {number} physicalX - The horizontal coordinate (from the left edge of the page) in physical pixels.
+     * @param {number} physicalY - The vertical coordinate (from the top edge of the page) in physical pixels.
      * @param {string} [color='red'] - The color of the dot (e.g., 'red', '#ff0000').
      * @param {number} [size=15] - The diameter of 1the dot in pixels.
      */
-    function placeDot(x, y, color = 'red', size = 8) {
+    function placeDot(physicalX, physicalY, color = 'red', size = 8) {
+      const {x, y} = toLogicalCoords(physicalX, physicalY);
       const dot = document.createElement('div');
       dot.style.position = 'absolute';
       dot.style.width = `${size}px`;
@@ -82,5 +130,8 @@
       <strong>D</strong>
     </div>
   </center>
+  <div id="f" aria-label="f_div">F</div>
+  <div id="g" aria-label="g_div">G</div>
+  <div id="h" aria-label="h_div">H</div>
 </body>
 </html>

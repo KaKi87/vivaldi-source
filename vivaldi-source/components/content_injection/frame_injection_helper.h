@@ -4,7 +4,7 @@
 #define COMPONENTS_CONTENT_INJECTION_FRAME_INJECTION_HELPER_H_
 
 #include "components/content_injection/mojom/content_injection.mojom.h"
-#include "content/public/browser/child_process_id.h"
+#include "content/public/common/child_process_id.h"
 #include "mojo/public/cpp/bindings/receiver.h"
 
 namespace content {

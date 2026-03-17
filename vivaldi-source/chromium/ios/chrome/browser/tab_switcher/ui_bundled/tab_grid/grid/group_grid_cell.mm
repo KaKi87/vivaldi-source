@@ -16,6 +16,7 @@
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/elements/extended_touch_target_button.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
+#import "ios/chrome/browser/shared/ui/util/color_palette/tab_group_color_palette.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid/grid_constants.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid/group_grid_cell_dot_view.h"
@@ -31,6 +32,7 @@
 // Vivaldi
 #import "app/vivaldi_apptools.h"
 #import "ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_constants.h"
+#import "ios/ui/ntp/vivaldi_ntp_constants.h"
 
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
@@ -64,6 +66,10 @@ const CGFloat kTopBarLargeInset = 20;
 @property(nonatomic, strong) UIView* groupingBackgroundView;
 // Dimming view over the cell contents while cell is highlighted.
 @property(nonatomic, strong) UIView* dimmingView;
+
+// Vivaldi
+@property(nonatomic, assign) BOOL isIncognito;
+// End Vivaldi
 
 @end
 
@@ -108,7 +114,10 @@ const CGFloat kTopBarLargeInset = 20;
     // while it transitions to the presented context menu/dragging state.
     self.backgroundColor = [UIColor colorNamed:kGridBackgroundColor];
 
+    if (!IsVivaldiRunning()) {
     [self setupSelectedBackgroundView];
+    } // End Vivaldi
+
     self.contentView.layer.cornerRadius = kGridCellCornerRadius;
     self.contentView.layer.masksToBounds = YES;
     UIView* contentContainer = self.contentView;
@@ -145,13 +154,6 @@ const CGFloat kTopBarLargeInset = 20;
     [contentContainer addSubview:_groupSnapshotsView];
     [contentContainer addSubview:_closeTapTargetButton];
     _opacity = 1.0;
-
-    self.contentView.backgroundColor =
-        [UIColor colorNamed:kSecondaryBackgroundColor];
-
-    _groupSnapshotsView.backgroundColor =
-        [UIColor colorNamed:kSecondaryBackgroundColor];
-    _topBar.backgroundColor = [UIColor colorNamed:kSecondaryBackgroundColor];
     _titleLabel.textColor = [UIColor colorNamed:kTextPrimaryColor];
     _closeIconView.tintColor = [UIColor colorNamed:kCloseButtonColor];
 
@@ -161,7 +163,8 @@ const CGFloat kTopBarLargeInset = 20;
     self.layer.shadowRadius = 4.0f;
     self.layer.shadowOpacity = 0.5f;
     self.layer.masksToBounds = NO;
-    _groupSnapshotsView.layer.cornerRadius = kGridCellCornerRadius;
+    _groupSnapshotsView.layer.cornerRadius =
+        kGridCellCornerRadius - kSnapshotViewLeadingOffset;
     _groupSnapshotsView.layer.masksToBounds = YES;
 
     NSArray* constraints = @[
@@ -214,6 +217,8 @@ const CGFloat kTopBarLargeInset = 20;
           [[UIColor blackColor] colorWithAlphaComponent:0.5];
       self.dimmingView.hidden = YES;
       self.dimmingView.alpha = 0.0;
+      self.dimmingView.layer.cornerRadius =
+          kGridCellCornerRadius - kSnapshotViewLeadingOffset;
       [contentContainer addSubview:self.dimmingView];
       AddSameConstraints(self.dimmingView, contentContainer);
     }
@@ -222,8 +227,12 @@ const CGFloat kTopBarLargeInset = 20;
                        withAction:@selector(updateTopBarConstraints)];
 
     if (IsVivaldiRunning()) {
+      contentContainer.layer.borderWidth = vTabGridNotSelectedBorderWidth;
+      contentContainer.clipsToBounds = YES;
+      _groupSnapshotsView.layer.cornerRadius = GridInnerCornerRadius(
+          kGridCellCornerRadius, kSnapshotViewLeadingOffset);
       [self registerForTraitChanges:@[ UITraitUserInterfaceStyle.class ]
-              withAction:@selector(updateBorderColorForCurrentTheme)];
+              withAction:@selector(updateBorderForCurrentTheme)];
     } // End Vivaldi
   }
   return self;
@@ -234,10 +243,8 @@ const CGFloat kTopBarLargeInset = 20;
 - (void)didMoveToWindow {
   [super didMoveToWindow];
 
-  // Note: (prio@vivaldi.com) - Do no override window since we only
-  // override it with browser theme settings.
   if (IsVivaldiRunning()) {
-    [self updateBorderColorForCurrentTheme];
+    [self updateBorderForCurrentTheme];
     return;
   } // End Vivaldi
 
@@ -255,7 +262,6 @@ const CGFloat kTopBarLargeInset = 20;
 - (void)prepareForReuse {
   [super prepareForReuse];
   self.title = nil;
-  self.groupColor = nil;
   self.selected = NO;
   self.opacity = 1.0;
   self.hidden = NO;
@@ -342,10 +348,10 @@ const CGFloat kTopBarLargeInset = 20;
     return;
   }
 
-  // Note: (prio@vivaldi.com) - Do no override theme since we only
-  // override it with browser theme settings.
   if (IsVivaldiRunning()) {
-    [self updateBorderColorForCurrentTheme];
+    [self applyUserInterfaceStyleForTheme];
+    _theme = theme;
+    [self updateBorderForCurrentTheme];
     return;
   } // End Vivaldi
 
@@ -368,8 +374,32 @@ const CGFloat kTopBarLargeInset = 20;
 }
 
 - (void)setGroupColor:(UIColor*)groupColor {
-  _dotContainer.color = groupColor;
   _groupColor = groupColor;
+  _dotContainer.color = _groupColor;
+
+  // Apply the default coloring to each surfaces.
+  UIColor* backgroundColor = [UIColor colorNamed:kSecondaryBackgroundColor];
+  _topBar.backgroundColor = backgroundColor;
+  self.contentView.backgroundColor = backgroundColor;
+  _groupSnapshotsView.backgroundColor = backgroundColor;
+}
+
+- (void)setTabGroupColorPalette:(TabGroupColorPalette*)tabGroupColorPalette {
+  _tabGroupColorPalette = tabGroupColorPalette;
+
+  // Apply the right tone to each surfaces.
+  UIColor* commonColor = _tabGroupColorPalette.commonColor;
+  UIColor* backgroundColor = _tabGroupColorPalette.backgroundColor;
+
+  _border.layer.borderColor = commonColor.CGColor;
+  _dotContainer.color = commonColor;
+  _topBar.backgroundColor = backgroundColor;
+  self.contentView.backgroundColor = backgroundColor;
+  _groupSnapshotsView.backgroundColor = backgroundColor;
+  self.containerView.backgroundColor = backgroundColor;
+
+  // Forward the palette to subviews.
+  _groupSnapshotsView.tabGroupColorPalette = tabGroupColorPalette;
 }
 
 - (void)setTitle:(NSString*)title {
@@ -584,6 +614,10 @@ const CGFloat kTopBarLargeInset = 20;
 
   [self configureCloseOrSelectIconConstraints];
   _border.hidden = [self isInSelectionMode];
+
+  if (IsVivaldiRunning()) {
+    [self updateBorderForCurrentTheme];
+  } // End Vivaldi
 }
 
 // Sets up the selection border. The tint color is set when the theme is
@@ -656,10 +690,6 @@ const CGFloat kTopBarLargeInset = 20;
                        traitCollection:(UITraitCollection*)traitCollection {
   self.overrideUserInterfaceStyle =
       self.window.windowScene.traitCollection.userInterfaceStyle;
-
-  if (IsVivaldiRunning()) {
-    [self updateBorderColorForCurrentTheme];
-  } // End Vivaldi
 }
 
 // Updates the top bar constraints accoring to the availability of
@@ -699,6 +729,8 @@ const CGFloat kTopBarLargeInset = 20;
   self.groupingBackgroundView.hidden = NO;
   self.dimmingView.hidden = NO;
   self.dimmingView.alpha = 1.0;
+  self.containerView.layer.cornerRadius =
+      kGridCellCornerRadius - kSnapshotViewLeadingOffset;
   [self.containerView bringSubviewToFront:self.dimmingView];
   self.containerView.transform = CGAffineTransformMakeScale(
       kGridCellHighlightScaleTransform, kGridCellHighlightScaleTransform);
@@ -716,19 +748,92 @@ const CGFloat kTopBarLargeInset = 20;
   self.groupingBackgroundView.alpha = 0.0;
   self.dimmingView.alpha = 0.0;
   self.containerView.transform = CGAffineTransformIdentity;
+  self.containerView.layer.cornerRadius = kGridCellCornerRadius;
   if (!self.border.hidden) {
     self.border.layer.borderWidth = kGridCellSelectionRingTintWidth;
   }
 }
 
 // Vivaldi
-- (void)updateBorderColorForCurrentTheme {
-  _border.layer.borderColor = !_border.hidden ?
-    [UIColor colorNamed:vTabGridSelectedColor].CGColor :
-    [UIColor colorNamed:vTabGridNotSelectedColor].CGColor;
-  _border.layer.borderWidth = !_border.hidden ?
-      vTabGridSelectedBorderWidth : vTabGridNotSelectedBorderWidth;
+- (void)setSelected:(BOOL)selected {
+  [super setSelected:selected];
+  [self updateBorderForCurrentTheme];
 }
+
+- (void)configureForIncognito:(BOOL)isIncognito {
+  self.isIncognito = isIncognito;
+
+  [self applyUserInterfaceStyleForPrivateMode];
+  [self applyBackgroundColors];
+}
+
+- (void)applyBackgroundColors {
+  NSString *colorName = self.isIncognito
+      ? vPrivateModeToolbarBackgroundColor
+      : vNTPBackgroundColor;
+  UIColor *backgroundColor = [UIColor colorNamed:colorName];
+
+  self.backgroundColor = UIColor.clearColor;
+  self.selectedBackgroundView.backgroundColor = UIColor.clearColor;
+
+  self.contentView.backgroundColor = backgroundColor;
+  _topBar.backgroundColor = backgroundColor;
+  _groupSnapshotsView.backgroundColor = backgroundColor;
+}
+
+- (UIView *)borderContainerView {
+  return self.containerView ?: self.contentView;
+}
+
+- (void)updateBorderAppearance {
+  UIView *container = [self borderContainerView];
+  BOOL selected = self.isSelected;
+
+  container.layer.borderColor = [self borderColorForSelected:selected].CGColor;
+  container.layer.borderWidth = selected
+      ? vTabGridSelectedBorderWidth
+      : vTabGridNotSelectedBorderWidth;
+}
+
+- (UIColor*)borderColorForSelected:(BOOL)selected {
+  NSString *colorName = selected
+      ? vTabGridSelectedColor
+      : vTabGridNotSelectedColor;
+  return [UIColor colorNamed:colorName];
+}
+
+- (void)updateBorderForCurrentTheme {
+  UIView *container = [self borderContainerView];
+
+  [self updateBorderAppearance];
+
+  container.layer.cornerRadius = kGridCellCornerRadius;
+  container.clipsToBounds = YES;
+
+  if (self.isIncognito) {
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+  } else {
+    [self applyUserInterfaceStyleForTheme];
+  }
+}
+
+- (void)applyUserInterfaceStyleForPrivateMode {
+  self.overrideUserInterfaceStyle = self.isIncognito
+      ? UIUserInterfaceStyleDark
+      : UIUserInterfaceStyleUnspecified;
+}
+
+- (void)applyUserInterfaceStyleForTheme {
+  switch (_theme) {
+    case GridThemeLight:
+      self.overrideUserInterfaceStyle = UIUserInterfaceStyleUnspecified;
+      break;
+    case GridThemeDark:
+      self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+      break;
+  }
+}
+
 // End Vivaldi
 
 @end

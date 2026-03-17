@@ -2,8 +2,12 @@
 
 #import "ios/chrome/browser/browser_state/vivaldi_post_browser_state_init.h"
 
+#import <vector>
+
 #import "base/apple/backup_util.h"
+#import "base/files/file_util.h"
 #import "base/memory/raw_ptr.h"
+#import "base/task/thread_pool.h"
 #import "browser/removed_partners_tracker.h"
 #import "browser/search_engines/vivaldi_search_engines_updater.h"
 #import "browser/vivaldi_default_bookmarks.h"
@@ -55,8 +59,7 @@ std::unique_ptr<UpdaterClientImpl> UpdaterClientImpl::Create(
       new UpdaterClientImpl(profile->GetOriginalProfile()));
 }
 
-UpdaterClientImpl::UpdaterClientImpl(ProfileIOS* profile)
-    : profile_(profile) {}
+UpdaterClientImpl::UpdaterClientImpl(ProfileIOS* profile) : profile_(profile) {}
 UpdaterClientImpl::~UpdaterClientImpl() = default;
 
 bookmarks::BookmarkModel* UpdaterClientImpl::GetBookmarkModel() {
@@ -81,6 +84,19 @@ FaviconServiceGetter UpdaterClientImpl::GetFaviconServiceGetter() {
 }  // namespace
 }  // namespace vivaldi_default_bookmarks
 
+namespace {
+
+void SetBackupExclusions(std::vector<base::FilePath> paths) {
+  for (const auto& path : paths) {
+    if (!base::PathExists(path)) {
+      continue;
+    }
+    base::apple::SetBackupExclusion(path);
+  }
+}
+
+}  // namespace
+
 namespace vivaldi {
 void PostBrowserStateInit(ProfileIOS* profile) {
   vivaldi::SearchEnginesUpdater::UpdateSearchEngines(
@@ -89,8 +105,7 @@ void PostBrowserStateInit(ProfileIOS* profile) {
       profile->GetSharedURLLoaderFactory());
 
   vivaldi_partners::RemovedPartnersTracker::Create(
-      profile->GetPrefs(),
-          ios::BookmarkModelFactory::GetForProfile(profile));
+      profile->GetPrefs(), ios::BookmarkModelFactory::GetForProfile(profile));
 
   vivaldi_default_bookmarks::UpdatePartners(
       vivaldi_default_bookmarks::UpdaterClientImpl::Create(profile));
@@ -107,24 +122,23 @@ void PostBrowserStateInit(ProfileIOS* profile) {
   // iCloud backup exclusions:
   base::FilePath profile_path = profile->GetStatePath();
 
-  base::FilePath adblock_rules_path =
-      profile_path.Append(adblock_filter::GetRulesFolderName());
-  base::apple::SetBackupExclusion(adblock_rules_path);
-
-  base::FilePath webkit_content_rule_lists_path =
+  std::vector<base::FilePath> backup_exclusion_paths;
+  backup_exclusion_paths.reserve(5);
+  backup_exclusion_paths.push_back(
+      profile_path.Append(adblock_filter::GetRulesFolderName()));
+  backup_exclusion_paths.push_back(
       profile_path.DirName().DirName().DirName().Append("WebKit").Append(
-          "ContentRuleLists");
-  base::apple::SetBackupExclusion(webkit_content_rule_lists_path);
+          "ContentRuleLists"));
+  backup_exclusion_paths.push_back(profile_path.DirName().Append(
+      vivaldi_image_store::kDirectMatchImageDirectory));
+  backup_exclusion_paths.push_back(profile_path.Append("Sync Data"));
+  backup_exclusion_paths.push_back(profile_path.Append(kSnapshotsDirName));
 
-  base::FilePath direct_match_icons_path = profile_path.DirName().Append(
-      vivaldi_image_store::kDirectMatchImageDirectory);
-  base::apple::SetBackupExclusion(direct_match_icons_path);
-
-  base::FilePath sync_data_path = profile_path.Append("Sync Data");
-  base::apple::SetBackupExclusion(sync_data_path);
-
-  base::FilePath snapshots_path = profile_path.Append(kSnapshotsDirName);
-  base::apple::SetBackupExclusion(snapshots_path);
+  base::ThreadPool::PostTask(
+      FROM_HERE,
+      {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
+       base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+      base::BindOnce(&SetBackupExclusions, std::move(backup_exclusion_paths)));
   // End iCloud backup exclusions
 }
 }  // namespace vivaldi

@@ -104,8 +104,8 @@ bool VivaldiSnapshotPage(blink::LocalFrame* local_frame,
         is_horizontal ? aspect_ratio.width() : aspect_ratio.height();
     float ratio = numerator / denominator;
 
-    float inline_size = floorf(is_horizontal ? expected_size.width()
-                                              : expected_size.height());
+    float inline_size =
+        floorf(is_horizontal ? expected_size.width() : expected_size.height());
     float block_size = floorf(inline_size * ratio);
     gfx::SizeF float_page_size = is_horizontal
                                      ? gfx::SizeF(inline_size, block_size)
@@ -144,8 +144,8 @@ bool VivaldiSnapshotPage(blink::LocalFrame* local_frame,
   }
 
   SkSurfaceProps surface_props(0, kUnknown_SkPixelGeometry);
-  sk_sp<SkSurface> surface = SkSurfaces::Raster(SkImageInfo::MakeN32Premul(
-      page_rect.width(), page_rect.height()));
+  sk_sp<SkSurface> surface = SkSurfaces::Raster(
+      SkImageInfo::MakeN32Premul(page_rect.width(), page_rect.height()));
   if (!surface) {
     LOG(ERROR) << "failed to allocate surface width=" << page_rect.width()
                << " height=" << page_rect.height();

@@ -9,7 +9,6 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/functional/callback_forward.h"
-#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/media/router/discovery/access_code/discovery_resources.pb.h"
@@ -86,7 +85,7 @@ class AccessCodeCastDiscoveryInterface {
       const std::string& value,
       const std::string& key);
   std::pair<std::optional<DiscoveryDevice>, AddSinkResultCode>
-  ConstructDiscoveryDeviceFromJson(base::Value::Dict json_response);
+  ConstructDiscoveryDeviceFromJson(base::DictValue json_response);
   void HandleDiscoveryDeviceJsonError(const std::string& field_missing);
   void HandleServerResponse(
       std::unique_ptr<endpoint_fetcher::EndpointResponse> response);
@@ -98,9 +97,9 @@ class AccessCodeCastDiscoveryInterface {
   // Function that runs the member variable callback with the given error.
   void ReportErrorViaCallback(AddSinkResultCode error);
 
-  AddSinkResultCode GetErrorFromResponse(const base::Value::Dict& response);
+  AddSinkResultCode GetErrorFromResponse(const base::DictValue& response);
   AddSinkResultCode IsResponseValid(
-      const std::optional<base::Value::Dict>& response);
+      const std::optional<base::DictValue>& response);
 
   const raw_ptr<Profile, DanglingUntriaged> profile_;
   // Access code passed down from the WebUI and used in the construction of the

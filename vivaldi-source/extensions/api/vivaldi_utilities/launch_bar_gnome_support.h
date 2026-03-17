@@ -7,12 +7,11 @@ namespace dock {
 // Implements launch bar icon pinning for gnome.
 class GnomeLaunchBar {
  public:
- GnomeLaunchBar();
+  GnomeLaunchBar();
 
- static bool IsGnomeRunning();
- static std::optional<bool> IsVivaldiPinned();
- static bool PinVivaldi();
+  static bool IsGnomeRunning();
+  static std::optional<bool> IsVivaldiPinned();
+  static bool PinVivaldi();
 };
 
-
-} // namespace dock
+}  // namespace dock

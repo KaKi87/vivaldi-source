@@ -25,7 +25,8 @@ constexpr char kCanaryValue[] = "VivaldiKeystoreEncryptionCanary";
 
 bool AskShouldAllowInsecureAccess() {
   if (!ui_tools::IsUIAvailable()) {
-    LOG(WARNING) << "KeystoreChecker: AskShouldAllowInsecureAccess: UI Is not available yet. Returning NO to insecure access";
+    LOG(WARNING) << "KeystoreChecker: AskShouldAllowInsecureAccess: UI Is not "
+                    "available yet. Returning NO to insecure access";
     return false;
   }
 
@@ -40,7 +41,8 @@ bool AskShouldAllowInsecureAccess() {
 
   // Some extra configs:
 
-  // Use cancel button as default - pressing enter will cause the dialog to cancel.
+  // Use cancel button as default - pressing enter will cause the dialog to
+  // cancel.
   config.cancel_default = true;
 
   // A reasonable sizing for the messagebox.
@@ -183,7 +185,7 @@ bool HasLockedKeystore(Profile* profile) {
 #endif
 }
 
-bool InitOSCrypt(PrefService *local_state, bool *should_exit) {
+bool InitOSCrypt(PrefService* local_state, bool* should_exit) {
 #if BUILDFLAG(IS_WIN)
   OSCrypt::InitResult crypt_result = OSCrypt::InitWithExistingKey(local_state);
   if (crypt_result == OSCrypt::kDecryptionFailed) {

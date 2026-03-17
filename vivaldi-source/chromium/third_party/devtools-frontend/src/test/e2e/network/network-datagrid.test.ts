@@ -77,7 +77,7 @@ describe('The Network Tab', function() {
 
     await devToolsPage.click('.name-column', {clickOptions: {button: 'right'}});
 
-    await devToolsPage.click('aria/Response Headers');
+    await devToolsPage.click('aria/Response headers');
 
     await devToolsPage.click('aria/Last-Modified, unchecked');
 
@@ -217,9 +217,9 @@ describe('The Network Tab', function() {
 
     await devToolsPage.click('.name-column', {clickOptions: {button: 'right'}});
 
-    await devToolsPage.click('aria/Initiator Address Space, unchecked');
+    await devToolsPage.click('aria/Initiator address space, unchecked');
 
-    const expectedValues = JSON.stringify(['Initiator Address Space', '', 'Loopback']);
+    const expectedValues = JSON.stringify(['Initiator address space', '', 'Loopback']);
     await devToolsPage.waitForFunction(async () => {
       const initiatorAddressSpaceValues = await devToolsPage.page.$$eval(
           'pierce/.initiator-address-space-column',
@@ -241,9 +241,9 @@ describe('The Network Tab', function() {
 
     await devToolsPage.click('.name-column', {clickOptions: {button: 'right'}});
 
-    await devToolsPage.click('aria/Remote Address Space, unchecked');
+    await devToolsPage.click('aria/Remote address space, unchecked');
 
-    const expectedValues = JSON.stringify(['Remote Address Space', 'Loopback', 'Loopback']);
+    const expectedValues = JSON.stringify(['Remote address space', 'Loopback', 'Loopback']);
     await devToolsPage.waitForFunction(async () => {
       const remoteAddressSpaceValues = await devToolsPage.page.$$eval(
           'pierce/.remote-address-space-column',
@@ -256,7 +256,7 @@ describe('The Network Tab', function() {
   // Flaky test on all platforms
   it.skip('[crbug.com/463663626] shows preserved pending requests as unknown', async ({
                                                                                  devToolsPage,
-                                                                                 inspectedPage
+                                                                                 inspectedPage,
                                                                                }) => {
     await loadNetworkTab(devToolsPage, inspectedPage);
 
@@ -289,7 +289,7 @@ describe('The Network Tab', function() {
     await inspectedPage.page.reload({waitUntil: 'networkidle0'});
     await waitForSomeRequestsToAppear(2, devToolsPage);
 
-    await selectRequestByName('image.svg', {devToolsPage});
+    await selectRequestByName('image.svg', {}, devToolsPage);
     await waitForSelectedRequestChange(null, devToolsPage);
     await devToolsPage.pressKey('r');
     await waitForSomeRequestsToAppear(3, devToolsPage);
@@ -305,7 +305,7 @@ describe('The Network Tab', function() {
        await navigateToNetworkTab('xhr.html', devToolsPage, inspectedPage);
        await inspectedPage.page.reload({waitUntil: 'networkidle0'});
        await waitForSomeRequestsToAppear(2, devToolsPage);
-       await selectRequestByName('xhr.html', {devToolsPage});
+       await selectRequestByName('xhr.html', {}, devToolsPage);
        await devToolsPage.pressKey('ArrowDown');
 
        const getSelectedRequestBgColor = () => devToolsPage.evaluate(() => {
@@ -324,7 +324,7 @@ describe('The Network Tab', function() {
 
        // WebSocket messages get sent every 100 milliseconds, so holding the mouse
        // down for 300 milliseconds should suffice.
-       await selectRequestByName('localhost', {delay: 300, devToolsPage});
+       await selectRequestByName('localhost', {delay: 300}, devToolsPage);
 
        await devToolsPage.waitFor('.network-item-view');
      });

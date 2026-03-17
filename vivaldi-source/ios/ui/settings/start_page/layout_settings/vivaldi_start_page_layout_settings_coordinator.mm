@@ -26,7 +26,7 @@
 @synthesize baseNavigationController = _baseNavigationController;
 
 - (instancetype)initWithBaseNavigationController:
-(UINavigationController*)navigationController
+                    (UINavigationController*)navigationController
                                          browser:(Browser*)browser {
   self = [super initWithBaseViewController:navigationController
                                    browser:browser];
@@ -45,30 +45,27 @@
   VivaldiStartPageLayoutSettingsViewProvider* viewProvider =
       [VivaldiStartPageLayoutSettingsViewProvider new];
   self.viewProvider = viewProvider;
-  UIViewController *controller = [self.viewProvider makeViewController];
+  UIViewController* controller = [self.viewProvider makeViewController];
   controller.title =
       l10n_util::GetNSString(IDS_IOS_VIVALDI_START_PAGE_LAYOUT_TITLE);
   controller.navigationItem.largeTitleDisplayMode =
       UINavigationItemLargeTitleDisplayModeNever;
 
   // Add Done button
-  UIBarButtonItem* doneItem =
-    [[UIBarButtonItem alloc]
-        initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                             target:self
-                             action:@selector(handleDoneButtonTap)];
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
   controller.navigationItem.rightBarButtonItem = doneItem;
 
-  self.mediator =
-      [[VivaldiStartPageLayoutSettingsMediator alloc]
-            initWithOriginalPrefService:self.browser->GetProfile()
-                   ->GetOriginalProfile()
-                   ->GetPrefs()];
+  self.mediator = [[VivaldiStartPageLayoutSettingsMediator alloc]
+      initWithOriginalPrefService:self.browser->GetProfile()
+                                      ->GetOriginalProfile()
+                                      ->GetPrefs()];
   self.mediator.consumer = self.viewProvider;
   self.viewProvider.settingsStateConsumer = self.mediator;
 
-  [self.baseNavigationController pushViewController:controller
-                                           animated:YES];
+  [self.baseNavigationController pushViewController:controller animated:YES];
 }
 
 - (void)stop {

@@ -13,7 +13,6 @@
 namespace vivaldi {
 
 void UpdateVersionUIIOSDataSource(web::WebUIIOSDataSource* html_source) {
-
   html_source->AddResourcePath("images/product_logo_white.png",
                                IDR_PRODUCT_LOGO);
 
@@ -36,8 +35,7 @@ void UpdateVersionUIIOSDataSource(web::WebUIIOSDataSource* html_source) {
   html_source->AddString("productLicenseChromiumURL",
                          u"https://www.chromium.org/");
 
-  html_source->AddString("productLicenseCreditsURL",
-                         kChromeUICreditsURL);
+  html_source->AddString("productLicenseCreditsURL", kChromeUICreditsURL);
 
   html_source->AddLocalizedString("productTOS",
                                   IDS_VIVALDI_ABOUT_TERMS_OF_SERVICE);

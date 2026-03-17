@@ -5,6 +5,8 @@
 package org.chromium.chrome.browser.bookmarks;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeBookmarksUrl;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNonNativeBookmarksUrl;
 import static org.chromium.components.browser_ui.widget.ListItemBuilder.buildSimpleMenuItem;
 
 import android.app.Activity;
@@ -22,8 +24,8 @@ import org.chromium.base.Callback;
 import org.chromium.base.CallbackController;
 import org.chromium.base.ObserverList;
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.OneshotSupplierImpl;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
@@ -42,7 +44,9 @@ import org.chromium.chrome.browser.partnerbookmarks.PartnerBookmarksReader;
 import org.chromium.chrome.browser.price_tracking.PriceDropNotificationManager;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.sync.ui.batch_upload_card.BatchUploadCardCoordinator;
+import org.chromium.chrome.browser.ui.messages.snackbar.Snackbar;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
+import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager.SnackbarController;
 import org.chromium.chrome.browser.ui.native_page.BasicNativePage;
 import org.chromium.components.bookmarks.BookmarkId;
 import org.chromium.components.bookmarks.BookmarkItem;
@@ -50,9 +54,10 @@ import org.chromium.components.bookmarks.BookmarkType;
 import org.chromium.components.browser_ui.widget.BrowserUiListMenuUtils;
 import org.chromium.components.browser_ui.widget.ListItemBuilder;
 import org.chromium.components.browser_ui.widget.dragreorder.DragReorderableRecyclerViewAdapter;
-import org.chromium.components.browser_ui.widget.dragreorder.DragReorderableRecyclerViewAdapter.DragListener;
-import org.chromium.components.browser_ui.widget.dragreorder.DragReorderableRecyclerViewAdapter.DraggabilityProvider;
 import org.chromium.components.browser_ui.widget.dragreorder.DragStateDelegate;
+import org.chromium.components.browser_ui.widget.dragreorder.DragTouchHandler;
+import org.chromium.components.browser_ui.widget.dragreorder.DragTouchHandler.DragListener;
+import org.chromium.components.browser_ui.widget.dragreorder.DragTouchHandler.DraggabilityProvider;
 import org.chromium.components.browser_ui.widget.selectable_list.SelectableListLayout;
 import org.chromium.components.browser_ui.widget.selectable_list.SelectionDelegate;
 import org.chromium.components.browser_ui.widget.selectable_list.SelectionDelegate.SelectionObserver;
@@ -60,10 +65,10 @@ import org.chromium.components.commerce.core.CommerceFeatureUtils;
 import org.chromium.components.commerce.core.CommerceSubscription;
 import org.chromium.components.commerce.core.ShoppingService;
 import org.chromium.components.commerce.core.SubscriptionsObserver;
-import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.power_bookmarks.PowerBookmarkMeta;
 import org.chromium.components.power_bookmarks.PowerBookmarkType;
 import org.chromium.ui.accessibility.AccessibilityState;
+import org.chromium.ui.base.Clipboard;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.DeviceInput;
 import org.chromium.ui.listmenu.ListMenu;
@@ -78,6 +83,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
@@ -88,6 +94,7 @@ import java.util.function.Predicate;
 import android.graphics.Rect;
 import android.view.View;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
 import java.util.Collections;
 import java.util.Comparator;
@@ -114,6 +121,7 @@ public class BookmarkManagerMediator // Vivaldi
     private @Nullable VivaldiBookmarksPageObserver mBookmarksPageObserver;
     private @Nullable SortOrder mSortOrder;
     private @Nullable SortAscOrDesc mSortAscOrDesc;
+    private @Nullable BookmarkId mReadingListFolder;
     // End Vivaldi
 
     /** Keeps track of whether drag is enabled / active for bookmark lists. */
@@ -204,10 +212,8 @@ public class BookmarkManagerMediator // Vivaldi
                                 // Update the batch upload card (in case of refresh() is not called)
                                 // to reflect the right number of the
                                 // local bookmarks.
-                                if (mBatchUploadCardCoordinator != null) {
-                                    mBatchUploadCardCoordinator
-                                            .immediatelyHideBatchUploadCardAndUpdateItsVisibility();
-                                }
+                                mBatchUploadCardCoordinator
+                                        .immediatelyHideBatchUploadCardAndUpdateItsVisibility();
                             }
                         }
                     }
@@ -261,20 +267,19 @@ public class BookmarkManagerMediator // Vivaldi
                 public void onDestroy() {
                     removeUiObserver(mBookmarkUiObserver);
                     getSelectionDelegate().removeObserver(mSelectionObserver);
-                    if (!ChromeApplicationImpl.isVivaldi())
-                    if (mPromoHeaderManager != null) {
-                        mPromoHeaderManager.destroy();
-                    }
                 }
 
                 @Override
                 public void onFolderStateSet(@Nullable BookmarkId folder) {
                     clearHighlight();
-
                     mDragReorderableRecyclerViewAdapter.enableDrag();
 
                     // Vivaldi
                     mCurrentFolder = folder;
+                    if (getSearchBoxPropertyModel() != null) {
+                        PropertyModel searchModel = assumeNonNull(getSearchBoxPropertyModel());
+                        updateSearchBoxHint(searchModel);
+                    }
 
                     if (ChromeApplicationImpl.isVivaldi()
                             && folder != null
@@ -320,7 +325,7 @@ public class BookmarkManagerMediator // Vivaldi
     private final DragListener mDragListener =
             new DragListener() {
                 @Override
-                public void onSwap() {
+                public void onSwap(int targetIndex) {
                     mIsBookmarkModelReorderingInProgress = true;
                     try {
                         setOrder();
@@ -415,11 +420,11 @@ public class BookmarkManagerMediator // Vivaldi
     // Owned by BookmarkManager(Coordinator).
     private final RecyclerView mRecyclerView;
     private final DragReorderableRecyclerViewAdapter mDragReorderableRecyclerViewAdapter;
+    private final DragTouchHandler mDragTouchHandler;
     // Whether we're showing in a dialog UI which is only true for phones.
     private final boolean mIsDialogUi;
-    private final ObservableSupplierImpl<Boolean> mBackPressStateSupplier;
+    private final SettableNonNullObservableSupplier<Boolean> mBackPressStateSupplier;
     private final Profile mProfile;
-    private final @Nullable BookmarkPromoHeader mPromoHeaderManager;
     private final BookmarkUndoController mBookmarkUndoController;
     private final BookmarkQueryHandler mBookmarkQueryHandler;
     private final ModelList mModelList;
@@ -438,7 +443,7 @@ public class BookmarkManagerMediator // Vivaldi
     private final BookmarkManagerOpener mBookmarkManagerOpener;
     private final PriceDropNotificationManager mPriceDropNotificationManager;
 
-    private @Nullable BatchUploadCardCoordinator mBatchUploadCardCoordinator;
+    private final BatchUploadCardCoordinator mBatchUploadCardCoordinator;
     // Whether this instance has been destroyed.
     private boolean mIsDestroyed;
     private boolean mIsExitingSearch;
@@ -453,6 +458,7 @@ public class BookmarkManagerMediator // Vivaldi
     private boolean mIsBookmarkModelReorderingInProgress;
     // Whether the shopping feature is available and there are price-tracked bookmarks.
     private boolean mShoppingFilterAvailable;
+    private final Clipboard mClipboard;
 
     // Vivaldi
     private @Nullable BookmarkId mCurrentFolder;
@@ -467,8 +473,9 @@ public class BookmarkManagerMediator // Vivaldi
             SelectionDelegate<BookmarkId> selectionDelegate,
             RecyclerView recyclerView,
             DragReorderableRecyclerViewAdapter dragReorderableRecyclerViewAdapter,
+            DragTouchHandler dragTouchHandler,
             boolean isDialogUi,
-            ObservableSupplierImpl<Boolean> backPressStateSupplier,
+            SettableNonNullObservableSupplier<Boolean> backPressStateSupplier,
             Profile profile,
             BookmarkUndoController bookmarkUndoController,
             ModelList modelList,
@@ -480,7 +487,8 @@ public class BookmarkManagerMediator // Vivaldi
             BooleanSupplier canShowSigninPromo,
             Consumer<OnScrollListener> onScrollListenerConsumer,
             BookmarkManagerOpener bookmarkManagerOpener,
-            PriceDropNotificationManager priceDropNotificationManager) {
+            PriceDropNotificationManager priceDropNotificationManager,
+            Clipboard clipboard) {
         mContext = activity;
         mBookmarkModel = bookmarkModel;
         mBookmarkModel.addObserver(mBookmarkModelObserver);
@@ -488,13 +496,13 @@ public class BookmarkManagerMediator // Vivaldi
         mSelectableListLayout = selectableListLayout;
         mSelectableListLayout
                 .getHandleBackPressChangedSupplier()
-                .addObserver((x) -> onBackPressStateChanged());
+                .addSyncObserverAndPostIfNonNull((x) -> onBackPressStateChanged());
         mSelectionDelegate = selectionDelegate;
         mRecyclerView = recyclerView;
         mDragReorderableRecyclerViewAdapter = dragReorderableRecyclerViewAdapter;
-        mDragReorderableRecyclerViewAdapter.addDragListener(mDragListener);
-        mDragReorderableRecyclerViewAdapter.setLongPressDragDelegate(
-                () -> mDragStateDelegate.getDragActive());
+        mDragTouchHandler = dragTouchHandler;
+        mDragTouchHandler.addDragListener(mDragListener);
+        mDragTouchHandler.setLongPressDragDelegate(() -> mDragStateDelegate.getDragActive());
         mIsDialogUi = isDialogUi;
         mBackPressStateSupplier = backPressStateSupplier;
         mProfile = profile;
@@ -505,26 +513,20 @@ public class BookmarkManagerMediator // Vivaldi
         mBookmarkImageFetcher = bookmarkImageFetcher;
         mShoppingService = shoppingService;
         mSnackbarManager = snackbarManager;
+        mClipboard = clipboard;
         mCanShowSigninPromo = canShowSigninPromo;
-        if (ChromeFeatureList.isEnabled(ChromeFeatureList.UNO_PHASE_2_FOLLOW_UP)) {
-            OneshotSupplierImpl<SnackbarManager> snackbarManagerSupplierImpl =
-                    new OneshotSupplierImpl<>();
-            snackbarManagerSupplierImpl.set(mSnackbarManager);
-            mBatchUploadCardCoordinator =
-                    new BatchUploadCardCoordinator(
-                            activity,
-                            lifecycleOwner,
-                            modalDialogManager,
-                            mProfile.getOriginalProfile(),
-                            snackbarManagerSupplierImpl,
-                            this::updateBatchUploadCard,
-                            BatchUploadCardCoordinator.EntryPoint.BOOKMARK_MANAGER);
-            mPromoHeaderManager = null;
-        } else {
-            mPromoHeaderManager =
-                    new BookmarkPromoHeader(
-                            mContext, mProfile.getOriginalProfile(), this::updateHeader);
-        }
+        OneshotSupplierImpl<SnackbarManager> snackbarManagerSupplierImpl =
+                new OneshotSupplierImpl<>();
+        snackbarManagerSupplierImpl.set(mSnackbarManager);
+        mBatchUploadCardCoordinator =
+                new BatchUploadCardCoordinator(
+                        activity,
+                        lifecycleOwner,
+                        modalDialogManager,
+                        mProfile.getOriginalProfile(),
+                        snackbarManagerSupplierImpl,
+                        this::updateBatchUploadCard,
+                        BatchUploadCardCoordinator.EntryPoint.BOOKMARK_MANAGER);
         mBookmarkUndoController = bookmarkUndoController;
         mBookmarkManagerOpener = bookmarkManagerOpener;
         mPriceDropNotificationManager = priceDropNotificationManager;
@@ -583,6 +585,7 @@ public class BookmarkManagerMediator // Vivaldi
                     }
                 }
             });
+            mReadingListFolder = mBookmarkModel.getDefaultReadingListFolder();
         } // End Vivaldi
     }
 
@@ -612,9 +615,7 @@ public class BookmarkManagerMediator // Vivaldi
         mBookmarkUndoController.destroy();
         mBookmarkQueryHandler.destroy();
         mCallbackController.destroy();
-        if (mBatchUploadCardCoordinator != null) {
-            mBatchUploadCardCoordinator.destroy();
-        }
+        mBatchUploadCardCoordinator.destroy();
 
         mBookmarkUiPrefs.removeObserver(mBookmarkUiPrefsObserver);
 
@@ -730,10 +731,6 @@ public class BookmarkManagerMediator // Vivaldi
         } else {
             mInitialUrl = url;
         }
-    }
-
-    @Nullable BookmarkPromoHeader getPromoHeaderManager() {
-        return mPromoHeaderManager;
     }
 
     @Nullable BookmarkId getIdByPosition(int position) {
@@ -1038,15 +1035,19 @@ public class BookmarkManagerMediator // Vivaldi
             // If a loading state is replaced by another loading state, do not notify this change.
             if (mNativePage != null) {
                 boolean replaceLastUrl =
-                        TextUtils.equals(mNativePage.getUrl(), UrlConstants.BOOKMARKS_URL)
+                        TextUtils.equals(mNativePage.getUrl(), getOriginalNonNativeBookmarksUrl())
                                 || TextUtils.equals(
-                                        mNativePage.getUrl(), UrlConstants.BOOKMARKS_NATIVE_URL);
+                                        mNativePage.getUrl(), getOriginalNativeBookmarksUrl());
                 mNativePage.onStateChange(state.mUrl, replaceLastUrl);
             }
         } else if (state.mUiMode == BookmarkUiMode.SEARCHING) {
             String searchText = getCurrentSearchText();
             if (!preserveFolderBookmarksOnEmptySearch || !TextUtils.isEmpty(searchText)) {
                 String trimmedText = searchText == null ? "" : searchText.trim();
+                if (ChromeApplicationImpl.isVivaldi() && mCurrentFolder != null &&
+                        mCurrentFolder.equals(mReadingListFolder)) {
+                    setBookmarks(getItemsMatching(assumeNonNull(searchText)));
+                } else // End Vivaldi
                 setBookmarks(
                         mBookmarkQueryHandler.buildBookmarkListForSearch(
                                 trimmedText, mCurrentPowerFilter));
@@ -1135,7 +1136,6 @@ public class BookmarkManagerMediator // Vivaldi
     @SuppressWarnings("NotifyDataSetChanged")
     private void setBookmarks(List<BookmarkListEntry> bookmarkListEntryList) {
         clearHighlight();
-
         if (!ChromeApplicationImpl.isVivaldi())
         updateHeader();
 
@@ -1254,6 +1254,10 @@ public class BookmarkManagerMediator // Vivaldi
         if (DeviceFormFactor.isNonMultiDisplayContextOnTablet(mContext)) {
             String searchText = getCurrentSearchText();
             if (!TextUtils.isEmpty(searchText)) {
+                if (ChromeApplicationImpl.isVivaldi() && mCurrentFolder != null &&
+                        mCurrentFolder.equals(mReadingListFolder)) {
+                    setBookmarks(getItemsMatching(assumeNonNull(searchText)));
+                } else // End Vivaldi
                 setBookmarks(
                         mBookmarkQueryHandler.buildBookmarkListForSearch(
                                 searchText, mCurrentPowerFilter));
@@ -1270,21 +1274,10 @@ public class BookmarkManagerMediator // Vivaldi
             return ViewType.INVALID;
         }
 
-        if (ChromeFeatureList.isEnabled(ChromeFeatureList.UNO_PHASE_2_FOLLOW_UP)) {
-            return mCanShowSigninPromo.getAsBoolean() ? ViewType.SIGNIN_PROMO : ViewType.INVALID;
-        }
-
-        if (mPromoHeaderManager != null && mPromoHeaderManager.shouldShowPromo()) {
-            return ViewType.SIGNIN_PROMO;
-        } else {
-            return ViewType.INVALID;
-        }
+        return mCanShowSigninPromo.getAsBoolean() ? ViewType.SIGNIN_PROMO : ViewType.INVALID;
     }
 
     private boolean shouldShowBatchUploadCard() {
-        if (mBatchUploadCardCoordinator == null) {
-            return false;
-        }
         return mBatchUploadCardCoordinator.shouldShowBatchUploadCard();
     }
 
@@ -1437,8 +1430,7 @@ public class BookmarkManagerMediator // Vivaldi
                 BookmarkListEntry.createSyncPromoHeader(promoHeaderType);
         PropertyModel.Builder builder =
                 new PropertyModel.Builder(BookmarkManagerProperties.ALL_KEYS)
-                        .with(BookmarkManagerProperties.BOOKMARK_LIST_ENTRY, bookmarkListEntry)
-                        .with(BookmarkManagerProperties.BOOKMARK_PROMO_HEADER, mPromoHeaderManager);
+                        .with(BookmarkManagerProperties.BOOKMARK_LIST_ENTRY, bookmarkListEntry);
         return new ListItem(bookmarkListEntry.getViewType(), builder.build());
     }
 
@@ -1476,6 +1468,8 @@ public class BookmarkManagerMediator // Vivaldi
                                 this::onShoppingFilterToggle)
                         .build();
         updateSearchBoxShoppingFilterVisibility(propertyModel);
+        if (ChromeApplicationImpl.isVivaldi())
+            updateSearchBoxHint(propertyModel);
         return new ListItem(ViewType.SEARCH_BOX, propertyModel);
     }
 
@@ -1536,7 +1530,7 @@ public class BookmarkManagerMediator // Vivaldi
         mBookmarkModel.finishLoadingBookmarkModel(this::onBookmarkModelLoaded);
     }
 
-    /* package */ @Nullable BatchUploadCardCoordinator getBatchUploadCardCoordinatorForTesting() {
+    /* package */ BatchUploadCardCoordinator getBatchUploadCardCoordinatorForTesting() {
         return mBatchUploadCardCoordinator;
     }
 
@@ -1545,9 +1539,18 @@ public class BookmarkManagerMediator // Vivaldi
         BookmarkItem bookmarkItem = assumeNonNull(bookmarkListEntry.getBookmarkItem());
         BookmarkId bookmarkId = bookmarkItem.getId();
 
+        // The property model for an individual bookmark item (row).
         PropertyModel propertyModel =
                 mImprovedBookmarkRowCoordinator.createBasePropertyModel(bookmarkId);
         propertyModel.set(BookmarkManagerProperties.BOOKMARK_LIST_ENTRY, bookmarkListEntry);
+
+        if (ChromeFeatureList.sAndroidBookmarkBarFastFollow.isEnabled()) {
+            // Include #isReorderable because Mobile bookmarks, Bookmarks bar, and Reading list
+            // should not be draggable.
+            boolean isDragEnabled =
+                    mDragStateDelegate.getDragEnabled() && isReorderable(bookmarkListEntry);
+            propertyModel.set(ImprovedBookmarkRowProperties.IS_DRAG_ENABLED, isDragEnabled);
+        }
 
         // Menu
         propertyModel.set(
@@ -1600,6 +1603,9 @@ public class BookmarkManagerMediator // Vivaldi
 
         listItems.add(buildSimpleMenuItem(R.string.bookmark_item_select));
         listItems.add(buildSimpleMenuItem(R.string.bookmark_item_edit));
+        if (!bookmarkItem.isFolder()) {
+            listItems.add(buildSimpleMenuItem(R.string.bookmark_item_copy_link));
+        }
         listItems.add(
                 new ListItemBuilder()
                         .withTitleRes(R.string.bookmark_item_move)
@@ -1668,6 +1674,20 @@ public class BookmarkManagerMediator // Vivaldi
                         assumeNonNull(bookmarkItem);
                         mBookmarkManagerOpener.startEditActivity(
                                 mContext, mProfile, bookmarkItem.getId());
+                    } else if (textId == R.string.bookmark_item_copy_link) {
+                        BookmarkItem bookmarkItem = mBookmarkModel.getBookmarkById(bookmarkId);
+                        assumeNonNull(bookmarkItem);
+                        if (!bookmarkItem.isFolder()) {
+                            mClipboard.setText(bookmarkItem.getUrl().getSpec());
+                            Snackbar snackbar =
+                                    Snackbar.make(
+                                            mContext.getString(R.string.copied),
+                                            new SnackbarController() {},
+                                            Snackbar.TYPE_NOTIFICATION,
+                                            Snackbar.UMA_BOOKMARK_LINK_COPIED_NON_SELECTION);
+                            mSnackbarManager.showSnackbar(snackbar);
+                            RecordUserAction.record("Android.BookmarkPage.CopyLink");
+                        }
                     } else if (textId == R.string.reading_list_mark_as_read) {
                         BookmarkItem bookmarkItem = mBookmarkModel.getBookmarkById(bookmarkId);
                         assumeNonNull(bookmarkItem);
@@ -1727,7 +1747,6 @@ public class BookmarkManagerMediator // Vivaldi
                 };
 
         PowerBookmarkUtils.setPriceTrackingEnabledWithSnackbars(
-                mBookmarkModel,
                 assumeNonNull(entry.getBookmarkItem()).getId(),
                 enabled,
                 mSnackbarManager,
@@ -1841,6 +1860,10 @@ public class BookmarkManagerMediator // Vivaldi
                 mSelectionDelegate.clearSelection();
                 refresh();
             } else {
+                if (ChromeApplicationImpl.isVivaldi() && mCurrentFolder != null &&
+                        mCurrentFolder.equals(mReadingListFolder)) {
+                    setBookmarks(getItemsMatching(assumeNonNull(searchText)));
+                } else // End Vivaldi
                 setBookmarks(
                         mBookmarkQueryHandler.buildBookmarkListForSearch(
                                 searchText, mCurrentPowerFilter));
@@ -2162,6 +2185,46 @@ public class BookmarkManagerMediator // Vivaldi
             }
         }
         return false;
+    }
+
+    @Nullable BookmarkListEntry idToEntry(BookmarkId bookmarkId) {
+        PowerBookmarkMeta powerBookmarkMeta = mBookmarkModel.getPowerBookmarkMeta(bookmarkId);
+        BookmarkItem bookmarkItem = mBookmarkModel.getBookmarkById(bookmarkId);
+        if (bookmarkItem == null) return null;
+        return BookmarkListEntry.createBookmarkEntry(
+                bookmarkItem,
+                powerBookmarkMeta,
+                mBookmarkUiPrefs.getBookmarkRowDisplayPref());
+    }
+
+    private List<BookmarkListEntry> getItemsMatching(String query) {
+        final List<BookmarkListEntry> bookmarkListEntries = new ArrayList<>();
+        if (mCurrentFolder == null) return bookmarkListEntries;
+        List<BookmarkId> list = mBookmarkModel.getChildIds(mCurrentFolder);
+        String queryLowerCase = query.toLowerCase(Locale.getDefault());
+        for (BookmarkId id : list) {
+            BookmarkItem item = mBookmarkModel.getBookmarkById(id);
+            if (item != null) {
+                if (item.getTitle() != null
+                        && item.getTitle().toLowerCase(Locale.getDefault()).contains(queryLowerCase)) {
+                    bookmarkListEntries.add(idToEntry(id));
+                    continue;
+                }
+                if (item.getUrl() != null
+                        && item.getUrl().getSpec().toLowerCase(Locale.getDefault()).contains(queryLowerCase)) {
+                    bookmarkListEntries.add(idToEntry(id));
+                }
+            }
+        }
+        return bookmarkListEntries;
+    }
+
+    private void updateSearchBoxHint(PropertyModel searchBoxPropertyModel) {
+        boolean readingList = mCurrentFolder != null &&
+                mCurrentFolder.equals(mReadingListFolder);
+        searchBoxPropertyModel.set(BookmarkSearchBoxRowProperties.SEARCH_TEXT_HINT,
+                readingList ? ContextCompat.getString(mContext, R.string.search) :
+                        ContextCompat.getString(mContext, R.string.bookmark_toolbar_search));
     }
     // End Vivaldi
 }

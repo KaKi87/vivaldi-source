@@ -45,13 +45,15 @@ void ReleaseSharedMemoryPixels(void* addr, void* context) {
 
 void OnCopySurfaceDone(float device_scale_factor,
                        CapturePage::CaptureVisibleCallback callback,
-                       const viz::CopyOutputBitmapWithMetadata& bitmap) {
+                       const content::CopyFromSurfaceResult& result) {
   bool success = true;
-  if (bitmap.bitmap.drawsNothing()) {
+  const SkBitmap& bitmap =
+      result.value_or(viz::CopyOutputBitmapWithMetadata()).bitmap;
+  if (bitmap.drawsNothing()) {
     LOG(ERROR) << "Failed RenderWidgetHostView::CopyFromSurface()";
     success = false;
   }
-  std::move(callback).Run(success, device_scale_factor, bitmap.bitmap);
+  std::move(callback).Run(success, device_scale_factor, bitmap);
 }
 
 SkBitmap ConvertCaptureMemoryToBitmap(gfx::Size image_size,
@@ -254,8 +256,8 @@ class PaintPreviewCaptureState {
     delete this;
   }
 
-  static std::optional<base::ReadOnlySharedMemoryRegion>
-  ToReadOnlySharedMemory(paint_preview::PaintPreviewProto&& proto) {
+  static std::optional<base::ReadOnlySharedMemoryRegion> ToReadOnlySharedMemory(
+      paint_preview::PaintPreviewProto&& proto) {
     auto region =
         base::WritableSharedMemoryRegion::Create(proto.ByteSizeLong());
     if (!region.IsValid())
@@ -343,7 +345,7 @@ void CapturePage::CaptureVisible(content::WebContents* web_contents,
   gfx::Rect capture_area(std::round(rect.x()), std::round(rect.y()),
                          std::round(rect.width()), std::round(rect.height()));
   gfx::Size bitmap_size = gfx::ToRoundedSize(size_f);
-  view->CopyFromSurface(capture_area, bitmap_size,
+  view->CopyFromSurface(capture_area, bitmap_size, base::TimeDelta(),
                         base::BindOnce(&OnCopySurfaceDone, device_scale_factor,
                                        std::move(callback)));
 }

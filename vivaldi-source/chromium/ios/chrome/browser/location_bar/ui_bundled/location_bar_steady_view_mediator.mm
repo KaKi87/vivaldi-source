@@ -33,7 +33,7 @@
 #import "ios/chrome/browser/shared/model/utils/observable_boolean.h"
 #import "ios/components/webui/web_ui_url_constants.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 using vivaldi::IsVivaldiRunning;
 using vivaldi::kVivaldiUIScheme;
@@ -273,7 +273,8 @@ using vivaldi::kVivaldiUIScheme;
     std::u16string domain = self.locationBarModel->GetURLForDisplay();
     [self.consumer updateLocationText:[self currentLocationString]
                                domain:base::SysUTF16ToNSString(domain)
-                             showFull:[self shouldShowFullAddress]];
+                             showFull:[self shouldShowFullAddress]
+                             clipTail:[self locationShouldClipTail]];
   } else {
   [self.consumer updateLocationText:[self currentLocationString]
                            clipTail:[self locationShouldClipTail]];

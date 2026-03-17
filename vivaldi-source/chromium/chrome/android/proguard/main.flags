@@ -41,6 +41,10 @@
 # removed due to being unused.
 -dontwarn org.chromium.chrome.modules.on_demand.OnDemandModuleEntryPointsImpl
 
+# Test APK targets do not include the XR bundle code, but do include XrModule.java,
+# which references XrModuleProvider via an @IdentifierNameString.
+-dontwarn org.chromium.chrome.browser.xr.scenecore.XrModuleProviderImpl
+
 # Vivaldi: To silence R8 warnings
 -dontwarn org.chromium.chrome.browser.data_import.DataImporterServiceImpl
 -dontwarn org.chromium.chrome.modules.test_dummy.TestDummyProviderImpl

@@ -14,6 +14,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
 import org.chromium.base.test.BaseRobolectricTestRunner;
@@ -40,6 +41,8 @@ public class CalculatorAnswerTextLayoutUnitTest {
                                 .TextAppearance_TextMedium_Secondary);
     }
 
+    // TODO(crbug.com/481749158): Fix failure on SDK 30+ due to layout/rendering differences.
+    @Config(sdk = 29)
     @Test
     @SmallTest
     public void testCalculatorAnswerAppearance() {

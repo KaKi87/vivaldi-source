@@ -20,6 +20,10 @@ import org.chromium.ui.base.ViewAndroidDelegate;
 import org.chromium.ui.base.ViewUtils;
 import org.chromium.ui.base.WindowAndroid.ActivityStateObserver;
 
+// Vivaldi
+import android.view.View;
+import org.chromium.build.BuildConfig;
+
 /** Implementation of the interface {@link ViewEventSink}. */
 @NullMarked
 public final class ViewEventSinkImpl implements ViewEventSink, ActivityStateObserver, UserData {
@@ -129,6 +133,12 @@ public final class ViewEventSinkImpl implements ViewEventSink, ActivityStateObse
 
         // See the comments on mIsTopActivity for why we use it to compute input focus.
         boolean hasInputFocus = mHasViewFocus && mIsTopActivity;
+
+        // Vivaldi
+        if (BuildConfig.IS_OEM_MERCEDES_BUILD && shouldIgnoreTopResumedLoss()) {
+            hasInputFocus = true;
+        }
+
         if (mHasInputFocus != null && mHasInputFocus == hasInputFocus) return;
         mHasInputFocus = hasInputFocus;
 
@@ -172,5 +182,22 @@ public final class ViewEventSinkImpl implements ViewEventSink, ActivityStateObse
     @Override
     public void onActivityTopResumedChangedForTesting(boolean isTopResumedActivity) {
         onActivityTopResumedChanged(isTopResumedActivity);
+    }
+
+    // Vivaldi
+    private boolean shouldIgnoreTopResumedLoss() {
+        assert BuildConfig.IS_OEM_MERCEDES_BUILD;
+
+        // Only relevant if we had view focus and just lost top-resumed state.
+        if (mHasViewFocus == null || !mHasViewFocus || mIsTopActivity) return false;
+
+        ViewAndroidDelegate delegate = mWebContents.getViewAndroidDelegate();
+        if (delegate == null) return false;
+
+        View containerView = delegate.getContainerView();
+        return containerView != null
+                && containerView.isAttachedToWindow()
+                && containerView.isShown()
+                && containerView.getWindowVisibility() == View.VISIBLE;
     }
 }

@@ -5,6 +5,7 @@
 
 import argparse
 from collections import defaultdict
+import json
 import os
 import sys
 
@@ -26,6 +27,15 @@ def parse_args() -> argparse.Namespace:
         "repo_root_dir",
         help=("The path to the repository's root directory, which will be "
               "scanned for Chromium metadata files, e.g. '~/chromium/src'."),
+    )
+    parser.add_argument(
+        "--is-open-source-project",
+        action="store_true",
+        help="Whether the project is open source (allows reciprocal licenses).",
+    )
+    parser.add_argument(
+        "--json-summary",
+        help="Path to save the validation summary in JSON format.",
     )
 
     args = parser.parse_args()
@@ -50,9 +60,19 @@ def main() -> None:
 
     metadata_files = metadata.discover.find_metadata_files(src_dir)
     file_count = len(metadata_files)
-    print(f"Found {file_count} metadata files.")
+    if not config.json_summary:
+        print(f"Found {file_count} metadata files.")
 
     invalid_file_count = 0
+
+    # Data structure for JSON output
+    json_output = {
+        "files": {},
+        "summary": {
+            "total_files": file_count,
+            "invalid_files": 0,
+        }
+    }
 
     # Key is constructed from the result severity and reason;
     # Value is a dict for:
@@ -60,14 +80,35 @@ def main() -> None:
     #  * list of validation result strings for that reason and severity.
     all_reasons = defaultdict(lambda: {"files": [], "results": set()})
     for filepath in metadata_files:
-        file_results = metadata.validate.validate_file(filepath,
-                                                       repo_root_dir=src_dir)
+        file_results = metadata.validate.validate_file(
+            filepath,
+            repo_root_dir=src_dir,
+            is_open_source_project=config.is_open_source_project)
         invalid = False
+        relpath = os.path.relpath(filepath, start=src_dir)
+
         if file_results:
-            relpath = os.path.relpath(filepath, start=src_dir)
-            print(f"\n{len(file_results)} problem(s) in {relpath}:")
+            json_output["files"][relpath] = []
+
+            if not config.json_summary:
+                print(f"\n{len(file_results)} problem(s) in {relpath}:")
+
             for result in file_results:
-                print(f"    {result}")
+                if not config.json_summary:
+                    print(f"    {result}")
+
+                # Add to JSON structure
+                json_output["files"][relpath].append({
+                    "severity":
+                    result.get_severity_prefix(),
+                    "reason":
+                    result.get_reason(),
+                    "message":
+                    str(result),
+                    "fatal":
+                    result.is_fatal(),
+                })
+
                 summary_key = "{severity} - {reason}".format(
                     severity=result.get_severity_prefix(),
                     reason=result.get_reason())
@@ -78,6 +119,13 @@ def main() -> None:
 
         if invalid:
             invalid_file_count += 1
+
+    json_output["summary"]["invalid_files"] = invalid_file_count
+
+    if config.json_summary:
+        with open(config.json_summary, 'w') as f:
+            json.dump(json_output, f, indent=2)
+        return
 
     print("\n\nDone.")
 

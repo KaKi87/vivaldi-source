@@ -14,7 +14,6 @@
 
 #include "base/check.h"
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
@@ -35,7 +34,6 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/app_mode/app_mode_utils.h"
-#include "chrome/browser/apps/app_service/app_launch_params.h"
 #include "chrome/browser/apps/app_service/app_service_proxy.h"
 #include "chrome/browser/apps/app_service/app_service_proxy_factory.h"
 #include "chrome/browser/apps/app_service/browser_app_launcher.h"
@@ -46,6 +44,7 @@
 #include "chrome/browser/custom_handlers/protocol_handler_registry_factory.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/devtools/features.h"
+#include "chrome/browser/devtools/views/devtools_floaty.h"
 #include "chrome/browser/download/download_prefs.h"
 #include "chrome/browser/download/download_stats.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
@@ -80,7 +79,7 @@
 #include "chrome/browser/sharing/click_to_call/click_to_call_utils.h"
 #include "chrome/browser/sharing_hub/sharing_hub_features.h"
 #include "chrome/browser/spellchecker/spellcheck_service.h"
-#include "chrome/browser/supervised_user/supervised_user_service_factory.h"
+#include "chrome/browser/supervised_user/supervised_user_url_filtering_service_factory.h"
 #include "chrome/browser/sync/send_tab_to_self_sync_service_factory.h"
 #include "chrome/browser/translate/chrome_translate_client.h"
 #include "chrome/browser/translate/translate_service.h"
@@ -160,7 +159,6 @@
 #include "components/omnibox/browser/autocomplete_classifier.h"
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/password_manager/content/browser/content_password_manager_driver.h"
-#include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/password_manager_metrics_util.h"
 #include "components/password_manager/core/browser/password_manager_util.h"
 #include "components/pdf/common/pdf_util.h"
@@ -172,6 +170,7 @@
 #include "components/search_engines/template_url.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/send_tab_to_self/metrics_util.h"
+#include "components/services/app_service/public/cpp/app_launch_params.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "components/sharing_message/features.h"
 #include "components/spellcheck/browser/pref_names.h"
@@ -180,8 +179,7 @@
 #include "components/spellcheck/spellcheck_buildflags.h"
 #include "components/strings/grit/components_strings.h"
 #include "components/supervised_user/core/browser/supervised_user_preferences.h"
-#include "components/supervised_user/core/browser/supervised_user_service.h"
-#include "components/supervised_user/core/browser/supervised_user_url_filter.h"
+#include "components/supervised_user/core/browser/supervised_user_url_filtering_service.h"
 #include "components/translate/core/browser/translate_download_manager.h"
 #include "components/translate/core/browser/translate_manager.h"
 #include "components/translate/core/browser/translate_prefs.h"
@@ -279,12 +277,12 @@
 #include "extensions/common/extension.h"
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #include "chrome/browser/glic/resources/grit/glic_browser_resources.h"
 #include "ui/base/resource/resource_bundle.h"
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
 #if BUILDFLAG(ENABLE_PDF)
 #include "chrome/browser/pdf/pdf_extension_util.h"
@@ -323,6 +321,7 @@
 #include "ash/webui/system_apps/public/system_web_app_type.h"
 #include "chrome/browser/ash/arc/arc_util.h"
 #include "chrome/browser/ash/arc/intent_helper/arc_intent_helper_mojo_ash.h"
+#include "chrome/browser/ash/boca/on_task/on_task_locked_controller.h"
 #include "chrome/browser/ash/input_method/editor_mediator.h"
 #include "chrome/browser/chromeos/arc/open_with_menu.h"
 #include "chrome/browser/chromeos/arc/start_smart_selection_action_menu.h"
@@ -333,19 +332,20 @@
 #include "chrome/browser/ui/settings_window_manager_chromeos.h"
 #include "chrome/browser/ui/webui/ash/system_web_dialog/system_web_dialog_delegate.h"
 #include "chromeos/ash/experiences/system_web_apps/types/system_web_app_delegate.h"
-#include "chromeos/crosapi/mojom/clipboard_history.mojom.h"
 #include "chromeos/ui/clipboard_history/clipboard_history_submenu_model.h"
+#include "chromeos/ui/clipboard_history/clipboard_history_types.h"
 #include "chromeos/ui/clipboard_history/clipboard_history_util.h"
 #include "ui/aura/window.h"
 #endif
 
 #if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/devtools/devtools_policy_dialog.h"
 #include "chrome/browser/ui/toasts/api/toast_id.h"
 #include "chrome/browser/ui/toasts/toast_controller.h"
 #include "chrome/browser/ui/toasts/toast_features.h"
 #include "chrome/browser/ui/webui/webui_embedding_context.h"
+#include "components/split_tabs/split_tab_id.h"
 #include "components/tabs/public/split_tab_data.h"
-#include "components/tabs/public/split_tab_id.h"
 #include "components/tabs/public/tab_interface.h"
 #include "ui/base/page_transition_types.h"
 #endif
@@ -564,13 +564,16 @@ const std::map<int, int>& GetIdcToUmaMap(UmaEnumIdLookupType type) {
        {IDC_CONTENT_CONTEXT_CLOSE_GLIC, 155},
        {IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW, 156},
        {IDC_CONTENT_CONTEXT_GLICSHAREIMAGE, 157},
+       {IDC_CONTENT_CONTEXT_ARCHIVE_GLIC, 158},
+       {IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_GEMINI, 159},
+       {IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_DEVTOOLS, 160},
        // To add new items:
        //   - Add one more line above this comment block, using the UMA value
        //     from the line below this comment block.
        //   - Increment the UMA value in that latter line.
        //   - Add the new item to the RenderViewContextMenuItem enum in
        //     tools/metrics/histograms/metadata/ui/enums.xml.
-       {0, 158}});
+       {0, 161}});
   // LINT.ThenChange(//tools/metrics/histograms/metadata/ui/enums.xml:RenderViewContextMenuItem)
 
   // LINT.IfChange(ContextMenuOptionDesktop)
@@ -854,17 +857,26 @@ bool IsLensOptionEnteredThroughKeyboard(int event_flags) {
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
 }
 
-bool IsGlicWindow(RenderViewContextMenu* menu,
+bool IsGlicWindow(const RenderViewContextMenu* menu,
                   content::BrowserContext* browser_context) {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (glic::GlicEnabling::IsEnabledByFlags()) {
     auto* glic_service =
         glic::GlicKeyedServiceFactory::GetGlicKeyedService(browser_context);
     return glic_service && glic_service->IsActiveWebContents(
                                menu->GetWebContents()->GetOuterWebContents());
   }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
   return false;
+}
+
+bool IsPrintPreviewContent(const GURL& current_url) {
+#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
+  return printing::PrintPreviewDialogController::IsPrintPreviewContentURL(
+      current_url);
+#else
+  return false;
+#endif
 }
 
 }  // namespace
@@ -894,6 +906,8 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(RenderViewContextMenu,
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(RenderViewContextMenu,
                                       kGlicReloadMenuItem);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(RenderViewContextMenu,
+                                      kGlicArchiveConversationMenuItem);
+DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(RenderViewContextMenu,
                                       kGlicShareImageMenuItem);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(RenderViewContextMenu,
                                       kOpenLinkInSplitMenuItem);
@@ -921,6 +935,7 @@ RenderViewContextMenu::RenderViewContextMenu(
       protocol_handler_submenu_model_(this),
       protocol_handler_registry_(
           ProtocolHandlerRegistryFactory::GetForBrowserContext(GetProfile())),
+      inspect_submenu_model_(this),
       accessibility_labels_submenu_model_(this),
       embedder_web_contents_(GetWebContentsToUse(&render_frame_host)),
       autofill_context_menu_manager_(this, &menu_model_) {
@@ -1082,8 +1097,6 @@ bool RenderViewContextMenu::IsInProgressiveWebApp() const {
 void RenderViewContextMenu::InitMenu() {
   RenderViewContextMenuBase::InitMenu();
 
-  AppendPasswordItems();
-
   if (content_type_->SupportsGroup(ContextMenuContentType::ITEM_GROUP_PAGE)) {
     AppendPageItems();
   }
@@ -1094,7 +1107,7 @@ void RenderViewContextMenu::InitMenu() {
       menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
     }
   } else {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
     // Add "Copy Link Address" menu option for Glic Multi instance. Link
     // options are not supported by default (since Glic uses WebView's context
     // menu).
@@ -1103,7 +1116,7 @@ void RenderViewContextMenu::InitMenu() {
       AppendCopyLinkLocationItem();
       menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
     }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
   }
 
   bool media_image = content_type_->SupportsGroup(
@@ -1189,6 +1202,15 @@ void RenderViewContextMenu::InitMenu() {
   if (!media_image &&
       content_type_->SupportsGroup(ContextMenuContentType::ITEM_GROUP_PRINT)) {
     AppendPrintItem();
+  } else {
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+
+    if (IsGlicWindow(this, browser_context_) &&
+        base::FeatureList::IsEnabled(features::kGlicPrintMenuItem) &&
+        glic::GlicEnabling::IsMultiInstanceEnabled()) {
+      AppendPrintItem();
+    }
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
   }
 
   // ITEM_GROUP_SMART_SELECTION is for selected text that is not a link.
@@ -1630,8 +1652,21 @@ void RenderViewContextMenu::AppendDeveloperItems() {
                                       IDS_CONTENT_CONTEXT_RELOADFRAME);
     }
   }
-  menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_INSPECTELEMENT,
-                                  IDS_CONTENT_CONTEXT_INSPECTELEMENT);
+
+  if (base::FeatureList::IsEnabled(features::kDevToolsGreenDevUi)) {
+    inspect_submenu_model_.AddItemWithStringId(
+        IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_GEMINI,
+        IDS_CONTENT_CONTEXT_INSPECTELEMENT_WITH_GEMINI);
+    inspect_submenu_model_.AddItemWithStringId(
+        IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_DEVTOOLS,
+        IDS_CONTENT_CONTEXT_INSPECTELEMENT_WITH_DEVTOOLS);
+    menu_model_.AddSubMenuWithStringId(IDC_CONTENT_CONTEXT_INSPECTELEMENT,
+                                       IDS_CONTENT_CONTEXT_INSPECTELEMENT,
+                                       &inspect_submenu_model_);
+  } else {
+    menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_INSPECTELEMENT,
+                                    IDS_CONTENT_CONTEXT_INSPECTELEMENT);
+  }
 }
 
 void RenderViewContextMenu::AppendDevtoolsForUnpackedExtensions() {
@@ -1739,8 +1774,7 @@ void RenderViewContextMenu::AppendLinkItems() {
       // constraints as opening a link in a new tab since a split view tab is a
       // new tab that is then joined with the current active tab.
       Browser* const browser = GetBrowser();
-      if (base::FeatureList::IsEnabled(features::kSideBySide) && browser &&
-          browser->is_type_normal()) {
+      if (browser && browser->is_type_normal()) {
         int string_id = IDS_CONTENT_CONTEXT_OPENLINKSPLITVIEW;
         tabs::TabInterface* tab =
             tabs::TabInterface::MaybeGetFromContents(GetWebContents());
@@ -1789,7 +1823,8 @@ void RenderViewContextMenu::AppendLinkItems() {
 
 #if !BUILDFLAG(IS_ANDROID)
     if (base::FeatureList::IsEnabled(blink::features::kLinkPreview) &&
-        !is_link_to_iwa) {
+        !is_link_to_iwa &&
+        !extensions::WebViewGuest::FromRenderFrameHost(GetRenderFrameHost())) {
       menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_OPENLINKPREVIEW,
                                       IDS_CONTENT_CONTEXT_OPENLINKPREVIEW);
       // We don't show in-production-help for ChromeOS for now because we should
@@ -2097,7 +2132,7 @@ void RenderViewContextMenu::AppendSearchWebForImageItems() {
 }
 
 void RenderViewContextMenu::AppendGlicShareImageItem() {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (glic::GlicEnabling::IsShareImageEnabledForProfile(GetProfile()) &&
       !IsGlicWindow(this, browser_context_)) {
     tabs::TabInterface* tab =
@@ -2119,7 +2154,7 @@ void RenderViewContextMenu::AppendGlicShareImageItem() {
           kGlicShareImageMenuItem);
     }
   }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 }
 
 void RenderViewContextMenu::AppendAudioItems() {
@@ -2420,7 +2455,7 @@ void RenderViewContextMenu::AppendReadAnythingItem() {
 }
 
 void RenderViewContextMenu::AppendGlicItems() {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (IsGlicWindow(this, browser_context_)) {
     menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_RELOAD_GLIC,
                                     IDS_CONTENT_CONTEXT_RELOAD);
@@ -2428,13 +2463,26 @@ void RenderViewContextMenu::AppendGlicItems() {
         menu_model_.GetIndexOfCommandId(IDC_CONTENT_CONTEXT_RELOAD_GLIC)
             .value(),
         kGlicReloadMenuItem);
-    menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_CLOSE_GLIC,
-                                    IDS_CONTENT_CONTEXT_CLOSE_GLIC);
-    menu_model_.SetElementIdentifierAt(
-        menu_model_.GetIndexOfCommandId(IDC_CONTENT_CONTEXT_CLOSE_GLIC).value(),
-        kGlicCloseMenuItem);
+    if (!glic::GlicEnabling::IsMultiInstanceEnabled()) {
+      menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_CLOSE_GLIC,
+                                      IDS_CONTENT_CONTEXT_CLOSE_GLIC);
+      menu_model_.SetElementIdentifierAt(
+          menu_model_.GetIndexOfCommandId(IDC_CONTENT_CONTEXT_CLOSE_GLIC)
+              .value(),
+          kGlicCloseMenuItem);
+    }
+    if (glic::GlicEnabling::IsMultiInstanceEnabled() &&
+        base::FeatureList::IsEnabled(features::kGlicArchiveConversation)) {
+      // Archive  Glic conversation.
+      menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_ARCHIVE_GLIC,
+                                      IDS_CONTENT_CONTEXT_ARCHIVE_GLIC);
+      menu_model_.SetElementIdentifierAt(
+          menu_model_.GetIndexOfCommandId(IDC_CONTENT_CONTEXT_ARCHIVE_GLIC)
+              .value(),
+          kGlicArchiveConversationMenuItem);
+    }
   }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 }
 
 void RenderViewContextMenu::AppendRotationItems() {
@@ -2479,8 +2527,7 @@ void RenderViewContextMenu::AppendSearchProvider() {
       return;
     }
 
-    if (!base::Contains(
-            params_.properties,
+    if (!params_.properties.contains(
             prefs::kDefaultSearchProviderContextMenuAccessAllowed)) {
       return;
     }
@@ -2488,10 +2535,10 @@ void RenderViewContextMenu::AppendSearchProvider() {
     // When the Lens text selection entrypoint flag is enabled, checking for the
     // availability of Lens requires the browser, so hide the menu item if the
     // flag is enabled and there is no browser (e.g. when selecting in the side
-    // panel).
+    // panel). However, show the menu item in print preview.
     if (!lens::features::
             IsLensOverlayTextSelectionContextMenuEntrypointEnabled() ||
-        GetBrowser()) {
+        GetBrowser() || IsPrintPreviewContent(current_url_)) {
       menu_model_.AddItem(
           IDC_CONTENT_CONTEXT_SEARCHWEBFOR,
           l10n_util::GetStringFUTF16(IDS_CONTENT_CONTEXT_SEARCHWEBFOR,
@@ -2605,8 +2652,7 @@ void RenderViewContextMenu::AppendOtherEditableItems() {
   // pointer in the callback.
   submenu_model_ = chromeos::clipboard_history::ClipboardHistorySubmenuModel::
       CreateClipboardHistorySubmenuModel(
-          crosapi::mojom::ClipboardHistoryControllerShowSource::
-              kRenderViewContextSubmenu,
+          chromeos::clipboard_history::ShowSource::kRenderViewContextSubmenu,
           base::BindRepeating(&RenderViewContextMenu::ShowClipboardHistoryMenu,
                               base::Unretained(this)));
   menu_model_.AddSubMenuWithStringId(IDC_CONTENT_PASTE_FROM_CLIPBOARD,
@@ -2619,7 +2665,11 @@ void RenderViewContextMenu::AppendOtherEditableItems() {
                                     IDS_CONTENT_CONTEXT_SELECTALL);
   }
 
-  AppendReadAnythingItem();
+  if (!menu_model_.GetIndexOfCommandId(IDC_CONTENT_CONTEXT_OPEN_IN_READING_MODE)
+           .has_value()) {
+    AppendReadAnythingItem();
+  }
+
   menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
 }
 
@@ -2692,55 +2742,6 @@ void RenderViewContextMenu::AppendProtocolHandlerSubMenu() {
       IDC_CONTENT_CONTEXT_OPENLINKWITH,
       l10n_util::GetStringUTF16(IDS_CONTENT_CONTEXT_OPENLINKWITH),
       &protocol_handler_submenu_model_);
-}
-
-void RenderViewContextMenu::AppendPasswordItems() {
-  password_manager::ContentPasswordManagerDriver* driver =
-      password_manager::ContentPasswordManagerDriver::GetForRenderFrameHost(
-          GetRenderFrameHost());
-  const bool is_pwm_field =
-      driver && driver->IsPasswordFieldForPasswordManager(
-                    autofill::FieldRendererId(params_.field_renderer_id),
-                    params_.form_control_type);
-
-  if (base::FeatureList::IsEnabled(
-          password_manager::features::kPasswordManualFallbackAvailable)) {
-    return;
-  }
-
-  bool add_separator = false;
-
-  // Don't show the item for guest or incognito profiles and also when the
-  // automatic generation feature is disabled.
-  if (is_pwm_field &&
-      password_manager_util::ManualPasswordGenerationEnabled(driver)) {
-    menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_GENERATEPASSWORD,
-                                    IDS_CONTENT_CONTEXT_GENERATEPASSWORD);
-    add_separator = true;
-  }
-  if (is_pwm_field &&
-      password_manager_util::ShowAllSavedPasswordsContextMenuEnabled(driver)) {
-    menu_model_.AddItemWithStringId(IDC_CONTENT_CONTEXT_SHOWALLSAVEDPASSWORDS,
-                                    IDS_AUTOFILL_SHOW_ALL_SAVED_FALLBACK);
-    add_separator = true;
-  }
-  const bool add_passkey_from_another_device_option =
-      webauthn::IsPasskeyFromAnotherDeviceContextMenuEnabled(
-          GetRenderFrameHost(), params_.form_renderer_id,
-          params_.field_renderer_id) &&
-      base::FeatureList::IsEnabled(
-          password_manager::features::
-              kWebAuthnUsePasskeyFromAnotherDeviceInContextMenu);
-  if (add_passkey_from_another_device_option) {
-    menu_model_.AddItemWithStringId(
-        IDC_CONTENT_CONTEXT_USE_PASSKEY_FROM_ANOTHER_DEVICE,
-        IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS_USE_PASSKEY_FROM_ANOTHER_DEVICE);
-    add_separator = true;
-  }
-
-  if (add_separator) {
-    menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
-  }
 }
 
 void RenderViewContextMenu::AppendSharingItems() {
@@ -2868,7 +2869,8 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
     should_disable_command_for_locked_fullscreen_or_on_task = true;
   }
 #if BUILDFLAG(IS_CHROMEOS)
-  if (browser && browser->IsLockedForOnTask()) {
+  if (browser && ash::boca::OnTaskLockedController::From(browser)
+                     ->is_locked_for_on_task()) {
     bool is_page_nav_command =
         (id == IDC_BACK) || (id == IDC_FORWARD) || (id == IDC_RELOAD);
     bool is_allowed_content_context_command =
@@ -2964,6 +2966,8 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
 
     case IDC_CONTENT_CONTEXT_INSPECTELEMENT:
     case IDC_CONTENT_CONTEXT_INSPECTBACKGROUNDPAGE:
+    case IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_GEMINI:
+    case IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_DEVTOOLS:
     case IDC_CONTENT_CONTEXT_RELOAD_PACKAGED_APP:
     case IDC_CONTENT_CONTEXT_RESTART_PACKAGED_APP:
       return IsDevCommandEnabled(id);
@@ -3145,6 +3149,7 @@ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
 
     case IDC_CONTENT_CONTEXT_RELOAD_GLIC:
     case IDC_CONTENT_CONTEXT_CLOSE_GLIC:
+    case IDC_CONTENT_CONTEXT_ARCHIVE_GLIC:
       return true;
 
     case IDC_CONTENT_CONTEXT_EXIT_FULLSCREEN:
@@ -3408,19 +3413,20 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
       break;
 
     case IDC_CONTENT_CONTEXT_RELOAD_GLIC:
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
       if (glic::GlicEnabling::IsEnabledByFlags()) {
         auto* glic_service = glic::GlicKeyedService::Get(browser_context_);
         if (glic_service) {
           glic_service->Reload(GetRenderFrameHost());
         }
       }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
       break;
 
     case IDC_CONTENT_CONTEXT_CLOSE_GLIC:
-#if BUILDFLAG(ENABLE_GLIC)
-      if (glic::GlicEnabling::IsEnabledByFlags()) {
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+      if (glic::GlicEnabling::IsEnabledByFlags() &&
+          !glic::GlicEnabling::IsMultiInstanceEnabled()) {
         auto* glic_service = glic::GlicKeyedService::Get(browser_context_);
         if (glic_service) {
           // TODO(crbug.com/454112198): Clean up after multi-instance launches.
@@ -3433,7 +3439,20 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
           }
         }
       }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+      break;
+
+    case IDC_CONTENT_CONTEXT_ARCHIVE_GLIC:  // Added for archive conversation
+#if BUILDFLAG(ENABLE_GLIC)                  // Vivaldi keep disabled
+      if (glic::GlicEnabling::IsMultiInstanceEnabled() &&
+          base::FeatureList::IsEnabled(features::kGlicArchiveConversation)) {
+        auto* glic_service = glic::GlicKeyedService::Get(browser_context_);
+        if (glic_service) {
+          // Call the Archive method on the Glic service.
+          glic_service->Archive(GetRenderFrameHost()->GetOutermostMainFrame());
+        }
+      }
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
       break;
 
     case IDC_CONTENT_CONTEXT_LENS_REGION_SEARCH:
@@ -3551,7 +3570,15 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
       break;
 
     case IDC_VIEW_SOURCE:
-      embedder_web_contents_->GetPrimaryMainFrame()->ViewSource();
+      if (base::FeatureList::IsEnabled(features::kDevToolsShowPolicyDialog) &&
+          !DevToolsWindow::AllowDevToolsFor(GetProfile(),
+                                            embedder_web_contents_)) {
+#if !BUILDFLAG(IS_ANDROID)
+        DevToolsPolicyDialog::Show(embedder_web_contents_);
+#endif
+      } else {
+        embedder_web_contents_->GetPrimaryMainFrame()->ViewSource();
+      }
       break;
 
     case IDC_CONTENT_CONTEXT_INSPECTELEMENT:
@@ -3560,6 +3587,14 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
 
     case IDC_CONTENT_CONTEXT_INSPECTBACKGROUNDPAGE:
       ExecInspectBackgroundPage();
+      break;
+
+    case IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_GEMINI:
+      ExecInspectElementWithGemini();
+      break;
+
+    case IDC_CONTENT_CONTEXT_INSPECTELEMENT_WITH_DEVTOOLS:
+      ExecInspectElement();
       break;
 
     case IDC_CONTENT_CONTEXT_TRANSLATE:
@@ -3825,10 +3860,11 @@ bool RenderViewContextMenu::IsReloadEnabled() const {
 }
 
 bool RenderViewContextMenu::IsViewSourceEnabled() const {
-  if (!!extensions::MimeHandlerViewGuest::FromRenderFrameHost(
+  if (extensions::MimeHandlerViewGuest::FromRenderFrameHost(
           GetRenderFrameHost())) {
     return false;
   }
+
   // Disallow ViewSource if DevTools are disabled.
   if (!IsDevCommandEnabled(IDC_CONTENT_CONTEXT_INSPECTELEMENT)) {
     return false;
@@ -3847,8 +3883,11 @@ bool RenderViewContextMenu::IsDevCommandEnabled(int id) const {
 
     // Don't enable the web inspector if the developer tools are disabled via
     // the preference dev-tools-disabled.
-    if (!DevToolsWindow::AllowDevToolsFor(GetProfile(), source_web_contents_)) {
-      return false;
+    if (!base::FeatureList::IsEnabled(features::kDevToolsShowPolicyDialog)) {
+      if (!DevToolsWindow::AllowDevToolsFor(GetProfile(),
+                                            source_web_contents_)) {
+        return false;
+      }
     }
   }
 
@@ -3888,16 +3927,16 @@ bool RenderViewContextMenu::IsSaveLinkAsEnabled() const {
   Profile* const profile = Profile::FromBrowserContext(browser_context_);
   CHECK(profile);
   if (profile->IsChild()) {
-    supervised_user::SupervisedUserService* supervised_user_service =
-        SupervisedUserServiceFactory::GetForProfile(profile);
-    supervised_user::SupervisedUserURLFilter* url_filter =
-        supervised_user_service->GetURLFilter();
+    supervised_user::SupervisedUserUrlFilteringService* url_filtering_service =
+        supervised_user::SupervisedUserUrlFilteringServiceFactory::
+            GetForProfile(profile);
     // Use the URL filter's synchronous call to check if a site has been
     // manually blocked for the user. This does not filter websites that are
     // blocked by SafeSites API for having mature content. The mature content
     // filter requires an async call. This call is made if the user selects
     // "Save link as" and blocks the download.
-    if (!url_filter->GetFilteringBehavior(params_.link_url).IsAllowed()) {
+    if (!url_filtering_service->GetFilteringBehavior(params_.link_url)
+             .IsAllowed()) {
       return false;
     }
   }
@@ -4002,6 +4041,15 @@ bool RenderViewContextMenu::IsPasteAndMatchStyleEnabled() const {
 }
 
 bool RenderViewContextMenu::IsPrintPreviewEnabled() const {
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+  if (IsGlicWindow(this, browser_context_) &&
+      base::FeatureList::IsEnabled(features::kGlicPrintMenuItem) &&
+      glic::GlicEnabling::IsMultiInstanceEnabled()) {
+    return GetPrefs(browser_context_)->GetBoolean(prefs::kPrintingEnabled) &&
+           (source_web_contents_ && !source_web_contents_->IsCrashed());
+  }
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
+
   if (params_.media_type != ContextMenuDataMediaType::kNone &&
       !(params_.media_flags & ContextMenuData::kMediaCanPrint)) {
     return false;
@@ -4274,26 +4322,35 @@ void RenderViewContextMenu::ExecInspectBackgroundPage() {
       platform_app, GetProfile(), DevToolsOpenedByAction::kContextMenuInspect);
 }
 
+void RenderViewContextMenu::ExecInspectElementWithGemini() {
+  LOG(ERROR) << "ExecInspectElementWithGemini called at " << params_.x << ", "
+             << params_.y;
+  // TOOD(crbug.com/466071312): Send the actual node id.
+  DevToolsFloaty::Show(Profile::FromBrowserContext(browser_context_),
+                       render_process_id_, render_frame_id_,
+                       gfx::Point(params_.x, params_.y),
+                       /* *backend_node_id*/ 1);
+}
+
 void RenderViewContextMenu::CheckSupervisedUserURLFilterAndSaveLinkAs() {
   Profile* const profile = Profile::FromBrowserContext(browser_context_);
   CHECK(profile);
   if (profile->IsChild()) {
-    supervised_user::SupervisedUserService* supervised_user_service =
-        SupervisedUserServiceFactory::GetForProfile(profile);
-    supervised_user::SupervisedUserURLFilter* url_filter =
-        supervised_user_service->GetURLFilter();
-    url_filter->GetFilteringBehaviorWithAsyncChecks(
-        params_.link_url,
-        base::BindOnce(&RenderViewContextMenu::OnSupervisedUserURLFilterChecked,
-                       weak_pointer_factory_.GetWeakPtr()),
-        /* skip_manual_parent_filter= */ false);
+    supervised_user::SupervisedUserUrlFilteringServiceFactory::GetForProfile(
+        profile)
+        ->GetFilteringBehavior(
+            params_.link_url,
+            /*skip_manual_parent_filter=*/false,
+            base::BindOnce(
+                &RenderViewContextMenu::OnSupervisedUserURLFilterChecked,
+                weak_pointer_factory_.GetWeakPtr()));
     return;
   }
   ExecSaveLinkAs();
 }
 
 void RenderViewContextMenu::OnSupervisedUserURLFilterChecked(
-    supervised_user::SupervisedUserURLFilter::Result result) {
+    supervised_user::WebFilteringResult result) {
   if (result.IsAllowed()) {
     ExecSaveLinkAs();
   }
@@ -4405,7 +4462,7 @@ void RenderViewContextMenu::ExecSaveAs() {
 }
 
 void RenderViewContextMenu::ExecGlicShareImage() {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (!glic::GlicEnabling::IsShareImageEnabledForProfile(GetProfile())) {
     // If this has changed since the context menu was summoned, bail early.
     return;
@@ -4415,7 +4472,7 @@ void RenderViewContextMenu::ExecGlicShareImage() {
         tabs::TabInterface::MaybeGetFromContents(source_web_contents_),
         GetRenderFrameHost(), params().src_url);
   }
-#endif  // BUILDLFLAG(ENABLE_GLIC)
+#endif  // BUILDLFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 }
 
 void RenderViewContextMenu::ExecExitFullscreen() {
@@ -5012,8 +5069,7 @@ void RenderViewContextMenu::ShowClipboardHistoryMenu(int event_flags) {
 
   ash::ClipboardHistoryController::Get()->ShowMenu(
       gfx::Rect(anchor_point_in_screen, gfx::Size()), source_type,
-      crosapi::mojom::ClipboardHistoryControllerShowSource::
-          kRenderViewContextMenu);
+      chromeos::clipboard_history::ShowSource::kRenderViewContextMenu);
 }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 

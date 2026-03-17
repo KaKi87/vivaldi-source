@@ -45,7 +45,8 @@ import org.robolectric.shadows.ShadowSystemClock;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.HistogramWatcher;
@@ -102,12 +103,11 @@ public class PasswordManagerHelperTest {
 
     @Mock private PendingIntent mPendingIntentMock;
 
-    @Mock private ObservableSupplier<ModalDialogManager> mModalDialogManagerSupplier;
-
     // TODO(crbug.com/40854050): Use fake instead of mock
     @Mock private PasswordManagerBackendSupportHelper mBackendSupportHelperMock;
 
     private ModalDialogManager mModalDialogManager;
+    private SettableMonotonicObservableSupplier<ModalDialogManager> mModalDialogManagerSupplier;
 
     @Mock private LoadingModalDialogCoordinator mLoadingModalDialogCoordinator;
     private LoadingModalDialogCoordinator.Observer mLoadingDialogCoordinatorObserver;
@@ -133,7 +133,7 @@ public class PasswordManagerHelperTest {
                 new ModalDialogManager(
                         mock(ModalDialogManager.Presenter.class),
                         ModalDialogManager.ModalDialogType.APP);
-        when(mModalDialogManagerSupplier.get()).thenReturn(mModalDialogManager);
+        mModalDialogManagerSupplier = ObservableSuppliers.createMonotonic(mModalDialogManager);
         doAnswer(
                         invocation -> {
                             mLoadingDialogCoordinatorObserver = invocation.getArgument(0);
@@ -270,8 +270,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
 
         verify(mLoadingModalDialogCoordinator).show();
@@ -287,8 +285,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
 
         verify(mLoadingModalDialogCoordinator).dismiss();
@@ -305,8 +301,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
 
         verify(mLoadingModalDialogCoordinator).dismiss();
@@ -322,8 +316,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
 
         verify(mLoadingModalDialogCoordinator).dismiss();
@@ -341,8 +333,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
 
         verify(mPendingIntentMock, never()).send();
@@ -360,8 +350,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
 
         verify(mPendingIntentMock, never()).send();
@@ -378,8 +366,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
 
         verify(mPendingIntentMock, never()).send();
@@ -399,8 +385,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
 
         verify(mLoadingModalDialogCoordinator).dismiss();
@@ -419,8 +403,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
 
         ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
@@ -440,8 +422,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
 
         mLoadingDialogCoordinatorObserver.onDismissable();
@@ -462,8 +442,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
     }
 
@@ -479,8 +457,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
 
         when(mLoadingModalDialogCoordinator.getState())
@@ -500,8 +476,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
     }
 
@@ -517,8 +491,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
 
         when(mLoadingModalDialogCoordinator.getState())
@@ -539,8 +511,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
 
         verify(mLoadingModalDialogCoordinator).dismiss();
@@ -559,8 +529,6 @@ public class PasswordManagerHelperTest {
                 ManagePasswordsReferrer.CHROME_SETTINGS,
                 mSyncServiceMock,
                 mLoadingModalDialogCoordinator,
-                mModalDialogManagerSupplier,
-                ContextUtils.getApplicationContext(),
                 TEST_EMAIL_ADDRESS);
 
         verify(mLoadingModalDialogCoordinator).dismiss();
@@ -649,7 +617,6 @@ public class PasswordManagerHelperTest {
                                 PasswordMetricsUtil
                                         .LOCAL_LAUNCH_CREDENTIAL_MANAGER_SUCCESS_HISTOGRAM)
                         .build();
-        when(mSyncServiceMock.isSyncFeatureEnabled()).thenReturn(false);
 
         ApiException returnedException =
                 new ApiException(
@@ -820,7 +787,6 @@ public class PasswordManagerHelperTest {
     }
 
     private void chooseToSyncPasswords() {
-        when(mSyncServiceMock.isSyncFeatureEnabled()).thenReturn(true);
         when(mSyncServiceMock.getSelectedTypes()).thenReturn(Set.of(UserSelectableType.PASSWORDS));
         when(mSyncServiceMock.getAccountInfo())
                 .thenReturn(

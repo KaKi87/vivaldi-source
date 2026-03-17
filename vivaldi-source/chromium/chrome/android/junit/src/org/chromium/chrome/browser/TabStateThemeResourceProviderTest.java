@@ -20,7 +20,8 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.chrome.browser.compositor.layouts.LayoutManagerImpl;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider.LayoutStateObserver;
@@ -37,8 +38,8 @@ public class TabStateThemeResourceProviderTest {
 
     @Captor private ArgumentCaptor<LayoutStateObserver> mLayoutStateObserverCaptor;
 
-    private final ObservableSupplierImpl<LayoutManagerImpl> mLayoutManagerSupplier =
-            new ObservableSupplierImpl<>();
+    private final SettableMonotonicObservableSupplier<LayoutManagerImpl> mLayoutManagerSupplier =
+            ObservableSuppliers.createMonotonic();
     private final ActivityTabProvider mActivityTabProvider = new ActivityTabProvider();
     private TabStateThemeResourceProvider mProvider;
 
@@ -69,7 +70,7 @@ public class TabStateThemeResourceProviderTest {
     public void testIncognitoTabInBrowsingMode() {
         doReturn(LayoutType.BROWSING).when(mLayoutManager).getActiveLayoutType();
         doReturn(LayoutType.NONE).when(mLayoutManager).getNextLayoutType();
-        mActivityTabProvider.set(mIncognitoTab);
+        mActivityTabProvider.setForTesting(mIncognitoTab);
 
         createProvider();
 
@@ -82,7 +83,7 @@ public class TabStateThemeResourceProviderTest {
     public void testRegularTabInBrowsingMode() {
         doReturn(LayoutType.BROWSING).when(mLayoutManager).getActiveLayoutType();
         doReturn(LayoutType.NONE).when(mLayoutManager).getNextLayoutType();
-        mActivityTabProvider.set(mRegularTab);
+        mActivityTabProvider.setForTesting(mRegularTab);
 
         createProvider();
 
@@ -96,7 +97,7 @@ public class TabStateThemeResourceProviderTest {
         createProvider();
         doReturn(LayoutType.BROWSING).when(mLayoutManager).getActiveLayoutType();
         doReturn(LayoutType.TAB_SWITCHER).when(mLayoutManager).getNextLayoutType(); // Transitioning
-        mActivityTabProvider.set(mIncognitoTab);
+        mActivityTabProvider.setForTesting(mIncognitoTab);
 
         assertFalse(
                 "Overlay should be disabled during layout transition.",
@@ -108,7 +109,7 @@ public class TabStateThemeResourceProviderTest {
 
         createProvider();
         doReturn(LayoutType.TAB_SWITCHER).when(mLayoutManager).getActiveLayoutType();
-        mActivityTabProvider.set(mIncognitoTab);
+        mActivityTabProvider.setForTesting(mIncognitoTab);
 
         assertFalse(
                 "Overlay should be disabled for non-browsing layouts.",
@@ -121,12 +122,12 @@ public class TabStateThemeResourceProviderTest {
 
         doReturn(LayoutType.BROWSING).when(mLayoutManager).getActiveLayoutType();
         doReturn(LayoutType.NONE).when(mLayoutManager).getNextLayoutType();
-        mActivityTabProvider.set(mRegularTab);
+        mActivityTabProvider.setForTesting(mRegularTab);
         assertFalse(
                 "Overlay should not be used for regular tab.",
                 mProvider.getIsUsingOverlayForTesting());
 
-        mActivityTabProvider.set(mIncognitoTab);
+        mActivityTabProvider.setForTesting(mIncognitoTab);
         assertTrue(
                 "Overlay should be used for incognito tab after tab change.",
                 mProvider.getIsUsingOverlayForTesting());
@@ -136,7 +137,7 @@ public class TabStateThemeResourceProviderTest {
     public void testFinishedShowingLayoutUpdatesOverlay() {
         createProvider();
         doReturn(LayoutType.TAB_SWITCHER).when(mLayoutManager).getActiveLayoutType();
-        mActivityTabProvider.set(mIncognitoTab);
+        mActivityTabProvider.setForTesting(mIncognitoTab);
         assertFalse(
                 "Overlay should be disabled for non-browsing layouts.",
                 mProvider.getIsUsingOverlayForTesting());

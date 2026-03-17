@@ -1459,6 +1459,13 @@ class BookmarkBridge {
                 mNativeBookmarkBridge, BookmarkBridge.this, filePath);
     }
 
+    @CalledByNative
+    private void onBookmarksExported(boolean result) {
+        for (BookmarkModelObserver observer : mObservers) {
+            observer.onBookmarksExported(result);
+        }
+    }
+
     /**
      * Vivaldi
      * Imports all bookmarks from a {@link String} path.

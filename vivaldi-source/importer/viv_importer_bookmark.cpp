@@ -16,16 +16,16 @@
 #include "chrome/browser/importer/importer_list.h"
 #include "chrome/browser/shell_integration.h"
 #include "chrome/common/importer/importer_bridge.h"
+#include "chrome/common/ini_parser.h"
 #include "components/user_data_importer/common/imported_bookmark_entry.h"
 #include "components/user_data_importer/common/importer_data_types.h"
-#include "chrome/common/ini_parser.h"
 #include "ui/base/l10n/l10n_util.h"
 
 #include "app/vivaldi_resources.h"
+#include "importer/viv_import_result.h"
 #include "importer/viv_importer.h"
 #include "importer/viv_importer_utils.h"
 #include "importer/viv_opera_reader.h"
-#include "importer/viv_import_result.h"
 
 class OperaBookmarkReader : public OperaAdrFileReader {
  public:
@@ -35,7 +35,7 @@ class OperaBookmarkReader : public OperaAdrFileReader {
   OperaBookmarkReader& operator=(const OperaBookmarkReader&) = delete;
 
   void AddBookmark(const std::vector<std::u16string>& current_folder,
-                   const base::Value::Dict& entries,
+                   const base::DictValue& entries,
                    bool is_folder,
                    std::u16string* item_name = NULL);
 
@@ -46,7 +46,7 @@ class OperaBookmarkReader : public OperaAdrFileReader {
 
  protected:
   void HandleEntry(const std::string& category,
-                   const base::Value::Dict& entries) override;
+                   const base::DictValue& entries) override;
 
  private:
   std::vector<std::u16string> current_folder_;
@@ -54,21 +54,21 @@ class OperaBookmarkReader : public OperaAdrFileReader {
 };
 
 void OperaBookmarkReader::HandleEntry(const std::string& category,
-                                      const base::Value::Dict& entries) {
+                                      const base::DictValue& entries) {
   if (base::EqualsCaseInsensitiveASCII(category, "folder")) {
     std::u16string foldername;
     AddBookmark(current_folder_, entries, true, &foldername);
     current_folder_.push_back(foldername);
   } else if (base::EqualsCaseInsensitiveASCII(category, "url")) {
     AddBookmark(current_folder_, entries, false);
-  } else if (category == "-") {
+  } else if (!current_folder_.empty() && category == "-") {
     current_folder_.pop_back();
   }
 }
 
 void OperaBookmarkReader::AddBookmark(
     const std::vector<std::u16string>& current_folder,
-    const base::Value::Dict& entries,
+    const base::DictValue& entries,
     bool is_folder,
     std::u16string* item_name) {
   const std::string* url = nullptr;
@@ -110,13 +110,15 @@ void OperaBookmarkReader::AddBookmark(
 
 ImportResult OperaImporter::ImportBookMarks() {
   if (bookmarkfilename_.empty()) {
-    return import_result::Error(IDS_IMPORT_ERROR_OPERA_BOOKMARKS_FILE_NOT_FOUND);
+    return import_result::Error(
+        IDS_IMPORT_ERROR_OPERA_BOOKMARKS_FILE_NOT_FOUND);
   }
   base::FilePath file(bookmarkfilename_);
   OperaBookmarkReader reader;
 
   if (!reader.LoadFile(file)) {
-    return import_result::Error(IDS_IMPORT_ERROR_OPERA_BOOKMARKS_FILE_NOT_FOUND);
+    return import_result::Error(
+        IDS_IMPORT_ERROR_OPERA_BOOKMARKS_FILE_NOT_FOUND);
   }
   if (!reader.Bookmarks().empty() && !cancelled()) {
     const std::u16string& first_folder_name =

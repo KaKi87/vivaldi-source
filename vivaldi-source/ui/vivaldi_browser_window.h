@@ -56,13 +56,15 @@ namespace vivaldi {
 class InfoBarContainerWebProxy;
 }
 
-class VivaldiUIRelay: public send_tab_to_self::ReceivingUiHandler {
+class VivaldiUIRelay : public send_tab_to_self::ReceivingUiHandler {
  public:
   VivaldiUIRelay(Profile* profile);
   virtual ~VivaldiUIRelay() {}
 
   // ReceivingUiHandler
-  void DisplayNewEntries(const std::vector<const send_tab_to_self::SendTabToSelfEntry*>& new_entries) override;
+  void DisplayNewEntries(
+      const std::vector<const send_tab_to_self::SendTabToSelfEntry*>&
+          new_entries) override;
   void DismissEntries(const std::vector<std::string>& guids) override;
 
  private:
@@ -79,7 +81,7 @@ class VivaldiToolbarButtonProvider : public ToolbarButtonProvider {
 
  private:
   // ToolbarButtonProvider:
-  ExtensionsToolbarContainer* GetExtensionsToolbarContainer() override;
+  ExtensionsToolbarDesktop* GetExtensionsToolbarDesktop() override;
   PinnedToolbarActionsContainer* GetPinnedToolbarActionsContainer() override;
   gfx::Size GetToolbarButtonSize() const override;
   views::View* GetDefaultExtensionDialogAnchorView() override;
@@ -100,7 +102,8 @@ class VivaldiToolbarButtonProvider : public ToolbarButtonProvider {
   ReloadControl* GetReloadButton() override;
   IntentChipButton* GetIntentChipButton() override;
   ToolbarButton* GetDownloadButton() override;
-  //SidePanelToolbarButton* GetSidePanelButton() override;
+  WebUIToolbarWebView* GetWebUIToolbarViewForTesting() override;
+  // SidePanelToolbarButton* GetSidePanelButton() override;
 
   raw_ptr<VivaldiBrowserWindow> window_ = nullptr;
 };
@@ -115,7 +118,6 @@ struct VivaldiBrowserWindowParams {
   VivaldiBrowserWindowParams& operator=(const VivaldiBrowserWindowParams&) =
       delete;
 
-  bool settings_window = false;
   bool native_decorations = false;
   bool visible_on_all_workspaces = false;
   bool alpha_enabled = false;
@@ -185,7 +187,6 @@ struct VivaldiBrowserWindowParams {
 //
 class VivaldiBrowserWindow final : public BrowserWindow {
  public:
-
   VivaldiBrowserWindow();
   ~VivaldiBrowserWindow() override;
   VivaldiBrowserWindow(const VivaldiBrowserWindow&) = delete;
@@ -195,9 +196,13 @@ class VivaldiBrowserWindow final : public BrowserWindow {
   bool is_in_fullscreen_transition_ = false;
 
   enum WindowType {
-    NORMAL,
-    POPUP,
-    SETTINGS,
+    NORMAL,         // browser type TYPE_NORMAL
+    POPUP,          // browser type TYPE_POPUP
+    SETTINGS,       // browser type TYPE_POPUP
+    MAIL_COMPOSER,  // browser type TYPE_POPUP
+    DEVTOOLS,       // browser type TYPE_DEVTOOLS
+                    // Add new responsibly and keep
+                    // |SessionServiceBase::ShouldTrackVivaldiBrowser| in mind.
   };
 
   static base::TimeTicks GetFirstWindowCreationTime();
@@ -225,7 +230,8 @@ class VivaldiBrowserWindow final : public BrowserWindow {
 
   bool is_hidden() { return is_hidden_; }
 
-  WindowType type() { return window_type_; }
+  WindowType window_type() { return window_type_; }
+  void SetWindowType(WindowType type) { window_type_ = type; }
 
   const extensions::Extension* extension() { return extension_; }
 
@@ -315,8 +321,13 @@ class VivaldiBrowserWindow final : public BrowserWindow {
 
   void UpdateMaximizeButtonPosition(const gfx::Rect& rect);
 
+  // Return true if the window should be stored in session and restored with
+  // other windows.
+  bool TrackInSession();
+
   // Getter for the `window.setResizable(bool)` state.
-  std::optional<bool> GetCanResizeFromWebAPI() const;
+  std::optional<bool> GetWebApiWindowResizable() const;
+  void SetResizableFromWebApi(std::optional<bool> resizable);
 
   //
   // BrowserWindow overrides
@@ -397,7 +408,7 @@ class VivaldiBrowserWindow final : public BrowserWindow {
   bool IsBookmarkBarVisible() const override;
   bool IsBookmarkBarAnimating() const override;
   bool IsTabStripEditable() const override;
-  void SetTabStripNotEditableForTesting() override {}
+  void DisableTabStripEditingForTesting() override {}
   bool IsToolbarVisible() const override;
   void ShowUpdateChromeDialog() override {}
   void ShowBookmarkBubble(const GURL& url, bool already_bookmarked) override {}
@@ -450,9 +461,6 @@ class VivaldiBrowserWindow final : public BrowserWindow {
       override;
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHostFor(
       content::WebContents* web_contents) override;
-  void ShowOneClickSigninConfirmation(
-      const std::u16string& email,
-      base::OnceCallback<void(bool)> start_sync_callback) override {}
   void OnTabDetached(content::WebContents* contents, bool was_active) override;
   void TabDraggingStatusChanged(bool is_dragging) override {}
   void LinkOpeningFromGesture(WindowOpenDisposition disposition) override {}
@@ -468,7 +476,6 @@ class VivaldiBrowserWindow final : public BrowserWindow {
 #endif
   sharing_hub::SharingHubBubbleView* ShowSharingHubBubble(
       share::ShareAttempt attempt) override;
-  ExtensionsContainer* GetExtensionsContainer() override;
   void UpdateCustomTabBarVisibility(bool visible, bool animate) override {}
   SharingDialog* ShowSharingDialog(content::WebContents* contents,
                                    SharingDialogData data) override;
@@ -500,11 +507,9 @@ class VivaldiBrowserWindow final : public BrowserWindow {
 
   // Notifies `BrowserView` about the resizable boolean having been set vith
   // `window.setResizable(bool)` API.
-  void OnWebApiWindowResizableChanged() override;
   bool GetCanResize() override;
   ui::mojom::WindowShowState GetWindowShowState() const override;
   BrowserView* AsBrowserView() override;
-
 
   // BrowserWindow overrides end
 
@@ -541,20 +546,25 @@ class VivaldiBrowserWindow final : public BrowserWindow {
   // Called for mouse position updates, also in non-client areas, like titlebar
   // and window borders. We avoid events from the outer corner areas to not
   // conflict with window buttons.
-  void ReportNCMousePosition(const gfx::Point& local_point);
+  void ReportMousePosition(const gfx::Point& local_point);
 
   struct HotSpot {
     extensions::vivaldi::window_private::HotSpotLocation location =
         extensions::vivaldi::window_private::HotSpotLocation::kNone;
     int width = 0;
     int height = 0;
+
+    bool operator==(const HotSpot& other) const {
+      return location == other.location && width == other.width &&
+             height == other.height;
+    }
   };
 
   // Activate an area to respond to when mouse into and out of.
   void SetHotSpot(HotSpot hotspot);
 
  private:
-  enum QuitAction { ShowDialogOnQuit = 0, SaveSessionOnQuit,  DoNothingOnQuit };
+  enum QuitAction { ShowDialogOnQuit = 0, SaveSessionOnQuit, DoNothingOnQuit };
   enum class CloseDialogMode { CloseWindow = 0, QuitApplication };
 
   // Ensures only one window can display a quit dialog on exit.
@@ -588,7 +598,6 @@ class VivaldiBrowserWindow final : public BrowserWindow {
 
   void DeleteThis();
 
-
   void UpdateActivation(bool is_active);
   void OnIconImagesLoaded(gfx::ImageFamily image_family);
 
@@ -618,7 +627,6 @@ class VivaldiBrowserWindow final : public BrowserWindow {
   void SetupShellIntegration(const VivaldiBrowserWindowParams& create_params);
   int GetCommandIDForAppCommandID(int app_command_id) const;
 
-
   void CloseCleanup();
 
   // Saved session history. To be called when last window closes before content
@@ -632,7 +640,8 @@ class VivaldiBrowserWindow final : public BrowserWindow {
   // The Browser object for this window.
   raw_ptr<Browser> browser_ = nullptr;
 
-  // Copy of the browser_::Profile on creation. browser_ can go away before this.
+  // Copy of the browser_::Profile on creation. browser_ can go away before
+  // this.
   Profile* profile_ = nullptr;
 
   std::unique_ptr<content::WebContents> web_contents_;
@@ -720,6 +729,14 @@ class VivaldiBrowserWindow final : public BrowserWindow {
   // When set we will track the rect and fire
   // vivaldi.windowPrivate.onMouseInHotRect events when entering and leaving.
   HotSpot hot_spot_;
+  // Cache of last reported locations for HotSpot API.
+  extensions::vivaldi::window_private::HotSpotStatus
+      last_reported_hotspot_location_{
+          extensions::vivaldi::window_private::HotSpotStatus::kNone};
+  extensions::vivaldi::window_private::MouseEdgeType
+      last_reported_thin_edge_location_{
+          extensions::vivaldi::window_private::MouseEdgeType::kNone};
+  gfx::Point last_seen_mouse_pos_;
 
   // The icon family for the task bar and elsewhere.
   gfx::ImageFamily icon_family_;

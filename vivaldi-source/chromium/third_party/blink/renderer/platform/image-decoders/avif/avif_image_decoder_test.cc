@@ -1,11 +1,6 @@
-// Copyright 2020 The Chromium Authors
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
 
 #include "third_party/blink/renderer/platform/image-decoders/avif/avif_image_decoder.h"
 
@@ -17,20 +12,19 @@
 
 #include "base/barrier_closure.h"
 #include "base/bit_cast.h"
+#include "base/compiler_specific.h"
 #include "base/functional/bind.h"
 #include "base/strings/stringprintf.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/thread_pool.h"
 #include "base/test/metrics/histogram_tester.h"
-#include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
+#include "skia/ext/rgba_to_yuva.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/platform/platform.h"
 #include "third_party/blink/renderer/platform/image-decoders/image_decoder_test_helpers.h"
 #include "third_party/blink/renderer/platform/wtf/shared_buffer.h"
 #include "ui/gfx/color_space.h"
-#include "ui/gfx/color_transform.h"
 
 #define FIXME_SUPPORT_ICC_PROFILE_NO_TRANSFORM 0
 #define FIXME_SUPPORT_ICC_PROFILE_TRANSFORM 0
@@ -657,7 +651,7 @@ void ReadYUV(const char* file_name,
              const gfx::Size& expected_uv_size,
              SkColorType color_type,
              int bit_depth,
-             gfx::Point3F* rgb_pixel = nullptr) {
+             SkColor4f* rgb_pixel = nullptr) {
   scoped_refptr<SharedBuffer> data =
       ReadFileToSharedBuffer("web_tests/images/resources/avif/", file_name);
   ASSERT_TRUE(data);
@@ -695,8 +689,10 @@ void ReadYUV(const char* file_name,
 
   void* planes[3];
   planes[0] = planes_data.get();
-  planes[1] = static_cast<char*>(planes[0]) + row_bytes[0] * y_size.height();
-  planes[2] = static_cast<char*>(planes[1]) + row_bytes[1] * u_size.height();
+  planes[1] = UNSAFE_TODO(static_cast<char*>(planes[0]) +
+                          row_bytes[0] * y_size.height());
+  planes[2] = UNSAFE_TODO(static_cast<char*>(planes[1]) +
+                          row_bytes[1] * u_size.height());
 
   decoder->SetImagePlanes(
       std::make_unique<ImagePlanes>(planes, row_bytes, color_type));
@@ -721,42 +717,43 @@ void ReadYUV(const char* file_name,
   }
 
   if (bit_depth > 8) {
-    rgb_pixel->set_x(reinterpret_cast<uint16_t*>(planes[0])[0]);
-    rgb_pixel->set_y(reinterpret_cast<uint16_t*>(planes[1])[0]);
-    rgb_pixel->set_z(reinterpret_cast<uint16_t*>(planes[2])[0]);
+    rgb_pixel->fR = reinterpret_cast<uint16_t*>(planes[0])[0];
+    rgb_pixel->fG = reinterpret_cast<uint16_t*>(planes[1])[0];
+    rgb_pixel->fB = reinterpret_cast<uint16_t*>(planes[2])[0];
   } else {
-    rgb_pixel->set_x(reinterpret_cast<uint8_t*>(planes[0])[0]);
-    rgb_pixel->set_y(reinterpret_cast<uint8_t*>(planes[1])[0]);
-    rgb_pixel->set_z(reinterpret_cast<uint8_t*>(planes[2])[0]);
+    rgb_pixel->fR = reinterpret_cast<uint8_t*>(planes[0])[0];
+    rgb_pixel->fG = reinterpret_cast<uint8_t*>(planes[1])[0];
+    rgb_pixel->fB = reinterpret_cast<uint8_t*>(planes[2])[0];
   }
 
   if (color_type == kGray_8_SkColorType) {
     const float max_channel = (1 << bit_depth) - 1;
-    rgb_pixel->set_x(rgb_pixel->x() / max_channel);
-    rgb_pixel->set_y(rgb_pixel->y() / max_channel);
-    rgb_pixel->set_z(rgb_pixel->z() / max_channel);
+    rgb_pixel->fR /= max_channel;
+    rgb_pixel->fG /= max_channel;
+    rgb_pixel->fB /= max_channel;
   } else if (color_type == kA16_unorm_SkColorType) {
     constexpr float kR16MaxChannel = 65535.0f;
-    rgb_pixel->set_x(rgb_pixel->x() / kR16MaxChannel);
-    rgb_pixel->set_y(rgb_pixel->y() / kR16MaxChannel);
-    rgb_pixel->set_z(rgb_pixel->z() / kR16MaxChannel);
+    rgb_pixel->fR /= kR16MaxChannel;
+    rgb_pixel->fG /= kR16MaxChannel;
+    rgb_pixel->fB /= kR16MaxChannel;
   } else {
     DCHECK_EQ(color_type, kA16_float_SkColorType);
-    rgb_pixel->set_x(HalfFloatToUnorm(rgb_pixel->x()));
-    rgb_pixel->set_y(HalfFloatToUnorm(rgb_pixel->y()));
-    rgb_pixel->set_z(HalfFloatToUnorm(rgb_pixel->z()));
+    rgb_pixel->fR = HalfFloatToUnorm(rgb_pixel->fR);
+    rgb_pixel->fG = HalfFloatToUnorm(rgb_pixel->fG);
+    rgb_pixel->fB = HalfFloatToUnorm(rgb_pixel->fB);
   }
+  rgb_pixel->fA = 1.f;
 
   // Convert our YUV pixel to RGB to avoid an excessive amounts of test
   // expectations. We otherwise need bit_depth * yuv_sampling * color_type.
-  gfx::ColorTransform::Options options;
-  options.src_bit_depth = bit_depth;
-  options.dst_bit_depth = bit_depth;
-  auto transform = gfx::ColorTransform::NewColorTransform(
-      reinterpret_cast<AVIFImageDecoder*>(decoder.get())
-          ->GetColorSpaceForTesting(),
-      gfx::ColorSpace(), options);
-  transform->Transform(rgb_pixel, 1);
+  SkPixmap pm(
+      SkImageInfo::Make(1, 1, kRGBA_F32_SkColorType, kUnpremul_SkAlphaType),
+      rgb_pixel, sizeof(SkColor4f));
+  SkYUVColorSpace yuv_cs = kIdentity_SkYUVColorSpace;
+  auto cs = reinterpret_cast<AVIFImageDecoder*>(decoder.get())
+                ->GetColorSpaceForTesting();
+  cs.ToSkYUVColorSpace(bit_depth, &yuv_cs);
+  skia::ConvertRGBAToOrFromYUVA(pm, yuv_cs, pm, kIdentity_SkYUVColorSpace);
 }
 
 void TestYUVRed(const char* file_name,
@@ -768,7 +765,7 @@ void TestYUVRed(const char* file_name,
 
   constexpr gfx::Size kRedYSize(3, 3);
 
-  gfx::Point3F decoded_pixel;
+  SkColor4f decoded_pixel;
   ASSERT_NO_FATAL_FAILURE(ReadYUV(file_name, kRedYSize, expected_uv_size,
                                   color_type, bit_depth, &decoded_pixel));
 
@@ -784,9 +781,15 @@ void TestYUVRed(const char* file_name,
   const double kError = color_type == kA16_float_SkColorType
                             ? kMinError + std::pow(2, -11)
                             : kMinError;
-  EXPECT_NEAR(decoded_pixel.x(), 1, kError);     // R
-  EXPECT_NEAR(decoded_pixel.y(), 0, kMinError);  // G
-  EXPECT_NEAR(decoded_pixel.z(), 0, kMinError);  // B
+  // TODO(https://crbug.com/40746890): The test images for this suite were
+  // created to work with the inaccurate implementation of limited range
+  // in gfx::ColorSpace.
+  // TODO(https://crbug.com/463702880): The SkYUVColorSpace YUV to RGB matrices
+  // are also not as precise as they could be.
+  const double kBigError = 0.01;
+  EXPECT_NEAR(decoded_pixel.fR, 1, std::max(kBigError, kError));     // R
+  EXPECT_NEAR(decoded_pixel.fG, 0, std::max(kBigError, kMinError));  // G
+  EXPECT_NEAR(decoded_pixel.fB, 0, std::max(kBigError, kMinError));  // B
 }
 
 void DecodeTask(const Vector<char>* data, base::RepeatingClosure* done) {
@@ -876,7 +879,7 @@ void InspectImage(
 
 void TestAvifBppHistogram(const char* image_name,
                           const char* histogram_name = nullptr,
-                          base::HistogramBase::Sample sample = 0) {
+                          base::HistogramBase::Sample32 sample = 0) {
   TestBppHistogram(CreateAVIFDecoder, "Avif", image_name, histogram_name,
                    sample);
 }
@@ -992,7 +995,7 @@ TEST(StaticAVIFTests, NoCrashWhenCheckingForMultipleSubImages) {
   std::unique_ptr<ImageDecoder> decoder = CreateAVIFDecoder();
   constexpr char kHeader[] = {0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70};
   auto buffer = SharedBuffer::Create();
-  buffer->Append(kHeader, std::size(kHeader));
+  buffer->Append(kHeader);
   decoder->SetData(std::move(buffer), false);
   EXPECT_FALSE(decoder->ImageHasBothStillAndAnimatedSubImages());
 }
@@ -1013,11 +1016,6 @@ TEST(StaticAVIFTests, invalidImages) {
 }
 
 TEST(StaticAVIFTests, GetIsoGainmapInfoAndData) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      /*enabled_features=*/{features::kAvifGainmapHdrImages},
-      /*disabled_features=*/{});
-
   scoped_refptr<SharedBuffer> data = ReadFileToSharedBuffer(
       "/images/resources/avif/small-with-gainmap-iso.avif");
   std::unique_ptr<ImageDecoder> decoder = CreateAVIFDecoder();
@@ -1074,11 +1072,6 @@ TEST(StaticAVIFTests, GetIsoGainmapInfoAndData) {
 }
 
 TEST(StaticAVIFTests, GetIsoGainmapInfoAndDataHdrToSdr) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      /*enabled_features=*/{features::kAvifGainmapHdrImages},
-      /*disabled_features=*/{});
-
   scoped_refptr<SharedBuffer> data = ReadFileToSharedBuffer(
       "/images/resources/avif/small-with-gainmap-iso-hdrbase.avif");
   std::unique_ptr<ImageDecoder> decoder = CreateAVIFDecoder();
@@ -1132,12 +1125,30 @@ TEST(StaticAVIFTests, GetIsoGainmapInfoAndDataHdrToSdr) {
   EXPECT_TRUE(gainmap_frame);
 }
 
-TEST(StaticAVIFTests, GetIsoGainmapColorSpaceSameICC) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      /*enabled_features=*/{features::kAvifGainmapHdrImages},
-      /*disabled_features=*/{});
+TEST(StaticAVIFTests, MonochromeGainmap) {
+  scoped_refptr<SharedBuffer> data = ReadFileToSharedBuffer(
+      "/images/resources/avif/hdr-base-with-yuv400-gainmap.avif");
+  std::unique_ptr<ImageDecoder> decoder = CreateAVIFDecoder();
+  decoder->SetData(data, true);
+  EXPECT_FALSE(decoder->Failed());
+  EXPECT_EQ(decoder->Size(), gfx::Size(400, 200));
+  SkGainmapInfo gainmap_info;
+  scoped_refptr<SegmentReader> gainmap_data;
+  const bool has_gainmap =
+      decoder->GetGainmapInfoAndData(gainmap_info, gainmap_data);
+  ASSERT_TRUE(has_gainmap);
 
+  // Check that the whole gainmap image is decoded.
+  std::unique_ptr<ImageDecoder> gainmap_decoder = CreateGainMapAVIFDecoder();
+  gainmap_decoder->SetData(gainmap_data, true);
+  EXPECT_FALSE(decoder->Failed());
+  EXPECT_EQ(gainmap_decoder->Size(), gfx::Size(400, 200));
+  ImageFrame* gainmap_frame = gainmap_decoder->DecodeFrameBufferAtIndex(0);
+  ASSERT_TRUE(gainmap_frame);
+  EXPECT_EQ(gainmap_frame->GetStatus(), ImageFrame::kFrameComplete);
+}
+
+TEST(StaticAVIFTests, GetIsoGainmapColorSpaceSameICC) {
   // The image has use_base_color_space set to false (i.e. use the alternate
   // image's color space), and the base and alternate image ICC profiles are the
   // same, so the alternate image color space should be ignored.
@@ -1159,17 +1170,12 @@ void ExpectMatrixNear(const skcms_Matrix3x3& lhs,
                       float epsilon) {
   for (int r = 0; r < 3; r++) {
     for (int c = 0; c < 3; c++) {
-      EXPECT_NEAR(lhs.vals[r][c], rhs.vals[r][c], epsilon);
+      UNSAFE_TODO(EXPECT_NEAR(lhs.vals[r][c], rhs.vals[r][c], epsilon));
     }
   }
 }
 
 TEST(StaticAVIFTests, GetIsoGainmapColorSpaceDifferentICC) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      /*enabled_features=*/{features::kAvifGainmapHdrImages},
-      /*disabled_features=*/{});
-
   // The image has use_base_color_space set to false (i.e. use the alternate
   // image's color space), and the base and alternate image ICC profiles are
   // different, so the alternate ICC profile should be set as
@@ -1195,11 +1201,6 @@ TEST(StaticAVIFTests, GetIsoGainmapColorSpaceDifferentICC) {
 }
 
 TEST(StaticAVIFTests, GetIsoGainmapColorSpaceDifferentCICP) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      /*enabled_features=*/{features::kAvifGainmapHdrImages},
-      /*disabled_features=*/{});
-
   // The image has use_base_color_space set to false (i.e. use the alternate
   // image's color space), and the base and alternate images don't have ICC
   // but CICP values instead. The alternate image's CICP values should be used.
@@ -1222,35 +1223,12 @@ TEST(StaticAVIFTests, GetIsoGainmapColorSpaceDifferentCICP) {
   ExpectMatrixNear(matrix, SkNamedGamut::kRec2020, 0.0001);
 }
 
-TEST(StaticAVIFTests, GetGainmapInfoAndDataWithFeatureDisabled) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      /*enabled_features=*/{},
-      /*disabled_features=*/{features::kAvifGainmapHdrImages});
-
-  const std::string image = "small-with-gainmap-iso.avif";
-  scoped_refptr<SharedBuffer> data =
-      ReadFileToSharedBuffer("web_tests/images/resources/avif", image.c_str());
-  std::unique_ptr<ImageDecoder> decoder = CreateAVIFDecoder();
-  decoder->SetData(data, true);
-  SkGainmapInfo gainmap_info;
-  scoped_refptr<SegmentReader> gainmap_data;
-  const bool has_gainmap =
-      decoder->GetGainmapInfoAndData(gainmap_info, gainmap_data);
-  ASSERT_FALSE(has_gainmap);
-}
-
 TEST(StaticAVIFTests, GetGainmapInfoAndDataWithTruncatedData) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      /*enabled_features=*/{features::kAvifGainmapHdrImages},
-      /*disabled_features=*/{});
-
   const std::string image = "small-with-gainmap-iso.avif";
   const Vector<char> data_vector =
       ReadFile("web_tests/images/resources/avif", image.c_str());
-  scoped_refptr<SharedBuffer> half_data =
-      SharedBuffer::Create(data_vector.data(), data_vector.size() / 2);
+  scoped_refptr<SharedBuffer> half_data = SharedBuffer::Create(
+      base::span(data_vector).first(data_vector.size() / 2));
 
   std::unique_ptr<ImageDecoder> decoder = CreateAVIFDecoder();
   decoder->SetData(half_data, true);
@@ -1262,11 +1240,6 @@ TEST(StaticAVIFTests, GetGainmapInfoAndDataWithTruncatedData) {
 }
 
 TEST(StaticAVIFTests, GetGainmapWithGammaZero) {
-  base::test::ScopedFeatureList scoped_feature_list;
-  scoped_feature_list.InitWithFeatures(
-      /*enabled_features=*/{features::kAvifGainmapHdrImages},
-      /*disabled_features=*/{});
-
   const std::string image = "small-with-gainmap-iso-gammazero.avif";
   scoped_refptr<SharedBuffer> data =
       ReadFileToSharedBuffer("web_tests/images/resources/avif", image.c_str());
@@ -1324,7 +1297,7 @@ TEST(StaticAVIFTests, YUV) {
 }
 
 TEST(StaticAVIFTests, SizeAvailableBeforeAllDataReceived) {
-  scoped_refptr<SharedBuffer> stream_buffer = WTF::SharedBuffer::Create();
+  scoped_refptr<SharedBuffer> stream_buffer = SharedBuffer::Create();
   scoped_refptr<SegmentReader> segment_reader =
       SegmentReader::CreateFromSharedBuffer(stream_buffer);
   std::unique_ptr<ImageDecoder> decoder = ImageDecoder::CreateByMimeType(
@@ -1337,7 +1310,7 @@ TEST(StaticAVIFTests, SizeAvailableBeforeAllDataReceived) {
 
   Vector<char> data =
       ReadFile("/images/resources/avif/red-limited-range-420-8bpc.avif");
-  stream_buffer->Append(data.data(), data.size());
+  stream_buffer->Append(data);
   EXPECT_EQ(stream_buffer->size(), 318u);
   decoder->SetData(stream_buffer, /*all_data_received=*/false);
   // All bytes are appended so we should have size, even though we pass
@@ -1350,7 +1323,7 @@ TEST(StaticAVIFTests, SizeAvailableBeforeAllDataReceived) {
 
 TEST(StaticAVIFTests, ProgressiveDecoding) {
   base::HistogramTester histogram_tester;
-  scoped_refptr<SharedBuffer> stream_buffer = WTF::SharedBuffer::Create();
+  scoped_refptr<SharedBuffer> stream_buffer = SharedBuffer::Create();
   scoped_refptr<SegmentReader> segment_reader =
       SegmentReader::CreateFromSharedBuffer(stream_buffer);
   std::unique_ptr<ImageDecoder> decoder = ImageDecoder::CreateByMimeType(
@@ -1366,7 +1339,7 @@ TEST(StaticAVIFTests, ProgressiveDecoding) {
   // This image has three layers. The first layer is 8299 bytes. Because of
   // image headers and other overhead, if we pass exactly 8299 bytes to the
   // decoder, the decoder does not have enough data to decode the first layer.
-  stream_buffer->Append(data.data(), 8299u);
+  stream_buffer->Append(base::span(data).first(8299u));
   decoder->SetData(stream_buffer, /*all_data_received=*/false);
   EXPECT_TRUE(decoder->IsSizeAvailable());
   EXPECT_FALSE(decoder->Failed());
@@ -1381,7 +1354,7 @@ TEST(StaticAVIFTests, ProgressiveDecoding) {
   // An additional 301 bytes are enough data for the decoder to decode the first
   // layer. With progressive decoding, the frame buffer status will transition
   // to ImageFrame::kFramePartial.
-  stream_buffer->Append(data.data() + 8299u, 301u);
+  stream_buffer->Append(base::span(data).subspan(8299u, 301u));
   decoder->SetData(stream_buffer, /*all_data_received=*/false);
   EXPECT_FALSE(decoder->Failed());
   frame = decoder->DecodeFrameBufferAtIndex(0);
@@ -1395,7 +1368,7 @@ TEST(StaticAVIFTests, ProgressiveDecoding) {
               testing::ContainerEq(expected_counts));
 
   // Now send the rest of the data.
-  stream_buffer->Append(data.data() + 8299u + 301u, 62344u);
+  stream_buffer->Append(base::span(data).subspan(8299u + 301u, 62344u));
   decoder->SetData(stream_buffer, /*all_data_received=*/true);
   EXPECT_FALSE(decoder->Failed());
   frame = decoder->DecodeFrameBufferAtIndex(0);
@@ -1417,7 +1390,7 @@ TEST(StaticAVIFTests, ProgressiveDecoding) {
 
 TEST(StaticAVIFTests, IncrementalDecoding) {
   base::HistogramTester histogram_tester;
-  scoped_refptr<SharedBuffer> stream_buffer = WTF::SharedBuffer::Create();
+  scoped_refptr<SharedBuffer> stream_buffer = SharedBuffer::Create();
   scoped_refptr<SegmentReader> segment_reader =
       SegmentReader::CreateFromSharedBuffer(stream_buffer);
   std::unique_ptr<ImageDecoder> decoder = ImageDecoder::CreateByMimeType(
@@ -1452,9 +1425,10 @@ TEST(StaticAVIFTests, IncrementalDecoding) {
       // Decoding all bytes gives all 13 tile rows.
       {data.size(), ImageFrame::kFrameComplete, 13 * 64}};
   size_t previous_size = 0;
+  auto data_span = base::span(data);
   for (const Step& step : steps) {
-    stream_buffer->Append(data.data() + previous_size,
-                          step.size - previous_size);
+    stream_buffer->Append(
+        data_span.subspan(previous_size, step.size - previous_size));
     decoder->SetData(stream_buffer, step.status == ImageFrame::kFrameComplete);
 
     EXPECT_EQ(decoder->FrameCount(), 1u);
@@ -1470,7 +1444,7 @@ TEST(StaticAVIFTests, IncrementalDecoding) {
       for (int x = 0; x < bitmap.width(); ++x) {
         // The input image is opaque. Pixels outside the decoded area are fully
         // transparent black pixels, with each channel value being 0.
-        const bool is_pixel_decoded = row[x] != 0x00000000u;
+        const bool is_pixel_decoded = UNSAFE_TODO(row[x]) != 0x00000000u;
         ASSERT_EQ(is_pixel_decoded, is_row_decoded);
       }
     }
@@ -1500,7 +1474,8 @@ TEST(StaticAVIFTests, ParallelDecoding) {
   // This test image is fast to decode (all neutral gray pixels) and its
   // allocation size is large enough to cause
   // media::PaintCanvasVideoRenderer::ConvertVideoFrameToRGBPixels() to pick
-  // n_tasks > 1 if AVIFImageDecoder did not pass disable_threading=true to it.
+  // n_tasks > 1 if AVIFImageDecoder did not pass disable_threading=true
+  // to it.
   Vector<char> data = ReadFile("/images/resources/avif/gray1024x704.avif");
 
   // Task timeout in tests is 30 seconds (see https://crrev.com/c/1949028).

@@ -8,4 +8,4 @@ bool URLDataSource::AllowCaching(const GURL& url) {
   return AllowCaching();
 }
 
-}
+}  // namespace content

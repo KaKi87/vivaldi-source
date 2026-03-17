@@ -23,15 +23,16 @@ import androidx.annotation.CallSuper;
 import androidx.annotation.ColorInt;
 import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
-import androidx.fragment.app.Fragment;
 import androidx.viewpager2.widget.ViewPager2;
 
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.ApplicationStatus.ActivityStateListener;
 import org.chromium.base.DeviceInfo;
+import org.chromium.base.FeatureList;
 import org.chromium.base.Promise;
 import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.base.shared_preferences.SharedPreferencesManager;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
@@ -39,7 +40,10 @@ import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.customtabs.CustomTabActivity;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
+import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.metrics.UmaUtils;
+import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
+import org.chromium.chrome.browser.preferences.ChromeSharedPreferences;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
 import org.chromium.chrome.browser.signin.SigninCheckerProvider;
@@ -467,6 +471,18 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
                 .notifyEvent(EventConstants.RESTORE_TABS_ON_FIRST_RUN_SHOW_PROMO);
         RecordHistogram.recordTimesHistogram(
                 "MobileFre.NativeInitialized", SystemClock.elapsedRealtime() - getStartTime());
+
+        if (FeatureList.isNativeInitialized()) {
+            if (ChromeFeatureList.isEnabled(ChromeFeatureList.XPLAT_SYNCED_SETUP)) {
+                SharedPreferencesManager prefManager = ChromeSharedPreferences.getInstance();
+                prefManager.writeBoolean(
+                        ChromePreferenceKeys.CROSS_DEVICE_IMPORTED_BOTTOM_OMNIBOX, false);
+                prefManager.writeBoolean(
+                        ChromePreferenceKeys.CROSS_DEVICE_IMPORTED_ALL_SETTINGS, false);
+            }
+        } else {
+            assert false : "Expected feature list to be initialized during FRE.";
+        }
     }
 
     private void onNativeDependenciesFullyInitialized() {
@@ -549,26 +565,6 @@ public class FirstRunActivity extends FirstRunActivityBase implements FirstRunPa
     }
 
     // Activity:
-
-    @Override
-    public void onAttachFragment(Fragment fragment) {
-        if (!(fragment instanceof FirstRunFragment)) return;
-
-        FirstRunFragment page = (FirstRunFragment) fragment;
-        // Delay notifying the child page until native and the TemplateUrlService are initialized.
-        // Tracked by mNativeSideIsInitialized is ready. Otherwise if the next page handles
-        // the default search engine, it will be missing dependencies. See https://crbug.com/1275950
-        // for when this didn't work.
-        if (mNativeInitializationPromise.isFulfilled()) {
-            page.onNativeInitialized();
-        } else {
-            mNativeInitializationPromise.then(
-                    (ignored) -> {
-                        page.onNativeInitialized();
-                    });
-        }
-    }
-
     @Override
     public void onRestoreInstanceState(@Nullable Bundle state) {
         // Don't automatically restore state here. This is a counterpart to the override

@@ -12,8 +12,8 @@
 #include "third_party/blink/renderer/core/events/keyboard_event.h"
 #include "third_party/blink/renderer/core/frame/local_dom_window.h"
 #include "third_party/blink/renderer/core/frame/web_local_frame_impl.h"
-#include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/html/html_element.h"
+#include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/layout/layout_box.h"
 #include "third_party/blink/renderer/core/style/computed_style.h"
 #include "third_party/blink/renderer/platform/wtf/text/atomic_string.h"
@@ -32,9 +32,8 @@ class VivaldiSpatialNavigationController::ScrollListener
     : public blink::NativeEventListener {
  public:
   explicit ScrollListener(VivaldiSpatialNavigationController* controller,
-                         blink::Document* document)
-    : controller_(controller),
-      document_(document) {}
+                          blink::Document* document)
+      : controller_(controller), document_(document) {}
   ~ScrollListener() override = default;
 
   void StartListening() {
@@ -97,12 +96,11 @@ class VivaldiSpatialNavigationController::ScrollListener
 };
 
 VivaldiSpatialNavigationController::VivaldiSpatialNavigationController(
-  content::RenderFrame* render_frame)
-  : content::RenderFrameObserver(render_frame),
-    render_frame_(render_frame) {
-      scroll_listener_ = blink::MakeGarbageCollected<ScrollListener>(this,
-        GetDocumentFromRenderFrame());
-    }
+    content::RenderFrame* render_frame)
+    : content::RenderFrameObserver(render_frame), render_frame_(render_frame) {
+  scroll_listener_ = blink::MakeGarbageCollected<ScrollListener>(
+      this, GetDocumentFromRenderFrame());
+}
 
 VivaldiSpatialNavigationController::~VivaldiSpatialNavigationController() {}
 
@@ -117,8 +115,8 @@ void VivaldiSpatialNavigationController::FocusedElementChanged(
   blink::Document* document = current_element ? current_element->ownerDocument()
                                               : GetDocumentFromRenderFrame();
 
-  blink::Element* indicator = document->getElementById(
-      blink::AtomicString(kVivaldiIndicatorId));
+  blink::Element* indicator =
+      document->getElementById(blink::AtomicString(kVivaldiIndicatorId));
 
   if (!indicator) {
     return;
@@ -182,8 +180,8 @@ void VivaldiSpatialNavigationController::HideIndicator() {
 }
 
 void VivaldiSpatialNavigationController::CloseSpatnavOrCurrentOpenMenu(
-    bool& layout_changed, bool& element_valid) {
-
+    bool& layout_changed,
+    bool& element_valid) {
   blink::Element* elm = current_quad_ ? current_quad_->GetElement() : nullptr;
   if (elm) {
     vivaldi::ClearHover(elm);
@@ -202,8 +200,7 @@ void VivaldiSpatialNavigationController::CloseSpatnavOrCurrentOpenMenu(
 
 blink::Document*
 VivaldiSpatialNavigationController::GetDocumentFromRenderFrame() {
-  blink::WebLocalFrame* frame =
-      render_frame_->GetWebView()->FocusedFrame();
+  blink::WebLocalFrame* frame = render_frame_->GetWebView()->FocusedFrame();
   if (!frame) {
     return nullptr;
   }
@@ -229,19 +226,19 @@ VivaldiSpatialNavigationController::ScrollTypeFromSpatnavDirection(
   using vivaldi::mojom::ScrollType;
   using vivaldi::mojom::SpatnavDirection;
 
-  switch(direction) {
-  case SpatnavDirection::kUp:
-    return ScrollType::kUp;
-  case SpatnavDirection::kLeft:
-    return ScrollType::kLeft;
-  case SpatnavDirection::kDown:
-    return ScrollType::kDown;
-  case SpatnavDirection::kRight:
-    return ScrollType::kRight;
-  // This case mimics previous implementation
-  // Not sure the kNone case is reachable.
-  case SpatnavDirection::kNone:
-    return ScrollType::kRight;
+  switch (direction) {
+    case SpatnavDirection::kUp:
+      return ScrollType::kUp;
+    case SpatnavDirection::kLeft:
+      return ScrollType::kLeft;
+    case SpatnavDirection::kDown:
+      return ScrollType::kDown;
+    case SpatnavDirection::kRight:
+      return ScrollType::kRight;
+    // This case mimics previous implementation
+    // Not sure the kNone case is reachable.
+    case SpatnavDirection::kNone:
+      return ScrollType::kRight;
   }
 }
 
@@ -251,7 +248,7 @@ void VivaldiSpatialNavigationController::Scroll(
   using ScrollType = ::vivaldi::mojom::ScrollType;
 
   blink::Element* scroll_container =
-	  GetDocumentFromRenderFrame()->ScrollingElementNoLayout();
+      GetDocumentFromRenderFrame()->ScrollingElementNoLayout();
   if (!scroll_container) {
     return;
   }
@@ -307,10 +304,11 @@ vivaldi::QuadPtr VivaldiSpatialNavigationController::NextQuadInDirection(
 // focused element for determining which scroll area gets the scroll.
 // See: ScrollManager::LogicalScroll.
 void VivaldiSpatialNavigationController::FocusElement(blink::Element* element) {
-  // TODO: Currently radio buttons will steal arrows and shift+arrow when focused.
+  // TODO: Currently radio buttons will steal arrows and shift+arrow when
+  // focused.
   //       Revisit this when we get spatnav mode underway and get more control
   //       over keyboard input events.
-  if(!element->IsKeyboardFocusableSlow() && !vivaldi::IsRadioButton(element)) {
+  if (!element->IsKeyboardFocusableSlow() && !vivaldi::IsRadioButton(element)) {
     vivaldi::HoverElement(element);
     element->Focus();
   } else {
@@ -323,7 +321,7 @@ void VivaldiSpatialNavigationController::FocusElement(blink::Element* element) {
 
 void VivaldiSpatialNavigationController::ActivateElement(int modifiers) {
   blink::WebKeyboardEvent web_keyboard_event(
-    blink::WebInputEvent::Type::kRawKeyDown, modifiers, base::TimeTicks());
+      blink::WebInputEvent::Type::kRawKeyDown, modifiers, base::TimeTicks());
 
   blink::KeyboardEvent* key_evt =
       blink::KeyboardEvent::Create(web_keyboard_event, nullptr);
@@ -355,7 +353,8 @@ bool VivaldiSpatialNavigationController::UpdateQuads() {
 
   std::vector<blink::WebElement> spatnav_elements;
   blink::Document* document = frame->GetDocument();
-  vivaldi::GetSpatialNavigationElements(document, scale, current, spatnav_elements);
+  vivaldi::GetSpatialNavigationElements(document, scale, current,
+                                        spatnav_elements);
   spatnav_quads_.clear();
 
   bool needs_update = false;
@@ -406,9 +405,6 @@ bool VivaldiSpatialNavigationController::UpdateQuads() {
   if (current_quad_) {
     // Checking if element is still there after update.
     current_quad_ = GetQuadFromElement(current_quad_->GetElement());
-    if (current_quad_) {
-      current_quad_->GetElement()->scrollIntoViewIfNeeded();
-    }
   }
 
   return needs_update;
@@ -478,10 +474,9 @@ void VivaldiSpatialNavigationController::MoveRect(
     }
   } else {
     vivaldi::QuadPtr next_quad;
-    next_quad = current_quad_ ? NextQuadInDirection(direction): nullptr;
+    next_quad = current_quad_ ? NextQuadInDirection(direction) : nullptr;
 
     if (next_quad != nullptr) {
-
       current_quad_ = next_quad;
       blink::Element* elm = current_quad_->GetElement();
       if (elm) {
@@ -542,7 +537,7 @@ void VivaldiSpatialNavigationController::CreateIndicator() {
 
   blink::Element* elm = current_quad_->GetElement();
   blink::Document* document =
-    elm ? elm->ownerDocument() : GetDocumentFromRenderFrame();
+      elm ? elm->ownerDocument() : GetDocumentFromRenderFrame();
 
   blink::Element* indicator =
       document->CreateRawElement(blink::html_names::kDivTag);
@@ -562,8 +557,10 @@ void VivaldiSpatialNavigationController::CreateIndicator() {
   scroll_listener_->StartListening();
 }
 
-void VivaldiSpatialNavigationController::UpdateIndicator(bool resize,
-    blink::DOMRect* new_rect, blink::EventTarget* target) {
+void VivaldiSpatialNavigationController::UpdateIndicator(
+    bool resize,
+    blink::DOMRect* new_rect,
+    blink::EventTarget* target) {
   if (!current_quad_) {
     return;
   }
@@ -594,7 +591,6 @@ void VivaldiSpatialNavigationController::UpdateIndicator(bool resize,
   }
   blink::Node* indicator_node = indicator_;
 
-
   const blink::ComputedStyle* indicator_style =
       indicator_node->IsElementNode()
           ? blink::To<blink::Element>(indicator_node)->GetComputedStyle()
@@ -613,9 +609,9 @@ void VivaldiSpatialNavigationController::UpdateIndicator(bool resize,
   while (container_node->parentElement()) {
     blink::PhysicalRect cnr = container_node->BoundingBox();
     const blink::ComputedStyle* container_node_style =
-      indicator_node->IsElementNode()
-          ? blink::To<blink::Element>(container_node)->GetComputedStyle()
-          : nullptr;
+        indicator_node->IsElementNode()
+            ? blink::To<blink::Element>(container_node)->GetComputedStyle()
+            : nullptr;
     if (container_node_style &&
         container_node_style->GetPosition() == blink::EPosition::kFixed) {
       xoffset -= cnr.X().ToDouble() * effective_zoom;
@@ -625,7 +621,7 @@ void VivaldiSpatialNavigationController::UpdateIndicator(bool resize,
   }
 
   if (layout_box) {
-    if(container->GetComputedStyle()->Display() != blink::EDisplay::kBlock) {
+    if (container->GetComputedStyle()->Display() != blink::EDisplay::kBlock) {
       xoffset += -cr->x();
       yoffset += -cr->y();
       xoffset += layout_box->ScrolledContentOffset().left.ToDouble();
@@ -644,10 +640,12 @@ void VivaldiSpatialNavigationController::UpdateIndicator(bool resize,
   if (!resize) {
     blink::WebElement web_element = current_quad_->GetWebElement();
     gfx::Rect wr = web_element.BoundsInWidget();
-     builder.SetWidth(blink::Length::Fixed(wr.width() - 4));
-     builder.SetHeight(blink::Length::Fixed(wr.height() - 4));
-     builder.SetLeft(blink::Length::Fixed(static_cast<int>(xoffset + wr.x() + 2)));
-     builder.SetTop(blink::Length::Fixed(static_cast<int>(yoffset + wr.y() + 2)));
+    builder.SetWidth(blink::Length::Fixed(wr.width() - 4));
+    builder.SetHeight(blink::Length::Fixed(wr.height() - 4));
+    builder.SetLeft(
+        blink::Length::Fixed(static_cast<int>(xoffset + wr.x() + 2)));
+    builder.SetTop(
+        blink::Length::Fixed(static_cast<int>(yoffset + wr.y() + 2)));
 
     if (new_rect) {
       new_rect->setX(wr.x());
@@ -669,7 +667,8 @@ void VivaldiSpatialNavigationController::UpdateIndicator(bool resize,
     builder.SetHeight(blink::Length::Fixed(wr.height() - 4));
     builder.SetLeft(
         blink::Length::Fixed(static_cast<int>(xoffset + (int)wr.x() + 2)));
-    builder.SetTop(blink::Length::Fixed(static_cast<int>(yoffset + wr.y() + 2)));
+    builder.SetTop(
+        blink::Length::Fixed(static_cast<int>(yoffset + wr.y() + 2)));
 
     if (new_rect) {
       new_rect->setX(wr.x());

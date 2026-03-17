@@ -61,16 +61,6 @@ class GURL;
 // Presents the bookmarks browser modally.
 - (void)presentBookmarks;
 
-// Presents the folder editor for the given folder `node`.
-- (void)presentEditorForFolderNode:(const bookmarks::BookmarkNode*)node;
-
-// Presents the bookmark editor for the given URL `node`.
-- (void)presentEditorForURLNode:(const bookmarks::BookmarkNode*)node;
-
-// Removes any bookmark modal controller from view if visible.
-// override this method.
-- (void)dismissBookmarkModalControllerAnimated:(BOOL)animated;
-
 // Removes any snackbar related to bookmarks that could have been presented.
 - (void)dismissSnackbar;
 
@@ -83,6 +73,9 @@ class GURL;
 // Vivaldi
 - (void)presentBookmarkCreator:(const bookmarks::BookmarkNode*)parentNode
                       isFolder:(BOOL)isFolder;
+
+// Presents the Vivaldi bookmark editor for an existing bookmark or folder.
+- (void)presentBookmarkEditorForNode:(const bookmarks::BookmarkNode*)node;
 // End Vivaldi
 
 @end

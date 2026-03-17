@@ -174,7 +174,9 @@ update_target("//components/search_engines:search_engines") {
     "//vivaldi/components/search_engines/vivaldi_pref_names.h",
     "//vivaldi/components/search_engines/vivaldi_keyword_table.cc",
     "//vivaldi/components/search_engines/vivaldi_template_url_service.cc",
-    "//vivaldi/components/search_engines/vivaldi_template_url_service.h"
+    "//vivaldi/components/search_engines/vivaldi_template_url_service.h",
+    "//vivaldi/components/search_engines/vivaldi_template_url_helper.cc",
+    "//vivaldi/components/search_engines/vivaldi_template_url_helper.h",
   ]
 }
 
@@ -241,6 +243,7 @@ if (vivaldi_build_tests) {
   update_target("//components/search_engines:unit_tests") {
     sources -= [
       "default_search_manager_unittest.cc",
+      "reconciling_template_url_data_holder_unittest.cc",
       "search_engine_choice/search_engine_choice_service_unittest.cc",
       "search_engine_choice/search_engine_choice_utils_unittest.cc",
       "template_url_data_unittest.cc",
@@ -264,6 +267,15 @@ if (vivaldi_build_tests) {
   update_target("//chrome/test:interactive_ui_tests") {
     sources -= [
       "../browser/ui/views/profiles/first_run_interactive_uitest.cc",
+      "../browser/ui/views/frame/horizontal_tab_strip_region_view_interactive_uitest.cc",
+    ]
+    deps -= [
+      "//chrome/browser/ui/tabs/organization:interactive_ui_tests",
+      ]
+  }
+  update_target("//chrome/browser/ui/views/toolbar:interactive_ui_tests") {
+    sources -= [
+      "tab_search_toolbar_button_interactive_uitest.cc",
     ]
   }
 

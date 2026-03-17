@@ -26,7 +26,8 @@ import org.chromium.base.Log;
 import org.chromium.base.ObserverList;
 import org.chromium.base.ValueChangedCallback;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
@@ -136,7 +137,7 @@ public class EdgeToEdgeControllerImpl
     private final ObserverList<ChangeObserver> mEdgeChangeObservers = new ObserverList<>();
     private final TabObserver mTabObserver;
     private final BrowserControlsStateProvider mBrowserControlsStateProvider;
-    private final ObservableSupplier<LayoutManager> mLayoutManagerSupplier;
+    private final MonotonicObservableSupplier<LayoutManager> mLayoutManagerSupplier;
     private final Callback<LayoutManager> mOnLayoutManagerCallback =
             new ValueChangedCallback<>(this::updateLayoutStateProvider);
     private final FullscreenManager mFullscreenManager;
@@ -210,11 +211,11 @@ public class EdgeToEdgeControllerImpl
     public EdgeToEdgeControllerImpl(
             Activity activity,
             WindowAndroid windowAndroid,
-            ObservableSupplier<@Nullable Tab> tabObservableSupplier,
+            NullableObservableSupplier<Tab> tabObservableSupplier,
             @Nullable EdgeToEdgeOSWrapper edgeToEdgeOsWrapper,
             EdgeToEdgeManager edgeToEdgeManager,
             BrowserControlsStateProvider browserControlsStateProvider,
-            ObservableSupplier<LayoutManager> layoutManagerSupplier,
+            MonotonicObservableSupplier<LayoutManager> layoutManagerSupplier,
             FullscreenManager fullscreenManager) {
         mActivity = activity;
         mWindowAndroid = windowAndroid;

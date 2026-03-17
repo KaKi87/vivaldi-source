@@ -26,8 +26,8 @@ using metrics::OmniboxInputType;
 RecentTypedHistoryItem::RecentTypedHistoryItem() {}
 RecentTypedHistoryItem& RecentTypedHistoryItem::operator=(
     const RecentTypedHistoryItem&) = default;
-RecentTypedHistoryItem::RecentTypedHistoryItem(
-    const RecentTypedHistoryItem&) = default;
+RecentTypedHistoryItem::RecentTypedHistoryItem(const RecentTypedHistoryItem&) =
+    default;
 
 // RecentTypedHistoryProvider --------------------------------------------------
 AutocompleteMatch RecentTypedHistoryToAutocompleteMatch(
@@ -70,7 +70,7 @@ void RecentTypedHistoryProvider::Start(const AutocompleteInput& input,
   Stop(AutocompleteStopReason::kClobbered);
 
   if (input.focus_type() != metrics::OmniboxFocusType::INTERACTION_FOCUS ||
-         input.type() != OmniboxInputType::EMPTY) {
+      input.type() != OmniboxInputType::EMPTY) {
     return;
   }
   if (input.from_search_field) {
@@ -93,7 +93,7 @@ void RecentTypedHistoryProvider::DeleteMatch(const AutocompleteMatch& match) {
 }
 
 void RecentTypedHistoryProvider::QueryRecentTypedHistory(
-      const AutocompleteInput& input) {
+    const AutocompleteInput& input) {
   done_ = true;
   matches_.clear();
 
@@ -106,7 +106,7 @@ void RecentTypedHistoryProvider::QueryRecentTypedHistory(
     return;
 
   const bool show_search_queries = client_->GetPrefs()->GetBoolean(
-    vivaldiprefs::kAddressBarOmniboxShowSearchHistory);
+      vivaldiprefs::kAddressBarOmniboxShowSearchHistory);
 
   if (show_search_queries) {
     url_db->GetRecentTypedHistoryItems(
@@ -124,7 +124,7 @@ void RecentTypedHistoryProvider::QueryRecentTypedHistory(
 }
 
 void RecentTypedHistoryProvider::QueryRecentTypedSearch(
-      const AutocompleteInput& input) {
+    const AutocompleteInput& input) {
   done_ = true;
   matches_.clear();
 

@@ -37,6 +37,7 @@ import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
+import org.chromium.base.ResettersForTesting;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.base.shared_preferences.SharedPreferencesManager;
@@ -122,19 +123,22 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
             1512; // Random id to avoid possible collisions.
     private static final int MAX_CUSTOM_MENU_ITEMS = 4;
     private static final String TAG = "CCMenuPopulator";
+    private static final String LENS_SUPPORT_STATUS_HISTOGRAM_NAME =
+            "ContextMenu.LensSupportStatus";
     private static final String UMA_CONTEXTUAL_CUSTOM_ACTION_TYPE_DISPLAYED =
             "CustomTabs.ContextMenu.DisplayedContextualCustomActionType";
     private static final String UMA_CONTEXTUAL_CUSTOM_ACTION_TYPE_SELECTED =
             "CustomTabs.ContextMenu.SelectedContextualCustomActionType";
+    private static @Nullable Boolean sIsDefaultBrowserForTesting;
+
     private final Context mContext;
     private final TabContextMenuItemDelegate mItemDelegate;
     private final List<CustomContentAction> mCustomContentActions;
     private final @ContextMenuMode int mMode;
-    private final Supplier<ShareDelegate> mShareDelegateSupplier;
+    private final Supplier<@Nullable ShareDelegate> mShareDelegateSupplier;
     private final ContextMenuParams mParams;
     private final ContextMenuNativeDelegate mNativeDelegate;
-    private static final String LENS_SUPPORT_STATUS_HISTOGRAM_NAME =
-            "ContextMenu.LensSupportStatus";
+
     private final boolean mIsDownloadRestrictedByPolicy;
     private final SparseArray<CustomContentAction> mCustomActionMap;
 
@@ -380,7 +384,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
      */
     public ChromeContextMenuPopulator(
             TabContextMenuItemDelegate itemDelegate,
-            Supplier<ShareDelegate> shareDelegate,
+            Supplier<@Nullable ShareDelegate> shareDelegate,
             List<CustomContentAction> customContentActions,
             @ContextMenuMode int mode,
             Context context,
@@ -483,7 +487,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
 
                     // Vivaldi, check if tab stacks are enabled
                     if (VivaldiPreferences.getSharedPreferencesManager().readBoolean(
-                            VivaldiPreferences.ENABLE_TAB_STACK, false)) {
+                            VivaldiPreferences.ENABLE_TAB_STACK, true)) {
                     linkGroup.add(createListItem(Item.OPEN_IN_NEW_TAB_IN_GROUP));
                     } // End Vivaldi
 
@@ -693,7 +697,8 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
                                 /* showInProductHelp= */ false,
                                 !mIsDownloadRestrictedByPolicy));
             }
-            if (ChromeFeatureList.sContextMenuPictureInPictureAndroid.isEnabled()
+            if (ChromeFeatureList.isEnabled(
+                            ChromeFeatureList.CONTEXT_MENU_PICTURE_IN_PICTURE_ANDROID)
                     && mParams.canPictureInPicture()) {
                 int titleResId =
                         mParams.isPictureInPicture()
@@ -740,9 +745,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
                     boolean addNewEntries =
                             !UrlUtilities.isInternalScheme(mParams.getUrl())
                                     && !isEmptyUrl(mParams.getUrl());
-                    if (ChromeSharedPreferences.getInstance()
-                                    .readBoolean(ChromePreferenceKeys.CHROME_DEFAULT_BROWSER, false)
-                            && addNewEntries) {
+                    if (isDefaultBrowser() && addNewEntries) {
                         if (mItemDelegate.isIncognitoSupported()) {
                             items.add(0, createListItem(Item.OPEN_IN_CHROME_INCOGNITO_TAB));
                         }
@@ -757,7 +760,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
             }
         }
 
-        if (shouldShowDeveloperMenu()) {
+        if (shouldShowDeveloperMenu() && FirstRunStatus.getFirstRunFlowComplete()) {
             ModelList developerGroup = new ModelList();
             if (mParams.isPage()
                     && shouldShowEmptySpaceContextMenu()
@@ -1030,8 +1033,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
                                     ContextMenuUtils.getTitle(mParams),
                                     mParams.getPageUrl().getSpec())
                             .build();
-            mShareDelegateSupplier
-                    .get()
+            assumeNonNull(mShareDelegateSupplier.get())
                     .share(
                             linkShareParams,
                             new ChromeShareExtras.Builder().setSaveLastUsed(true).build(),
@@ -1048,8 +1050,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
                                     ContextMenuUtils.getTitle(mParams),
                                     mParams.getUrl().getSpec())
                             .build();
-            mShareDelegateSupplier
-                    .get()
+            assumeNonNull(mShareDelegateSupplier.get())
                     .share(
                             linkShareParams,
                             new ChromeShareExtras.Builder()
@@ -1073,8 +1074,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
                                     ContextMenuUtils.getTitle(mParams),
                                     mParams.getUrl().getSpec())
                             .build();
-            mShareDelegateSupplier
-                    .get()
+            assumeNonNull(mShareDelegateSupplier.get())
                     .share(
                             shareParams,
                             new ChromeShareExtras.Builder()
@@ -1209,8 +1209,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
                                 getWindow(), /* title= */ "", /* url= */ mParams.getUrl().getSpec())
                         .build();
 
-        mShareDelegateSupplier
-                .get()
+        assumeNonNull(mShareDelegateSupplier.get())
                 .share(
                         linkShareParams,
                         new ChromeShareExtras.Builder()
@@ -1273,8 +1272,7 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
                     } else {
                         detailedContentType = ChromeShareExtras.DetailedContentType.IMAGE;
                     }
-                    mShareDelegateSupplier
-                            .get()
+                    assumeNonNull(mShareDelegateSupplier.get())
                             .share(
                                     imageShareParams,
                                     new ChromeShareExtras.Builder()
@@ -1367,8 +1365,16 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
         };
     }
 
+    private static boolean isDefaultBrowser() {
+        return sIsDefaultBrowserForTesting != null
+                ? sIsDefaultBrowserForTesting
+                : ChromeSharedPreferences.getInstance()
+                        .readBoolean(ChromePreferenceKeys.CHROME_DEFAULT_BROWSER, false);
+    }
+
     /**
      * Checks whether a url is empty or blank.
+     *
      * @param url The url need to be checked.
      * @return True if the url is empty or "about:blank".
      */
@@ -1643,6 +1649,11 @@ public class ChromeContextMenuPopulator implements ContextMenuPopulator {
 
     public static String getContextualCustomActionTypeSelectedHistogramForTesting() {
         return UMA_CONTEXTUAL_CUSTOM_ACTION_TYPE_SELECTED;
+    }
+
+    static void setIsDefaultBrowserForTesting(boolean isDefaultBrowser) {
+        sIsDefaultBrowserForTesting = isDefaultBrowser;
+        ResettersForTesting.register(() -> sIsDefaultBrowserForTesting = null);
     }
 
     public void setPendingIntentSenderForTesting(PendingIntentSender sender) {

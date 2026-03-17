@@ -33,6 +33,7 @@
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/waitable_event.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/threading/platform_thread.h"
@@ -188,7 +189,7 @@ ProcessExitResult RunProcessAndWait(const wchar_t* exe_path, wchar_t* cmdline) {
     // Split specific failure modes. If the process couldn't be launched because
     // its file/path couldn't be found, report its attributes in ExtraCode1.
     // This will help diagnose the prevalence of launch failures due to Image
-    // File Execution Options tampering. See https://crbug.com/672813 for more
+    // File Execution Options tampering. See https://crbug.com/41290422 for more
     // details.
     const DWORD last_error = ::GetLastError();
     const DWORD attributes = ::GetFileAttributes(exe_path);

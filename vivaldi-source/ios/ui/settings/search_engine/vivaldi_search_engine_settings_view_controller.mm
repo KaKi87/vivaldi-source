@@ -205,9 +205,9 @@ NSString* const kPrivateTabsSearchEngineCellId =
   if (!_regularSearchEngineItem) {
     _regularSearchEngineItem = [self
              detailItemWithType:SettingsItemTypeRegularSearchEngine
-                  text:
-                      l10n_util::GetNSString(
-                          IDS_VIVALDI_SEARCH_ENGINE_SETTINGS_STANDARD_TAB_TITLE)
+                           text:
+                               l10n_util::GetNSString(
+                                   IDS_VIVALDI_SEARCH_ENGINE_SETTINGS_STANDARD_TAB_TITLE)
                      detailText:_regularTabsSearchEngine
                          symbol:nil
         accessibilityIdentifier:kRegularTabsSearchEngineCellId];
@@ -219,9 +219,9 @@ NSString* const kPrivateTabsSearchEngineCellId =
   if (!_privateSearchEngineItem) {
     _privateSearchEngineItem = [self
              detailItemWithType:SettingsItemTypePrivateSearchEngine
-                  text:
-                      l10n_util::GetNSString(
-                          IDS_VIVALDI_SEARCH_ENGINE_SETTINGS_PRIVATE_TAB_TITLE)
+                           text:
+                               l10n_util::GetNSString(
+                                   IDS_VIVALDI_SEARCH_ENGINE_SETTINGS_PRIVATE_TAB_TITLE)
                      detailText:_privateTabsSearchEngine
                          symbol:nil
         accessibilityIdentifier:kPrivateTabsSearchEngineCellId];
@@ -239,7 +239,8 @@ NSString* const kPrivateTabsSearchEngineCellId =
     _enableNicknameToggleItem.on = _nicknameEnabled;
     _enableNicknameToggleItem.accessibilityIdentifier = title;
     _enableNicknameToggleItem.target = self;
-    _enableNicknameToggleItem.selector = @selector(searchEngineNicknameToggleChanged:);
+    _enableNicknameToggleItem.selector =
+        @selector(searchEngineNicknameToggleChanged:);
   }
   return _enableNicknameToggleItem;
 }

@@ -15,29 +15,44 @@ export function getHtml(this: ContextualTasksAppElement) {
     <div id="toolbarOverlay">
       <top-toolbar id="toolbar"
           .title="${this.threadTitle_}"
-          .attachedTabs="${this.contextTabs_}"
           .darkMode="${this.darkMode_}"
           .isAiPage="${this.isAiPage_}"
           @new-thread-click="${this.onNewThreadClick_}">
       </top-toolbar>
     </div>
   `}
-  <webview id="threadFrame"></webview>
-  <div class="flex-center">
+  <webview id="threadFrame" allowtransparency="on"
+      partition="persist:contextual-tasks"
+      style="${this.getThreadFrameStyles()}">
+  </webview>
+  <ghost-loader id="ghostLoader"></ghost-loader>
+  ${this.isErrorDialogVisible_ ?
+    html`<contextual-tasks-error-dialog></contextual-tasks-error-dialog>` : ''}
+  <div id="flexCenterContainer">
     <div id="composeboxHeaderWrapper"
-        ?hidden="${this.isInBasicMode_}">
-      <h1 class="thread-header">
-          ${this.friendlyZeroStateTitle}
+        ?hidden="${this.enableBasicMode_ && this.isInBasicMode_ && !this.enableBasicModeZOrder_}">
+      <h1 class="thread-header" id="composeboxHeader">
+          ${this.friendlyZeroStateGaiaName_
+            ? html`<span>${this.friendlyZeroStateTitleBeforeName_}</span><span
+              id="nameShimmer" class="name-shimmer">
+              ${this.friendlyZeroStateGaiaName_}</span><span>${this.friendlyZeroStateTitleAfterName_}</span>`
+            : html`<span>${this.friendlyZeroStateTitle}</span>`
+          }
           ${this.friendlyZeroStateSubtitle.length > 0 ?
               html`<br>
               ${this.friendlyZeroStateSubtitle}` : ''}
       </h1>
     </div>
     <contextual-tasks-composebox id="composebox"
-          ?hidden="${this.isInBasicMode_}"
+          style="${this.getComposeboxBoundsStyles()}"
+          ?hidden="${this.enableBasicMode_ && this.isInBasicMode_ && !this.enableBasicModeZOrder_}"
           .isZeroState="${this.isZeroState_}"
           .isSidePanel="${!this.isShownInTab_}"
-          .isLensOverlayShowing="${this.isLensOverlayShowing_}">
+          .isLensOverlayShowing="${this.isLensOverlayShowing_}"
+          .maybeShowOverlayHintText="${this.maybeShowOverlayHintText_}"
+          .enableNativeZeroStateSuggestions=
+              "${this.enableNativeZeroStateSuggestions_}"
+          .inputEnabled="${!this.isInputLocked_}">
     </contextual-tasks-composebox>
   </div>
   <error-page id="errorPage"></error-page>

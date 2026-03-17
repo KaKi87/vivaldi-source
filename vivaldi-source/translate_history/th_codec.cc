@@ -50,8 +50,8 @@ bool TH_Codec::Decode(NodeList& list, const base::Value& value) {
 
 bool TH_Codec::DecodeNode(NodeList& list, const base::Value& value) {
   auto* id = value.GetDict().FindString("id");
-  bool guid_valid = id && !id->empty() &&
-      base::Uuid::ParseCaseInsensitive(*id).is_valid();
+  bool guid_valid =
+      id && !id->empty() && base::Uuid::ParseCaseInsensitive(*id).is_valid();
   if (!guid_valid) {
     LOG(ERROR) << "Translate History Codec: Id missing or not valid";
     return false;
@@ -97,7 +97,7 @@ bool TH_Codec::DecodeTextEntry(TH_Node::TextEntry& entry,
 }
 
 base::Value TH_Codec::Encode(NodeList& nodes) {
-  base::Value::List children;
+  base::ListValue children;
   for (TH_Node* node : nodes) {
     base::Value child = EncodeNode(*node);
     children.Append(base::Value(std::move(child)));

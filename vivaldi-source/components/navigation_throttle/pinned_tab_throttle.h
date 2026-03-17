@@ -4,6 +4,7 @@
 #define COMPONENTS_NAVIGATION_THROTTLE_PINNED_TAB_THROTTLE_H_
 
 #include "content/public/browser/navigation_throttle.h"
+#include "url/gurl.h"
 
 namespace content {
 class NavigationHandle;
@@ -17,6 +18,8 @@ class PinnedTabsThrottle : public content::NavigationThrottle {
   ThrottleCheckResult WillStartRequest() override;
 
   const char* GetNameForLogging() override;
+
+  static bool IsInternalURL(const GURL& url);
 };
 
 #endif  // COMPONENTS_NAVIGATION_THROTTLE_PINNED_TAB_THROTTLE_H_

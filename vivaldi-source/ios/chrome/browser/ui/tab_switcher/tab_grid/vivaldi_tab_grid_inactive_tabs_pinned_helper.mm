@@ -13,6 +13,7 @@
 #import "ios/chrome/common/ui/elements/gradient_view.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/common/ui/util/ui_util.h"
+#import "ios/ui/ntp/vivaldi_ntp_constants.h"
 
 namespace {
 constexpr CGFloat kSpacingPercentage = 0.12;
@@ -24,9 +25,6 @@ constexpr CGFloat kContainerZPosition = 1.0;
 constexpr CGFloat kFadeZPosition = 0.5;
 constexpr CGFloat kFadeHiddenAlpha = 0.0;
 constexpr CGFloat kFadeVisibleAlpha = 1.0;
-constexpr CGFloat kFadeTopAlphaDark = 0.16;
-constexpr CGFloat kFadeTopAlphaLight = 0.28;
-constexpr CGFloat kFadeTopAlphaFallback = 0.24;
 constexpr CGFloat kButtonSizingHeightMultiplier = 10.0;
 constexpr NSInteger kExtraSpacingSlots = 1;
 constexpr NSTimeInterval kPressGestureMinimumDuration = 0.0;
@@ -173,9 +171,9 @@ CGFloat SpacingForSize(CGSize size,
   container.clipsToBounds = YES;
   container.layer.zPosition = kContainerZPosition;
 
-  GradientView* fadeView =
-      [[GradientView alloc] initWithTopColor:[self fadeTopColor]
-                                 bottomColor:UIColor.clearColor];
+  GradientView* fadeView = [[GradientView alloc]
+      initWithTopColor:[self fadeTopColor]
+           bottomColor:[[self fadeTopColor] colorWithAlphaComponent:0.0f]];
   fadeView.translatesAutoresizingMaskIntoConstraints = NO;
   fadeView.layer.zPosition = kFadeZPosition;
   fadeView.userInteractionEnabled = NO;
@@ -183,6 +181,9 @@ CGFloat SpacingForSize(CGSize size,
   fadeView.hidden = YES;
   self.fadeVisible = NO;
   [collectionView addSubview:fadeView];
+  [collectionView registerForTraitChanges:@[ UITraitUserInterfaceStyle.class ]
+                               withTarget:self
+                                   action:@selector(updateFadeColors)];
 
   self.fadeHeightConstraint =
       [fadeView.heightAnchor constraintEqualToConstant:0];
@@ -205,17 +206,10 @@ CGFloat SpacingForSize(CGSize size,
   container.layer.cornerRadius = buttonCell.layer.cornerRadius;
   container.layer.cornerCurve = kCACornerCurveContinuous;
 
-  UIVisualEffectView* effectView = nil;
-  if (@available(iOS 26, *)) {
-    UIGlassEffect* glassEffect =
-        [UIGlassEffect effectWithStyle:UIGlassEffectStyleRegular];
-    glassEffect.interactive = YES;
-    effectView = [[UIVisualEffectView alloc] initWithEffect:glassEffect];
-  } else {
-    UIBlurEffect* blurEffect =
-        [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial];
-    effectView = [[UIVisualEffectView alloc] initWithEffect:blurEffect];
-  }
+  UIBlurEffect* blurEffect =
+      [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemThinMaterial];
+  UIVisualEffectView* effectView =
+      [[UIVisualEffectView alloc] initWithEffect:blurEffect];
   effectView.translatesAutoresizingMaskIntoConstraints = NO;
   effectView.userInteractionEnabled = NO;
   effectView.clipsToBounds = YES;
@@ -312,6 +306,15 @@ CGFloat SpacingForSize(CGSize size,
   [self applyInsets];
 }
 
+- (void)updateFadeColors {
+  if (!self.fadeView) {
+    return;
+  }
+  [self.fadeView
+      setStartColor:[self fadeTopColor]
+           endColor:[[self fadeTopColor] colorWithAlphaComponent:0.0f]];
+}
+
 - (void)applyInsets {
   BaseGridViewController* controller = self.gridViewController;
   if (!controller || !controller.collectionView) {
@@ -370,17 +373,11 @@ CGFloat SpacingForSize(CGSize size,
 }
 
 - (UIColor*)fadeTopColor {
-  if (@available(iOS 13, *)) {
-    return [UIColor
-        colorWithDynamicProvider:^UIColor*(UITraitCollection* traitCollection) {
-          CGFloat alpha =
-              traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark
-                  ? kFadeTopAlphaDark
-                  : kFadeTopAlphaLight;
-          return [[UIColor blackColor] colorWithAlphaComponent:alpha];
-        }];
-  }
-  return [[UIColor blackColor] colorWithAlphaComponent:kFadeTopAlphaFallback];
+  UIColor* baseColor = self.gridViewController.isIncognito
+                           ? [UIColor colorNamed:vPrivateNTPBackgroundColor]
+                           : [UIColor colorNamed:kGridBackgroundColor];
+  return [baseColor
+      resolvedColorWithTraitCollection:self.gridViewController.traitCollection];
 }
 
 - (void)handlePress:(UILongPressGestureRecognizer*)gesture {

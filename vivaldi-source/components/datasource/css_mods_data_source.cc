@@ -85,7 +85,7 @@ CSSModsDataClassHandler::GetDataForIdOnBlockingThread(base::FilePath dir_path,
     }
     return base::MakeRefCounted<base::RefCountedBytes>(
         base::span(reinterpret_cast<const unsigned char*>(data.data()),
-        (size_t)data.length()));
+                   (size_t)data.length()));
   } else {
     base::FilePath file_path = dir_path.AppendASCII(data_id);
     return vivaldi_data_url_utils::ReadFileOnBlockingThread(file_path);

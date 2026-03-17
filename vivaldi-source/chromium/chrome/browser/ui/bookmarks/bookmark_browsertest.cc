@@ -281,17 +281,15 @@ IN_PROC_BROWSER_TEST_F(
   EXPECT_EQ(page1->url(), incognito_folder->children()[0]->url());
   EXPECT_EQ(page2->url(), incognito_folder->children()[1]->url());
 
-  const int browser_tabs = browser()->tab_strip_model()->GetTabCount();
-  const int incognito_tabs =
-      incognito_browser->tab_strip_model()->GetTabCount();
+  const int browser_tabs = browser()->tab_strip_model()->count();
+  const int incognito_tabs = incognito_browser->tab_strip_model()->count();
 
   bookmarks::OpenAllIfAllowed(incognito_browser, {incognito_folder},
                               WindowOpenDisposition::NEW_BACKGROUND_TAB,
                               bookmarks::OpenAllBookmarksContext::kInGroup);
 
-  EXPECT_EQ(incognito_tabs,
-            incognito_browser->tab_strip_model()->GetTabCount());
-  EXPECT_EQ(browser_tabs + 2, browser()->tab_strip_model()->GetTabCount());
+  EXPECT_EQ(incognito_tabs, incognito_browser->tab_strip_model()->count());
+  EXPECT_EQ(browser_tabs + 2, browser()->tab_strip_model()->count());
 }
 
 IN_PROC_BROWSER_TEST_F(BookmarkBrowsertest,
@@ -490,7 +488,7 @@ IN_PROC_BROWSER_TEST_F(BookmarkBrowsertest, OpenAllBookmarks) {
       incognito_model->bookmark_bar_node();
 
   auto close_all_tabs_except_first = [](Browser* browser) {
-    int num_tabs = browser->tab_strip_model()->GetTabCount();
+    int num_tabs = browser->tab_strip_model()->count();
     for (int i = 0; i < num_tabs - 1; ++i) {
       browser->tab_strip_model()->CloseWebContentsAt(num_tabs - 1 - i, 0);
     }
@@ -505,9 +503,8 @@ IN_PROC_BROWSER_TEST_F(BookmarkBrowsertest, OpenAllBookmarks) {
       close_all_tabs_except_first(incognito_browser);
       bookmarks::OpenAllIfAllowed(regular_browser, {bbar},
                                   WindowOpenDisposition::NEW_BACKGROUND_TAB);
-      int num_tabs_regular = regular_browser->tab_strip_model()->GetTabCount();
-      int num_tabs_incognito =
-          incognito_browser->tab_strip_model()->GetTabCount();
+      int num_tabs_regular = regular_browser->tab_strip_model()->count();
+      int num_tabs_incognito = incognito_browser->tab_strip_model()->count();
       EXPECT_EQ(num_tabs_regular, 5);
       EXPECT_EQ(num_tabs_incognito, 1);
     }
@@ -528,9 +525,8 @@ IN_PROC_BROWSER_TEST_F(BookmarkBrowsertest, OpenAllBookmarks) {
           });
       // new browser needs to be opened
       EXPECT_NE(regular_browser2, nullptr);
-      int num_tabs_regular = regular_browser->tab_strip_model()->GetTabCount();
-      int num_tabs_regular2 =
-          regular_browser2->GetTabStripModel()->GetTabCount();
+      int num_tabs_regular = regular_browser->tab_strip_model()->count();
+      int num_tabs_regular2 = regular_browser2->GetTabStripModel()->count();
       EXPECT_EQ(num_tabs_regular, 1);
       EXPECT_EQ(num_tabs_regular2, 4);
       CloseBrowserSynchronously(regular_browser2);
@@ -542,8 +538,7 @@ IN_PROC_BROWSER_TEST_F(BookmarkBrowsertest, OpenAllBookmarks) {
       close_all_tabs_except_first(incognito_browser);
       bookmarks::OpenAllIfAllowed(regular_browser, {bbar},
                                   WindowOpenDisposition::OFF_THE_RECORD);
-      int num_tabs_incognito =
-          incognito_browser->tab_strip_model()->GetTabCount();
+      int num_tabs_incognito = incognito_browser->tab_strip_model()->count();
       EXPECT_EQ(num_tabs_incognito, 3);
     }
   };
@@ -558,9 +553,8 @@ IN_PROC_BROWSER_TEST_F(BookmarkBrowsertest, OpenAllBookmarks) {
       close_all_tabs_except_first(incognito_browser);
       bookmarks::OpenAllIfAllowed(incognito_browser, {incognito_bbar},
                                   WindowOpenDisposition::NEW_BACKGROUND_TAB);
-      int num_tabs_regular = regular_browser->tab_strip_model()->GetTabCount();
-      int num_tabs_incognito =
-          incognito_browser->tab_strip_model()->GetTabCount();
+      int num_tabs_regular = regular_browser->tab_strip_model()->count();
+      int num_tabs_incognito = incognito_browser->tab_strip_model()->count();
       EXPECT_EQ(num_tabs_regular, 3);
       EXPECT_EQ(num_tabs_incognito, 3);
     }
@@ -581,11 +575,9 @@ IN_PROC_BROWSER_TEST_F(BookmarkBrowsertest, OpenAllBookmarks) {
           });
       // new browser needs to be opened
       EXPECT_NE(incognito_browser2, nullptr);
-      int num_tabs_regular = regular_browser->tab_strip_model()->GetTabCount();
-      int num_tabs_incognito =
-          incognito_browser->tab_strip_model()->GetTabCount();
-      int num_tabs_incognito2 =
-          incognito_browser2->GetTabStripModel()->GetTabCount();
+      int num_tabs_regular = regular_browser->tab_strip_model()->count();
+      int num_tabs_incognito = incognito_browser->tab_strip_model()->count();
+      int num_tabs_incognito2 = incognito_browser2->GetTabStripModel()->count();
       EXPECT_EQ(num_tabs_regular, 3);
       EXPECT_EQ(num_tabs_incognito, 1);
       EXPECT_EQ(num_tabs_incognito2, 2);
@@ -672,9 +664,8 @@ IN_PROC_BROWSER_TEST_F(BookmarkBrowsertest, DragSingleBookmark) {
           std::unique_ptr<ui::OSExchangeData> drag_data,
           gfx::NativeView native_view, ui::mojom::DragEventSource source,
           gfx::Point point, int operation) {
-        std::vector<ui::ClipboardUrlInfo> url_infos =
-            drag_data->GetURLsAndTitles(
-                ui::FilenameToURLPolicy::DO_NOT_CONVERT_FILENAMES);
+        std::vector<ui::ClipboardUrlInfo> url_infos = drag_data->GetURLs(
+            ui::FilenameToURLPolicy::DO_NOT_CONVERT_FILENAMES);
         ASSERT_FALSE(url_infos.empty());
         EXPECT_EQ(page_url, url_infos.front().url);
         EXPECT_EQ(page_title, url_infos.front().title);
@@ -756,9 +747,8 @@ IN_PROC_BROWSER_TEST_F(BookmarkBrowsertest, DragMultipleBookmarks) {
           std::unique_ptr<ui::OSExchangeData> drag_data,
           gfx::NativeView native_view, ui::mojom::DragEventSource source,
           gfx::Point point, int operation) {
-        const std::vector<ui::ClipboardUrlInfo> url_infos =
-            drag_data->GetURLsAndTitles(
-                ui::FilenameToURLPolicy::DO_NOT_CONVERT_FILENAMES);
+        const std::vector<ui::ClipboardUrlInfo> url_infos = drag_data->GetURLs(
+            ui::FilenameToURLPolicy::DO_NOT_CONVERT_FILENAMES);
         ASSERT_FALSE(url_infos.empty());
 
         // The bookmarks are added in order, and the first is retrieved, so
@@ -1079,7 +1069,7 @@ IN_PROC_BROWSER_TEST_F(BookmarkPrerenderBrowsertest,
 
   // Load a prerender page and prerendering should not notify to
   // URLStarredChanged listener.
-  const content::FrameTreeNodeId host_id =
+  const content::PrerenderHostId host_id =
       prerender_test_helper().AddPrerender(bookmark_url);
   content::test::PrerenderHostObserver host_observer(*GetWebContents(),
                                                      host_id);

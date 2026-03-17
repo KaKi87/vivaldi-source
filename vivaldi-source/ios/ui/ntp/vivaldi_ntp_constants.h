@@ -5,6 +5,8 @@
 
 #import <UIKit/UIKit.h>
 
+#import "ios/ui/settings/start_page/vivaldi_start_page_constants.h"
+
 #pragma mark - NOTIFICATION
 extern NSString* vNTPShowOmniboxPopupOnFocus;
 extern NSString* vNTPShowOmniboxPopupOnFocusBoolKey;

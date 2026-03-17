@@ -1,6 +1,5 @@
 // Copyright (c) 2013 Vivaldi Technologies AS. All rights reserved
 
-
 #include <stack>
 #include <string>
 
@@ -16,7 +15,7 @@
 
 using base::PathService;
 
-base::FilePath GetProfileDir(user_data_importer::ImporterType importerType){
+base::FilePath GetProfileDir(user_data_importer::ImporterType importerType) {
   base::FilePath profile_path;
   base::FilePath app_data_path;
   if (!PathService::Get(base::DIR_APP_DATA, &app_data_path)) {
@@ -37,7 +36,8 @@ base::FilePath GetProfileDir(user_data_importer::ImporterType importerType){
       profile_path = app_data_path.Append("com.operasoftware.Opera");
       break;
     case user_data_importer::TYPE_BRAVE:
-      profile_path = app_data_path.Append("BraveSoftware").Append("Brave-Browser");
+      profile_path =
+          app_data_path.Append("BraveSoftware").Append("Brave-Browser");
       break;
     case user_data_importer::TYPE_EDGE_CHROMIUM:
       profile_path = app_data_path.Append("Microsoft Edge");

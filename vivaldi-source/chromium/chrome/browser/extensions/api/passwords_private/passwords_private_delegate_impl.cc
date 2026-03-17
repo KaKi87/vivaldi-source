@@ -86,7 +86,7 @@
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
-#include "device/fido/features.h"
+#include "device/fido/public/features.h"
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
@@ -709,7 +709,7 @@ void PasswordsPrivateDelegateImpl::MovePasswordsToAccount(
   auto* client = ChromePasswordManagerClient::FromWebContents(web_contents);
   DCHECK(client);
 
-  if (!client->GetPasswordFeatureManager()->IsAccountStorageEnabled()) {
+  if (!client->GetPasswordFeatureManager()->IsAccountStorageActive()) {
     return;
   }
 
@@ -723,10 +723,7 @@ void PasswordsPrivateDelegateImpl::MovePasswordsToAccount(
     credentials_to_move.push_back(*entry);
   }
 
-  saved_passwords_presenter_.MoveCredentialsToAccount(
-      credentials_to_move,
-      password_manager::metrics_util::MoveToAccountStoreTrigger::
-          kExplicitlyTriggeredInSettings);
+  saved_passwords_presenter_.MoveCredentialsToAccount(credentials_to_move);
 }
 
 void PasswordsPrivateDelegateImpl::FetchFamilyMembers(
@@ -840,8 +837,8 @@ PasswordsPrivateDelegateImpl::GetExportProgressStatus() {
   return ConvertStatus(password_manager_porter_->GetExportProgressStatus());
 }
 
-bool PasswordsPrivateDelegateImpl::IsAccountStorageEnabled() {
-  return password_manager::features_util::IsAccountStorageEnabled(
+bool PasswordsPrivateDelegateImpl::IsAccountStorageActive() {
+  return password_manager::features_util::IsAccountStorageActive(
       SyncServiceFactory::GetForProfile(profile_));
 }
 
@@ -850,8 +847,10 @@ void PasswordsPrivateDelegateImpl::SetAccountStorageEnabled(
     content::WebContents* web_contents) {
   auto* client = ChromePasswordManagerClient::FromWebContents(web_contents);
   DCHECK(client);
+  // TODO(crbug.com/470332074): Verify whether this should check for "enabled"
+  // instead of "active".
   if (enabled ==
-      client->GetPasswordFeatureManager()->IsAccountStorageEnabled()) {
+      client->GetPasswordFeatureManager()->IsAccountStorageActive()) {
     return;
   }
   SyncServiceFactory::GetForProfile(profile_)
@@ -988,7 +987,7 @@ bool PasswordsPrivateDelegateImpl::IsConnectedToCloudAuthenticator(
     return false;
   }
 
-  return enclave_manager->is_registered();
+  return enclave_manager->IsRegistered();
 }
 
 void PasswordsPrivateDelegateImpl::DeleteAllPasswordManagerData(
@@ -1219,7 +1218,7 @@ void PasswordsPrivateDelegateImpl::OnStateChanged(
   PasswordsPrivateEventRouter* router =
       PasswordsPrivateEventRouterFactory::GetForProfile(profile_);
   if (router) {
-    router->OnAccountStorageEnabledStateChanged(IsAccountStorageEnabled());
+    router->OnAccountStorageActiveStateChanged(IsAccountStorageActive());
     router->OnShouldShowAccountStorageSettingToggleChanged(
         ShouldShowAccountStorageSettingToggle());
   }

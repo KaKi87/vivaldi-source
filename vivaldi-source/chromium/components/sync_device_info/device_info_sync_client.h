@@ -49,6 +49,9 @@ class DeviceInfoSyncClient {
   // Returns false if method is called on non-CrOS device.
   virtual bool IsUmaEnabledOnCrOSDevice() const = 0;
 
+  // Returns whether the receiving end of the Desktop to iOS promo is enabled.
+  virtual bool GetDesktopToIOSPromoReceivingEnabled() const = 0;
+
   virtual size_t VivaldiGetSyncedFileStorageSize() const { return 0; }
 };
 

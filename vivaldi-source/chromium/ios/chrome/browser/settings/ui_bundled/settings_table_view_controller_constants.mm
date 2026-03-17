@@ -47,6 +47,8 @@ NSString* const kSettingsPreloadCellId = @"kSettingsPreloadCellId";
 NSString* const kSettingsBlockPopupsCellId = @"kSettingsBlockPopupsCellId";
 NSString* const kSettingsShowLinkPreviewCellId =
     @"kSettingsShowLinkPreviewCellId";
+NSString* const kSettingsShowReadingModeAvailableCellId =
+    @"kSettingsShowReadingModeAvailableCellId";
 NSString* const kSettingsDetectAddressesCellId =
     @"kSettingsDetectAddressesCellId";
 NSString* const kSettingsMimiMapNativeCellId = @"kSettingsMimiMapNativeCellId";
@@ -59,6 +61,7 @@ NSString* const kSettingsCookiesCellId = @"kSettingsCookiesCellId";
 NSString* const kSettingsDefaultSiteModeCellId =
     @"kSettingsDefaultSiteModeCellId";
 NSString* const kSettingsWebInspectorCellId = @"kSettingsWebInspectorCellId";
+NSString* const kSettingsReaderModeCellId = @"kSettingsReaderModeCellId";
 NSString* const kDefaultBrowserSettingsTableViewId =
     @"kDefaultBrowserSettingsTableViewId";
 NSString* const kSettingsHttpsOnlyModeCellId = @"kSettingsHttpsOnlyModeCellId";
@@ -73,12 +76,10 @@ NSString* const kSettingsMoveInactiveTabsCellId =
     @"kSettingsMoveInactiveTabsCellId";
 NSString* const kSettingsAutomaticallyOpenTabGroupsCellId =
     @"kSettingsAutomaticallyOpenTabGroupsCellId";
-NSString* const kSettingsPrivacyGuideCellId = @"kSettingsPrivacyGuideCellId";
 NSString* const kSettingsDetectUnitsCellId = @"kSettingsDetectUnitsCellId";
 NSString* const kSettingsSafetyCheckCellId = @"SettingsSafetyCheckCellId";
 
 // Vivaldi
 NSString* const kSettingsPreferTranslatePanelCellId =
     @"kSettingsPreferTranslatePanelCellId";
-NSString* const kSettingsReaderModeCellId = @"kSettingsReaderModeCellId";
 // End Vivaldi

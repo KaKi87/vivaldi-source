@@ -104,7 +104,7 @@ void SearchEnginesUpdater::Update(
 void SearchEnginesUpdater::OnRequestResponse(
     std::unique_ptr<network::SimpleURLLoader> guard,
     const base::FilePath& download_path,
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   if (!response_body) {
     LOG(WARNING) << "Unable to download " << download_path.BaseName();
     return;
@@ -115,7 +115,7 @@ void SearchEnginesUpdater::OnRequestResponse(
       {base::TaskPriority::USER_VISIBLE, base::MayBlock(),
        base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
       base::BindOnce(
-          [](base::FilePath path, std::unique_ptr<std::string> data) {
+          [](base::FilePath path, std::optional<std::string> data) {
             if (!VerifyJsonSignature(*data)) {
               LOG(WARNING) << "The downloaded " << path
                            << " has invalid signature.";

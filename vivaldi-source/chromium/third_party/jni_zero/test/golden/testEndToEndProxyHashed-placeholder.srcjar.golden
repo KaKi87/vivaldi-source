@@ -8,6 +8,9 @@ This is the concatenated contents of all files inside the placeholder srcjar.
 
 package org.jni_zero;
 
+import javax.annotation.processing.Generated;
+
+@Generated("JNI Zero")
 public interface SampleForAnnotationProcessor {
   public interface Natives {
     public org.jni_zero.SampleForAnnotationProcessor bar(org.jni_zero.SampleForAnnotationProcessor sample);
@@ -31,7 +34,7 @@ public interface SampleForAnnotationProcessor {
     public org.jni_zero.SampleForAnnotationProcessor[] sendSamplesToNative(org.jni_zero.SampleForAnnotationProcessor[] strs);
     public String[] sendToNative(String[] strs);
     public int[] testAllPrimitives(int zint, int[] ints, long zlong, long[] longs, short zshort, short[] shorts, char zchar, char[] chars, byte zbyte, byte[] bytes, double zdouble, double[] doubles, float zfloat, float[] floats, boolean zbool, boolean[] bools);
-    public void testSpecialTypes(Class clazz, Class[] classes, Throwable throwable, Throwable[] throwables, String string, String[] strings, String convertedString, String[] convertedStrings, String optionalString, org.jni_zero.SampleForAnnotationProcessor.TestStruct tStruct, org.jni_zero.SampleForAnnotationProcessor.TestStruct[] structs, Object obj, Object convertedObj, Object[] objects, org.stubs.MyClass.SecondNestedInterface nestedInterface, android.view.View view, android.content.Context context, Object[] convertedObjects);
+    public void testSpecialTypes(Class clazz, Class[] classes, Throwable throwable, Throwable[] throwables, String string, String[] strings, String convertedString, String[] convertedStrings, String optionalString, java.util.function.Consumer funcType, org.jni_zero.SampleForAnnotationProcessor.TestStruct tStruct, org.jni_zero.SampleForAnnotationProcessor.TestStruct[] structs, Object obj, Object convertedObj, Object[] objects, org.stubs.MyClass.SecondNestedInterface nestedInterface, android.view.View view, android.content.Context context, Object[] convertedObjects);
   }
   public interface TestStruct {}
 }
@@ -45,6 +48,9 @@ public interface SampleForAnnotationProcessor {
 
 package android.content;
 
+import javax.annotation.processing.Generated;
+
+@Generated("JNI Zero")
 public interface Context {
 }
 
@@ -57,6 +63,9 @@ public interface Context {
 
 package android.view;
 
+import javax.annotation.processing.Generated;
+
+@Generated("JNI Zero")
 public interface View {
 }
 
@@ -69,6 +78,9 @@ public interface View {
 
 package org.stubs;
 
+import javax.annotation.processing.Generated;
+
+@Generated("JNI Zero")
 public interface MyClass {
   public interface SecondNestedInterface {}
 }

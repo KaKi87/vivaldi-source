@@ -58,8 +58,7 @@ class VivaldiFrameServiceImpl : public vivaldi::mojom::VivaldiFrameService,
   blink::Document* GetDocument();
   void HideSpatnavIndicator();
   bool UpdateSpatnavQuads();
-  QuadPtr NextQuadInDirection(
-      vivaldi::mojom::SpatnavDirection direction);
+  QuadPtr NextQuadInDirection(vivaldi::mojom::SpatnavDirection direction);
   vivaldi::mojom::ScrollType ScrollTypeFromSpatnavDir(
       vivaldi::mojom::SpatnavDirection);
 

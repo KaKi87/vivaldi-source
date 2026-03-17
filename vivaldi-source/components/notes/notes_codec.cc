@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "base/base64.h"
-#include "base/containers/contains.h"
 #include "base/containers/span.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/string_number_conversions.h"
@@ -64,7 +63,7 @@ int64_t ToMicrosecondsSinceWindowsEpoch(Time time) {
 
 // Helper function to parse date from dictionary, returns nullopt if not found.
 std::optional<Time> FindMicrosecondsSinceWindowsEpoch(
-    const base::Value::Dict& dict,
+    const base::DictValue& dict,
     std::string_view key) {
   const std::string* string_value = dict.FindString(key);
   if (!string_value) {
@@ -85,16 +84,16 @@ NotesCodec::NotesCodec() = default;
 
 NotesCodec::~NotesCodec() = default;
 
-base::Value::Dict NotesCodec::Encode(NotesModel* model,
-                                     const std::string& sync_metadata_str) {
+base::DictValue NotesCodec::Encode(NotesModel* model,
+                                   const std::string& sync_metadata_str) {
   return Encode(model->main_node(), model->other_node(), model->trash_node(),
                 sync_metadata_str);
 }
 
-base::Value::Dict NotesCodec::Encode(const NoteNode* notes_node,
-                                     const NoteNode* other_notes_node,
-                                     const NoteNode* trash_notes_node,
-                                     std::string sync_metadata_str) {
+base::DictValue NotesCodec::Encode(const NoteNode* notes_node,
+                                   const NoteNode* other_notes_node,
+                                   const NoteNode* trash_notes_node,
+                                   std::string sync_metadata_str) {
   ids_reassigned_ = false;
   uuids_reassigned_ = false;
 
@@ -103,7 +102,7 @@ base::Value::Dict NotesCodec::Encode(const NoteNode* notes_node,
   extra_nodes.push_back(trash_notes_node);
 
   InitializeChecksum();
-  base::Value::Dict main(EncodeNode(notes_node, &extra_nodes));
+  base::DictValue main(EncodeNode(notes_node, &extra_nodes));
   main.Set(kVersionKey, kCurrentVersion);
 
   if (!sync_metadata_str.empty()) {
@@ -122,7 +121,7 @@ bool NotesCodec::Decode(NoteNode* notes_node,
                         NoteNode* other_notes_node,
                         NoteNode* trash_notes_node,
                         int64_t* max_id,
-                        const base::Value::Dict& value,
+                        const base::DictValue& value,
                         std::string* sync_metadata_str) {
   if (sync_metadata_str) {
     sync_metadata_str->clear();
@@ -147,10 +146,10 @@ bool NotesCodec::Decode(NoteNode* notes_node,
   return success;
 }
 
-base::Value::Dict NotesCodec::EncodeNode(
+base::DictValue NotesCodec::EncodeNode(
     const NoteNode* node,
     const std::vector<const NoteNode*>* extra_nodes) {
-  base::Value::Dict value;
+  base::DictValue value;
   std::string id = base::NumberToString(node->id());
   value.Set(kIdKey, id);
   std::u16string subject = node->GetTitle();
@@ -210,7 +209,7 @@ base::Value::Dict NotesCodec::EncodeNode(
   }
 
   if (can_have_children) {
-    base::Value::List child_list;
+    base::ListValue child_list;
 
     for (const auto& child : node->children()) {
       child_list.Append(EncodeNode(child.get(), nullptr));
@@ -229,7 +228,7 @@ base::Value::Dict NotesCodec::EncodeNode(
 bool NotesCodec::DecodeHelper(NoteNode* notes_node,
                               NoteNode* other_notes_node,
                               NoteNode* trash_node,
-                              const base::Value::Dict& value,
+                              const base::DictValue& value,
                               std::string* sync_metadata_str) {
   std::optional<int> version = value.FindInt(kVersionKey);
   if (!version || *version > kCurrentVersion)
@@ -251,7 +250,7 @@ bool NotesCodec::DecodeHelper(NoteNode* notes_node,
   return true;
 }
 
-void NotesCodec::DecodeNode(const base::Value::Dict& value,
+void NotesCodec::DecodeNode(const base::DictValue& value,
                             NoteNode* parent,
                             NoteNode* node,
                             NoteNode* child_other_node,
@@ -304,7 +303,7 @@ void NotesCodec::DecodeNode(const base::Value::Dict& value,
 
     // Guard against UUID collisions, which would violate BookmarkModel's
     // invariant that each UUID is unique.
-    if (base::Contains(uuids_, uuid)) {
+    if (uuids_.contains(uuid)) {
       uuid = base::Uuid::GenerateRandomV4();
       uuids_reassigned_ = true;
     }
@@ -329,7 +328,7 @@ void NotesCodec::DecodeNode(const base::Value::Dict& value,
     // We can't create a permanent node when loading.
     return;
 
-  const base::Value::List* child_list = value.FindList(kChildrenKey);
+  const base::ListValue* child_list = value.FindList(kChildrenKey);
 
   if (*type_string == kTypeNote || *type_string == kTypeAttachment) {
     const std::string* content_string = value.FindString(kContentKey);
@@ -350,7 +349,7 @@ void NotesCodec::DecodeNode(const base::Value::Dict& value,
       node->SetURL(GURL(*url_string));
 
     if (*type_string == kTypeNote) {
-      const base::Value::List* attachments = value.FindList(kAttachmentsKey);
+      const base::ListValue* attachments = value.FindList(kAttachmentsKey);
       if (attachments) {
         for (const auto& attachment : *attachments) {
           if (!attachment.is_dict())

@@ -42,7 +42,7 @@ export enum FromPumpkinTaggerCommand {
 export enum ToPumpkinTaggerCommand {
   LOAD = 'load',
   TAG = 'tagAndGetNBestHypotheses',
-  REFRESH ='refresh',
+  REFRESH = 'refresh',
 }
 
 /** Defines the message data received from SandboxedPumpkinTagger. */
@@ -140,8 +140,5 @@ export enum HypothesisArgumentName {
   BEGIN_PHRASE = 'BEGIN_PHRASE',
   END_PHRASE = 'END_PHRASE',
 }
-
-export const SANDBOXED_PUMPKIN_TAGGER_JS_FILE =
-    'dictation/parse/sandboxed_pumpkin_tagger.js';
 
 TestImportManager.exportForTesting(['SUPPORTED_LOCALES', SUPPORTED_LOCALES]);

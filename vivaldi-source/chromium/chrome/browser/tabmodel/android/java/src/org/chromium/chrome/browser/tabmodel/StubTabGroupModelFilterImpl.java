@@ -4,11 +4,12 @@
 
 package org.chromium.chrome.browser.tabmodel;
 
-import androidx.annotation.Nullable;
+import static org.chromium.chrome.browser.tabmodel.TabGroupTitleUtils.UNSET_TAB_GROUP_TITLE;
 
 import org.chromium.base.Token;
 import org.chromium.base.supplier.LazyOneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
+import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TabId;
 import org.chromium.components.tab_groups.TabGroupColorId;
@@ -27,14 +28,6 @@ public class StubTabGroupModelFilterImpl implements TabGroupModelFilterInternal 
     public StubTabGroupModelFilterImpl(TabModelInternal tabModel, TabUngrouper tabUngrouper) {
         mTabModel = tabModel;
         mTabUngrouper = tabUngrouper;
-    }
-
-    @Override
-    public void destroy() {}
-
-    @Override
-    public boolean closeTabs(TabClosureParams tabClosureParams) {
-        return mTabModel.closeTabs(tabClosureParams);
     }
 
     @Override
@@ -195,17 +188,17 @@ public class StubTabGroupModelFilterImpl implements TabGroupModelFilterInternal 
     }
 
     @Override
-    public @Nullable String getTabGroupTitle(Token tabGroupId) {
-        return null;
+    public String getTabGroupTitle(Token tabGroupId) {
+        return UNSET_TAB_GROUP_TITLE;
     }
 
     @Override
-    public @Nullable String getTabGroupTitle(Tab groupedTab) {
-        return null;
+    public String getTabGroupTitle(Tab groupedTab) {
+        return UNSET_TAB_GROUP_TITLE;
     }
 
     @Override
-    public void setTabGroupTitle(Token tabGroupId, @Nullable String title) {}
+    public void setTabGroupTitle(Token tabGroupId, String title) {}
 
     @Override
     public void deleteTabGroupTitle(Token tabGroupId) {}
@@ -254,5 +247,5 @@ public class StubTabGroupModelFilterImpl implements TabGroupModelFilterInternal 
 
     /** Vivaldi */
     @Override
-    public void maybeDissolveTabStacks() {};
+    public void maybeDissolveTabStacks(boolean force) {};
 }

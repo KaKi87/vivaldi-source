@@ -10,11 +10,11 @@ found in the LICENSE file.
     <ImageView
         android:id="@+id/drag_handle_bar"
         android:layout_height="@dimen/default_browser_bottom_sheet_drag_handel_bar_height"
-        android:layout_width="@dimen/default_browser_bottom_sheet_drag_handel_bar_width"
+        android:layout_width="@dimen/default_browser_bottom_sheet_drag_handle_bar_width"
         android:layout_marginVertical="@dimen/default_browser_bottom_sheet_drag_handel_bar_margin_vertical"
         android:importantForAccessibility="no"
         android:src="@drawable/drag_handlebar"
-        app:tint="@macro/drag_handlebar_color"
+        app:tint="@macro/drag_handle_color"
         android:layout_gravity="center_horizontal"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"

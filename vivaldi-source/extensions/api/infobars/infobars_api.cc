@@ -3,6 +3,7 @@
 #include "extensions/api/infobars/infobars_api.h"
 
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/page_info/page_info_infobar_delegate.h"
 #include "chrome/browser/ui/tab_sharing/tab_sharing_infobar_delegate.h"
 #include "components/infobars/content/content_infobar_manager.h"
 #include "components/infobars/core/confirm_infobar_delegate.h"
@@ -10,8 +11,6 @@
 #include "extensions/tools/vivaldi_tools.h"
 #include "ui/vivaldi_ui_utils.h"
 #include "vivaldi/extensions/schema/infobars.h"
-#include "components/infobars/content/content_infobar_manager.h"
-#include "chrome/browser/ui/page_info/page_info_infobar_delegate.h"
 
 namespace extensions {
 
@@ -27,9 +26,9 @@ ExtensionFunction::ResponseAction InfobarsShowInfobarFunction::Run() {
   content::WebContents* contents =
       ::vivaldi::ui_tools::GetWebContentsFromTabStrip(tab_id, browser_context(),
                                                       &error);
-	infobars::ContentInfoBarManager* infobar_manager =
-            infobars::ContentInfoBarManager::FromWebContents(contents);
-        PageInfoInfoBarDelegate::CreateForVivaldi(infobar_manager);
+  infobars::ContentInfoBarManager* infobar_manager =
+      infobars::ContentInfoBarManager::FromWebContents(contents);
+  PageInfoInfoBarDelegate::CreateForVivaldi(infobar_manager);
   return RespondNow(NoArguments());
 }
 
@@ -72,7 +71,7 @@ ExtensionFunction::ResponseAction InfobarsSendButtonActionFunction::Run() {
       } else if (action ==
                  extensions::vivaldi::infobars::ToString(
                      extensions::vivaldi::infobars::ButtonAction::kDismiss)) {
-        //Note: TabSharingInfoBarDelegate::IsCloseable is false.
+        // Note: TabSharingInfoBarDelegate::IsCloseable is false.
       }
 
     } else if (infobar->delegate()->GetIdentifier() ==
@@ -82,7 +81,7 @@ ExtensionFunction::ResponseAction InfobarsSendButtonActionFunction::Run() {
           infobar->delegate()->AsConfirmInfoBarDelegate();
       DCHECK(delegate);
       if (delegate) {
-        base::Value::List args(
+        base::ListValue args(
             extensions::vivaldi::infobars::OnInfobarRemoved::Create(
                 tab_id, delegate->GetIdentifier()));
         ::vivaldi::BroadcastEvent(

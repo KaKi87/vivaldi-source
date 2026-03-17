@@ -81,7 +81,7 @@ source_set("data_controls") {
       "//ui/views",
     ]
   }
-  if (enable_glic) {
+  if (enable_glic) { # Vivaldi keep disabled
     deps += [ "//chrome/browser/glic" ]
   }
   if (enable_extensions) {

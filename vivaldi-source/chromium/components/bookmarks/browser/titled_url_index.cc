@@ -221,7 +221,7 @@ std::optional<TitledUrlMatch> TitledUrlIndex::MatchTitledUrlNodeWithQuery(
       node->GetTitledUrlNodeAncestorTitles(),
       std::back_inserter(lower_ancestor_titles),
       [](const auto& ancestor_title) {
-        return base::i18n::ToLower(Normalize(std::u16string(ancestor_title)));
+        return base::i18n::ToLower(Normalize(ancestor_title));
       });
 
   // Vivaldi

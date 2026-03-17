@@ -16,7 +16,8 @@
     (VivaldiSyncCreateEncryptionPasswordViewController*)controller;
 
 - (void)saveEncryptionKeyButtonPressed:(NSString*)encryptionPassword
-           completionHandler:(void (^)(BOOL success))completionHandler;
+                     completionHandler:
+                         (void (^)(BOOL success))completionHandler;
 
 @end
 
@@ -24,7 +25,8 @@
     : SettingsRootTableViewController
 
 @property(nonatomic, weak)
-    id<VivaldiSyncCreateEncryptionPasswordViewControllerDelegate> delegate;
+    id<VivaldiSyncCreateEncryptionPasswordViewControllerDelegate>
+        delegate;
 
 // Initializes the view controller, configured with |style|. The default
 // ChromeTableViewStyler will be used.

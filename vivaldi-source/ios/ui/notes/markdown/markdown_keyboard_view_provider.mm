@@ -10,7 +10,7 @@ namespace {
 
 const CGFloat kShowToolbarThreshold = 200;
 
-} // namespace
+}  // namespace
 
 @interface MarkdownKeyboardViewProvider () <MarkdownToolbarViewDelegate> {
 }

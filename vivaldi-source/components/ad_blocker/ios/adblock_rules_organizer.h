@@ -28,9 +28,8 @@ class CompiledRules : public base::RefCountedThreadSafe<CompiledRules> {
   const std::string checksum_;
 };
 
-base::Value OrganizeRules(
-    std::map<uint32_t, scoped_refptr<CompiledRules>>,
-    base::Value exception_rule);
+base::Value OrganizeRules(std::map<uint32_t, scoped_refptr<CompiledRules>>,
+                          base::Value exception_rule);
 }  // namespace adblock_filter
 
 #endif  // COMPONENTS_AD_BLOCKER_IOS_ADBLOCK_RULE_ORGANIZER_H_

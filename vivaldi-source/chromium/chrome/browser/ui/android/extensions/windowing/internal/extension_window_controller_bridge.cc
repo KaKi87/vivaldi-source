@@ -18,17 +18,17 @@
 
 namespace {
 using base::android::AttachCurrentThread;
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 using extensions::BrowserExtensionWindowController;
 using extensions::WindowController;
 using extensions::WindowControllerList;
 }  // namespace
 
 // Implements Java |ExtensionWindowControllerBridgeImpl.Natives#create|
-static jlong JNI_ExtensionWindowControllerBridgeImpl_Create(
+static int64_t JNI_ExtensionWindowControllerBridgeImpl_Create(
     JNIEnv* env,
-    const JavaParamRef<jobject>& caller,
-    jlong native_browser_window_ptr) {
+    const JavaRef<jobject>& caller,
+    int64_t native_browser_window_ptr) {
   BrowserWindowInterface* browser_window =
       reinterpret_cast<BrowserWindowInterface*>(native_browser_window_ptr);
 
@@ -65,7 +65,7 @@ void ExtensionWindowControllerBridge::RecordExtensionInternalEventForTesting(
 
 ExtensionWindowControllerBridge::ExtensionWindowControllerBridge(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>&
+    const base::android::JavaRef<jobject>&
         java_extension_window_controller_bridge,
     BrowserWindowInterface* browser_window)
     : extension_window_controller_(

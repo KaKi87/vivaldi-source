@@ -6,7 +6,7 @@
 
 #import "components/data_sharing/public/features.h"
 #import "ios/chrome/browser/authentication/test/signin_earl_grey_ui_test_util.h"
-#import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/signin/model/fake_system_identity.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_groups/tab_group_app_interface.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_groups/tab_groups_constants.h"
@@ -133,8 +133,13 @@ void CloseGroupAtIndex(int group_cell_index) {
       "--" + std::string(test_switches::kEnableFakeTabGroupSyncService));
   config.features_enabled.push_back(
       data_sharing::features::kDataSharingFeature);
-  config.features_disabled.push_back(kIOSAutoOpenRemoteTabGroupsSettings);
   return config;
+}
+
+- (void)setUp {
+  [super setUp];
+  [ChromeEarlGrey setBoolValue:YES
+                   forUserPref:prefs::kAutomaticallyOpenTabGroupsEnabled];
 }
 
 // Tests that the third page is the tab groups page.
@@ -150,11 +155,6 @@ void CloseGroupAtIndex(int group_cell_index) {
 
 // Tests that TabGroupAppInterface creates synced tab groups correctly.
 - (void)testPreparedSyncedTabGroups {
-  // TODO(crbug.com/454868683): Re-enable the test.
-  if (@available(iOS 26.1, *)) {
-    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.1.");
-  }
-
   GREYAssertEqual(0, [TabGroupAppInterface countOfSavedTabGroups],
                   @"The number of saved tab groups should be 0.");
   [TabGroupAppInterface prepareFakeSyncedTabGroups:3];
@@ -376,11 +376,6 @@ void CloseGroupAtIndex(int group_cell_index) {
 // Tests deleting a saved group from a distant device while the same group is
 // being viewed in the tab group view on the current device.
 - (void)testDeleteGroupOnAnotherDevice {
-  // TODO(crbug.com/454868683): Re-enable the test.
-  if (@available(iOS 26.1, *)) {
-    EARL_GREY_TEST_DISABLED(@"Test disabled on iOS 26.1.");
-  }
-
   [TabGroupAppInterface prepareFakeSyncedTabGroups:1];
 
   [SigninEarlGreyUI signinWithFakeIdentity:[FakeSystemIdentity fakeIdentity1]

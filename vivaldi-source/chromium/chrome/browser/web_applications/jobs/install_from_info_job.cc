@@ -9,6 +9,7 @@
 
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
+#include "base/strings/to_string.h"
 #include "chrome/browser/web_applications/jobs/uninstall/web_app_uninstall_and_replace_job.h"
 #include "chrome/browser/web_applications/proto/web_app.pb.h"
 #include "chrome/browser/web_applications/web_app.h"
@@ -23,7 +24,7 @@ namespace web_app {
 
 InstallFromInfoJob::InstallFromInfoJob(
     Profile* profile,
-    base::Value::Dict& debug_value,
+    base::DictValue& debug_value,
     std::unique_ptr<WebAppInstallInfo> install_info,
     bool overwrite_existing_manifest_fields,
     webapps::WebappInstallSource install_surface,

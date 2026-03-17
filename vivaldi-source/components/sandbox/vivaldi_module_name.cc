@@ -208,7 +208,7 @@ DWORD TargetGetModuleFileNameExW64(HANDLE hProcess,
 
 }  // namespace
 
-#endif // outer win64
+#endif  // outer win64
 
 bool VivaldiSetupBasicInterceptions(InterceptionManager* manager) {
 #if defined(_WIN64) && defined(NDEBUG)

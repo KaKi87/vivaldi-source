@@ -5573,7 +5573,7 @@ TEST_P(Texture2DTestES3, ChangeTexSizeWithTexStorage)
 
 // Regression test for http://crbug.com/949985 to make sure dirty bits are propagated up from
 // TextureImpl and the texture is synced before being used in a draw call.
-TEST_P(Texture2DTestES3, TextureImplPropogatesDirtyBits)
+TEST_P(Texture2DTestES3, TextureImplPropagatesDirtyBits)
 {
     ANGLE_SKIP_TEST_IF(IsIntel() && IsOpenGL());
     // Flaky hangs on Win10 AMD RX 550 GL. http://anglebug.com/42262039
@@ -14088,27 +14088,28 @@ TEST_P(TextureCubeTestES32, CopyImageSubDataCubeMapArray)
 // Test that the maximum texture layer can allocate enough memory.
 TEST_P(TextureCubeTestES32, MaxArrayTextureLayersVerify)
 {
-    GLint maxTextureLayers = 0;
-    GLTexture texture;
+    constexpr uint32_t kSize = 128;
 
+    GLTexture texture;
     glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
     ASSERT_GL_NO_ERROR();
 
+    GLint maxTextureLayers = -1;
     glGetIntegerv(GL_MAX_ARRAY_TEXTURE_LAYERS, &maxTextureLayers);
     ASSERT_GL_NO_ERROR();
 
-    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, 256, 256, maxTextureLayers, 0, GL_RGBA,
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, kSize, kSize, maxTextureLayers, 0, GL_RGBA,
                  GL_UNSIGNED_BYTE, nullptr);
     ASSERT_GL_NO_ERROR();
 
-    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, 256, 256, maxTextureLayers + 1, 0, GL_RGBA,
+    glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_RGBA8, kSize, kSize, maxTextureLayers + 1, 0, GL_RGBA,
                  GL_UNSIGNED_BYTE, nullptr);
     EXPECT_GL_ERROR(GL_INVALID_VALUE);
 
-    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, 256, 256, maxTextureLayers);
+    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, kSize, kSize, maxTextureLayers);
     ASSERT_GL_NO_ERROR();
 
-    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, 256, 256, maxTextureLayers + 1);
+    glTexStorage3D(GL_TEXTURE_2D_ARRAY, 1, GL_RGBA8, kSize, kSize, maxTextureLayers + 1);
     EXPECT_GL_ERROR(GL_INVALID_VALUE);
 }
 
@@ -16692,10 +16693,6 @@ TEST_P(TextureBufferTestES31, TexBufferDrawTwice)
 {
     ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_OES_texture_buffer"));
 
-    // TODO(http://anglebug.com/42264369): Claims to support GL_OES_texture_buffer, but fails
-    // compilation of shader because "extension 'GL_OES_texture_buffer' is not supported".
-    ANGLE_SKIP_TEST_IF(IsQualcomm() && IsOpenGLES());
-
     const std::array<GLColor, 1> kTexData = {GLColor::red};
 
     GLBuffer buffer;
@@ -16983,10 +16980,6 @@ TEST_P(TextureBufferTestES31, UseAsUBOThenUpdateThenAsTextureBuffer)
 {
     ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_OES_texture_buffer"));
 
-    // Claims to support GL_OES_texture_buffer, but fails compilation of shader because "extension
-    // 'GL_OES_texture_buffer' is not supported".  http://anglebug.com/42264369
-    ANGLE_SKIP_TEST_IF(IsQualcomm() && IsOpenGLES());
-
     const std::array<GLColor, 4> kInitialData = {GLColor::red, GLColor::red, GLColor::red,
                                                  GLColor::red};
     const std::array<GLColor, 4> kUpdateData  = {GLColor::blue, GLColor::blue, GLColor::blue,
@@ -17053,9 +17046,6 @@ TEST_P(TextureBufferTestES31, MapTextureBufferInvalidateThenWrite)
 {
     ANGLE_SKIP_TEST_IF(!IsGLExtensionEnabled("GL_OES_texture_buffer"));
 
-    // TODO(http://anglebug.com/42264369): Claims to support GL_OES_texture_buffer, but fails
-    // compilation of shader because "extension 'GL_OES_texture_buffer' is not supported".
-    ANGLE_SKIP_TEST_IF(IsQualcomm() && IsOpenGLES());
     // TODO(http://anglebug.com/42264910): The OpenGL backend doesn't correctly handle texture
     // buffers being invalidated when mapped.
     ANGLE_SKIP_TEST_IF(IsOpenGL());

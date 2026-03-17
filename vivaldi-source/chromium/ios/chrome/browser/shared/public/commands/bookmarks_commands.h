@@ -42,6 +42,10 @@ class WebState;
 // corresponding to `URL`.
 - (void)showBookmarkInBookmarksUI:(GURL)URL;
 
+// Removes any bookmark modal controller from view if visible.
+// override this method.
+- (void)dismissBookmarkModalControllerAnimated:(BOOL)animated;
+
 #if defined(VIVALDI_BUILD)
 // Adds StartPage Speed Dial item for the URL.
 // - If it is already added, the "edit speed dial" flow will begin.

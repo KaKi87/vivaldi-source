@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "components/ad_blocker/core/adblock_domain_constraints_tree.h"
 #include "components/ad_blocker/public/core/adblock_request_filter_rule_types.h"
 
 namespace adblock_filter {
@@ -67,8 +68,7 @@ struct RequestFilterRule {
 
   // Limit the rule to a specific host.
   std::optional<std::string> host;
-  std::set<std::string> included_domains;
-  std::set<std::string> excluded_domains;
+  DomainConstraintsTree from_domain_constraints;
 
   std::string pattern;
   // For regex patterns, this provides a string from which ngrams can be safely

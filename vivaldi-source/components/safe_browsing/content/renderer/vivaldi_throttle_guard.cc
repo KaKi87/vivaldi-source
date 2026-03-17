@@ -17,12 +17,12 @@ base::WeakPtr<ThrottleGuard> ThrottleGuard::GetWeakPtr() {
   return weak_factory_.GetWeakPtr();
 }
 
-void ThrottleGuard::AddObserver(blink::URLLoaderThrottle *observer) {
+void ThrottleGuard::AddObserver(blink::URLLoaderThrottle* observer) {
   observers_.AddObserver(observer);
 }
 
-void ThrottleGuard::RemoveObserver(blink::URLLoaderThrottle *observer) {
+void ThrottleGuard::RemoveObserver(blink::URLLoaderThrottle* observer) {
   observers_.RemoveObserver(observer);
 }
 
-} // namespace vivaldi
+}  // namespace vivaldi

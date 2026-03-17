@@ -508,8 +508,10 @@ const BookmarkNode* GetOtherNode(int index, StoreType store_type) {
              : GetBookmarkModel(index)->other_node();
 }
 
-const BookmarkNode* GetSyncedBookmarksNode(int index) {
-  return GetBookmarkModel(index)->mobile_node();
+const BookmarkNode* GetSyncedBookmarksNode(int index, StoreType store_type) {
+  return (store_type == StoreType::kAccountStore)
+             ? GetBookmarkModel(index)->account_mobile_node()
+             : GetBookmarkModel(index)->mobile_node();
 }
 
 const BookmarkNode* GetManagedNode(int index) {
@@ -555,14 +557,18 @@ const BookmarkNode* AddURL(int profile,
   return result;
 }
 
-const BookmarkNode* AddFolder(int profile, const std::u16string& title) {
-  return AddFolder(profile, GetBookmarkBarNode(profile), 0, title);
+const BookmarkNode* AddFolder(int profile,
+                              const std::u16string& title,
+                              StoreType store_type) {
+  return AddFolder(profile, GetBookmarkBarNode(profile, store_type), 0, title);
 }
 
 const BookmarkNode* AddFolder(int profile,
                               size_t index,
-                              const std::u16string& title) {
-  return AddFolder(profile, GetBookmarkBarNode(profile), index, title);
+                              const std::u16string& title,
+                              StoreType store_type) {
+  return AddFolder(profile, GetBookmarkBarNode(profile, store_type), index,
+                   title);
 }
 
 const BookmarkNode* AddFolder(int profile,

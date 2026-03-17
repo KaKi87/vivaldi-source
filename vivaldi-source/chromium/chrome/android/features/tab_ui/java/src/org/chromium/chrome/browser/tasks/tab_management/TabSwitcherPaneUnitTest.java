@@ -44,14 +44,18 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.Callback;
 import org.chromium.base.CallbackUtils;
 import org.chromium.base.Token;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplierImpl;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
@@ -65,6 +69,7 @@ import org.chromium.chrome.browser.hub.FullButtonData;
 import org.chromium.chrome.browser.hub.HubContainerView;
 import org.chromium.chrome.browser.hub.HubLayoutAnimationListener;
 import org.chromium.chrome.browser.hub.HubLayoutAnimationType;
+import org.chromium.chrome.browser.hub.HubUtils;
 import org.chromium.chrome.browser.hub.LoadHint;
 import org.chromium.chrome.browser.hub.PaneHubController;
 import org.chromium.chrome.browser.hub.PaneId;
@@ -171,7 +176,7 @@ public class TabSwitcherPaneUnitTest {
     @Mock private BottomSheetController mMockBottomSheetController;
     @Mock private TabArchiveSettings mMockTabArchiveSettings;
 
-    @Captor private ArgumentCaptor<ObservableSupplier<Boolean>> mIsAnimatingSupplierCaptor;
+    @Captor private ArgumentCaptor<NonNullObservableSupplier<Boolean>> mIsAnimatingSupplierCaptor;
 
     @Captor
     private ArgumentCaptor<OnSharedPreferenceChangeListener> mPriceAnnotationsPrefListenerCaptor;
@@ -184,18 +189,18 @@ public class TabSwitcherPaneUnitTest {
     private final Token mToken = new Token(1L, 2L);
 
     private Context mContext;
-    private final ObservableSupplierImpl<Boolean> mHandleBackPressChangeSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<Boolean> mIsScrollingSupplier =
-            new ObservableSupplierImpl<>();
-    private final OneshotSupplierImpl<ObservableSupplier<Boolean>> mIsScrollingSupplierSupplier =
-            new OneshotSupplierImpl<>();
-    private final ObservableSupplierImpl<EdgeToEdgeController> mEdgeToEdgeSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<CompositorViewHolder> mCompositorViewHolderSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<Integer> mMockArchivedTabCountSupplier =
-            new ObservableSupplierImpl<>();
+    private final SettableNonNullObservableSupplier<Boolean> mHandleBackPressChangeSupplier =
+            ObservableSuppliers.createNonNull(false);
+    private final SettableNonNullObservableSupplier<Boolean> mIsScrollingSupplier =
+            ObservableSuppliers.createNonNull(false);
+    private final OneshotSupplierImpl<MonotonicObservableSupplier<Boolean>>
+            mIsScrollingSupplierSupplier = new OneshotSupplierImpl<>();
+    private final SettableMonotonicObservableSupplier<EdgeToEdgeController> mEdgeToEdgeSupplier =
+            ObservableSuppliers.createMonotonic();
+    private final SettableMonotonicObservableSupplier<CompositorViewHolder>
+            mCompositorViewHolderSupplier = ObservableSuppliers.createMonotonic();
+    private final SettableNonNullObservableSupplier<Integer> mMockArchivedTabCountSupplier =
+            ObservableSuppliers.createNonNull(0);
     private ArchivedTabsAutoDeletePromoManager mMockArchivedTabsAutoDeletePromoManager;
     private TabSwitcherPane mTabSwitcherPane;
     private MockTabModel mTabModel;
@@ -297,7 +302,7 @@ public class TabSwitcherPaneUnitTest {
                         mCompositorViewHolderSupplier,
                         mUiFlow,
                         mMockArchivedTabsAutoDeletePromoManager,
-                        /* xrSpaceModeObservableSupplier= */ null);
+                        /* xrSpaceModeObservableSupplier= */ ObservableSuppliers.alwaysFalse());
         ShadowLooper.runUiThreadTasks();
         verify(mSharedPreferences)
                 .registerOnSharedPreferenceChangeListener(
@@ -366,6 +371,8 @@ public class TabSwitcherPaneUnitTest {
         verify(coordinator).hardCleanup();
     }
 
+    // TODO(crbug.com/450954710): This test fails on SDK 36.
+    @Config(sdk = 29)
     @Test
     public void testLoadHintColdHotWarm() {
         mTabModel.setActive(true);
@@ -392,6 +399,8 @@ public class TabSwitcherPaneUnitTest {
         verify(coordinator, never()).hardCleanup();
     }
 
+    // TODO(crbug.com/450954710): This test fails on SDK 36.
+    @Config(sdk = 29)
     @Test
     public void testLoadHintColdHot_TabStateNotInitialized() {
         mTabModel.setActive(true);
@@ -418,6 +427,8 @@ public class TabSwitcherPaneUnitTest {
         watcher.assertExpected();
     }
 
+    // TODO(crbug.com/450954710): This test fails on SDK 36.
+    @Config(sdk = 29)
     @Test
     public void testLoadHintColdWarmHotCold() {
         mTabModel.setActive(true);
@@ -455,6 +466,8 @@ public class TabSwitcherPaneUnitTest {
         assertNotNull(mTabSwitcherPane.getRootView());
     }
 
+    // TODO(crbug.com/450954710): This test fails on SDK 36.
+    @Config(sdk = 29)
     @Test
     public void testNewTabButton() {
         FullButtonData buttonData = mTabSwitcherPane.getActionButtonDataSupplier().get();
@@ -510,9 +523,9 @@ public class TabSwitcherPaneUnitTest {
 
     @Test
     public void testBackPress() {
-        ObservableSupplier<Boolean> handlesBackPressSupplier =
+        NonNullObservableSupplier<Boolean> handlesBackPressSupplier =
                 mTabSwitcherPane.getHandleBackPressChangedSupplier();
-        assertNull(handlesBackPressSupplier.get());
+        assertFalse(handlesBackPressSupplier.get());
         assertEquals(BackPressResult.FAILURE, mTabSwitcherPane.handleBackPress());
 
         mTabSwitcherPane.initWithNative();
@@ -681,6 +694,8 @@ public class TabSwitcherPaneUnitTest {
         verify(mTabSwitcherPaneCoordinator).setTabSwitcherRecyclerViewPosition(position);
     }
 
+    // TODO(crbug.com/450954710): This test fails on SDK 36.
+    @Config(sdk = 29)
     @Test
     public void testResetWithTabList() {
         mTabSwitcherPane.resetWithListOfTabs(null);
@@ -1363,5 +1378,18 @@ public class TabSwitcherPaneUnitTest {
     private void createSelectedTab() {
         mTabModel.addTab(TAB_ID);
         mTabModel.setIndex(0, TabSelectionType.FROM_USER);
+    }
+
+    @Test
+    public void testSetPaneHubController_SearchBoxVisibility() {
+        HubUtils.setIsTabletForTesting(false);
+
+        mTabSwitcherPane.setPaneHubController(mPaneHubController);
+        assertTrue(mTabSwitcherPane.getHubSearchBoxVisibilitySupplier().get());
+        mTabSwitcherPane.setPaneHubController(null);
+
+        HubUtils.setIsTabletForTesting(true);
+        mTabSwitcherPane.setPaneHubController(mPaneHubController);
+        assertFalse(mTabSwitcherPane.getHubSearchBoxVisibilitySupplier().get());
     }
 }

@@ -4,6 +4,7 @@
 
 #include "components/regional_capabilities/regional_capabilities_service.h"
 
+#include <algorithm>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -12,7 +13,6 @@
 #include "base/callback_list.h"
 #include "base/check_deref.h"
 #include "base/check_is_test.h"
-#include "base/containers/contains.h"
 #include "base/containers/flat_set.h"
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
@@ -278,6 +278,8 @@ Program CountryOverrideToProgram(SearchEngineCountryOverride country_override) {
               case SearchEngineCountryListOverride::kEeaAll:
               case SearchEngineCountryListOverride::kEeaDefault:
                 return Program::kWaffle;
+              case SearchEngineCountryListOverride::kTestOverride:
+                return Program::kDefault;
             }
             NOTREACHED();
           },
@@ -333,6 +335,8 @@ RegionalCapabilitiesService::GetRegionalPrepopulatedEngines() {
         return GetAllEeaRegionPrepopulatedEngines();
       case SearchEngineCountryListOverride::kEeaDefault:
         return GetDefaultPrepopulatedEngines();
+      case SearchEngineCountryListOverride::kTestOverride:
+        return GetTestOverridePrepopulatedEngines();
     }
     NOTREACHED();
   }
@@ -374,8 +378,8 @@ bool RegionalCapabilitiesService::
     return true;
   }
 
-  if (!base::Contains(GetActiveProgramSettings().associated_countries,
-                      client_->GetVariationsLatestCountryId())) {
+  if (!std::ranges::contains(GetActiveProgramSettings().associated_countries,
+                             client_->GetVariationsLatestCountryId())) {
     return false;
   }
 
@@ -389,8 +393,8 @@ bool RegionalCapabilitiesService::
 
 bool RegionalCapabilitiesService::CanRecordDisplayStateForCountry(
     CountryId display_state_country_id) {
-  if (!base::Contains(GetActiveProgramSettings().associated_countries,
-                      display_state_country_id)) {
+  if (!std::ranges::contains(GetActiveProgramSettings().associated_countries,
+                             display_state_country_id)) {
     // Choice screen completions happen in context of a given regional program.
     // Based on the client state, the active program might change across
     // sessions. Since the metrics upload get tagged with the active program
@@ -504,6 +508,10 @@ CountryId RegionalCapabilitiesService::GetCountryIdInternal() {
 }
 
 void RegionalCapabilitiesService::EnsureRegionalScopeCacheInitialized() {
+  // The cache initialisation and associated logging should not run if override
+  // flags are present.
+  CHECK(!HasSearchEngineCountryListOverride(), base::NotFatalUntil::M149);
+
   // The regional scope cache is made of these 2 values, their presence has to
   // be consistent.
   CHECK_EQ(country_id_cache_.has_value(), program_settings_cache_.has_value());
@@ -563,10 +571,14 @@ void RegionalCapabilitiesService::EnsureRegionalScopeCacheInitialized() {
           switches::kResolveRegionalCapabilitiesFromDevice)) {
     program = client_->GetDeviceProgram();
 
-    if (!IsInProgramRegion(program, country_id_cache_.value())) {
+    if (IsInProgramRegion(program, country_id_cache_.value())) {
+      RecordAndroidProgramResolution(AndroidProgramResolution::kSuccess);
+    } else {
       // Interim program inconsistencies originate from asynchronous nature of
       // their resolution. For the time being, use a reasonable default.
       program = Program::kDefault;
+      RecordAndroidProgramResolution(
+          AndroidProgramResolution::kDefaultForOutOfProgramCountry);
     }
   } else
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -673,7 +685,7 @@ void RegionalCapabilitiesService::DestroyJavaObject() {
   }
 }
 
-jboolean RegionalCapabilitiesService::IsInEeaCountry(JNIEnv* env) {
+bool RegionalCapabilitiesService::IsInEeaCountry(JNIEnv* env) {
   return IsInEeaCountry();
 }
 #endif

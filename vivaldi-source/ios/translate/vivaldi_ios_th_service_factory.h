@@ -15,22 +15,23 @@ class TH_Model;
 namespace translate_history {
 
 class VivaldiIOSTHServiceFactory : public ProfileKeyedServiceFactoryIOS {
-public:
+ public:
   static TH_Model* GetForProfile(ProfileIOS* profile);
   static TH_Model* GetForProfileIfExists(ProfileIOS* profile);
   static VivaldiIOSTHServiceFactory* GetInstance();
 
-private:
+ private:
   friend class base::NoDestructor<VivaldiIOSTHServiceFactory>;
 
   VivaldiIOSTHServiceFactory();
   ~VivaldiIOSTHServiceFactory() override;
   VivaldiIOSTHServiceFactory(const VivaldiIOSTHServiceFactory&) = delete;
-  VivaldiIOSTHServiceFactory& operator=(const VivaldiIOSTHServiceFactory&) = delete;
+  VivaldiIOSTHServiceFactory& operator=(const VivaldiIOSTHServiceFactory&) =
+      delete;
 
   // ProfileKeyedServiceFactoryIOS implementation.
   std::unique_ptr<KeyedService> BuildServiceInstanceFor(
-       ProfileIOS* profile) const override;
+      ProfileIOS* profile) const override;
 };
 
 }  // namespace translate_history

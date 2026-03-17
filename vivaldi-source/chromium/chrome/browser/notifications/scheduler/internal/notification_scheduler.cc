@@ -10,7 +10,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
@@ -54,7 +53,7 @@ class InitHelper {
             InitCallback callback) {
     // TODO(xingliu): Initialize the databases in parallel, we currently
     // initialize one by one to work around a shared db issue. See
-    // https://crbug.com/978680.
+    // https://crbug.com/41467860.
     context_ = context;
     callback_ = std::move(callback);
 
@@ -178,7 +177,7 @@ class DisplayHelper {
   // Called when notification display flow is finished. Invokes
   // |finish_callback_| when all display flows are done.
   void MaybeFinish(const std::string& guid, bool shown) {
-    if (base::Contains(guids_, guid) && shown) {
+    if (guids_.contains(guid) && shown) {
       shown_count_++;
     }
     guids_.erase(guid);

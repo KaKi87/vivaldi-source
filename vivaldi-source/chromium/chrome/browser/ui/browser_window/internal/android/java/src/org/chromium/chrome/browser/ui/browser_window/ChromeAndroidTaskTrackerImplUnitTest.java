@@ -116,7 +116,6 @@ public class ChromeAndroidTaskTrackerImplUnitTest {
                 // one pointer is the existing Task and the other is the pending Task.
                 2, mChromeAndroidTaskTracker.getAllNativeBrowserWindowPtrs().length);
         assertNull(task.getId());
-        assertEquals(mockParams.getProfile(), task.getProfile());
         assertEquals(mockParams.getWindowType(), task.getBrowserWindowType());
     }
 
@@ -140,16 +139,13 @@ public class ChromeAndroidTaskTrackerImplUnitTest {
                 // one pointer is the existing Task and the other is the pending Task.
                 2, mChromeAndroidTaskTracker.getAllNativeBrowserWindowPtrs().length);
         assertNull(task.getId());
-        assertEquals(mockParams.getProfile(), task.getProfile());
         assertEquals(mockParams.getWindowType(), task.getBrowserWindowType());
 
         var intentCaptor = ArgumentCaptor.forClass(Intent.class);
         verify(mContext).startActivity(intentCaptor.capture());
         Intent intent = intentCaptor.getValue();
+        assertNotNull(intent);
         assertTrue(intent.hasExtra(EXTRA_PENDING_BROWSER_WINDOW_TASK_ID));
-        assertEquals(
-                9 /* CustomTabsUiType.POPUP */,
-                intent.getIntExtra("org.chromium.chrome.browser.customtabs.EXTRA_UI_TYPE", -1));
     }
 
     @Test
@@ -166,28 +162,16 @@ public class ChromeAndroidTaskTrackerImplUnitTest {
     }
 
     @Test
-    public void createPendingTask_requestsUnsupportedWindowType_returnsNull() {
+    public void createPendingTask_requestsUnsupportedWindowType_throwsException() {
         // Arrange.
         AndroidBrowserWindowCreateParams mockCreateParams =
                 ChromeAndroidTaskUnitTestSupport.createMockAndroidBrowserWindowCreateParams(
                         BrowserWindowType.APP, new Rect(), WindowShowState.DEFAULT);
 
         // Act and Assert.
-        ChromeAndroidTask pendingTask = createPendingTaskWithExistingTask(mockCreateParams);
-        assertNull(pendingTask);
-    }
-
-    @Test
-    public void createPendingTask_requestUnsupportedWindowType_invokesCallbackWithNullPtrValue() {
-        // Arrange.
-        AndroidBrowserWindowCreateParams mockCreateParams =
-                ChromeAndroidTaskUnitTestSupport.createMockAndroidBrowserWindowCreateParams(
-                        BrowserWindowType.APP, new Rect(), WindowShowState.DEFAULT);
-        JniOnceCallback<Long> mockCallback = mock();
-
-        // Act and Assert.
-        createPendingTaskWithExistingTask(mockCreateParams, mockCallback);
-        verify(mockCallback).onResult(0L);
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> createPendingTaskWithExistingTask(mockCreateParams));
     }
 
     @Test
@@ -267,16 +251,25 @@ public class ChromeAndroidTaskTrackerImplUnitTest {
 
     @Test
     public void obtainTask_withPendingId_adoptsPendingTask() {
+        // No tasks yet.
+        assertEquals(0, mChromeAndroidTaskTracker.getAllNativeBrowserWindowPtrs().length);
+
         // Arrange.
         var mockParams =
                 ChromeAndroidTaskUnitTestSupport.createMockAndroidBrowserWindowCreateParams(
                         BrowserWindowType.NORMAL);
         var pendingTask = assertNonNull(createPendingTaskWithExistingTask(mockParams));
         int pendingId = assertNonNull(pendingTask.getPendingTaskInfo()).mPendingTaskId;
+        assertEquals(
+                // Creating a pending Task of "NORMAL" type requires an existing ChromeAndroidTask.
+                // Therefore, getAllNativeBrowserWindowPtrs().length should be 2:
+                // one pointer is the existing Task and the other is the pending Task.
+                2, mChromeAndroidTaskTracker.getAllNativeBrowserWindowPtrs().length);
 
         int taskId = IdSequencer.next();
         var newActivityScopedObjects =
-                ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(taskId);
+                ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(
+                        taskId, mockParams.getProfile());
 
         // Act.
         var task =
@@ -287,12 +280,12 @@ public class ChromeAndroidTaskTrackerImplUnitTest {
         // Assert.
         assertNull(mChromeAndroidTaskTracker.getPendingTaskForTesting(pendingId));
         assertEquals(
-                // Creating a pending Task of "NORMAL" type requires an existing ChromeAndroidTask.
-                // Therefore, getAllNativeBrowserWindowPtrs().length should be 2:
-                // one pointer is the existing Task and the other is the pending Task.
+                // As above, only two native browser window pointers are expected despite the new
+                // ActivityScopedObjects.
                 2, mChromeAndroidTaskTracker.getAllNativeBrowserWindowPtrs().length);
         assertEquals(
-                newActivityScopedObjects.mActivityWindowAndroid, task.getActivityWindowAndroid());
+                newActivityScopedObjects.mActivityWindowAndroid,
+                task.getTopActivityWindowAndroid());
         assertEquals("The pending task should be adopted.", pendingTask, task);
         assertEquals("Task ID should be updated.", taskId, (int) assertNonNull(task.getId()));
         assertNull("PendingTaskInfo should be cleared.", task.getPendingTaskInfo());
@@ -353,14 +346,13 @@ public class ChromeAndroidTaskTrackerImplUnitTest {
         assertEquals(1, (int) assertNonNull(chromeAndroidTask.getId()));
         assertEquals(
                 activityScopedObjects.mActivityWindowAndroid,
-                chromeAndroidTask.getActivityWindowAndroid());
+                chromeAndroidTask.getTopActivityWindowAndroid());
     }
 
     @Test
     public void
-            obtainTask_activityScopedObjectsBelongToExistingTask_sameBrowserWindowType_reusesExistingTask() {
-        // Arrange.
-        // (1) Create a new task.
+            obtainTask_activityScopedObjectsBelongToExistingTask_sameBrowserWindowType_addActivityScopedObjecsToExistingTask() {
+        // Arrange: Create a new task.
         int taskId = 1;
         var activityScopedObjects1 =
                 ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(taskId);
@@ -368,14 +360,7 @@ public class ChromeAndroidTaskTrackerImplUnitTest {
                 mChromeAndroidTaskTracker.obtainTask(
                         BrowserWindowType.NORMAL, activityScopedObjects1, /* pendingId= */ null);
 
-        // (2) Clear the ActivityScopedObjects from the task.
-        // This simulates the case where ChromeActivity is killed in the background, but the Task
-        // (window) is still alive.
-        chromeAndroidTask1.clearActivityScopedObjects();
-
-        // (3) Create another ActivityScopedObjects that belongs to the same Task.
-        // This can happen when ChromeActivity is recreated, e.g. after ChromeActivity is killed by
-        // OS in the background, and the user later brings it back to foreground.
+        // Arrange: Create another ActivityScopedObjects that belongs to the same Task.
         var activityScopedObjects2 =
                 ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(taskId);
 
@@ -386,10 +371,9 @@ public class ChromeAndroidTaskTrackerImplUnitTest {
 
         // Assert.
         assertEquals(chromeAndroidTask1, chromeAndroidTask2);
-        assertEquals(taskId, (int) assertNonNull(chromeAndroidTask2.getId()));
         assertEquals(
                 activityScopedObjects2.mActivityWindowAndroid,
-                chromeAndroidTask2.getActivityWindowAndroid());
+                chromeAndroidTask2.getTopActivityWindowAndroid());
     }
 
     @Test
@@ -400,18 +384,10 @@ public class ChromeAndroidTaskTrackerImplUnitTest {
         int taskId = 1;
         var activityScopedObjects1 =
                 ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(taskId);
-        var chromeAndroidTask =
-                mChromeAndroidTaskTracker.obtainTask(
-                        BrowserWindowType.NORMAL, activityScopedObjects1, /* pendingId= */ null);
+        mChromeAndroidTaskTracker.obtainTask(
+                BrowserWindowType.NORMAL, activityScopedObjects1, /* pendingId= */ null);
 
-        // (2) Clear the ActivityScopedObjects from the task.
-        // This simulates the case where ChromeActivity is killed in the background, but the Task
-        // (window) is still alive.
-        chromeAndroidTask.clearActivityScopedObjects();
-
-        // (3) Create another ActivityScopedObjects that belongs to the same Task.
-        // This can happen when ChromeActivity is recreated, e.g. after ChromeActivity is killed by
-        // OS in the background, and the user later brings it back to foreground.
+        // (2) Create another ActivityScopedObjects that belongs to the same Task.
         var activityScopedObjects2 =
                 ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(taskId);
 
@@ -469,19 +445,20 @@ public class ChromeAndroidTaskTrackerImplUnitTest {
         // Assert.
         assertEquals(
                 activityScopedObjects1.mActivityWindowAndroid,
-                chromeAndroidTask.getActivityWindowAndroid());
+                chromeAndroidTask.getTopActivityWindowAndroid());
         assertFalse(chromeAndroidTask.isDestroyed());
         assertEquals(chromeAndroidTask, mChromeAndroidTaskTracker.get(/* taskId= */ 1));
     }
 
     @Test
     public void
-            onActivityWindowAndroidDestroy_activityWindowAndroidHasSameTaskIdButIsDifferentInstance_noOp() {
-        // Arrange.
+            onActivityWindowAndroidDestroy_activityWindowAndroidHasSameTaskIdButIsNotTracked_noOp() {
+        // Arrange: Note that activityScopedObjects2 isn't tracked by chromeAndroidTask.
+        int taskId = 1;
         var activityScopedObjects1 =
-                ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(/* taskId= */ 1);
+                ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(taskId);
         var activityScopedObjects2 =
-                ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(/* taskId= */ 1);
+                ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(taskId);
         var chromeAndroidTask =
                 mChromeAndroidTaskTracker.obtainTask(
                         BrowserWindowType.NORMAL, activityScopedObjects1, /* pendingId= */ null);
@@ -493,17 +470,50 @@ public class ChromeAndroidTaskTrackerImplUnitTest {
         // Assert.
         assertEquals(
                 activityScopedObjects1.mActivityWindowAndroid,
-                chromeAndroidTask.getActivityWindowAndroid());
+                chromeAndroidTask.getTopActivityWindowAndroid());
         assertFalse(chromeAndroidTask.isDestroyed());
-        assertEquals(chromeAndroidTask, mChromeAndroidTaskTracker.get(/* taskId= */ 1));
+        assertEquals(chromeAndroidTask, mChromeAndroidTaskTracker.get(taskId));
     }
 
     @Test
     public void
-            onActivityWindowAndroidDestroy_activityWindowAndroidIsSameInstance_destroysAndRemovesTask() {
+            onActivityWindowAndroidDestroy_activityWindowAndroidHasSameTaskId_taskHasOtherActivity_doesNotDestroyTask() {
         // Arrange.
+        int taskId = 1;
+        var activityScopedObjects1 =
+                ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(taskId);
+        var activityScopedObjects2 =
+                ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(taskId);
+        var chromeAndroidTask =
+                mChromeAndroidTaskTracker.obtainTask(
+                        BrowserWindowType.NORMAL, activityScopedObjects1, /* pendingId= */ null);
+        var chromeAndroidTask2 =
+                mChromeAndroidTaskTracker.obtainTask(
+                        BrowserWindowType.NORMAL, activityScopedObjects2, /* pendingId= */ null);
+        assertEquals(chromeAndroidTask, chromeAndroidTask2);
+        assertEquals(
+                activityScopedObjects2.mActivityWindowAndroid,
+                chromeAndroidTask.getTopActivityWindowAndroid());
+
+        // Act.
+        mChromeAndroidTaskTracker.onActivityWindowAndroidDestroy(
+                activityScopedObjects2.mActivityWindowAndroid);
+
+        // Assert.
+        assertEquals(
+                activityScopedObjects1.mActivityWindowAndroid,
+                chromeAndroidTask.getTopActivityWindowAndroid());
+        assertFalse(chromeAndroidTask.isDestroyed());
+        assertEquals(chromeAndroidTask, mChromeAndroidTaskTracker.get(taskId));
+    }
+
+    @Test
+    public void
+            onActivityWindowAndroidDestroy_activityWindowAndroidHasSameTaskId_taskHasNoOtherActivity_destroysTask() {
+        // Arrange.
+        int taskId = 1;
         var activityScopedObjects =
-                ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(/* taskId= */ 1);
+                ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(taskId);
         var chromeAndroidTask =
                 mChromeAndroidTaskTracker.obtainTask(
                         BrowserWindowType.NORMAL, activityScopedObjects, /* pendingId= */ null);
@@ -513,10 +523,8 @@ public class ChromeAndroidTaskTrackerImplUnitTest {
                 activityScopedObjects.mActivityWindowAndroid);
 
         // Assert.
-        assertNull(
-                ((ChromeAndroidTaskImpl) chromeAndroidTask).getActivityScopedObjectsForTesting());
         assertTrue(chromeAndroidTask.isDestroyed());
-        assertNull(mChromeAndroidTaskTracker.get(/* taskId= */ 1));
+        assertNull(mChromeAndroidTaskTracker.get(taskId));
     }
 
     @Test
@@ -560,20 +568,42 @@ public class ChromeAndroidTaskTrackerImplUnitTest {
         var observer = mock(ChromeAndroidTaskTrackerObserver.class);
         mChromeAndroidTaskTracker.addObserver(observer);
 
-        // Act (add task).
+        // Act (add new task).
         var activityScopedObjects =
                 ChromeAndroidTaskUnitTestSupport.createMockActivityScopedObjects(/* taskId= */ 1);
         var chromeAndroidTask =
                 mChromeAndroidTaskTracker.obtainTask(
                         BrowserWindowType.NORMAL, activityScopedObjects, /* pendingId= */ null);
 
-        // Assert (add task).
+        // Assert (add new task).
         verify(observer).onTaskAdded(chromeAndroidTask);
 
-        // Act (remove task).
+        // Act (add pending task).
+        var pendingTask =
+                mChromeAndroidTaskTracker.createPendingTask(
+                        ChromeAndroidTaskUnitTestSupport.createMockAndroidBrowserWindowCreateParams(
+                                BrowserWindowType.NORMAL,
+                                new Rect(10, 20, 800, 600),
+                                WindowShowState.DEFAULT),
+                        /* callback= */ null);
+        assertNotNull(pendingTask);
+        var chromeAndroidPendingTask =
+                mChromeAndroidTaskTracker.obtainTask(
+                        BrowserWindowType.NORMAL, activityScopedObjects, pendingTask.getId());
+
+        // Assert (add pending task).
+        verify(observer).onTaskAdded(chromeAndroidPendingTask);
+
+        // Act (remove pending task).
+        mChromeAndroidTaskTracker.remove(assertNonNull(chromeAndroidPendingTask.getId()));
+
+        // Assert (remove pending task).
+        verify(observer).onTaskRemoved(chromeAndroidPendingTask);
+
+        // Act (remove new task).
         mChromeAndroidTaskTracker.remove(assertNonNull(chromeAndroidTask.getId()));
 
-        // Assert (remove task).
+        // Assert (remove new task).
         verify(observer).onTaskRemoved(chromeAndroidTask);
 
         // Cleanup.
@@ -714,9 +744,7 @@ public class ChromeAndroidTaskTrackerImplUnitTest {
                                 initialTopResumedActivityScopedObjects,
                                 /* pendingId= */ null);
         initialTopResumedTask.onTopResumedActivityChangedWithNative(true);
-        var mockWindowAndroid =
-                assumeNonNull(initialTopResumedTask.getActivityScopedObjectsForTesting())
-                        .mActivityWindowAndroid;
+        var mockWindowAndroid = assumeNonNull(initialTopResumedTask.getTopActivityWindowAndroid());
         var mockActivity = assumeNonNull(mockWindowAndroid.getActivity().get());
         var mockActivityManager =
                 (ActivityManager) mockActivity.getSystemService(Context.ACTIVITY_SERVICE);

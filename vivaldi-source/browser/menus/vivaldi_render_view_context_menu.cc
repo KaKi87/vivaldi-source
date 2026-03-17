@@ -265,9 +265,8 @@ void VivaldiRenderViewContextMenu::InitMenu() {
     // accepted) so we require there is at least '.' in the text to examine or
     // accepted internal specifiers.
     if ((maybe_url.find(".") != std::string::npos &&
-          !base::EndsWith(maybe_url, ".")) ||
-        maybe_url.find("chrome:") == 0 ||
-        maybe_url.find("vivaldi:") == 0) {
+         !base::EndsWith(maybe_url, ".")) ||
+        maybe_url.find("chrome:") == 0 || maybe_url.find("vivaldi:") == 0) {
       auto input = AutocompleteInput(
           params_.selection_text, metrics::OmniboxEventProto::OTHER,
           ChromeAutocompleteSchemeClassifier(GetProfile()));
@@ -357,9 +356,7 @@ void VivaldiRenderViewContextMenu::InitMenu() {
       if (request.support.password) {
         request.support.passwordgeneration =
             password_manager_util::ManualPasswordGenerationEnabled(driver);
-        request.support.passwordshowall =
-            password_manager_util::ShowAllSavedPasswordsContextMenuEnabled(
-                driver);
+        request.support.passwordshowall = true;
       }
     }
   }
@@ -895,7 +892,7 @@ VivaldiRenderViewContextMenu::HandleCommand(int command_id, int event_flags) {
           extensions::WebViewGuest::FromWebContents(source_web_contents_);
       if (guest_view) {
         std::u16string keyword(TemplateURL::GenerateKeyword(params_.page_url));
-        base::Value::List args;
+        base::ListValue args;
         args.Append(keyword);
         args.Append(params_.vivaldi_keyword_url.spec());
         guest_view->CreateSearch(std::move(args));
@@ -1106,6 +1103,7 @@ int VivaldiRenderViewContextMenu::GetStaticIdForAction(std::string command) {
       {"DOCUMENT_OPEN_IN_NEW_TAB", IDC_CONTENT_CONTEXT_OPENLINKNEWTAB},
       {"DOCUMENT_OPEN_IN_NEW_BACKGROUND_TAB", IDC_VIV_OPEN_LINK_BACKGROUND_TAB},
       {"DOCUMENT_OPEN_IN_TAB", IDC_VIV_OPEN_LINK_CURRENT_TAB},
+      {"DOCUMENT_OPEN_IN_PARENT_FOLLWER_TAB", IDC_VIV_OPEN_LINK_CURRENT_TAB},
       {"DOCUMENT_OPEN_IN_NEW_WINDOW", IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW},
       {"DOCUMENT_OPEN_IN_PRIVATE_WINDOW",
        IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD},

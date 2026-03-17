@@ -51,7 +51,7 @@
 #endif  // ((BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)) &&
         // BUILDFLAG(ENABLE_EXTENSIONS))
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/common/chrome_features.h"
 #endif
 
@@ -389,6 +389,7 @@ TEST_F(BrowserCommandControllerFullscreenTest,
     { IDC_DEVELOPER_MENU,          true,     false,     false,     false    },
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
     { IDC_FEEDBACK,                true,     false,     false,     false    },
+    { IDC_REPORT_UNSAFE_SITE,      true,     false,     false,     false    },
 #endif
     { IDC_OPTIONS,                 true,     false,     false,     false    },
     { IDC_IMPORT_SETTINGS,         true,     false,     false,     false    },

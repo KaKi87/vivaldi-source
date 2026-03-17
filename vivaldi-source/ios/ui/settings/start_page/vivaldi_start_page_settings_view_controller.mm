@@ -53,7 +53,7 @@ NSString* const kStartPageShowAddSettingsCellId =
 
 }  // namespace
 
-@interface VivaldiStartPageSettingsViewController() {
+@interface VivaldiStartPageSettingsViewController () {
   // The browser where the settings are being displayed.
   Browser* _browser;
   // Layout setting item reference to modify with observer state.
@@ -102,12 +102,10 @@ NSString* const kStartPageShowAddSettingsCellId =
   self = [super initWithStyle:ChromeTableViewStyle()];
   if (self) {
     _browser = browser;
-    [VivaldiStartPagePrefs
-        setPrefService:_browser->GetProfile()->GetPrefs()];
+    [VivaldiStartPagePrefs setPrefService:_browser->GetProfile()->GetPrefs()];
   }
   return self;
 }
-
 
 #pragma mark - UIViewController
 
@@ -156,12 +154,10 @@ NSString* const kStartPageShowAddSettingsCellId =
       toSectionWithIdentifier:SectionIdentifierStartPageSettings];
 }
 
-
 #pragma mark - UITableViewDelegate
 
 - (void)tableView:(UITableView*)tableView
     didSelectRowAtIndexPath:(NSIndexPath*)indexPath {
-
   NSInteger itemType = [self.tableViewModel itemTypeForIndexPath:indexPath];
 
   switch (itemType) {
@@ -190,7 +186,7 @@ NSString* const kStartPageShowAddSettingsCellId =
   if (!_displayFrequentlyVisitedPagesItem)
     return;
   _displayFrequentlyVisitedPagesItem.on = showFrequentlyVisited;
-  [self reconfigureCellsForItems:@[_displayFrequentlyVisitedPagesItem]];
+  [self reconfigureCellsForItems:@[ _displayFrequentlyVisitedPagesItem ]];
 }
 
 - (void)setPreferenceShowSpeedDials:(BOOL)showSpeedDials {
@@ -198,7 +194,7 @@ NSString* const kStartPageShowAddSettingsCellId =
   if (!_displaySpeedDialsItem)
     return;
   _displaySpeedDialsItem.on = showSpeedDials;
-  [self reconfigureCellsForItems:@[_displaySpeedDialsItem]];
+  [self reconfigureCellsForItems:@[ _displaySpeedDialsItem ]];
 }
 
 - (void)setPreferenceShowCustomizeStartPageButton:(BOOL)showCustomizeButton {
@@ -206,7 +202,7 @@ NSString* const kStartPageShowAddSettingsCellId =
   if (!_customizeStartPageItem)
     return;
   _customizeStartPageItem.on = showCustomizeButton;
-  [self reconfigureCellsForItems:@[_customizeStartPageItem]];
+  [self reconfigureCellsForItems:@[ _customizeStartPageItem ]];
 }
 
 - (void)setPreferenceShowAddButton:(BOOL)showAddButton {
@@ -214,17 +210,15 @@ NSString* const kStartPageShowAddSettingsCellId =
   if (!_showAddItem)
     return;
   _showAddItem.on = showAddButton;
-  [self reconfigureCellsForItems:@[_showAddItem]];
+  [self reconfigureCellsForItems:@[ _showAddItem ]];
 }
 
-- (void)setPreferenceSpeedDialLayout:
-    (VivaldiStartPageLayoutStyle)layoutStyle {
+- (void)setPreferenceSpeedDialLayout:(VivaldiStartPageLayoutStyle)layoutStyle {
   _startPageLayout = layoutStyle;
   if (!_layoutSettingsItem)
     return;
-  _layoutSettingsItem.detailText =
-      [self titleForCurrentLayout:layoutStyle];
-  [self reconfigureCellsForItems:@[_layoutSettingsItem]];
+  _layoutSettingsItem.detailText = [self titleForCurrentLayout:layoutStyle];
+  [self reconfigureCellsForItems:@[ _layoutSettingsItem ]];
 }
 
 - (void)setPreferenceSpeedDialColumn:(VivaldiStartPageLayoutColumn)column {
@@ -238,7 +232,11 @@ NSString* const kStartPageShowAddSettingsCellId =
     return;
   _openStartPageWithSettingsItem.detailText =
       [self titleForReopenStartPageWithItem:item];
-  [self reconfigureCellsForItems:@[_openStartPageWithSettingsItem]];
+  [self reconfigureCellsForItems:@[ _openStartPageWithSettingsItem ]];
+}
+
+- (void)setPreferenceDailyMixEnabled:(BOOL)enabled {
+  // No op.
 }
 
 #pragma mark SettingsControllerProtocol
@@ -285,8 +283,7 @@ NSString* const kStartPageShowAddSettingsCellId =
   BOOL newSwitchValue = sender.isOn;
   _customizeStartPageItem.on = newSwitchValue;
   self.customizeStartPage = newSwitchValue;
-  [self.consumer
-      setPreferenceShowCustomizeStartPageButton:newSwitchValue];
+  [self.consumer setPreferenceShowCustomizeStartPageButton:newSwitchValue];
 }
 
 - (void)showAddSwitchToggled:(UISwitch*)sender {
@@ -334,7 +331,7 @@ NSString* const kStartPageShowAddSettingsCellId =
   _layoutSettingsItem =
       [self detailItemWithType:SettingsItemTypeStartPageLayout
                              text:GetNSString(
-                                IDS_IOS_VIVALDI_START_PAGE_LAYOUT_TITLE)
+                                      IDS_IOS_VIVALDI_START_PAGE_LAYOUT_TITLE)
                        detailText:@""
           accessibilityIdentifier:kStartPageLayoutSettingsCellId];
   [self setPreferenceSpeedDialLayout:_startPageLayout];
@@ -342,25 +339,26 @@ NSString* const kStartPageShowAddSettingsCellId =
 }
 
 - (TableViewDetailIconItem*)wallpaperSettingsItem {
-  TableViewDetailIconItem* wallpaperSettingsItem =
-      [self detailItemWithType:SettingsItemTypeWallpaper
-                          text:GetNSString(
-                                IDS_IOS_VIVALDI_START_PAGE_WALLPAPER_TITLE)
-                    detailText:@""
-       accessibilityIdentifier:kStartPageWallpaperSettingsCellId];
+  TableViewDetailIconItem* wallpaperSettingsItem = [self
+           detailItemWithType:SettingsItemTypeWallpaper
+                         text:GetNSString(
+                                  IDS_IOS_VIVALDI_START_PAGE_WALLPAPER_TITLE)
+                   detailText:@""
+      accessibilityIdentifier:kStartPageWallpaperSettingsCellId];
 
   return wallpaperSettingsItem;
 }
 
 - (TableViewDetailIconItem*)openStartPageWithSettingsItem {
   if (!_openStartPageWithSettingsItem) {
-    _openStartPageWithSettingsItem =
-        [self detailItemWithType:SettingsItemTypeStartPageOpenWithItem
-                               text:GetNSString(
-                                  IDS_IOS_START_PAGE_START_PAGE_OPEN_WITH_TITLE)
-                         detailText:
-                [self titleForReopenStartPageWithItem:_startPageStartWithItem]
-            accessibilityIdentifier:kStartPageOpenWithSettingsCellId];
+    _openStartPageWithSettingsItem = [self
+             detailItemWithType:SettingsItemTypeStartPageOpenWithItem
+                           text:
+                               GetNSString(
+                                   IDS_IOS_START_PAGE_START_PAGE_OPEN_WITH_TITLE)
+                     detailText:[self titleForReopenStartPageWithItem:
+                                          _startPageStartWithItem]
+        accessibilityIdentifier:kStartPageOpenWithSettingsCellId];
   }
   return _openStartPageWithSettingsItem;
 }
@@ -383,10 +381,9 @@ NSString* const kStartPageShowAddSettingsCellId =
 
 - (TableViewSwitchItem*)showAddTableItem {
   if (!_showAddItem) {
-    _showAddItem = [[TableViewSwitchItem alloc]
-        initWithType:SettingsItemTypeShowAdd];
-    _showAddItem.text =
-        GetNSString(IDS_IOS_START_PAGE_SETTINGS_SHOW_ADD_TITLE);
+    _showAddItem =
+        [[TableViewSwitchItem alloc] initWithType:SettingsItemTypeShowAdd];
+    _showAddItem.text = GetNSString(IDS_IOS_START_PAGE_SETTINGS_SHOW_ADD_TITLE);
     _showAddItem.on = self.showAddButton;
     _showAddItem.target = self;
     _showAddItem.selector = @selector(showAddSwitchToggled:);
@@ -406,9 +403,8 @@ NSString* const kStartPageShowAddSettingsCellId =
 }
 
 - (void)showWallpaperSettings {
-  UIViewController *controller =
-      [VivaldiWallpaperSettingsViewProvider
-          makeViewControllerWithHorizontalLayout:NO];
+  UIViewController* controller = [VivaldiWallpaperSettingsViewProvider
+      makeViewControllerWithHorizontalLayout:NO];
   controller.title =
       l10n_util::GetNSString(IDS_IOS_VIVALDI_START_PAGE_WALLPAPER_TITLE);
   controller.navigationItem.largeTitleDisplayMode =
@@ -436,7 +432,7 @@ NSString* const kStartPageShowAddSettingsCellId =
       return GetNSString(IDS_IOS_VIVALDI_START_PAGE_LAYOUT_SMALL);
     case VivaldiStartPageLayoutStyleList:
       return GetNSString(IDS_IOS_VIVALDI_START_PAGE_LAYOUT_LIST);
-#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2 // Not final
+#if defined(VIVALDI_RELEASE_KIND) && VIVALDI_RELEASE_KIND != 2  // Not final
     case VivaldiStartPageLayoutStyleIcon:
       return GetNSString(IDS_IOS_VIVALDI_START_PAGE_LAYOUT_ICON);
 #endif
@@ -446,20 +442,20 @@ NSString* const kStartPageShowAddSettingsCellId =
 }
 
 - (NSString*)titleForReopenStartPageWithItem:
-      (VivaldiStartPageStartItemType)item {
+    (VivaldiStartPageStartItemType)item {
   switch (item) {
     case VivaldiStartPageStartItemTypeFirstGroup:
       return GetNSString(
-            IDS_IOS_START_PAGE_START_PAGE_OPEN_WITH_FIRST_GROUP_TITLE);
+          IDS_IOS_START_PAGE_START_PAGE_OPEN_WITH_FIRST_GROUP_TITLE);
     case VivaldiStartPageStartItemTypeTopSites:
       return GetNSString(
-            IDS_IOS_START_PAGE_START_PAGE_OPEN_WITH_TOP_SITES_TITLE);
+          IDS_IOS_START_PAGE_START_PAGE_OPEN_WITH_TOP_SITES_TITLE);
     case VivaldiStartPageStartItemTypeLastVisited:
       return GetNSString(
-            IDS_IOS_START_PAGE_START_PAGE_OPEN_WITH_LAST_VISITED_GROUP_TITLE);
+          IDS_IOS_START_PAGE_START_PAGE_OPEN_WITH_LAST_VISITED_GROUP_TITLE);
     default:
       return GetNSString(
-            IDS_IOS_START_PAGE_START_PAGE_OPEN_WITH_FIRST_GROUP_TITLE);
+          IDS_IOS_START_PAGE_START_PAGE_OPEN_WITH_FIRST_GROUP_TITLE);
   }
 }
 

@@ -12,8 +12,7 @@ class PrefService;
 @protocol VivaldiTabsSettingsConsumer;
 
 // The Mediator for address bar preference setting.
-@interface VivaldiTabSettingsMediator
-    : NSObject <VivaldiTabsSettingsConsumer>
+@interface VivaldiTabSettingsMediator : NSObject <VivaldiTabsSettingsConsumer>
 
 - (instancetype)initWithOriginalPrefService:(PrefService*)originalPrefService
                            localPrefService:(PrefService*)localPrefService

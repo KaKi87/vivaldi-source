@@ -8,7 +8,6 @@
 #include <optional>
 #include <variant>
 
-#include "base/containers/contains.h"
 #include "base/containers/map_util.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
@@ -31,6 +30,7 @@
 #include "content/public/browser/browser_context.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/base/interaction/interactive_test_internal.h"
 
 namespace internal {
 
@@ -76,6 +76,17 @@ InteractiveFeaturePromoTestPrivate::InteractiveFeaturePromoTestPrivate(
               base::Unretained(this)));
   activation_lock_ = user_education::FeaturePromoControllerCommon::
       BlockActiveWindowCheckForTesting();
+
+  // Keep additional context detailing all of the promos that were attempted to
+  // show, whether they succeeded or not, and why.
+  feature_promo_result_context_ = test_impl.CreateAdditionalContext();
+  feature_promo_result_string_ << "Feature Promo Results:";
+  feature_promo_result_context_.Set(feature_promo_result_string_.str());
+  feature_promo_result_subscription_ =
+      user_education::FeaturePromoController::AddResultCallbackForTesting(
+          base::BindRepeating(
+              &InteractiveFeaturePromoTestPrivate::OnFeaturePromoResult,
+              base::Unretained(this)));
 }
 
 InteractiveFeaturePromoTestPrivate::~InteractiveFeaturePromoTestPrivate() =
@@ -211,7 +222,7 @@ void InteractiveFeaturePromoTestPrivate::MaybeWaitForTrackerInitialization(
 void InteractiveFeaturePromoTestPrivate::CreateServicesCallback(
     content::BrowserContext* context) {
   auto* const profile = Profile::FromBrowserContext(context);
-  if (base::Contains(profile_data_, profile)) {
+  if (profile_data_.contains(profile)) {
     return;
   }
   profile_data_.emplace(profile, ProfileData());
@@ -227,6 +238,13 @@ void InteractiveFeaturePromoTestPrivate::CreateServicesCallback(
       base::BindRepeating(
           &InteractiveFeaturePromoTestPrivate::CreateUserEducationService,
           weak_ptr_factory_.GetWeakPtr()));
+}
+
+void InteractiveFeaturePromoTestPrivate::OnFeaturePromoResult(
+    const base::Feature& feature,
+    user_education::FeaturePromoResult result) {
+  feature_promo_result_string_ << "\n   - " << feature.name << ": " << result;
+  feature_promo_result_context_.Set(feature_promo_result_string_.str());
 }
 
 // static

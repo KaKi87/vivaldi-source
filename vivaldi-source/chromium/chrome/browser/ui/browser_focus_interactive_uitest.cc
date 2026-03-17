@@ -11,8 +11,10 @@
 #include "base/location.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
+#include "base/strings/to_string.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/scoped_feature_list.h"
@@ -352,7 +354,7 @@ IN_PROC_BROWSER_TEST_F(BrowserFocusTest, TabsRememberFocus) {
                  TabStripUserGestureDetails::GestureType::kOther));
 
       ViewID vid = kFocusPage[i][j] ? VIEW_ID_TAB_CONTAINER : VIEW_ID_OMNIBOX;
-      ASSERT_TRUE(IsViewFocused(vid));
+      ui_test_utils::WaitForViewFocus(browser(), vid, true);
     }
 
     browser()->tab_strip_model()->ActivateTabAt(
@@ -363,7 +365,7 @@ IN_PROC_BROWSER_TEST_F(BrowserFocusTest, TabsRememberFocus) {
     for (int j = 0; j < 15; j++) {
       ViewID vid =
           kFocusPage[i][j % 5] ? VIEW_ID_TAB_CONTAINER : VIEW_ID_OMNIBOX;
-      ASSERT_TRUE(IsViewFocused(vid));
+      ui_test_utils::WaitForViewFocus(browser(), vid, true);
 
       ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_TAB, true,
                                                   false, false, false));
@@ -376,7 +378,7 @@ IN_PROC_BROWSER_TEST_F(BrowserFocusTest, TabsRememberFocus) {
     for (int j = 14; j >= 0; --j) {
       ViewID vid =
           kFocusPage[i][j % 5] ? VIEW_ID_TAB_CONTAINER : VIEW_ID_OMNIBOX;
-      ASSERT_TRUE(IsViewFocused(vid));
+      ui_test_utils::WaitForViewFocus(browser(), vid, true);
 
       ASSERT_TRUE(ui_test_utils::SendKeyPressSync(browser(), ui::VKEY_TAB, true,
                                                   true, false, false));

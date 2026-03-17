@@ -44,11 +44,10 @@ class NoteNode;
 // This view controller will also monitor note model change events and react
 // accordingly depending on whether the note and folder it is editing
 // changes underneath it.
-@interface NoteAddEditViewController
-    : UIViewController
+@interface NoteAddEditViewController : UIViewController
 
 @property(nonatomic, weak) id<NoteAddEditViewControllerDelegate> delegate;
-@property(nonatomic, strong) UIBarButtonItem *toggleButton;
+@property(nonatomic, strong) UIBarButtonItem* toggleButton;
 @property(nonatomic, assign) BOOL isToggledOn;
 
 // Snackbar commands handler.

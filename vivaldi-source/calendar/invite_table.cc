@@ -169,7 +169,7 @@ bool InviteTable::DoesInviteIdExist(InviteID invite_id) {
 bool InviteTable::MigrateCalendarToVersion5() {
   if (!GetDB().DoesTableExist("events") && !GetDB().DoesTableExist("invite")) {
     NOTREACHED() << "invite table should exist before migration";
-    //return false;
+    // return false;
   }
 
   if (!GetDB().DoesColumnExist("events", "organizer")) {

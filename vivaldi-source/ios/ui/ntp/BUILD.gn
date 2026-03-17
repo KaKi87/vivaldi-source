@@ -52,6 +52,9 @@ source_set("vivaldi_ntp") {
     "//vivaldi/ios/ui/ntp/nsd",
     "//vivaldi/ios/ui/ntp/top_toolbar:top_toolbar_swift",
     "//vivaldi/ios/ui/ntp/top_toolbar",
+    "//vivaldi/ios/ui/onboarding:vivaldi_onboarding_notification_constants",
+    "//vivaldi/ios/ui/settings/start_page:start_page_constants",
+    "//vivaldi/ios/ui/settings/start_page/wallpaper_settings:wallpaper_notification_constants",
     "//vivaldi/ios/ui/thumbnail:service",
     "resources:assets"
   ]

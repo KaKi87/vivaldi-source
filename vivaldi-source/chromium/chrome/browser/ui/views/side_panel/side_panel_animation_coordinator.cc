@@ -12,12 +12,18 @@
 #include "base/time/time.h"
 #include "chrome/browser/ui/views/side_panel/side_panel.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_animation_ids.h"
+#include "chrome/browser/ui/views/side_panel/side_panel_animation_perf_reporter.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_entry.h"
 #include "ui/gfx/animation/animation.h"
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/gfx/animation/tween.h"
 
 namespace {
+
+constexpr base::TimeDelta kSidePanelToolbarAnimationDuration =
+    base::Milliseconds(350);
+constexpr base::TimeDelta kSidePanelContentHeightAnimationDuration =
+    base::Milliseconds(450);
 
 // Returns true if the AnimationCoordinator is in an open state.
 bool IsAnimatingOpen(SidePanelAnimationCoordinator ::AnimationType type) {
@@ -79,7 +85,7 @@ bool AnimationSpecification::IsSequenceRunning(
 
 SidePanelAnimationCoordinator::SidePanelAnimationCoordinator(
     SidePanel* side_panel)
-    : views::AnimationDelegateViews(side_panel) {
+    : views::AnimationDelegateViews(side_panel), side_panel_(side_panel) {
   animation_.SetTweenType(gfx::Tween::Type::LINEAR);
 
   const bool is_content_height_panel =
@@ -91,8 +97,9 @@ SidePanelAnimationCoordinator::SidePanelAnimationCoordinator(
           : gfx::Tween::Type::ACCEL_45_DECEL_88,
       /*sequences=*/{{.animation_id = kSidePanelBoundsAnimation,
                       .start = base::Milliseconds(0),
-                      .duration = base::Milliseconds(
-                          is_content_height_panel ? 450 : 350)}});
+                      .duration = is_content_height_panel
+                                      ? kSidePanelContentHeightAnimationDuration
+                                      : kSidePanelToolbarAnimationDuration}});
   if (!is_content_height_panel) {
     open_animation_specifications.sequences.push_back(
         {.animation_id = kShadowOverlayOpacityAnimation,
@@ -103,28 +110,16 @@ SidePanelAnimationCoordinator::SidePanelAnimationCoordinator(
   AnimationSpecification open_with_content_transition_animation_specifications =
       AnimationSpecification(
           /*tween_type=*/gfx::Tween::Type::ACCEL_45_DECEL_88,
-          /*sequences=*/{
-              {.animation_id = kSidePanelBoundsAnimation,
-               .start = base::Milliseconds(0),
-               .duration = base::Milliseconds(350)},
-              {.animation_id = kSidePanelContentTopBoundAnimation,
-               .start = base::Milliseconds(100),
-               .duration = base::Milliseconds(200)},
-              {.animation_id = kSidePanelContentBottomBoundAnimation,
-               .start = base::Milliseconds(0),
-               .duration = base::Milliseconds(350)},
-              {.animation_id = kSidePanelContentLeftBoundAnimation,
-               .start = base::Milliseconds(0),
-               .duration = base::Milliseconds(350)},
-              {.animation_id = kSidePanelContentWidthBoundAnimation,
-               .start = base::Milliseconds(0),
-               .duration = base::Milliseconds(200)},
-              {.animation_id = kSidePanelContentOpacityAnimation,
-               .start = base::Milliseconds(150),
-               .duration = base::Milliseconds(200)},
-              {.animation_id = kSidePanelContentCornerRadiusAnimation,
-               .start = base::Milliseconds(0),
-               .duration = base::Milliseconds(350)}});
+          /*sequences=*/{{.animation_id = kSidePanelBoundsAnimation,
+                          .snap_to_final_value = true},
+                         {.animation_id = kSidePanelContentTopBoundAnimation,
+                          .snap_to_final_value = true},
+                         {.animation_id = kSidePanelContentBottomBoundAnimation,
+                          .snap_to_final_value = true},
+                         {.animation_id = kSidePanelContentLeftBoundAnimation,
+                          .duration = kSidePanelToolbarAnimationDuration},
+                         {.animation_id = kSidePanelContentWidthBoundAnimation,
+                          .duration = base::Milliseconds(200)}});
   if (!is_content_height_panel) {
     open_with_content_transition_animation_specifications.sequences.push_back(
         {.animation_id = kShadowOverlayOpacityAnimation,
@@ -137,14 +132,15 @@ SidePanelAnimationCoordinator::SidePanelAnimationCoordinator(
           /*tween_type=*/is_content_height_panel
               ? gfx::Tween::Type::EASE_IN_OUT_EMPHASIZED
               : gfx::Tween::Type::ACCEL_45_DECEL_88,
-          /*sequences=*/{{.animation_id = kSidePanelBoundsAnimation,
-                          .start = base::Milliseconds(0),
-                          .duration = base::Milliseconds(
-                              is_content_height_panel ? 450 : 350)}});
+          /*sequences=*/{
+              {.animation_id = kSidePanelBoundsAnimation,
+               .start = base::Milliseconds(0),
+               .duration = is_content_height_panel
+                               ? kSidePanelContentHeightAnimationDuration
+                               : kSidePanelToolbarAnimationDuration}});
   if (!is_content_height_panel) {
     close_animation_specifications.sequences.push_back(
         {.animation_id = kShadowOverlayOpacityAnimation,
-         .start = base::Milliseconds(0),
          .duration = base::Milliseconds(100)});
   }
 
@@ -167,7 +163,6 @@ void SidePanelAnimationCoordinator::Start(AnimationType type) {
     return;
   }
 
-  notified_ended_animations_.clear();
   animation_type_ = type;
   animation_.SetSlideDuration(GetAnimationDuration(type));
 
@@ -181,7 +176,6 @@ void SidePanelAnimationCoordinator::Start(AnimationType type) {
 }
 
 void SidePanelAnimationCoordinator::Reset(AnimationType type) {
-  notified_ended_animations_.clear();
   animation_type_ = type;
 
   if (IsAnimatingOpen(type)) {
@@ -230,11 +224,17 @@ double SidePanelAnimationCoordinator::GetAnimationValueFor(
       GetAnimationSpecificationForAnimationId(animation_id);
 
   if (!specification) {
-    return 0.0f;
+    return IsAnimatingOpen(animation_type_) ? 1.0 : 0.0;
   }
 
   const AnimationSequence& sequence =
       specification->GetSequenceForAnimationId(animation_id);
+
+  // Ignore information about the animation if only the final value should be
+  // used.
+  if (sequence.snap_to_final_value) {
+    return IsAnimatingOpen(animation_type_) ? 1.0 : 0.0;
+  }
 
   base::TimeDelta start_time = sequence.start;
   base::TimeDelta duration = sequence.duration;
@@ -261,6 +261,13 @@ bool SidePanelAnimationCoordinator::IsClosing() {
 
 void SidePanelAnimationCoordinator::AnimationProgressed(
     const gfx::Animation* animation) {
+  if (!animation_perf_reporter_) {
+    animation_perf_reporter_ = std::make_unique<SidePanelAnimationPerfReporter>(
+        side_panel_, animation_type_, animation_.GetSlideDuration());
+  } else {
+    animation_perf_reporter_->OnAnimationProgressed(animation);
+  }
+
   for (auto& [animation_id, observers] : animation_id_to_observer_map_) {
     if (!IsAnimationSequenceRunning(animation_id)) {
       NotifyOnSequenceEndedObservers(animation_id, observers);
@@ -372,6 +379,8 @@ void SidePanelAnimationCoordinator::NotifyOnSequenceEndedObservers(
 }
 
 void SidePanelAnimationCoordinator::NotifyAnimationTypeStartedObservers() {
+  notified_ended_animations_.clear();
+
   for (AnimationTypeObserver* observer : GetAnimationTypeObservers()) {
     observer->OnAnimationTypeStarted(animation_type_);
   }
@@ -381,4 +390,7 @@ void SidePanelAnimationCoordinator::NotifyAnimationTypeEndedObservers() {
   for (AnimationTypeObserver* observer : GetAnimationTypeObservers()) {
     observer->OnAnimationTypeEnded(animation_type_);
   }
+
+  notified_ended_animations_.clear();
+  animation_perf_reporter_.reset();
 }

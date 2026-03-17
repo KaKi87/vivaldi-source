@@ -5,6 +5,7 @@
 #include "chrome/browser/ash/arc/tracing/overview_tracing_handler.h"
 
 #include "ash/constants/ash_switches.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_util.h"
 #include "base/test/test_file_util.h"
 #include "chrome/browser/ash/app_list/arc/arc_app_test.h"
@@ -344,7 +345,7 @@ TEST_F(OverviewTracingHandlerTest, CommitAndPresentTimestampsInModel) {
 
   LOG(INFO) << "checking JSON model: " << dict;
 
-  auto validate_events = [&](EventType type, const base::Value::List* events) {
+  auto validate_events = [&](EventType type, const base::ListValue* events) {
     ASSERT_TRUE(events);
     std::queue<double> expected_times({0, 42000, 84000, 126000, 168000});
     ASSERT_EQ(events->size(), expected_times.size());

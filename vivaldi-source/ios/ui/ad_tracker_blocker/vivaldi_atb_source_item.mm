@@ -6,8 +6,8 @@
 #import "base/strings/string_util.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/strings/utf_string_conversions.h"
-#import "ui/base/l10n/l10n_util_mac.h"
 #import "ui/base/l10n/l10n_util.h"
+#import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using l10n_util::GetNSString;
@@ -17,7 +17,7 @@ using l10n_util::GetNSStringF;
 #error "This file requires ARC support."
 #endif
 
-@interface VivaldiATBSourceItem()
+@interface VivaldiATBSourceItem ()
 // Date formatter for last updated time.
 @property(nonatomic, strong) NSDateFormatter* formatter;
 @end
@@ -42,11 +42,11 @@ using l10n_util::GetNSStringF;
 /// 3: Return 'Not Fetched' when source is enabled fetch is failed.
 /// 4: Return 'Disabled' when source is disabled.
 - (NSString*)subtitle {
-  NSString* checksum = [NSString
-                          stringWithUTF8String:_rules_list_checksum.c_str()];
+  NSString* checksum =
+      [NSString stringWithUTF8String:_rules_list_checksum.c_str()];
   if ([checksum length] != 0) {
-    NSString* updatedAt = [self.formatter
-                            stringFromDate:_last_update.ToNSDate()];
+    NSString* updatedAt =
+        [self.formatter stringFromDate:_last_update.ToNSDate()];
     return GetNSStringF(IDS_VIVALDI_IOS_BLOCKER_LIST_DATE_UPDATED,
                         base::SysNSStringToUTF16(updatedAt));
   } else {
@@ -54,9 +54,8 @@ using l10n_util::GetNSStringF;
       return GetNSString(IDS_VIVALDI_IOS_BLOCKER_LIST_FETCHING);
     }
 
-    return _is_loaded ?
-      GetNSString(IDS_VIVALDI_IOS_BLOCKER_LIST_NOT_FETCHED) :
-      GetNSString(IDS_VIVALDI_IOS_BLOCKER_LIST_DISABLED);
+    return _is_loaded ? GetNSString(IDS_VIVALDI_IOS_BLOCKER_LIST_NOT_FETCHED)
+                      : GetNSString(IDS_VIVALDI_IOS_BLOCKER_LIST_DISABLED);
   }
 }
 

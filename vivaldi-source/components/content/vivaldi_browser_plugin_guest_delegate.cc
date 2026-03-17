@@ -7,10 +7,9 @@
 
 namespace content {
 
-void BrowserPluginGuestDelegate::CreatePluginGuest(
-  WebContents* contents) {
+void BrowserPluginGuestDelegate::CreatePluginGuest(WebContents* contents) {
   content::WebContentsImpl* contentsimpl =
-    static_cast<content::WebContentsImpl*>(contents);
+      static_cast<content::WebContentsImpl*>(contents);
 
   content::BrowserPluginGuest::CreateInWebContents(contentsimpl, this);
   contentsimpl->GetBrowserPluginGuest()->Init();

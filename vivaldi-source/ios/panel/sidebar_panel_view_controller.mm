@@ -8,7 +8,7 @@
 #import "ios/chrome/browser/history/ui_bundled/history_coordinator.h"
 #import "ios/chrome/browser/history/ui_bundled/history_table_view_controller.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_navigation_controller.h"
-#import "ios/chrome/browser/toolbar/ui_bundled/public/toolbar_constants.h"
+#import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_constants.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_params.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/grit/ios_strings.h"
@@ -18,21 +18,20 @@
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
 #import "ios/ui/notes/note_home_view_controller.h"
 #import "ios/ui/notes/note_navigation_controller.h"
-#import "ui/base/l10n/l10n_util_mac.h"
 #import "ui/base/l10n/l10n_util.h"
+#import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using l10n_util::GetNSString;
 
 UIEdgeInsets buttonViewPadding = UIEdgeInsetsMake(2, 0, 0, -16);
 
-@interface SidebarPanelViewController ()
-        <PanelButtonViewDelegate> {
-    UINavigationController* bookmarkController;
-    UINavigationController* readinglistController;
-    NoteNavigationController* noteNavigationController;
-    UINavigationController* historyController;
-    UINavigationController* translateController;
+@interface SidebarPanelViewController () <PanelButtonViewDelegate> {
+  UINavigationController* bookmarkController;
+  UINavigationController* readinglistController;
+  NoteNavigationController* noteNavigationController;
+  UINavigationController* historyController;
+  UINavigationController* translateController;
 }
 
 @property(nonatomic, strong) UIPageViewController* pageController;
@@ -46,9 +45,8 @@ UIEdgeInsets buttonViewPadding = UIEdgeInsetsMake(2, 0, 0, -16);
 @implementation SidebarPanelViewController
 @synthesize panelButtonView = _panelButtonView;
 
-
 - (instancetype)init {
-    return [super initWithNibName:nil bundle:nil];
+  return [super initWithNibName:nil bundle:nil];
 }
 
 - (void)viewDidLoad {
@@ -57,7 +55,7 @@ UIEdgeInsets buttonViewPadding = UIEdgeInsetsMake(2, 0, 0, -16);
   self.pageController = [[UIPageViewController alloc]
       initWithTransitionStyle:UIPageViewControllerTransitionStyleScroll
         navigationOrientation:UIPageViewControllerNavigationOrientationVertical
-                    options:nil];
+                      options:nil];
   self.pageController.delegate = self;
   [self addChildViewController:self.pageController];
   [self.view addSubview:self.pageController.view];
@@ -77,9 +75,8 @@ UIEdgeInsets buttonViewPadding = UIEdgeInsetsMake(2, 0, 0, -16);
                          trailing:self.pageController.view.leadingAnchor
                           padding:buttonViewPadding
                              size:buttonViewSize];
-  self.panelButtonTopConstraint =
-      [self.panelButtonView.topAnchor
-                constraintEqualToAnchor:self.view.topAnchor];
+  self.panelButtonTopConstraint = [self.panelButtonView.topAnchor
+      constraintEqualToAnchor:self.view.topAnchor];
   self.panelButtonTopConstraint.active = YES;
 }
 
@@ -87,23 +84,22 @@ UIEdgeInsets buttonViewPadding = UIEdgeInsetsMake(2, 0, 0, -16);
   [super viewDidLayoutSubviews];
   if (@available(iOS 26, *)) {
     UIViewLayoutRegion* safeAreaRegion =
-      [UIViewLayoutRegion safeAreaLayoutRegionWithCornerAdaptation:
-                  UIViewLayoutRegionAdaptivityAxisVertical];
+        [UIViewLayoutRegion safeAreaLayoutRegionWithCornerAdaptation:
+                                UIViewLayoutRegionAdaptivityAxisVertical];
     NSDirectionalEdgeInsets calculatedInsets =
-      [self.view directionalEdgeInsetsForLayoutRegion:safeAreaRegion];
+        [self.view directionalEdgeInsetsForLayoutRegion:safeAreaRegion];
     self.panelButtonTopConstraint.constant = calculatedInsets.top;
     [self.view layoutIfNeeded];
   }
 }
 
-
 /*
   Setup controllers
  */
 - (void)setupControllers:(NoteNavigationController*)nvc
-  withBookmarkController:(UINavigationController*)bvc
-  andReadinglistController:(UINavigationController*)rvc
-    andHistoryController:(UINavigationController*)hc
+      withBookmarkController:(UINavigationController*)bvc
+    andReadinglistController:(UINavigationController*)rvc
+        andHistoryController:(UINavigationController*)hc
       andTranslateController:(UINavigationController*)tc {
   noteNavigationController = nvc;
   bookmarkController = bvc;
@@ -121,42 +117,46 @@ UIEdgeInsets buttonViewPadding = UIEdgeInsetsMake(2, 0, 0, -16);
   UIViewController* uv = nil;
   switch (index) {
     case PanelPage::BookmarksPage:
-        uv = bookmarkController;
-          break;
+      uv = bookmarkController;
+      break;
     case PanelPage::ReadinglistPage:
-        uv = readinglistController;
-          break;
+      uv = readinglistController;
+      break;
     case PanelPage::NotesPage:
-        uv = noteNavigationController;
-          break;
+      uv = noteNavigationController;
+      break;
     case PanelPage::HistoryPage:
-        uv = historyController;
-          break;
+      uv = historyController;
+      break;
     case PanelPage::TranslatePage:
-        uv = translateController;
-          break;
+      uv = translateController;
+      break;
   }
-  [self.pageController setViewControllers:@[uv]
-              direction:UIPageViewControllerNavigationDirectionForward
-                       animated:NO
-                      completion:nil];
+  if (!uv) {
+    return;
+  }
+  [self.pageController
+      setViewControllers:@[ uv ]
+               direction:UIPageViewControllerNavigationDirectionForward
+                animated:NO
+              completion:nil];
 }
-
 
 - (void)panelButtonClicked:(NSInteger)index {
   if (index < 0 || index > 4)
-      return;
+    return;
   UINavigationController* navController = nil;
   navController = self.pageController.viewControllers.firstObject;
   if (navController) {
     UIViewController* vc = [navController visibleViewController];
-      if ([vc isKindOfClass:[UISearchController class]]) {
-          [navController dismissViewControllerAnimated:YES completion:^{
-              ((UISearchController*)vc).active = NO;
-              [self setIndexForControl:index];
-          }];
-          return;
-      }
+    if ([vc isKindOfClass:[UISearchController class]]) {
+      [navController dismissViewControllerAnimated:YES
+                                        completion:^{
+                                          ((UISearchController*)vc).active = NO;
+                                          [self setIndexForControl:index];
+                                        }];
+      return;
+    }
   }
   [self setIndexForControl:index];
 }
@@ -174,7 +174,7 @@ UIEdgeInsets buttonViewPadding = UIEdgeInsetsMake(2, 0, 0, -16);
 
 #pragma mark - PANEL BUTTON DELEGATE
 - (void)didSelectIndex:(NSInteger)index {
-    [self panelButtonClicked:index];
+  [self panelButtonClicked:index];
 }
 
 @end

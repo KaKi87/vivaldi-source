@@ -19,6 +19,7 @@
 #include "ui/views/accessible_pane_view.h"
 #include "ui/views/animation/animation_delegate_views.h"
 #include "ui/views/controls/resize_area_delegate.h"
+#include "ui/views/view_utils.h"
 
 class BrowserView;
 
@@ -113,6 +114,9 @@ class SidePanel : public views::AccessiblePaneView,
   // and resets the animation.
   void ResetSidePanelAnimationContent();
 
+  void SetActiveEntryUsesDefaultHorizontalAlignment(
+      bool use_default_horizontal_alignment);
+
   // This is the parent view for the contents of the side panel.
   views::View* GetContentParentView();
 
@@ -148,16 +152,13 @@ class SidePanel : public views::AccessiblePaneView,
   void OnAnimationTypeEnded(
       SidePanelAnimationCoordinator::AnimationType type) override;
 
-  // Timestamp of the last step in the side panel open/close animation. This is
-  // used for metrics purposes.
-  base::TimeTicks last_animation_step_timestamp_;
-  std::optional<base::TimeDelta> largest_animation_step_time_;
-
   raw_ptr<BorderView> border_view_ = nullptr;
   const raw_ptr<BrowserView> browser_view_;
   const SidePanelEntry::PanelType type_;
   raw_ptr<View> resize_area_ = nullptr;
   raw_ptr<views::View> header_view_ = nullptr;
+  // Owned by `this` indirectly through the views tree.
+  raw_ptr<views::View> content_parent_view_;
 
   // -1 if a side panel resize is not in progress, otherwise the width of the
   // side panel when the current resize was initiated.
@@ -187,16 +188,22 @@ class SidePanel : public views::AccessiblePaneView,
 
   gfx::RoundedCornersF background_radii_;
 
+  // When false, the side panel's should align to the opposite side of what it
+  // typically would based on the alignment pref and panel type. This is special
+  // case behavior that should be removed when toolbar and content height side
+  // panels are unified.
+  bool use_default_horizontal_alignment_ = true;
+
   // Keeps track of the side the side panel will appear on (left or right).
   HorizontalAlignment horizontal_alignment_;
 
   // Observes and listens to side panel alignment changes.
   PrefChangeRegistrar pref_change_registrar_;
 
-  // Owned by `this` indirectly through the views tree.
-  raw_ptr<views::View> content_parent_view_;
-
   State state_ = State::kClosed;
+
+  std::map<SidePanelAnimationCoordinator::SidePanelAnimationId, double>
+      last_animation_values_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_SIDE_PANEL_SIDE_PANEL_H_

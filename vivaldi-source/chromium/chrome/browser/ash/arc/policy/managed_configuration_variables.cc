@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "chrome/browser/ash/arc/policy/managed_configuration_variables.h"
 
 #include <string>
@@ -14,6 +9,7 @@
 #include <vector>
 
 #include "base/check.h"
+#include "base/compiler_specific.h"
 #include "base/containers/flat_map.h"
 #include "base/functional/bind.h"
 #include "base/strings/string_split.h"
@@ -193,8 +189,8 @@ std::string SearchAndReplace(
     DCHECK(search_input.length() >= prefix_size + capture.length());
     size_t remaining_size =
         search_input.length() - (prefix_size + capture.length());
-    search_input =
-        std::string_view(capture.data() + capture.size(), remaining_size);
+    search_input = std::string_view(
+        UNSAFE_TODO(capture.data() + capture.size()), remaining_size);
   }
   // Output the remaining |search_input|.
   output.emplace_back(search_input);
@@ -254,14 +250,14 @@ void ReplaceVariables(const VariableResolver& resolver,
                       base::Value& configuration);
 
 void ReplaceVariables(const VariableResolver& resolver,
-                      base::Value::Dict& configuration) {
+                      base::DictValue& configuration) {
   for (auto entry : configuration) {
     ReplaceVariables(resolver, entry.second);
   }
 }
 
 void ReplaceVariables(const VariableResolver& resolver,
-                      base::Value::List& configuration) {
+                      base::ListValue& configuration) {
   for (auto& entry : configuration) {
     ReplaceVariables(resolver, entry);
   }
@@ -290,7 +286,7 @@ const char kDeviceAnnotatedLocation[] = "DEVICE_ANNOTATED_LOCATION";
 
 void RecursivelyReplaceManagedConfigurationVariables(
     const Profile* profile,
-    base::Value::Dict& managedConfiguration) {
+    base::DictValue& managedConfiguration) {
   policy::DeviceAttributesImpl device_attributes;
   RecursivelyReplaceManagedConfigurationVariables(profile, &device_attributes,
                                                   managedConfiguration);
@@ -299,7 +295,7 @@ void RecursivelyReplaceManagedConfigurationVariables(
 void RecursivelyReplaceManagedConfigurationVariables(
     const Profile* profile,
     policy::DeviceAttributes* device_attributes,
-    base::Value::Dict& managedConfiguration) {
+    base::DictValue& managedConfiguration) {
   const VariableResolver resolver =
       BuildVariableResolver(profile, device_attributes);
   ReplaceVariables(resolver, managedConfiguration);

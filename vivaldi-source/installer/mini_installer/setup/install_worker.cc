@@ -815,7 +815,7 @@ void AddNativeNotificationWorkItems(
       notification_helper_path.GetComponents();
   DCHECK(!comps.empty());
   base::FilePath target;
-  for (size_t i = 0; i < comps.size()-2; ++i) {
+  for (size_t i = 0; i < comps.size() - 2; ++i) {
     target = target.Append(comps[i]);
   }
 

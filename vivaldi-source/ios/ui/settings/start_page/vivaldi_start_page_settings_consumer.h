@@ -27,7 +27,10 @@ NS_SWIFT_UI_ACTOR
 // Updates the state with the speed dial maximum number columns preference value
 - (void)setPreferenceSpeedDialColumn:(VivaldiStartPageLayoutColumn)column;
 // Updates the state with the start page reopen with item type
-- (void)setPreferenceStartPageReopenWithItem:(VivaldiStartPageStartItemType)item;
+- (void)setPreferenceStartPageReopenWithItem:
+    (VivaldiStartPageStartItemType)item;
+// Updates the state with whether daily mix wallpaper is enabled.
+- (void)setPreferenceDailyMixEnabled:(BOOL)enabled;
 
 @end
 

@@ -4,10 +4,13 @@
 
 package org.chromium.chrome.browser.compositor.layouts;
 
+import static org.chromium.build.NullUtil.assertNonNull;
+
 import android.content.Context;
 import android.view.ViewGroup;
 
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -17,7 +20,6 @@ import org.chromium.chrome.browser.compositor.layouts.phone.SimpleAnimationLayou
 import org.chromium.chrome.browser.hub.HubLayoutDependencyHolder;
 import org.chromium.chrome.browser.hub.NewTabAnimationUtils;
 import org.chromium.chrome.browser.layouts.LayoutType;
-import org.chromium.chrome.browser.ntp_customization.edge_to_edge.TopInsetCoordinator;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab_ui.ActionConfirmationManager;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
@@ -27,6 +29,7 @@ import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.theme.TopUiThemeColorProvider;
 import org.chromium.chrome.browser.toolbar.ControlContainer;
 import org.chromium.chrome.browser.toolbar.ToolbarManager;
+import org.chromium.chrome.browser.ui.edge_to_edge.TopInsetProvider;
 import org.chromium.ui.resources.dynamics.DynamicResourceLoader;
 
 import java.util.function.Supplier;
@@ -36,10 +39,11 @@ import android.view.View;
 import android.view.ViewStub;
 import androidx.annotation.NonNull;
 
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.build.BuildConfig;
+import org.chromium.chrome.browser.back_press.BackPressManager;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
-import org.chromium.chrome.browser.browser_controls.TopControlsStacker;
 import org.chromium.chrome.browser.compositor.LayerTitleCache;
 import org.chromium.chrome.browser.compositor.overlays.strip.StripLayoutHelperManager;
 import org.chromium.chrome.browser.data_sharing.DataSharingTabManager;
@@ -63,19 +67,15 @@ import java.util.List;
 public class LayoutManagerChromePhone extends LayoutManagerChrome {
     // TODO(crbug.com/40282469): Rename SimpleAnimationLayout to NewTabAnimationLayout once it is
     // rolled out.
-    private final ObservableSupplier<CompositorViewHolder> mCompositorViewHolderSupplier;
-    private final ObservableSupplier<TopInsetCoordinator> mTopInsetCoordinatorSupplier;
-    private final ObservableSupplier<Boolean> mScrimVisibilitySupplier;
+    private final Supplier<@Nullable CompositorViewHolder> mCompositorViewHolderSupplier;
+    private final TopInsetProvider mTopInsetProvider;
+    private final NonNullObservableSupplier<Boolean> mScrimVisibilitySupplier;
     private final ToolbarManager mToolbarManager;
     private final ViewGroup mContentView;
     private Layout mSimpleAnimationLayout;
 
     // Vivaldi
     private final List<StripLayoutHelperManager> mTabStrips = new ArrayList<>();
-    /** A {@link TitleCache} instance that stores all title/favicon bitmaps as CC resources. */
-    protected @Nullable LayerTitleCache mLayerTitleCache;
-    private final ObservableSupplier<Integer> mTabStripHeightSupplier;
-
     /**
      * Creates an instance of a {@link LayoutManagerChromePhone}.
      *
@@ -92,6 +92,7 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
      * @param contentView The base content view.
      * @param toolbarManager The {@link ToolbarManager} instance.
      * @param scrimVisibilitySupplier Supplier for the Scrim visibility.
+     * @param topInsetProvider The {@link TopInsetProvider} instance.
      */
     @SuppressWarnings("NullAway") // TODO(jarle@vivaldi.com): check use of mLayerTitleCache being
     // null when instantiating StripLayoutHelperManager
@@ -100,16 +101,17 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
             ViewGroup contentContainer,
             Supplier<TabSwitcher> tabSwitcherSupplier,
             Supplier<TabModelSelector> tabModelSelectorSupplier,
-            ObservableSupplier<TabContentManager> tabContentManagerSupplier,
+            MonotonicObservableSupplier<TabContentManager> tabContentManagerSupplier,
             Supplier<TopUiThemeColorProvider> topUiThemeColorProvider,
             HubLayoutDependencyHolder hubLayoutDependencyHolder,
-            ObservableSupplier<CompositorViewHolder> compositorViewHolderSupplier,
+            Supplier<@Nullable CompositorViewHolder> compositorViewHolderSupplier,
             ViewGroup contentView,
             ToolbarManager toolbarManager,
-            ObservableSupplier<Boolean> scrimVisibilitySupplier,
-            ObservableSupplier<TopInsetCoordinator> topInsetCoordinatorSupplier,
+            NonNullObservableSupplier<Boolean> scrimVisibilitySupplier,
+            TopInsetProvider topInsetProvider,
+
             @NonNull ViewStub tabStripTooltipViewStub, // Vivaldi
-            ObservableSupplier<StripLayoutHelperManager.TabModelStartupInfo>  // Vivaldi
+            MonotonicObservableSupplier<StripLayoutHelperManager.TabModelStartupInfo>  // Vivaldi
                     tabModelStartupInfoSupplier,  // Vivaldi
             ActivityLifecycleDispatcher lifecycleDispatcher, // Vivaldi
             MultiInstanceManager multiInstanceManager,  // Vivaldi
@@ -123,7 +125,8 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
             BrowserControlsStateProvider browserControlsStateProvider, // Vivaldi
             DataSharingTabManager dataSharingTabManager, // Vivaldi
             BottomSheetController bottomSheetController, // Vivaldi
-            Supplier<ShareDelegate> shareDelegateSupplier) { // Vivaldi
+            Supplier<ShareDelegate> shareDelegateSupplier, // Vivaldi
+            BackPressManager backPressManager) { // Vivaldi
         super(
                 host,
                 contentContainer,
@@ -136,7 +139,7 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
         mContentView = contentView;
         mToolbarManager = toolbarManager;
         mScrimVisibilitySupplier = scrimVisibilitySupplier;
-        mTopInsetCoordinatorSupplier = topInsetCoordinatorSupplier;
+        mTopInsetProvider = topInsetProvider;
 
         // Note(david@vivaldi.com): We create two tab strips here. The first one is the main strip.
         // The second one is the stack strip.
@@ -147,7 +150,7 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
                             host,
                             this,
                             mHost.getLayoutRenderHost(),
-                            new ObservableSupplierImpl<>(mLayerTitleCache),
+                            ObservableSuppliers.createMonotonic(),
                             tabModelStartupInfoSupplier,
                             lifecycleDispatcher,
                             multiInstanceManager,
@@ -164,10 +167,10 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
                             bottomSheetController,
                             shareDelegateSupplier,
                             null,
+                            backPressManager,
                             /* isStackStrip */ (i > 0))); // Vivaldi
             addObserver(mTabStrips.get(i).getTabSwitcherObserver());
         }
-        mTabStripHeightSupplier = toolbarManager.getTabStripHeightSupplier();
         updateGlobalSceneOverlay();
         // End Vivaldi
     }
@@ -189,7 +192,7 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
             @Nullable ControlContainer controlContainer,
             DynamicResourceLoader dynamicResourceLoader,
             TopUiThemeColorProvider topUiColorProvider,
-            ObservableSupplier<Integer> bottomControlsOffsetSupplier) {
+            NonNullObservableSupplier<Integer> bottomControlsOffsetSupplier) {
         Context context = mHost.getContext();
         LayoutRenderHost renderHost = mHost.getLayoutRenderHost();
 
@@ -203,12 +206,12 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
                             renderHost,
                             this,
                             getContentContainer(),
-                            mCompositorViewHolderSupplier,
+                            assertNonNull(mCompositorViewHolderSupplier.get()),
                             mContentView,
                             mToolbarManager,
                             getBrowserControlsManager(),
                             mScrimVisibilitySupplier,
-                            mTopInsetCoordinatorSupplier);
+                            mTopInsetProvider);
         } else {
             mSimpleAnimationLayout =
                     new SimpleAnimationLayout(context, this, renderHost, getContentContainer());
@@ -230,15 +233,6 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
 
         // Vivaldi
         for (int i = 0; i < 2; i++) mTabStrips.get(i).setTabModelSelector(selector, creator);
-
-        // Vivaldi
-        if (DeviceClassManager.enableLayerDecorationCache()) {
-            mLayerTitleCache = new LayerTitleCache(
-                    mHost.getContext(),
-                    getResourceManager(),
-                    mTabStripHeightSupplier.get(),
-                    selector);
-        }
     }
 
     @Override
@@ -319,33 +313,6 @@ public class LayoutManagerChromePhone extends LayoutManagerChrome {
         for (int i = 0; i < 2; i++) addSceneOverlay(mTabStrips.get(i));
         if (getTabModelSelector() != null)
             tabModelSwitched(getTabModelSelector().isIncognitoSelected());
-    }
-
-    // Vivaldi
-    @Override
-    public void initLayoutTabFromHost(final int tabId) {
-        if (mLayerTitleCache != null) {
-            mLayerTitleCache.removeTabTitle(tabId);
-        }
-        super.initLayoutTabFromHost(tabId);
-    }
-
-    // Vivaldi
-    @Override
-    public void releaseTabLayout(int id) {
-        if (mLayerTitleCache != null) {
-            mLayerTitleCache.removeTabTitle(id);
-        }
-        super.releaseTabLayout(id);
-    }
-
-    // Vivaldi
-    @Override
-    public void releaseResourcesForTab(int tabId) {
-        super.releaseResourcesForTab(tabId);
-        if (mLayerTitleCache != null) {
-            mLayerTitleCache.removeTabTitle(tabId);
-        }
     }
 
     @Override

@@ -11,9 +11,9 @@
 #import "ios/chrome/browser/shared/model/browser/browser_provider.h"
 
 @class BrowserCoordinator;
+@class BrowserLayoutViewController;
 @class BrowserViewController;
 class ProfileIOS;
-@protocol SyncPresenter;
 
 // Implementation of BrowserProvider -- for the most part a wrapper around
 // BrowserCoordinator. This is a Wrangler (a class in need of further
@@ -28,7 +28,9 @@ class ProfileIOS;
 // The BrowserViewController showing the current tab. The API surface this
 // property exposes will be refactored so that the BVC class isn't exposed.
 @property(nonatomic, readonly) BrowserViewController* bvc;
-@property(nonatomic, readonly) id<SyncPresenter> syncPresenter;
+// The BrowserLayoutViewController showing the current BrowserViewController.
+@property(nonatomic, readonly)
+    BrowserLayoutViewController* browserLayoutViewController;
 // The active browser. This can never be nullptr.
 @property(nonatomic, readonly) Browser* browser;
 // The inactive browser. This can be nullptr if in an incognito interface or if
@@ -40,12 +42,6 @@ class ProfileIOS;
 @property(nonatomic, readonly) BOOL incognito;
 // YES if TTS audio is playing.
 @property(nonatomic, readonly) BOOL playingTTS;
-
-// Asks the implementor to clear any presented state, dismissing the omnibox if
-// `dismissOmnibox` is YES, and calling `completion` once any animations are
-// complete.
-- (void)clearPresentedStateWithCompletion:(ProceduralBlock)completion
-                           dismissOmnibox:(BOOL)dismissOmnibox;
 
 @end
 

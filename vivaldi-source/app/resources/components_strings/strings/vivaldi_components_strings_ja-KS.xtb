@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">このサイトへの接続、完全には保護されてへんで</translation>
 <translation id="4265872034478892965">管理者に許可されとる</translation>
 <translation id="4305666528087210886">ファイルにアクセスできへんかったわ</translation>
-<translation id="4408413947728134509">Cookie <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" />でログイン証明書が承認されなかったか、ログイン証明書が提示されていない可能性があるわ。</translation>
 <translation id="4506599922270137252">システム管理者に問い合わせる</translation>
 <translation id="4522570452068850558">細かいこと</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">見つからへんわ</translation>
 <translation id="5017554619425969104">コピーしたテキスト</translation>
 <translation id="5023310440958281426">管理者ポリシー確認してもうてもええかな</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1{（1 個が使用中）}other{（# 個が使用中）}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />プロキシーアドレス確認する<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bit)</translation>
 <translation id="5216942107514965959">最終アクセスは今日</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">このサイトに大事な情報（パスワード、クレジット カードとか）を入れたらあかんで。悪さしよるユーザーに情報盗まれるかもしれへんし。</translation>
 <translation id="5863515189965725638">IBAN編集</translation>
 <translation id="5869405914158311789">このサイト、アクセスできへん</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{1 個が使用中}other{# 個が使用中}}</translation>
 <translation id="5932224571077948991">このサイト、けったいな広告とか誤解招くような広告出してきよるわ</translation>
 <translation id="6051221802930200923"><ph name="SITE" />では証明書ピンニングが使われてるから、今アクセスできへんわ。ネットワークエラーとかネットワーク攻撃って大抵一時的なもんやから、時間置いたらアクセスできるようになるんちゃう。</translation>
 <translation id="6146055958333702838">ケーブル見てな、使ってる可能性があるネットワークデバイス（ルーターとかモデムとか）

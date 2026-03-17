@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "chrome/browser/ash/chromebox_for_meetings/xu_camera/xu_camera_service.h"
 
 #include <fcntl.h>
@@ -20,6 +15,7 @@
 #include <cstdint>
 #include <utility>
 
+#include "base/compiler_specific.h"
 #include "base/notreached.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/strings/string_util.h"
@@ -266,7 +262,6 @@ void XuCameraService::GetUnitIdWithDevicePath(
       std::move(callback).Run(0, 0);
       return;
     }
-    // TODO(b/260593636): Leverage WebRTC and GetDevicePath() once implemented
     auto unitId = guid_unitid_map_.find(guid_le);
     if (unitId != guid_unitid_map_.end()) {
       VLOG(4) << __func__ << ": UnitId found: "
@@ -305,17 +300,18 @@ void XuCameraService::OnGetDevices(
             int cur = 0;
             kXuInterface curXuInterface;
             while ((cur + kSubtypeOffset) < end) {
-              if (static_cast<int>(data_ptr[cur + kSubtypeOffset]) ==
-                      kXUSubtype &&
+              if (static_cast<int>(UNSAFE_TODO(
+                      data_ptr[cur + kSubtypeOffset])) == kXUSubtype &&
                   (cur + (int)sizeof(curXuInterface)) < end) {
-                std::memcpy(&curXuInterface, &data_ptr[cur],
-                            sizeof(curXuInterface));
+                UNSAFE_TODO(std::memcpy(&curXuInterface, &data_ptr[cur],
+                                        sizeof(curXuInterface)));
                 std::vector<uint8_t> curXuInterface_guid_le(
-                    curXuInterface.kGuidLe, curXuInterface.kGuidLe + kGuidSize);
+                    curXuInterface.kGuidLe,
+                    UNSAFE_TODO(curXuInterface.kGuidLe + kGuidSize));
                 guid_unitid_map_.insert(
                     {curXuInterface_guid_le, curXuInterface.kUnitId});
               }
-              cur += static_cast<int>(data_ptr[cur]);
+              cur += static_cast<int>(UNSAFE_TODO(data_ptr[cur]));
             }
           }
         }
@@ -566,7 +562,6 @@ void XuCameraService::GetDevicePath(
     return;
   }
 
-  // TODO(b/295912291): Check get_device_id is in a map
   auto hashed_device_id = id->get_device_id();
 
   if (!host_id || hashed_device_id.empty()) {
@@ -763,7 +758,7 @@ void XuCameraService::CopyToData(T* value,
   uint8_t* valueAsUint8 = reinterpret_cast<uint8_t*>(value);
   for (size_t i = 0; i < size; ++i) {
     data.push_back(*valueAsUint8);
-    valueAsUint8++;
+    UNSAFE_TODO(valueAsUint8++);
   }
 }
 

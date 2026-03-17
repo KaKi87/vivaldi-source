@@ -9,7 +9,7 @@ import androidx.annotation.VisibleForTesting;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.magic_stack.ModuleDelegate;
-import org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundImageType;
+import org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType;
 import org.chromium.chrome.browser.ntp_customization.theme.chrome_colors.NtpThemeColorInfo.NtpThemeColorId;
 import org.chromium.chrome.browser.ntp_customization.theme.upload_image.UploadImagePreviewCoordinator;
 import org.chromium.chrome.browser.preferences.ChromePreferenceKeys;
@@ -74,6 +74,14 @@ public class NtpCustomizationMetricsUtils {
             HISTOGRAM_THEME_COLLECTION + ".CollectionSelected";
 
     @VisibleForTesting
+    static final String HISTOGRAM_THEME_COLLECTION_DAILY_REFRESH_ON =
+            HISTOGRAM_THEME_COLLECTION + ".DailyRefresh.TurnOn";
+
+    @VisibleForTesting
+    static final String HISTOGRAM_THEME_COLLECTION_DAILY_REFRESH_OFF =
+            HISTOGRAM_THEME_COLLECTION + ".DailyRefresh.TurnOff";
+
+    @VisibleForTesting
     static final String HISTOGRAM_THEME_CHROME_COLOR = "NewTabPage.Customization.Theme.ChromeColor";
 
     @VisibleForTesting
@@ -90,9 +98,9 @@ public class NtpCustomizationMetricsUtils {
      * @param themeType The type of the NTP customization theme.
      */
     public static void recordNtpThemeType() {
-        int themeType = NtpCustomizationUtils.getNtpBackgroundImageType();
+        int themeType = NtpCustomizationUtils.getNtpBackgroundType();
         RecordHistogram.recordEnumeratedHistogram(
-                HISTOGRAM_THEME_TYPE, themeType, NtpBackgroundImageType.NUM_ENTRIES);
+                HISTOGRAM_THEME_TYPE, themeType, NtpBackgroundType.NUM_ENTRIES);
     }
 
     /**
@@ -235,5 +243,22 @@ public class NtpCustomizationMetricsUtils {
     public static void recordChromeColorTurnOnDailyRefresh(boolean isTurnedOn) {
         RecordHistogram.recordBooleanHistogram(
                 HISTOGRAM_CHROME_COLOR_TURN_ON_DAILY_REFRESH, isTurnedOn);
+    }
+
+    /**
+     * Records whether the daily refresh for theme collection is turned on or off.
+     *
+     * @param themeCollectionHash The hash of the collection ID.
+     * @param isTurnedOn Whether daily refresh for theme collection is turned on.
+     */
+    public static void recordThemeCollectionDailyRefresh(
+            int themeCollectionHash, boolean isTurnedOn) {
+        if (isTurnedOn) {
+            RecordHistogram.recordSparseHistogram(
+                    HISTOGRAM_THEME_COLLECTION_DAILY_REFRESH_ON, themeCollectionHash);
+        } else {
+            RecordHistogram.recordSparseHistogram(
+                    HISTOGRAM_THEME_COLLECTION_DAILY_REFRESH_OFF, themeCollectionHash);
+        }
     }
 }

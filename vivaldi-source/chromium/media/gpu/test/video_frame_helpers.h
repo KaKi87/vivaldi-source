@@ -63,7 +63,7 @@ scoped_refptr<VideoFrame> ScaleVideoFrame(const VideoFrame* src_frame,
 // VideoFrame with |dst_layout|. If |dst_storage_type| is STORAGE_OWNED_MEMORY,
 // this function creates memory-backed VideoFrame with |dst_layout|.
 // |dst_buffer_usage| must be specified if |dst_storage_type| is STORAGE_DMABUFS
-// or STORAGE_GPU_MEMORY_BUFFER.
+// or STORAGE_MAPPABLE_SHARED_IMAGE.
 // The created VideoFrame's content is the same as |src_frame|. The created
 // VideoFrame owns the buffer. Returns nullptr on failure.
 scoped_refptr<VideoFrame> CloneVideoFrame(
@@ -75,17 +75,17 @@ scoped_refptr<VideoFrame> CloneVideoFrame(
 
 // Create Dmabuf-backed VideoFrame from |src_frame|. The created VideoFrame
 // doesn't depend on |src_frame|'s lifetime. |src_frame| should be a
-// GpuMemoryBuffer-backed VideoFrame.
+// MappableSharedImage-backed VideoFrame.
 scoped_refptr<VideoFrame> CreateDmabufVideoFrame(
     const VideoFrame* const src_frame);
 
-// Create GpuMemoryBuffer-based VideoFrame from |frame|. The created VideoFrame
-// doesn't depend on |frame|'s lifetime.
-// |frame| should be a DMABUF-backed VideoFrame. |buffer_usage| is a
-// GpuMemoryBuffer's buffer usage. |frame| must be created following the
-// |buffer_usage|.
+// Create MappableSI-based VideoFrame from |frame|. The created VideoFrame
+// doesn't depend on |frame|'s lifetime. |frame| should be a DMABUF-backed
+// VideoFrame. |buffer_usage| should be the buffer usage of the
+// MappableSharedImage that will be created. |frame| must have been created
+// following the |buffer_usage|.
 // This function works on ChromeOS only.
-scoped_refptr<VideoFrame> CreateGpuMemoryBufferVideoFrame(
+scoped_refptr<VideoFrame> CreateMappableSharedImageVideoFrame(
     const VideoFrame* const frame,
     gfx::BufferUsage buffer_usage,
     gpu::TestSharedImageInterface* test_sii);

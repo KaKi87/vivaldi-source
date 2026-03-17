@@ -69,9 +69,8 @@ VivaldiTranslateClient::VivaldiTranslateClient(
     : content::WebContentsObserver(web_contents),
       content::WebContentsUserData<VivaldiTranslateClient>(*web_contents) {
   translate_driver_ = std::make_unique<translate::ContentTranslateDriver>(
-      *web_contents,
-      UrlLanguageHistogramFactory::GetForBrowserContext(
-          web_contents->GetBrowserContext()));
+      *web_contents, UrlLanguageHistogramFactory::GetForBrowserContext(
+                         web_contents->GetBrowserContext()));
   translate_manager_ = std::make_unique<translate::TranslateManager>(
       this,
       translate::TranslateRankerFactory::GetForBrowserContext(
@@ -244,7 +243,7 @@ TranslateStep ToVivaldiTranslateStep(translate::TranslateStep step) {
       return TranslateStep::kTranslateError;
     default:
       NOTREACHED();
-      //return TranslateStep::kIdle;
+      // return TranslateStep::kIdle;
   }
 }
 
@@ -274,7 +273,7 @@ TranslateError ToVivaldiTranslateError(translate::TranslateErrors error) {
       return TranslateError::kScriptLoadError;
     default:
       NOTREACHED();
-      //return TranslateError::kNone;
+      // return TranslateError::kNone;
   }
 }
 #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
@@ -297,33 +296,32 @@ bool VivaldiTranslateClient::ShowTranslateUI(
   DCHECK(!TranslateService::IsTranslateBubbleEnabled());
   // Message UI.
   translate::TranslationType translate_type =
-          GetLanguageState().translation_type();
+      GetLanguageState().translation_type();
   // Use the automatic translation Snackbar if the current translation is an
   // automatic translation and there was no error.
   if (IsAutomaticTranslationType(translate_type) &&
       step != translate::TRANSLATE_STEP_TRANSLATE_ERROR) {
-      // The Automatic translation snackbar is only shown after translation
-      // has completed. The translating step is a no-op with the Snackbar.
-      if (step == translate::TRANSLATE_STEP_AFTER_TRANSLATE) {
-
-        // An automatic translation has completed show the snackbar.
-        if (!auto_translate_snackbar_controller_) {
-          auto_translate_snackbar_controller_ =
-              std::make_unique<translate::AutoTranslateSnackbarController>(
-                  web_contents(), translate_manager_->GetWeakPtr());
-        }
-        auto_translate_snackbar_controller_->ShowSnackbar(target_language);
+    // The Automatic translation snackbar is only shown after translation
+    // has completed. The translating step is a no-op with the Snackbar.
+    if (step == translate::TRANSLATE_STEP_AFTER_TRANSLATE) {
+      // An automatic translation has completed show the snackbar.
+      if (!auto_translate_snackbar_controller_) {
+        auto_translate_snackbar_controller_ =
+            std::make_unique<translate::AutoTranslateSnackbarController>(
+                web_contents(), translate_manager_->GetWeakPtr());
       }
-    } else {
-      // Not an automatic translation. Use TranslateMessage instead.
-      if (!translate_message_) {
-        translate_message_ = std::make_unique<translate::TranslateMessage>(
-            web_contents(), translate_manager_->GetWeakPtr(),
-            base::BindRepeating([]() {}));
-      }
-      translate_message_->ShowTranslateStep(step, source_language,
-                                            target_language);
+      auto_translate_snackbar_controller_->ShowSnackbar(target_language);
     }
+  } else {
+    // Not an automatic translation. Use TranslateMessage instead.
+    if (!translate_message_) {
+      translate_message_ = std::make_unique<translate::TranslateMessage>(
+          web_contents(), translate_manager_->GetWeakPtr(),
+          base::BindRepeating([]() {}));
+    }
+    translate_message_->ShowTranslateStep(step, source_language,
+                                          target_language);
+  }
   translate_manager_->GetActiveTranslateMetricsLogger()->LogUIChange(true);
 #else
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -406,12 +404,12 @@ void VivaldiTranslateClient::WebContentsDestroyed() {
   // Translation process can be interrupted.
   // Destroying the TranslateManager now guarantees that it never has to deal
   // with NULL WebContents.
-    if (translate_manager_) {
-        if (translate_driver_) {
-            translate_driver_->set_translate_manager(nullptr);
-        }
-        translate_manager_.reset();
+  if (translate_manager_) {
+    if (translate_driver_) {
+      translate_driver_->set_translate_manager(nullptr);
     }
+    translate_manager_.reset();
+  }
 }
 
 // ContentTranslateDriver::TranslationObserver implementation.
@@ -433,7 +431,6 @@ void VivaldiTranslateClient::OnLanguageDetermined(
   }
 #endif
 
-
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   extensions::vivaldi::tabs_private::LanguageDetectionDetails lang_details;
 
@@ -453,7 +450,7 @@ void VivaldiTranslateClient::OnLanguageDetermined(
             tab_id, std::move(lang_details)),
         web_contents()->GetBrowserContext());
   }
-#endif // ENABLE_EXTENSIONS
+#endif  // ENABLE_EXTENSIONS
 }
 
 void VivaldiTranslateClient::OnPageTranslated(
@@ -467,11 +464,10 @@ void VivaldiTranslateClient::OnPageTranslated(
         extensions::vivaldi::tabs_private::OnPageTranslated::kEventName,
         extensions::vivaldi::tabs_private::OnPageTranslated::Create(
             tab_id, original_lang, translated_lang,
-            ToVivaldiTranslateError(error_type)
-            ),
+            ToVivaldiTranslateError(error_type)),
         web_contents()->GetBrowserContext());
   }
-#endif // ENABLE_EXTENSIONS
+#endif  // ENABLE_EXTENSIONS
 }
 
 void VivaldiTranslateClient::OnIsPageTranslatedChanged(
@@ -487,7 +483,7 @@ void VivaldiTranslateClient::OnIsPageTranslatedChanged(
       extensions::vivaldi::tabs_private::OnIsPageTranslatedChanged::Create(
           tab_id, is_translated),
       web_contents()->GetBrowserContext());
-#endif // ENABLE_EXTENSIONS
+#endif  // ENABLE_EXTENSIONS
 }
 
 #if BUILDFLAG(IS_ANDROID)

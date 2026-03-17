@@ -80,7 +80,8 @@ public interface TabGroupModelFilterObserver {
      */
     default void didMergeTabToGroup(Tab movedTab, boolean isDestinationTab) {}
 
-    // TODO(crbug.com/434015906): Passing the last tab here is a limitation of the current TabGroupModelFilterImpl, we should fix this once tab collections is launched.
+    // TODO(crbug.com/434015906): Passing the last tab here is a limitation of the current
+    // TabGroupModelFilterImpl, we should fix this once tab collections is launched.
     /**
      * This method is called after a group is moved.
      *
@@ -130,7 +131,7 @@ public interface TabGroupModelFilterObserver {
      * @param tabGroupId The tab group id.
      * @param newTitle The new title.
      */
-    default void didChangeTabGroupTitle(Token tabGroupId, @Nullable String newTitle) {}
+    default void didChangeTabGroupTitle(Token tabGroupId, String newTitle) {}
 
     /**
      * This method is called after a new color is set on a tab group.

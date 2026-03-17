@@ -1,7 +1,8 @@
 # ~~~
-# Copyright (c) 2014-2025 Valve Corporation
-# Copyright (c) 2014-2025 LunarG, Inc.
+# Copyright (c) 2014-2026 Valve Corporation
+# Copyright (c) 2014-2026 LunarG, Inc.
 # Copyright (C) 2025 Arm Limited.
+# Modifications Copyright (C) 2025-2026 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,6 +56,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/legacy_positive.cpp
     unit/descriptor_buffer.cpp
     unit/descriptor_buffer_positive.cpp
+    unit/descriptor_heap.cpp
+    unit/descriptor_heap_positive.cpp
     unit/descriptor_indexing.cpp
     unit/descriptor_indexing_positive.cpp
     unit/descriptors.cpp
@@ -103,6 +106,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/gpu_av_indirect_buffer_positive.cpp
     unit/gpu_av_index_buffer.cpp
     unit/gpu_av_index_buffer_positive.cpp
+    unit/gpu_av_mesh.cpp
+    unit/gpu_av_mesh_positive.cpp
     unit/gpu_av_positive.cpp
     unit/gpu_av_shader_object_positive.cpp
     unit/gpu_av_shader_debug_info.cpp
@@ -112,6 +117,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/gpu_av_spirv_positive.cpp
     unit/gpu_av_ray_query.cpp
     unit/gpu_av_ray_query_positive.cpp
+    unit/gpu_av_ray_hit_object.cpp
+    unit/gpu_av_ray_hit_object_positive.cpp
     unit/gpu_av_ray_tracing.cpp
     unit/gpu_av_ray_tracing_positive.cpp
     unit/gpu_av_vertex_attribute_fetch.cpp
@@ -220,6 +227,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/sync_val_reporting.cpp
     unit/sync_val_ray_tracing.cpp
     unit/sync_val_ray_tracing_positive.cpp
+    unit/sync_val_render_pass.cpp
+    unit/sync_val_render_pass_positive.cpp
     unit/sync_val_semaphore.cpp
     unit/sync_val_semaphore_positive.cpp
     unit/sync_val_video.cpp
@@ -230,6 +239,8 @@ target_sources(vk_layer_validation_tests PRIVATE
     unit/tensor_positive.cpp
     unit/threading.cpp
     unit/threading_positive.cpp
+    unit/tile_memory_heap.cpp
+    unit/tile_memory_heap_positive.cpp
     unit/tooling.cpp
     unit/tooling_positive.cpp
     unit/transform_feedback.cpp

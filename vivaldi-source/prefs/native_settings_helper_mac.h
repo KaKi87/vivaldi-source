@@ -13,6 +13,7 @@ bool getSwipeDirection();
 int getSystemDarkMode();
 std::string getSystemAccentColor();
 std::string getSystemHighlightColor();
+bool getMenubarVisibleInFullscreen();
 
 }  // namespace vivaldi
 

@@ -69,6 +69,8 @@ bool ConvertPermissionType(::permissions::RequestType type,
     case ::permissions::RequestType::kHandTracking:
     case ::permissions::RequestType::kWebAppInstallation:
     case ::permissions::RequestType::kLocalNetworkAccess:
+    case ::permissions::RequestType::kLocalNetwork:
+    case ::permissions::RequestType::kLoopbackNetwork:
       // This one is only available on some platforms...
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
     case ::permissions::RequestType::kProtectedMediaIdentifier:
@@ -88,7 +90,7 @@ void CallbackContentSettingWrapper(
     return;
 
   if (allowed) {
-    request->PermissionGranted(false);
+    request->PermissionGranted(std::monostate(), false);
   } else {
     request->PermissionDenied();
   }
@@ -139,7 +141,8 @@ void VivaldiPermissionHandlerImpl::NotifyPermissionSet(
   // Blacklisting some permissions we don't want to be notified about.
   // This one is silent in chrome - and it's just confusing to get it next to
   // the clipboard permission.
-  if (type == ContentSettingsType::CLIPBOARD_SANITIZED_WRITE) return;
+  if (type == ContentSettingsType::CLIPBOARD_SANITIZED_WRITE)
+    return;
 
   // Get the security origin URL from web_contents.
   GURL security_origin = render_frame_host->GetLastCommittedOrigin().GetURL();
@@ -162,7 +165,7 @@ bool VivaldiPermissionHandlerImpl::HandlePermissionRequest(
   if (!web_view_permission_helper)
     return false;
 
-  base::Value::Dict request_info;
+  base::DictValue request_info;
   request_info.Set(guest_view::kUrl, requesting_frame_origin.spec());
 
   WebViewPermissionType permission_type;

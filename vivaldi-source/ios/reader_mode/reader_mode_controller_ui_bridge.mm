@@ -25,15 +25,14 @@ void ReaderModeController::CreateFloatingUI() {
   // Lazily allocate the Objective-C UI object and retain it into the opaque
   // void* slot. We manually balance this with CFRelease in RemoveFloatingUI().
   if (!objc_ui_state_) {
-    VivaldiReaderModeFloatingUI* ui =
-        [[VivaldiReaderModeFloatingUI alloc]
-                  initWithContainerProvider:^UIView*{
+    VivaldiReaderModeFloatingUI* ui = [[VivaldiReaderModeFloatingUI alloc]
+        initWithContainerProvider:^UIView* {
           return web_state_ ? web_state_->GetView() : (UIView*)nil;
         }];
     objc_ui_state_ = (__bridge_retained void*)ui;
   }
   [GetUI(objc_ui_state_) configureWithBrowserPointer:browser_
-                                               visible:is_reader_mode_enabled_];
+                                             visible:is_reader_mode_enabled_];
 }
 
 void ReaderModeController::RemoveFloatingUI() {

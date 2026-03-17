@@ -9,7 +9,7 @@ class Browser;
 
 // This class is the coordinator for the tracker blocker quick settings and
 // site info prefs.
-@interface VivaldiSiteTrackerPrefsCoordinator: ChromeCoordinator
+@interface VivaldiSiteTrackerPrefsCoordinator : ChromeCoordinator
 
 @end
 

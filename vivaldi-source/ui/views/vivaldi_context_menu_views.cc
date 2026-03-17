@@ -51,15 +51,14 @@ VivaldiContextMenuViews::VivaldiContextMenuViews(
         new ToolkitDelegateViews);
     render_view_context_menu->set_toolkit_delegate(std::move(delegate));
   }
-  Profile* profile = Profile::FromBrowserContext(
-      web_contents->GetBrowserContext());
+  Profile* profile =
+      Profile::FromBrowserContext(web_contents->GetBrowserContext());
   views::MenuController::VivaldiSetCompactLayout(
       profile->GetPrefs()->GetBoolean(vivaldiprefs::kMenuCompact));
   views::MenuController::VivaldiSetContextMenu(true);
 }
 
-VivaldiContextMenuViews::~VivaldiContextMenuViews() {
-}
+VivaldiContextMenuViews::~VivaldiContextMenuViews() {}
 
 void VivaldiContextMenuViews::ResetRenderView() {
   render_view_context_menu_ = nullptr;
@@ -70,10 +69,9 @@ void VivaldiContextMenuViews::Init(
     base::WeakPtr<ContextMenuPostitionDelegate> delegate) {
   menu_model_ = menu_model;
   if (render_view_context_menu_) {
-    menu_view_ =
-        static_cast<ToolkitDelegateViews*>(
-            render_view_context_menu_->toolkit_delegate())
-                ->VivaldiInit(menu_model_, delegate);
+    menu_view_ = static_cast<ToolkitDelegateViews*>(
+                     render_view_context_menu_->toolkit_delegate())
+                     ->VivaldiInit(menu_model_, delegate);
   } else {
     std::unique_ptr<ToolkitDelegateViews> toolkitdelegate(
         new ToolkitDelegateViews);
@@ -88,7 +86,7 @@ void VivaldiContextMenuViews::RunMenuAt(views::Widget* parent,
   if (render_view_context_menu_) {
     static_cast<ToolkitDelegateViews*>(
         render_view_context_menu_->toolkit_delegate())
-            ->VivaldiRunMenuAt(parent, rect, type);
+        ->VivaldiRunMenuAt(parent, rect, type);
   } else {
     toolkit_delegate_->VivaldiRunMenuAt(parent, rect, type);
   }
@@ -142,7 +140,7 @@ void VivaldiContextMenuViews::SetIcon(const gfx::Image& icon, int id) {
 }
 
 void VivaldiContextMenuViews::SetTitle(const std::u16string& title, int id) {
-if (menu_view_->GetMenuItemByID(id)) {
+  if (menu_view_->GetMenuItemByID(id)) {
     menu_view_->GetMenuItemByID(id)->SetTitle(title);
   }
 }
@@ -174,7 +172,7 @@ void VivaldiContextMenuViews::UpdateMenu(ui::SimpleMenuModel* menu_model,
     if (render_view_context_menu_) {
       static_cast<ToolkitDelegateViews*>(
           render_view_context_menu_->toolkit_delegate())
-              ->VivaldiUpdateMenu(view, menu_model);
+          ->VivaldiUpdateMenu(view, menu_model);
     } else {
       toolkit_delegate_->VivaldiUpdateMenu(view, menu_model);
     }

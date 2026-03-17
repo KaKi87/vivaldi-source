@@ -16,6 +16,20 @@ new RuleTester().run('no-imperative-dom-api', rule, {
           }
       }`,
     },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+        const el = document.createElement('div');
+        el.appendChild();
+      `,
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+        const el = document.createElement('div');
+        el.setAttribute();
+      `,
+    },
   ],
 
   invalid: [
@@ -1488,9 +1502,9 @@ class SomeWidget extends UI.Widget.Widget {
   constructor() {
     super();
     this.contentElement.appendChild(
-        UI.XLink.XLink.create('https://google.com', 'Google', 'some-class', undefined, 'some-context', 0));
+        Link.create('https://google.com', 'Google', 'some-class', 'some-context', 0));
     this.contentElement.appendChild(
-        UI.XLink.XLink.create('https://chromium.org', 'Chromium', undefined, undefined, undefined, 1));
+        Link.create('https://chromium.org', 'Chromium', undefined, undefined, 1));
   }
 }`,
       output: `
@@ -1533,6 +1547,35 @@ export const DEFAULT_VIEW = (input, _output, target) => {
         <div></div>\`,
         PH2: 'some text',
       })}
+    </div>\`,
+    target, {host: input});
+};
+
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+  }
+}`,
+      errors: [{messageId: 'preferTemplateLiterals'}],
+    },
+    {
+      filename: 'front_end/ui/components/component/file.ts',
+      code: `
+class SomeWidget extends UI.Widget.Widget {
+  constructor() {
+    super();
+    const colorSwatch = new InlineEditor.ColorSwatch.ColorSwatch();
+    colorSwatch.color = Common.Color.parse('red');
+    colorSwatch.readonly = true;
+    this.contentElement.appendChild(colorSwatch);
+  }
+}`,
+      output: `
+
+export const DEFAULT_VIEW = (input, _output, target) => {
+  render(html\`
+    <div>
+      <devtools-color-swatch .color=\${Common.Color.parse('red')} .readonly=\${true}></devtools-color-swatch>
     </div>\`,
     target, {host: input});
 };

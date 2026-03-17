@@ -16,7 +16,7 @@ namespace chrome_browsing_data_remover {
 // This is an extension of content::BrowsingDataRemover::RemoveDataMask which
 // includes all datatypes therefrom and adds additional Chrome-specific ones.
 using DataType = uint64_t;
-  // Embedder can start adding datatypes after the last platform datatype.
+// Embedder can start adding datatypes after the last platform datatype.
 constexpr DataType DATA_TYPE_EMBEDDER_BEGIN =
     content::BrowsingDataRemover::DATA_TYPE_CONTENT_END << 1;
 
@@ -28,7 +28,8 @@ constexpr DataType DATA_TYPE_PASSWORDS = DATA_TYPE_EMBEDDER_BEGIN << 2;
 constexpr DataType DATA_TYPE_WEB_APP_DATA = DATA_TYPE_EMBEDDER_BEGIN << 3;
 #endif
 constexpr DataType DATA_TYPE_SITE_USAGE_DATA = DATA_TYPE_EMBEDDER_BEGIN << 4;
-constexpr DataType DATA_TYPE_DURABLE_PERMISSION = DATA_TYPE_EMBEDDER_BEGIN << 5;
+constexpr DataType DATA_TYPE_PERSISTENT_PERMISSION = DATA_TYPE_EMBEDDER_BEGIN
+                                                     << 5;
 constexpr DataType DATA_TYPE_EXTERNAL_PROTOCOL_DATA = DATA_TYPE_EMBEDDER_BEGIN
                                                       << 6;
 constexpr DataType DATA_TYPE_HOSTED_APP_DATA_TEST_ONLY =
@@ -59,7 +60,7 @@ constexpr DataType DATA_TYPE_SITE_DATA =
 #if BUILDFLAG(IS_ANDROID)
     DATA_TYPE_WEB_APP_DATA |
 #endif
-    DATA_TYPE_SITE_USAGE_DATA | DATA_TYPE_DURABLE_PERMISSION |
+    DATA_TYPE_SITE_USAGE_DATA | DATA_TYPE_PERSISTENT_PERMISSION |
     DATA_TYPE_EXTERNAL_PROTOCOL_DATA | DATA_TYPE_ISOLATED_ORIGINS |
     DATA_TYPE_ISOLATED_WEB_APP_COOKIES |
     content::BrowsingDataRemover::DATA_TYPE_PRIVACY_SANDBOX |
@@ -77,11 +78,6 @@ constexpr DataType FILTERABLE_DATA_TYPES =
     content::BrowsingDataRemover::DATA_TYPE_RELATED_WEBSITE_SETS_PERMISSIONS |
     content::BrowsingDataRemover::DATA_TYPE_PREFETCH_CACHE |
     content::BrowsingDataRemover::DATA_TYPE_PRERENDER_CACHE;
-
-// Datatypes with account-scoped data that needs to be removed
-// before Google cookies are deleted.
-constexpr DataType DEFERRED_COOKIE_DELETION_DATA_TYPES =
-    DATA_TYPE_ACCOUNT_PASSWORDS;
 
 // Includes all the available remove options. Meant to be used by clients
 // that wish to wipe as much data as possible from a Profile, to make it
@@ -122,7 +118,7 @@ constexpr OriginType ORIGIN_TYPE_EMBEDDER_BEGIN =
 constexpr OriginType ORIGIN_TYPE_EXTENSION = ORIGIN_TYPE_EMBEDDER_BEGIN;
 #endif
 
-  // All origin types.
+// All origin types.
 constexpr OriginType ALL_ORIGIN_TYPES =
     content::BrowsingDataRemover::ORIGIN_TYPE_UNPROTECTED_WEB |
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
@@ -136,14 +132,6 @@ constexpr OriginType ALL_ORIGIN_TYPES =
 static_assert((IMPORTANT_SITES_DATA_TYPES & ~FILTERABLE_DATA_TYPES) == 0,
               "All important sites datatypes must be filterable.");
 
-static_assert((DEFERRED_COOKIE_DELETION_DATA_TYPES & FILTERABLE_DATA_TYPES) ==
-                  0,
-              "Deferred deletion is currently not implemented for filterable "
-              "data types");
-
-static_assert((DEFERRED_COOKIE_DELETION_DATA_TYPES & WIPE_PROFILE) == 0,
-              "Account data should not be included in deletions that remove "
-              "all local data");
 }  // namespace chrome_browsing_data_remover
 
 #endif  // CHROME_BROWSER_BROWSING_DATA_CHROME_BROWSING_DATA_REMOVER_CONSTANTS_H_

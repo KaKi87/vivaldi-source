@@ -5,51 +5,73 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ROOT_TAB_COLLECTION_NODE_H_
 #define CHROME_BROWSER_UI_VIEWS_TABS_VERTICAL_ROOT_TAB_COLLECTION_NODE_H_
 
+#include "base/containers/flat_set.h"
+#include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/types/expected.h"
-#include "chrome/browser/ui/tabs/tab_strip_api/observation/tab_strip_api_observer.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/tabs/vertical/tab_collection_node.h"
+#include "components/tabs/public/tab_collection_observer.h"
 #include "ui/views/view.h"
 
-namespace tabs_api {
-class TabStripService;
-}
+class TabStripModel;
 
-// The RootTabCollectionNode is the entry point for the TabStripAPI. It is
-// responsible for fetching the initial tab state and listening for updates.
-class RootTabCollectionNode
-    : public TabCollectionNode,
-      public tabs_api::observation::TabStripApiObserver {
+// The view model for the tab strip. It is responsible for observing
+// the tab collection hierarchy changes and tab selection and activation changes
+// and creates the view hierarchy.
+class RootTabCollectionNode : public TabCollectionNode,
+                              public tabs::TabCollectionObserver,
+                              public TabStripModelObserver {
  public:
   explicit RootTabCollectionNode(
-      tabs_api::TabStripService* service_register,
-      CustomAddChildViewCallback add_node_view_to_parent);
+      TabStripModel* tab_strip_model,
+      CustomAddChildViewCallback add_node_view_to_parent,
+      CustomRemoveChildViewCallback remove_node_view_from_parent);
   ~RootTabCollectionNode() override;
 
-  // tabs_api::observation::TabStripApiObserver
-  void OnTabsCreated(const tabs_api::mojom::OnTabsCreatedEventPtr&
-                         tabs_created_event) override;
-  void OnTabsClosed(
-      const tabs_api::mojom::OnTabsClosedEventPtr& tabs_closed_event) override;
-  void OnNodeMoved(
-      const tabs_api::mojom::OnNodeMovedEventPtr& node_moved_event) override;
-  void OnDataChanged(const tabs_api::mojom::OnDataChangedEventPtr&
-                         data_changed_event) override;
-  void OnCollectionCreated(const tabs_api::mojom::OnCollectionCreatedEventPtr&
-                               collection_created_event) override;
+  void Init();
+  void Reset();
+
+  base::CallbackListSubscription RegisterOnChildrenAddedCallback(
+      base::RepeatingClosure callback);
 
  private:
-  // TabCollectionNode needs to be initialized with data, however we need the
-  // container's children later in the constructor of RootTabCollectionNode.
-  // Use this helper so that we only have to call GetTabs once.
-  explicit RootTabCollectionNode(
-      tabs_api::TabStripService* tab_strip_service,
-      tabs_api::mojom::ContainerPtr container,
-      CustomAddChildViewCallback add_node_view_to_parent);
+  using SelectionHandles = base::flat_set<tabs::TabHandle>;
 
-  base::ScopedObservation<tabs_api::TabStripService,
-                          tabs_api::observation::TabStripApiObserver>
-      service_observer_{this};
+  // tabs::TabCollectionObserver
+  void OnChildrenAdded(const tabs::TabCollection::Position& position,
+                       const tabs::TabCollectionNodes& handles,
+                       bool insert_from_detached) override;
+  void OnChildrenRemoved(const tabs::TabCollection::Position& position,
+                         const tabs::TabCollectionNodes& handles) override;
+  void OnChildMoved(const tabs::TabCollection::Position& to_position,
+                    const NodeData& node_data) override;
+
+  // TabStripModelObserver:
+  void OnTabStripModelChanged(
+      TabStripModel* tab_strip_model,
+      const TabStripModelChange& change,
+      const TabStripSelectionChange& selection) override;
+  void OnTabGroupChanged(const TabGroupChange& change) override;
+  void OnTabGroupFocusChanged(
+      std::optional<tab_groups::TabGroupId> new_focused_group_id,
+      std::optional<tab_groups::TabGroupId> old_focused_group_id) override;
+  void OnTabChangedAt(tabs::TabInterface* tab,
+                      int model_index,
+                      TabChangeType change_type) override;
+  void OnTabBlockedStateChanged(tabs::TabInterface* tab,
+                                int model_index) override;
+
+  void UpdateTabsData(const std::set<tabs::TabInterface*>& changed_tabs);
+
+  void NotifyOnChildrenAdded();
+
+  raw_ptr<TabStripModel> tab_strip_model_;
+  SelectionHandles selected_tabs_;
+  CustomAddChildViewCallback add_node_view_to_parent_;
+  CustomRemoveChildViewCallback remove_node_view_from_parent_;
+  base::RepeatingClosureList on_children_added_callback_list_;
   base::WeakPtrFactory<RootTabCollectionNode> weak_ptr_factory_{this};
 };
 

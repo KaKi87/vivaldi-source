@@ -38,6 +38,11 @@ const BookmarkNode* CreateImportBookmarksFolder(
   CHECK(bookmark_model);
   CHECK(bookmark_model->loaded());
 
+#if defined(VIVALDI_BUILD) && BUILDFLAG(IS_IOS)
+  const BookmarkNode* bar_node = bookmark_model->bookmark_bar_node();
+    CHECK(bar_node);
+    return bookmark_model->AddFolder(bar_node, 0, folder_title);
+#else
   const BookmarkNode* other_node = bookmark_model->account_other_node();
   if (!other_node) {
     other_node = bookmark_model->other_node();
@@ -46,6 +51,8 @@ const BookmarkNode* CreateImportBookmarksFolder(
   CHECK(other_node);
 
   return bookmark_model->AddFolder(other_node, 0, folder_title);
+#endif // End Vivaldi
+
 }
 
 }  // namespace

@@ -14,6 +14,7 @@
 #include "chrome/browser/feature_engagement/tracker_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
@@ -36,15 +37,27 @@
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "components/feature_engagement/public/event_constants.h"
 #include "components/feature_engagement/public/feature_constants.h"
+#include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 #include "ui/views/view.h"
+
+DEFINE_USER_DATA(SidePanelCoordinator);
 
 SidePanelCoordinator::SidePanelCoordinator(BrowserView* browser_view)
     : SidePanelUIBase(browser_view->browser()),
       browser_view_(browser_view),
       side_panel_toolbar_pinning_controller_(
-          std::make_unique<SidePanelToolbarPinningController>(browser_view_)) {}
+          std::make_unique<SidePanelToolbarPinningController>(browser_view_)),
+      scoped_unowned_user_data_(
+          browser_view->browser()->GetUnownedUserDataHost(),
+          *this) {}
 
 SidePanelCoordinator::~SidePanelCoordinator() = default;
+
+// static:
+SidePanelCoordinator* SidePanelCoordinator::From(
+    BrowserWindowInterface* browser_window_interface) {
+  return Get(browser_window_interface->GetUnownedUserDataHost());
+}
 
 void SidePanelCoordinator::Init(Browser* browser) {
   SidePanelUtil::PopulateGlobalEntries(browser,
@@ -251,7 +264,7 @@ SidePanelEntry* SidePanelCoordinator::GetEntryForKey(
     return contextual_entry;
   }
 
-  return SidePanelRegistry::From(browser_)->GetEntryForKey(entry_key);
+  return SidePanelRegistry::From(browser())->GetEntryForKey(entry_key);
 }
 
 void SidePanelCoordinator::PopulateSidePanel(
@@ -265,6 +278,14 @@ void SidePanelCoordinator::PopulateSidePanel(
 
   entry->set_last_open_trigger(open_trigger);
   side_panel->SetOutlineVisibility(entry->should_show_outline());
+
+  // Glic, when shown in the toolbar height side panel, should not respect the
+  // horizontal alignment of other toolbar height side panels. This is special
+  // case behavior that should be removed when toolbar and content height side
+  // panels are unified.
+  side_panel->SetActiveEntryUsesDefaultHorizontalAlignment(
+      !(entry->key().id() == SidePanelEntry::Id::kGlic &&
+        entry->type() == SidePanelEntry::PanelType::kToolbar));
 
   if (entry->should_show_header()) {
     side_panel->AddHeaderView(std::make_unique<SidePanelHeader>(
@@ -346,7 +367,7 @@ void SidePanelCoordinator::PopulateSidePanel(
 
 void SidePanelCoordinator::ClearCachedEntryViews(
     SidePanelEntry::PanelType type) {
-  SidePanelRegistry::From(browser_)->ClearCachedEntryViews(type);
+  SidePanelRegistry::From(browser())->ClearCachedEntryViews(type);
   TabStripModel* model = browser_view_->browser()->tab_strip_model();
   for (tabs::TabInterface* tab : *model) {
     tab->GetTabFeatures()->side_panel_registry()->ClearCachedEntryViews(type);
@@ -445,7 +466,7 @@ void SidePanelCoordinator::OnViewVisibilityChanged(views::View* observed_view,
   if (auto* contextual_registry = GetActiveContextualRegistry()) {
     contextual_registry->ResetActiveEntryFor(side_panel->type());
   }
-  SidePanelRegistry::From(browser_)->ResetActiveEntryFor(side_panel->type());
+  SidePanelRegistry::From(browser())->ResetActiveEntryFor(side_panel->type());
   ClearCachedEntryViews(side_panel->type());
 
   // `OnEntryWillDeregister` (triggered by calling `OnEntryHidden`) may

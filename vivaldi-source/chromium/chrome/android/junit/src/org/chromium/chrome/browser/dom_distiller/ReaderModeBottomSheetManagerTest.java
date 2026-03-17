@@ -4,6 +4,7 @@
 
 package org.chromium.chrome.browser.dom_distiller;
 
+import static org.junit.Assert.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.never;
@@ -24,9 +25,11 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
+import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.Callback;
 import org.chromium.base.test.BaseRobolectricTestRunner;
+import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ActivityTabProvider;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
@@ -37,11 +40,14 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.theme.ThemeColorProvider;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
 import org.chromium.components.dom_distiller.core.DistilledPagePrefs;
+import org.chromium.components.dom_distiller.core.DomDistillerFeatures;
 import org.chromium.components.dom_distiller.core.DomDistillerService;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtilsJni;
 import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.url.GURL;
+
+import java.util.concurrent.TimeUnit;
 
 /** Unit tests for {@link ReaderModeBottomSheetManager}. */
 @RunWith(BaseRobolectricTestRunner.class)
@@ -52,7 +58,6 @@ public class ReaderModeBottomSheetManagerTest {
 
     @Mock private Profile mProfile;
     @Mock private BottomSheetController mBottomSheetController;
-    @Mock private ActivityTabProvider mTabProvider;
     @Mock private BrowserControlsVisibilityManager mBrowserControlsVisibilityManager;
     @Mock private Tab mTab;
     @Mock private WebContents mWebContents;
@@ -69,21 +74,23 @@ public class ReaderModeBottomSheetManagerTest {
     @Captor
     private ArgumentCaptor<BrowserControlsStateProvider.Observer> mBrowserControlsObserverCaptor;
 
+    private final ActivityTabProvider mActivityTabProvider = new ActivityTabProvider();
     private ReaderModeBottomSheetManager mManager;
     private Activity mActivity;
     private GURL mGurl;
 
     @Before
     public void setUp() {
+        ReaderModeBottomSheetManager.setBottomSheetPeekDelayForTesting(0);
         mActivity = Robolectric.buildActivity(Activity.class).create().get();
         mActivity.setTheme(R.style.Theme_BrowserUI_DayNight);
+        mActivityTabProvider.setForTesting(mTab);
 
         mGurl = new GURL(DISTILLED_URL);
         when(mProfile.getOriginalProfile()).thenReturn(mProfile);
         when(mTab.getProfile()).thenReturn(mProfile);
         when(mTab.getUrl()).thenReturn(mGurl);
         when(mTab.getWebContents()).thenReturn(mWebContents);
-        when(mTabProvider.get()).thenReturn(mTab);
         when(mNavigationHandle.hasCommitted()).thenReturn(true);
         when(mNavigationHandle.isInPrimaryMainFrame()).thenReturn(true);
 
@@ -97,6 +104,7 @@ public class ReaderModeBottomSheetManagerTest {
 
     @After
     public void tearDown() {
+        ReaderModeBottomSheetManager.setBottomSheetPeekDelayForTesting(2000);
         if (mManager != null) {
             mManager.destroy();
             mManager = null;
@@ -108,11 +116,60 @@ public class ReaderModeBottomSheetManagerTest {
                 new ReaderModeBottomSheetManager(
                         mActivity,
                         mBottomSheetController,
-                        mTabProvider,
+                        mActivityTabProvider,
                         mBrowserControlsVisibilityManager,
                         mThemeColorProvider);
-        verify(mTabProvider).addObserver(mActivityTabObserverCaptor.capture());
         verify(mTab).addObserver(mEmptyTabObserverCaptor.capture());
+    }
+
+    @Test
+    @EnableFeatures(DomDistillerFeatures.READER_MODE_DELAY_BOTTOM_SHEET_PEEK)
+    public void testDelayBottomSheetPeekOnInitialLoad() {
+        ReaderModeBottomSheetManager.setBottomSheetPeekDelayForTesting(2000);
+        createManagerAndGetTabObserver();
+
+        // Should not show initially.
+        verify(mBottomSheetController, never()).requestShowContent(any(), anyBoolean());
+
+        // Fast forward by 1000ms, should still not show.
+        ShadowLooper.idleMainLooper(1000, TimeUnit.MILLISECONDS);
+        verify(mBottomSheetController, never()).requestShowContent(any(), anyBoolean());
+
+        // Fast forward by another 1000ms, should show.
+        ShadowLooper.idleMainLooper(1000, TimeUnit.MILLISECONDS);
+        verify(mBottomSheetController).requestShowContent(any(), anyBoolean());
+    }
+
+    @Test
+    @EnableFeatures(DomDistillerFeatures.READER_MODE_DELAY_BOTTOM_SHEET_PEEK)
+    public void testCancelDelayedPeekOnHide() {
+        ReaderModeBottomSheetManager.setBottomSheetPeekDelayForTesting(2000);
+        createManagerAndGetTabObserver();
+
+        // Trigger hide while the peek is pending.
+        mManager.destroy(); // destroy() calls hide() which cancels the task.
+        mManager = null;
+
+        // Fast forward past the delay, should not show.
+        ShadowLooper.idleMainLooper(2000, TimeUnit.MILLISECONDS);
+        verify(mBottomSheetController, never()).requestShowContent(any(), anyBoolean());
+    }
+
+    @Test
+    @EnableFeatures(DomDistillerFeatures.READER_MODE_DELAY_BOTTOM_SHEET_PEEK)
+    public void testCancelDelayedPeekOnNewNavigation() {
+        ReaderModeBottomSheetManager.setBottomSheetPeekDelayForTesting(2000);
+        createManagerAndGetTabObserver();
+
+        // Start a new navigation to a non-distilled page.
+        updateUrl("https://www.google.com");
+        mEmptyTabObserverCaptor
+                .getValue()
+                .onDidFinishNavigationInPrimaryMainFrame(mTab, mNavigationHandle);
+
+        // Fast forward past the delay, should not show.
+        ShadowLooper.idleMainLooper(2000, TimeUnit.MILLISECONDS);
+        verify(mBottomSheetController, never()).requestShowContent(any(), anyBoolean());
     }
 
     @Test
@@ -173,7 +230,7 @@ public class ReaderModeBottomSheetManagerTest {
         verify(mBottomSheetController).requestShowContent(any(), anyBoolean());
 
         // When there's no active tab, the sheet should be hidden.
-        mActivityTabObserverCaptor.getValue().onResult(null);
+        mActivityTabProvider.setForTesting(null);
         verify(mBottomSheetController).hideContent(any(), anyBoolean());
     }
 
@@ -234,7 +291,7 @@ public class ReaderModeBottomSheetManagerTest {
         createManagerAndGetTabObserver();
         verify(mTab).addObserver(any());
 
-        mActivityTabObserverCaptor.getValue().onResult(null);
+        mActivityTabProvider.setForTesting(null);
         verify(mTab).removeObserver(any());
     }
 
@@ -244,7 +301,7 @@ public class ReaderModeBottomSheetManagerTest {
         verify(mTab).addObserver(any());
 
         mManager.destroy();
-        verify(mTabProvider).removeObserver(any());
+        assertFalse(mActivityTabProvider.asObservable().hasObservers());
         verify(mTab).removeObserver(any());
         verify(mBrowserControlsVisibilityManager).removeObserver(any());
         mManager = null;

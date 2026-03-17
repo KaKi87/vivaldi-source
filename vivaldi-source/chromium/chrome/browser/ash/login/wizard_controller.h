@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_ASH_LOGIN_WIZARD_CONTROLLER_H_
 #define CHROME_BROWSER_ASH_LOGIN_WIZARD_CONTROLLER_H_
 
-#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -20,6 +19,7 @@
 #include "chrome/browser/ash/login/demo_mode/demo_session.h"
 #include "chrome/browser/ash/login/enrollment/auto_enrollment_check_screen.h"
 #include "chrome/browser/ash/login/enrollment/enrollment_screen.h"
+#include "chrome/browser/ash/login/fjord_oobe/proto/fjord_oobe_state.pb.h"
 #include "chrome/browser/ash/login/oobe_metrics_helper.h"
 #include "chrome/browser/ash/login/oobe_screen.h"
 #include "chrome/browser/ash/login/quickstart_controller.h"
@@ -252,7 +252,7 @@ class WizardController : public OobeUI::Observer {
 
   // Configure and show the signin fatal error screen.
   void ShowSignInFatalErrorScreen(SignInFatalErrorScreen::Error error,
-                                  base::Value::Dict params);
+                                  base::DictValue params);
 
   // Show Family Link notice screen.
   void ShowFamilyLinkNoticeScreen();
@@ -262,6 +262,10 @@ class WizardController : public OobeUI::Observer {
 
   // Exits Fjord touch controller screen if it's showing.
   bool ExitFjordTouchControllerScreen();
+
+  // Shows the Fjord OOBE state if the next state is valid.
+  bool ShowNextFjordOobeScreen(
+      fjord_oobe_state::proto::FjordOobeStateInfo::FjordOobeState new_state);
 
   // Set pref value for first run.
   void PrepareFirstRunPrefs();
@@ -362,6 +366,7 @@ class WizardController : public OobeUI::Observer {
   void ShowAppLaunchSplashScreen();
   void ShowFjordTouchControllerScreen();
   void ShowFjordStationSetupScreen();
+  void ShowFjordFwUpdateScreen();
 
   // Shows images login screen.
   void ShowLoginScreen();
@@ -483,6 +488,7 @@ class WizardController : public OobeUI::Observer {
   void OnPerksDiscoveryScreenExit(PerksDiscoveryScreen::Result result);
   void OnAppLaunchSplashScreenExit();
   void OnFjordStationSetupScreenExit();
+  void OnFjordFwUpdateScreenExit();
 
   // Callback invoked once it has been determined whether the device is disabled
   // or not.
@@ -586,6 +592,11 @@ class WizardController : public OobeUI::Observer {
 
   // Tries to enable pre-consent metrics.
   void MaybeEnablePreConsentMetrics();
+
+  // Notifies the FjordOobeStateManager of an OOBE state change. This is a no-op
+  // for devices that do not implement the Fjord variant of OOBE.
+  void MaybeNotifyFjordOobeStateManager(
+      fjord_oobe_state::proto::FjordOobeStateInfo::FjordOobeState state);
 
   std::unique_ptr<policy::AutoEnrollmentController> auto_enrollment_controller_;
   std::unique_ptr<ChoobeFlowController> choobe_flow_controller_;

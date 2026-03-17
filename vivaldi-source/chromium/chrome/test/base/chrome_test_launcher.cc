@@ -235,6 +235,10 @@ void ChromeTestChromeMainDelegate::CreateThreadPool(std::string_view name) {
 #endif
 }
 
+bool ChromeTestChromeMainDelegate::IsInitFeatureListEarly() {
+  return false;
+}
+
 #if !BUILDFLAG(IS_ANDROID)
 content::ContentMainDelegate*
 ChromeTestLauncherDelegate::CreateContentMainDelegate() {
@@ -250,7 +254,7 @@ void ChromeTestLauncherDelegate::PreSharding() {
 #if BUILDFLAG(IS_WIN)
   // Pre-test cleanup for registry state keyed off the profile dir (which can
   // proliferate with the use of uniquely named scoped_dirs):
-  // https://crbug.com/721245. This needs to be here in order not to be racy
+  // https://crbug.com/40520015. This needs to be here in order not to be racy
   // with any tests that will access that state.
   base::win::RegKey distrubution_key;
   LONG result = distrubution_key.Open(HKEY_CURRENT_USER,

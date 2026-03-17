@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="sk">
+<translation id="3110967157686007724">Súkromný list</translation>
 <translation id="4165986682804962316">Nastavenia stránky</translation>
+<translation id="5216942107514965959">Naposledy navštívené dnes</translation>
+<translation id="5802121420922181398">Zobraziť tlačidlo Čítačky v adresnom poli, ak je k dispozícii.</translation>
 <translation id="5860033963881614850">Vypnuté</translation>
+<translation id="5939518447894949180">Resetovať</translation>
+<translation id="6877535416649928189">Zobrazenie čítačky pre webové stránky</translation>
 </translationbundle>

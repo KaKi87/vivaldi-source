@@ -38,7 +38,7 @@ import org.vivaldi.browser.adblock.VivaldiTrackerBlockerPopup;
 /** Helper class showing page info dialog for Clank. */
 @NullMarked
 public class ChromePageInfo {
-    private final Supplier<ModalDialogManager> mModalDialogManagerSupplier;
+    private final Supplier<@Nullable ModalDialogManager> mModalDialogManagerSupplier;
     private final @Nullable String mPublisher;
     private final @OpenedFromSource int mSource;
     private final @Nullable Supplier<StoreInfoActionHandler> mStoreInfoActionHandlerSupplier;
@@ -58,7 +58,7 @@ public class ChromePageInfo {
      * @param tabCreator {@link TabCreator} to handle a new tab creation.
      */
     public ChromePageInfo(
-            Supplier<ModalDialogManager> modalDialogManagerSupplier,
+            Supplier<@Nullable ModalDialogManager> modalDialogManagerSupplier,
             @Nullable String publisher,
             @OpenedFromSource int source,
             @Nullable Supplier<StoreInfoActionHandler> storeInfoActionHandlerSupplier,
@@ -124,7 +124,6 @@ public class ChromePageInfo {
                         packageName),
                 pageInfoHighlight,
                 dialogPosition,
-                /* openPermissionsSubpage= */ false,
                 ChromePageInfo::dismissPopup); // Vivaldi
 
         // Vivaldi - Combined Site prefs and Tracker blocker popup
@@ -141,6 +140,7 @@ public class ChromePageInfo {
                         == null) // Vivaldi VAB-11227
             mTrackerBlockerPopup.show(
                     ((AppCompatActivity) activity).getSupportFragmentManager(), "TrackerBlocker");
+        // End Vivaldi
     }
 
     // Vivaldi

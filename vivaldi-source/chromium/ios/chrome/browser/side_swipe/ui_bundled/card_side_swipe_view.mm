@@ -24,8 +24,8 @@
 #import "ios/chrome/browser/snapshots/model/snapshot_browser_agent.h"
 #import "ios/chrome/browser/snapshots/model/snapshot_id.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid/grid_constants.h"
-#import "ios/chrome/browser/toolbar/ui_bundled/public/side_swipe_toolbar_snapshot_providing.h"
-#import "ios/chrome/browser/toolbar/ui_bundled/public/toolbar_type.h"
+#import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/side_swipe_toolbar_snapshot_providing.h"
+#import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_type.h"
 #import "ios/chrome/browser/web/model/page_placeholder_tab_helper.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/grit/ios_theme_resources.h"
@@ -229,26 +229,23 @@ const CGFloat kResizeFactor = 4;
   PrefService* prefs =
       ProfileIOS::FromBrowserState(webState->GetBrowserState())->GetPrefs();
   // Lens overlay displays content fullscreen and hides the vertical toolbars.
-  if (IsLensOverlayAvailable(prefs)) {
-    if (LensOverlayTabHelper* lensOverlayTabHelper =
-            LensOverlayTabHelper::FromWebState(webState)) {
-      BOOL lensOverlayShown;
+  if (LensOverlayTabHelper* lensOverlayTabHelper =
+          LensOverlayTabHelper::FromWebState(webState)) {
+    BOOL lensOverlayShown;
 
-      if (IsLensOverlaySameTabNavigationEnabled(prefs)) {
-        lensOverlayShown =
-            lensOverlayTabHelper->IsLensOverlayInvokedOnCurrentNavigationItem();
-      } else {
-        lensOverlayShown =
-            lensOverlayTabHelper->IsLensOverlayUIAttachedAndAlive();
-      }
+    if (IsLensOverlaySameTabNavigationEnabled(prefs)) {
+      lensOverlayShown =
+          lensOverlayTabHelper->IsLensOverlayInvokedOnCurrentNavigationItem();
+    } else {
+      lensOverlayShown =
+          lensOverlayTabHelper->IsLensOverlayUIAttachedAndAlive();
+    }
 
-      UIImage* lensOverlaySnapshot =
-          lensOverlayTabHelper->GetViewportSnapshot();
-      if (lensOverlayShown && lensOverlaySnapshot) {
-        [self enableFullscreenCard:card];
-        [card setImage:lensOverlaySnapshot];
-        return;
-      }
+    UIImage* lensOverlaySnapshot = lensOverlayTabHelper->GetViewportSnapshot();
+    if (lensOverlayShown && lensOverlaySnapshot) {
+      [self enableFullscreenCard:card];
+      [card setImage:lensOverlaySnapshot];
+      return;
     }
   }
 

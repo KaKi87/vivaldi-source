@@ -36,9 +36,8 @@ class VivaldiUIWebContentsDelegate : public content::WebContentsDelegate,
   void Initialize();
 
   // Overridden from WebContentsDelegate
-  bool HandleKeyboardEvent(
-      content::WebContents* source,
-      const input::NativeWebKeyboardEvent& event) override;
+  bool HandleKeyboardEvent(content::WebContents* source,
+                           const input::NativeWebKeyboardEvent& event) override;
   void ContentsMouseEvent(content::WebContents* source,
                           const ui::Event& event) override;
   bool PreHandleGestureEvent(content::WebContents* source,
@@ -76,8 +75,8 @@ class VivaldiUIWebContentsDelegate : public content::WebContentsDelegate,
   content::WebContents* OpenURLFromTab(
       content::WebContents* source,
       const content::OpenURLParams& params,
-      base::OnceCallback<void(content::NavigationHandle&)> navigation_handle_callback)
-      override;
+      base::OnceCallback<void(content::NavigationHandle&)>
+          navigation_handle_callback) override;
   std::unique_ptr<content::EyeDropper> OpenEyeDropper(
       content::RenderFrameHost* frame,
       content::EyeDropperListener* listener) override;
@@ -95,14 +94,13 @@ class VivaldiUIWebContentsDelegate : public content::WebContentsDelegate,
       const content::WebContents* source) override;
   content::WebContents* AddNewContents(
       content::WebContents* source,
-                      std::unique_ptr<content::WebContents> new_contents,
-                      const GURL& target_url,
-                      WindowOpenDisposition disposition,
-                      const blink::mojom::WindowFeatures& window_features,
-                      bool user_gesture,
-                      bool* was_blocked) override;
+      std::unique_ptr<content::WebContents> new_contents,
+      const GURL& target_url,
+      WindowOpenDisposition disposition,
+      const blink::mojom::WindowFeatures& window_features,
+      bool user_gesture,
+      bool* was_blocked) override;
   bool CanOverscrollContent() override;
-
 
  private:
   // content::WebContentsObserver

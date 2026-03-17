@@ -358,6 +358,8 @@ TEST_P(ReadOnlyDepthAttachmentTests, UnusedAspectWithReadOnly) {
 class ReadOnlyStencilAttachmentTests : public ReadOnlyDepthStencilAttachmentTests {};
 
 TEST_P(ReadOnlyStencilAttachmentTests, SampleFromAttachment) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     // stencilRefValue < stencilValue (stencilInitValue), so stencil test passes. The pipeline
     // samples from stencil buffer and writes into color buffer.
     {
@@ -386,6 +388,8 @@ TEST_P(ReadOnlyStencilAttachmentTests, SampleFromAttachment) {
 }
 
 TEST_P(ReadOnlyStencilAttachmentTests, NotSampleFromAttachment) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     // stencilRefValue < stencilValue (stencilInitValue), so stencil test passes. The pipeline
     // draw solid blue into color buffer.
     {
@@ -411,10 +415,20 @@ TEST_P(ReadOnlyStencilAttachmentTests, NotSampleFromAttachment) {
     }
 }
 
-class ReadOnlyDepthAndStencilAttachmentTests : public ReadOnlyDepthStencilAttachmentTests {};
+class ReadOnlyDepthAndStencilAttachmentTests : public ReadOnlyDepthStencilAttachmentTests {
+  protected:
+    void SetUp() override {
+        ReadOnlyDepthStencilAttachmentTests::SetUp();
+
+        // TODO(crbug.com/473870505): [Capture] support depth/stencil and multi-planar textures.
+        DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
+    }
+};
 
 // Test that using stencilReadOnly while modifying the depth aspect works.
 TEST_P(ReadOnlyDepthAndStencilAttachmentTests, ModifyDepthSampleStencil) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     // Stencil test is always true but the depth test passes only for the
     TestSpec spec1;
     spec1.readonlyAspects = wgpu::TextureAspect::StencilOnly;
@@ -466,6 +480,8 @@ TEST_P(ReadOnlyDepthAndStencilAttachmentTests, SampleDepthModifyStencil) {
 
 // Test sampling depth with both the depth and stencil readonly.
 TEST_P(ReadOnlyDepthAndStencilAttachmentTests, BothReadOnlySampleDepth) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     // Sample the depth while using both depth an stencil testing.
 
     // First render: depth test passes only for the bottom half, stencil passes.
@@ -488,6 +504,8 @@ TEST_P(ReadOnlyDepthAndStencilAttachmentTests, BothReadOnlySampleDepth) {
 
 // Test sampling stencil with both the depth and stencil readonly.
 TEST_P(ReadOnlyDepthAndStencilAttachmentTests, BothReadOnlySampleStencil) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     // Sample the stencil while using both depth an stencil testing.
 
     // First render: depth test passes only for the bottom half, stencil passes.
@@ -508,24 +526,31 @@ TEST_P(ReadOnlyDepthAndStencilAttachmentTests, BothReadOnlySampleStencil) {
     CheckFullColor(render2.color, {0, 0, 0, 0});
 }
 
-DAWN_INSTANTIATE_TEST_P(ReadOnlyDepthAttachmentTests,
-                        {D3D11Backend(), D3D12Backend(),
-                         D3D12Backend({}, {"use_d3d12_render_pass"}), MetalBackend(),
-                         OpenGLBackend(), OpenGLESBackend(), VulkanBackend(), WebGPUBackend()},
-                        std::vector<wgpu::TextureFormat>(utils::kDepthFormats.begin(),
-                                                         utils::kDepthFormats.end()));
-DAWN_INSTANTIATE_TEST_P(ReadOnlyStencilAttachmentTests,
-                        {D3D11Backend(), D3D12Backend(),
-                         D3D12Backend({}, {"use_d3d12_render_pass"}), MetalBackend(),
-                         OpenGLBackend(), OpenGLESBackend(), VulkanBackend(), WebGPUBackend()},
-                        std::vector<wgpu::TextureFormat>(utils::kStencilFormats.begin(),
-                                                         utils::kStencilFormats.end()));
-DAWN_INSTANTIATE_TEST_P(ReadOnlyDepthAndStencilAttachmentTests,
-                        {D3D11Backend(), D3D12Backend(),
-                         D3D12Backend({}, {"use_d3d12_render_pass"}), MetalBackend(),
-                         OpenGLBackend(), OpenGLESBackend(), VulkanBackend(), WebGPUBackend()},
-                        std::vector<wgpu::TextureFormat>(utils::kDepthAndStencilFormats.begin(),
-                                                         utils::kDepthAndStencilFormats.end()));
+DAWN_INSTANTIATE_TEST_P(
+    ReadOnlyDepthAttachmentTests,
+    {D3D11Backend(), D3D12Backend(), D3D12Backend({}, {"use_d3d12_render_pass"}), MetalBackend(),
+     OpenGLBackend(), OpenGLESBackend(), VulkanBackend({"vulkan_use_dynamic_rendering"}, {}),
+     VulkanBackend({"vulkan_use_create_render_pass_2"}, {"vulkan_use_dynamic_rendering"}),
+     VulkanBackend({}, {"vulkan_use_create_render_pass_2", "vulkan_use_dynamic_rendering"}),
+     WebGPUBackend()},
+    std::vector<wgpu::TextureFormat>(utils::kDepthFormats.begin(), utils::kDepthFormats.end()));
+DAWN_INSTANTIATE_TEST_P(
+    ReadOnlyStencilAttachmentTests,
+    {D3D11Backend(), D3D12Backend(), D3D12Backend({}, {"use_d3d12_render_pass"}), MetalBackend(),
+     OpenGLBackend(), OpenGLESBackend(), VulkanBackend({"vulkan_use_dynamic_rendering"}, {}),
+     VulkanBackend({"vulkan_use_create_render_pass_2"}, {"vulkan_use_dynamic_rendering"}),
+     VulkanBackend({}, {"vulkan_use_create_render_pass_2", "vulkan_use_dynamic_rendering"}),
+     WebGPUBackend()},
+    std::vector<wgpu::TextureFormat>(utils::kStencilFormats.begin(), utils::kStencilFormats.end()));
+DAWN_INSTANTIATE_TEST_P(
+    ReadOnlyDepthAndStencilAttachmentTests,
+    {D3D11Backend(), D3D12Backend(), D3D12Backend({}, {"use_d3d12_render_pass"}), MetalBackend(),
+     OpenGLBackend(), OpenGLESBackend(), VulkanBackend({"vulkan_use_dynamic_rendering"}, {}),
+     VulkanBackend({"vulkan_use_create_render_pass_2"}, {"vulkan_use_dynamic_rendering"}),
+     VulkanBackend({}, {"vulkan_use_create_render_pass_2", "vulkan_use_dynamic_rendering"}),
+     WebGPUBackend()},
+    std::vector<wgpu::TextureFormat>(utils::kDepthAndStencilFormats.begin(),
+                                     utils::kDepthAndStencilFormats.end()));
 
 }  // anonymous namespace
 }  // namespace dawn

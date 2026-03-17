@@ -181,13 +181,15 @@ void RequestFilterManager::ProxyWebSocket(
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 
   const bool has_extra_headers = request_handler_.HasAnyExtraHeadersListener();
+  const bool has_security_info = request_handler_.HasAnySecurityInfoListener();
 
   RequestFilterProxyingWebSocket::StartProxying(
       std::move(factory), site_for_cookies, user_agent, url,
       std::move(additional_headers), std::move(handshake_client),
       std::move(authentication_handler), std::move(header_client),
-      has_extra_headers, process_id, frame_id, &request_id_generator_,
-      &request_handler_, frame_origin, browser_context_, proxies_.get());
+      has_extra_headers, has_security_info, process_id, frame_id,
+      &request_id_generator_, &request_handler_, frame_origin, browser_context_,
+      proxies_.get());
 }
 
 content::ContentBrowserClient::WillCreateWebTransportCallback
@@ -393,7 +395,9 @@ void RequestFilterManager::RequestHandler::OnBeforeRequestHandled(
         pending_request.collapse) {
       *pending_request.collapse = true;
     } else if (cancel == RequestFilter::kPreventCancel) {
-      *pending_request.collapse = false;
+      if (pending_request.collapse) {
+        *pending_request.collapse = false;
+      }
       *pending_request.new_url = GURL();
     }
   }

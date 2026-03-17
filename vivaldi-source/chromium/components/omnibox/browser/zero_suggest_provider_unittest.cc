@@ -53,8 +53,6 @@ constexpr bool is_ios = !!BUILDFLAG(IS_IOS);
 
 namespace {
 
-constexpr int kCacheSize = 10;
-
 class FakeAutocompleteProviderClient : public MockAutocompleteProviderClient {
  public:
   FakeAutocompleteProviderClient() {
@@ -62,7 +60,7 @@ class FakeAutocompleteProviderClient : public MockAutocompleteProviderClient {
         search_engines_test_environment_.pref_service().registry());
     zero_suggest_cache_service_ = std::make_unique<ZeroSuggestCacheService>(
         std::make_unique<TestSchemeClassifier>(),
-        &search_engines_test_environment_.pref_service(), kCacheSize);
+        &search_engines_test_environment_.pref_service());
   }
   FakeAutocompleteProviderClient(const FakeAutocompleteProviderClient&) =
       delete;
@@ -275,6 +273,16 @@ class ZeroSuggestProviderTest : public testing::Test,
     return input;
   }
 
+  AutocompleteInput ZeroPrefixInputForOmniboxComposebox(
+      const std::string& input_url = "https://example.com/") {
+    AutocompleteInput input(u"",
+                            metrics::OmniboxEventProto::NTP_OMNIBOX_COMPOSEBOX,
+                            TestSchemeClassifier());
+    input.set_current_url(GURL(input_url));
+    input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_FOCUS);
+    return input;
+  }
+
   base::test::SingleThreadTaskEnvironment task_environment_;
   std::unique_ptr<base::test::ScopedFeatureList> scoped_feature_list_;
   variations::test::ScopedVariationsIdsProvider scoped_variations_ids_provider_{
@@ -304,17 +312,15 @@ void ZeroSuggestProviderTest::SetUp() {
   // Ensure the prefs-based cache is empty.
   PrefService* prefs = client_->GetPrefs();
   prefs->SetString(omnibox::kZeroSuggestCachedResults, "");
-  prefs->SetDict(omnibox::kZeroSuggestCachedResultsWithURL,
-                 base::Value::Dict());
+  prefs->SetDict(omnibox::kZeroSuggestCachedResultsWithURL, base::DictValue());
 
-  // Ensure the in-memory cache is empty.
+  // Ensure the cache is empty.
   ZeroSuggestCacheService* cache_svc = client_->GetZeroSuggestCacheService();
   cache_svc->ClearCache();
 
   scoped_feature_list_ = std::make_unique<base::test::ScopedFeatureList>();
   scoped_feature_list_->InitWithFeatures(
-      /*enabled_features=*/{omnibox::kZeroSuggestPrefetching,
-                            omnibox::kZeroSuggestPrefetchingOnSRP,
+      /*enabled_features=*/{omnibox::kZeroSuggestPrefetchingOnSRP,
                             omnibox::kZeroSuggestPrefetchingOnWeb},
       /*disabled_features=*/{});
 }
@@ -639,8 +645,10 @@ TEST_F(ZeroSuggestProviderTest, SendRequestWithoutLensInteractionResponse) {
 
 TEST_F(ZeroSuggestProviderTest, SendRequestWithAimToolMode) {
   AutocompleteInput input = ZeroPrefixInputForComposebox();
-  input.set_aim_tool_mode(
-      omnibox::ChromeAimToolsAndModels::TOOL_MODE_DEEP_SEARCH);
+  input.set_focus_type(metrics::OmniboxFocusType::INTERACTION_FOCUS);
+  omnibox::InputState input_state;
+  input_state.active_tool = omnibox::ToolMode::TOOL_MODE_DEEP_SEARCH;
+  input.set_input_state(input_state);
   provider_->Start(input, false);
 
   // Make sure the default provider's suggest endpoint was queried with the
@@ -655,6 +663,35 @@ TEST_F(ZeroSuggestProviderTest, SendRequestWithAimToolMode) {
       test_loader_factory()->GetPendingRequest(0)->request.url.spec(),
       R"(["",[],[],[],{}])");
   EXPECT_TRUE(base::test::RunUntil([&] { return provider_->done(); }));
+}
+
+TEST_F(ZeroSuggestProviderTest, SendRequestForThreadsSuggestion) {
+  EXPECT_CALL(*client_, IsAuthenticated())
+      .WillRepeatedly(testing::Return(true));
+  AutocompleteInput input = ZeroPrefixInputForOmniboxComposebox();
+  provider_->Start(input, false);
+
+  // Make sure the default provider's suggest endpoint was queried with the
+  // expected client
+  EXPECT_FALSE(provider_->done());
+  EXPECT_EQ(1, test_loader_factory()->NumPending());
+
+  std::string json_response(
+      R"(["",["", "search2", "search3"],)"
+      R"([],[],{"google:suggestrelevance":[602, 601, 600],)"
+      R"("google:verbatimrelevance":1300,)"
+      R"("google:suggestdetail": [)"
+      R"({"google:suggesttemplate": "CAIQCRobChlWaWV3IHlvdXIgQUkgTW9kZSBoaXN0b3J5MgoKA2FlcBIDMTMxMgkKBGF0dm0SATM="},)"
+      R"({}, {}]}])");
+
+  test_loader_factory()->AddResponse(
+      test_loader_factory()->GetPendingRequest(0)->request.url.spec(),
+      json_response);
+
+  EXPECT_TRUE(base::test::RunUntil([&] { return provider_->done(); }));
+
+  // Expect no matches were dropped even though the query/suggestion is empty.
+  EXPECT_EQ(3U, provider_->matches().size());
 }
 
 TEST_F(ZeroSuggestProviderTest, SendRequestWithLensInteractionResponse) {
@@ -682,10 +719,6 @@ TEST_F(ZeroSuggestProviderTest, SendRequestWithLensInteractionResponse) {
 TEST_F(ZeroSuggestProviderTest, StartStopNTP) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
-
-  // Disable in-memory ZPS caching.
-  base::test::ScopedFeatureList features;
-  features.InitAndDisableFeature(omnibox::kZeroSuggestInMemoryCaching);
 
   // Set up the pref to cache the response from the previous run.
   std::string json_response(
@@ -747,10 +780,6 @@ TEST_F(ZeroSuggestProviderTest, StartStopSRP) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Disable in-memory caching.
-  base::test::ScopedFeatureList features;
-  features.InitAndDisableFeature(omnibox::kZeroSuggestInMemoryCaching);
-
   // Set up the pref to cache the response from the previous run.
   std::string json_response(
       R"(["",["search1", "search2", "search3"],)"
@@ -811,10 +840,6 @@ TEST_F(ZeroSuggestProviderTest, StartStopSRP) {
 TEST_F(ZeroSuggestProviderTest, StartStopWeb) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
-
-  // Disable in-memory caching.
-  base::test::ScopedFeatureList features;
-  features.InitAndDisableFeature(omnibox::kZeroSuggestInMemoryCaching);
 
   // Set up the pref to cache the response from the previous run.
   std::string json_response(
@@ -880,10 +905,6 @@ TEST_F(ZeroSuggestProviderTest, TestPsuggestZeroSuggestCachingFirstRunNTP) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Disable in-memory ZPS caching.
-  base::test::ScopedFeatureList features;
-  features.InitAndDisableFeature(omnibox::kZeroSuggestInMemoryCaching);
-
   AutocompleteInput input = ZeroPrefixInputForNTP(/*is_prefetch=*/false);
   provider_->Start(input, false);
   ASSERT_EQ(ZeroSuggestProvider::ResultType::kRemoteNoURL,
@@ -941,11 +962,9 @@ TEST_F(ZeroSuggestProviderTest, TestPsuggestZeroSuggestCachingFirstRunSRP) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Enable prefetching on SRP and disable in-memory caching.
+  // Enable prefetching on SRP.
   base::test::ScopedFeatureList features;
-  features.InitWithFeatures(
-      /*enabled_features=*/{omnibox::kZeroSuggestPrefetchingOnSRP},
-      /*disabled_features=*/{omnibox::kZeroSuggestInMemoryCaching});
+  features.InitAndEnableFeature(omnibox::kZeroSuggestPrefetchingOnSRP);
 
   AutocompleteInput input = ZeroPrefixInputForSRP(/*is_prefetch=*/false);
   provider_->Start(input, false);
@@ -1007,11 +1026,9 @@ TEST_F(ZeroSuggestProviderTest, TestPsuggestZeroSuggestCachingFirstRunWeb) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Enable prefetching on Web and disable in-memory caching.
+  // Enable prefetching on Web.
   base::test::ScopedFeatureList features;
-  features.InitWithFeatures(
-      /*enabled_features=*/{omnibox::kZeroSuggestPrefetchingOnWeb},
-      /*disabled_features=*/{omnibox::kZeroSuggestInMemoryCaching});
+  features.InitAndEnableFeature(omnibox::kZeroSuggestPrefetchingOnWeb);
 
   AutocompleteInput input = ZeroPrefixInputForWeb(/*is_prefetch=*/false);
   provider_->Start(input, false);
@@ -1071,10 +1088,6 @@ TEST_F(ZeroSuggestProviderTest,
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Disable in-memory ZPS caching.
-  base::test::ScopedFeatureList features;
-  features.InitAndDisableFeature(omnibox::kZeroSuggestInMemoryCaching);
-
   AutocompleteInput input = ZeroPrefixInputForNTP(/*is_prefetch=*/false);
   input.set_omit_asynchronous_matches(true);
 
@@ -1085,8 +1098,7 @@ TEST_F(ZeroSuggestProviderTest,
   // Ensure the cache is empty.
   PrefService* prefs = client_->GetPrefs();
   prefs->SetString(omnibox::kZeroSuggestCachedResults, "");
-  prefs->SetDict(omnibox::kZeroSuggestCachedResultsWithURL,
-                 base::Value::Dict());
+  prefs->SetDict(omnibox::kZeroSuggestCachedResultsWithURL, base::DictValue());
 
   provider_->Start(input, false);
   ASSERT_EQ(ZeroSuggestProvider::ResultType::kRemoteNoURL,
@@ -1108,10 +1120,6 @@ TEST_F(ZeroSuggestProviderTest,
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Disable in-memory caching.
-  base::test::ScopedFeatureList features;
-  features.InitAndDisableFeature(omnibox::kZeroSuggestInMemoryCaching);
-
   AutocompleteInput input = ZeroPrefixInputForSRP(/*is_prefetch=*/false);
   input.set_omit_asynchronous_matches(true);
 
@@ -1122,8 +1130,7 @@ TEST_F(ZeroSuggestProviderTest,
   // Ensure the cache is empty.
   PrefService* prefs = client_->GetPrefs();
   prefs->SetString(omnibox::kZeroSuggestCachedResults, "");
-  prefs->SetDict(omnibox::kZeroSuggestCachedResultsWithURL,
-                 base::Value::Dict());
+  prefs->SetDict(omnibox::kZeroSuggestCachedResultsWithURL, base::DictValue());
 
   provider_->Start(input, false);
   ASSERT_EQ(ZeroSuggestProvider::ResultType::kRemoteSendURL,
@@ -1145,10 +1152,6 @@ TEST_F(ZeroSuggestProviderTest,
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Disable in-memory caching.
-  base::test::ScopedFeatureList features;
-  features.InitAndDisableFeature(omnibox::kZeroSuggestInMemoryCaching);
-
   AutocompleteInput input = ZeroPrefixInputForWeb(/*is_prefetch=*/false);
   input.set_omit_asynchronous_matches(true);
 
@@ -1159,8 +1162,7 @@ TEST_F(ZeroSuggestProviderTest,
   // Ensure the cache is empty.
   PrefService* prefs = client_->GetPrefs();
   prefs->SetString(omnibox::kZeroSuggestCachedResults, "");
-  prefs->SetDict(omnibox::kZeroSuggestCachedResultsWithURL,
-                 base::Value::Dict());
+  prefs->SetDict(omnibox::kZeroSuggestCachedResultsWithURL, base::DictValue());
 
   provider_->Start(input, false);
   ASSERT_EQ(ZeroSuggestProvider::ResultType::kRemoteSendURL,
@@ -1193,7 +1195,7 @@ TEST_F(ZeroSuggestProviderTest, MAYBE_SyncMatchesOnly) {
       {omnibox_feature_configs::ContextualSearch::kOmniboxContextualSuggestions,
        omnibox::kZeroSuggestPrefetchingOnSRP,
        omnibox::kZeroSuggestPrefetchingOnWeb},
-      /*disabled_features=*/{omnibox::kZeroSuggestInMemoryCaching});
+      /*disabled_features=*/{});
 
   omnibox_feature_configs::ScopedConfigForTesting<
       omnibox_feature_configs::ContextualSearch>
@@ -1390,10 +1392,6 @@ TEST_F(ZeroSuggestProviderTest, TestPsuggestZeroSuggestHasCachedResultsNTP) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Disable in-memory ZPS caching.
-  base::test::ScopedFeatureList features;
-  features.InitAndDisableFeature(omnibox::kZeroSuggestInMemoryCaching);
-
   // Set up the pref to cache the response from the previous run.
   std::string json_response(
       R"(["",["search1", "search2", "search3"],)"
@@ -1462,17 +1460,13 @@ TEST_F(ZeroSuggestProviderTest, TestPsuggestZeroSuggestHasCachedResultsNTP) {
             prefs->GetString(omnibox::kZeroSuggestCachedResults));
 }
 
-TEST_F(ZeroSuggestProviderTest, TestZeroSuggestHasInMemoryCachedResultsNTP) {
+TEST_F(ZeroSuggestProviderTest, TestZeroSuggestHasCachedResultsNTP) {
   base::HistogramTester histogram_tester;
 
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Enable in-memory ZPS caching.
-  base::test::ScopedFeatureList features;
-  features.InitAndEnableFeature(omnibox::kZeroSuggestInMemoryCaching);
-
-  // Set up the in-memory cache with the response from the previous run.
+  // Set up the cache with the response from the previous run.
   std::string json_response(
       R"(["",["search1", "search2", "search3"],)"
       R"([],[],{"google:suggestrelevance":[602, 601, 600],)"
@@ -1546,11 +1540,9 @@ TEST_F(ZeroSuggestProviderTest, TestPsuggestZeroSuggestHasCachedResultsSRP) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Enable prefetching on SRP and disable in-memory caching.
+  // Enable prefetching on SRP.
   base::test::ScopedFeatureList features;
-  features.InitWithFeatures(
-      /*enabled_features=*/{omnibox::kZeroSuggestPrefetchingOnSRP},
-      /*disabled_features=*/{omnibox::kZeroSuggestInMemoryCaching});
+  features.InitAndEnableFeature(omnibox::kZeroSuggestPrefetchingOnSRP);
 
   // Set up the pref to cache the response from the previous run.
   std::string json_response(
@@ -1623,20 +1615,17 @@ TEST_F(ZeroSuggestProviderTest, TestPsuggestZeroSuggestHasCachedResultsSRP) {
                 prefs, input.current_url().spec()));
 }
 
-TEST_F(ZeroSuggestProviderTest, TestZeroSuggestHasInMemoryCachedResultsSRP) {
+TEST_F(ZeroSuggestProviderTest, TestZeroSuggestHasCachedResultsSRP) {
   base::HistogramTester histogram_tester;
 
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Enable in-memory ZPS caching and prefetching on SRP.
+  // Enable prefetching on SRP.
   base::test::ScopedFeatureList features;
-  features.InitWithFeatures(
-      /*enabled_features=*/{omnibox::kZeroSuggestInMemoryCaching,
-                            omnibox::kZeroSuggestPrefetchingOnSRP},
-      /*disabled_features=*/{});
+  features.InitAndEnableFeature(omnibox::kZeroSuggestPrefetchingOnSRP);
 
-  // Set up the in-memory cache with the response from the previous run.
+  // Set up the cache with the response from the previous run.
   std::string json_response(
       R"(["",["search1", "search2", "search3"],)"
       R"([],[],{"google:suggestrelevance":[602, 601, 600],)"
@@ -1713,11 +1702,9 @@ TEST_F(ZeroSuggestProviderTest, TestPsuggestZeroSuggestHasCachedResultsWeb) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Enable prefetching on Web and disable in-memory caching.
+  // Enable prefetching on Web.
   base::test::ScopedFeatureList features;
-  features.InitWithFeatures(
-      /*enabled_features=*/{omnibox::kZeroSuggestPrefetchingOnWeb},
-      /*disabled_features=*/{omnibox::kZeroSuggestInMemoryCaching});
+  features.InitAndEnableFeature(omnibox::kZeroSuggestPrefetchingOnWeb);
 
   // Set up the pref to cache the response from the previous run.
   std::string json_response(
@@ -1790,20 +1777,17 @@ TEST_F(ZeroSuggestProviderTest, TestPsuggestZeroSuggestHasCachedResultsWeb) {
                 prefs, input.current_url().spec()));
 }
 
-TEST_F(ZeroSuggestProviderTest, TestZeroSuggestHasInMemoryCachedResultsWeb) {
+TEST_F(ZeroSuggestProviderTest, TestZeroSuggestHasCachedResultsWeb) {
   base::HistogramTester histogram_tester;
 
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Enable in-memory caching and prefetching on Web.
+  // Enable prefetching on Web.
   base::test::ScopedFeatureList features;
-  features.InitWithFeatures(
-      /*enabled_features=*/{omnibox::kZeroSuggestInMemoryCaching,
-                            omnibox::kZeroSuggestPrefetchingOnWeb},
-      /*disabled_features=*/{});
+  features.InitAndEnableFeature(omnibox::kZeroSuggestPrefetchingOnWeb);
 
-  // Set up the in-memory cache with the response from the previous run.
+  // Set up the cache with the response from the previous run.
   std::string json_response(
       R"(["",["search1", "search2", "search3"],)"
       R"([],[],{"google:suggestrelevance":[602, 601, 600],)"
@@ -1881,12 +1865,6 @@ TEST_F(ZeroSuggestProviderTest,
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Enable ZPS prefetching on NTP and disable in-memory ZPS caching.
-  base::test::ScopedFeatureList features;
-  features.InitWithFeatures(
-      /*enabled_features=*/{omnibox::kZeroSuggestPrefetching},
-      /*disabled_features=*/{omnibox::kZeroSuggestInMemoryCaching});
-
   // Set up the pref to cache the response from the previous run.
   std::string json_response(
       R"(["",["search1", "search2", "search3"],)"
@@ -1958,11 +1936,9 @@ TEST_F(ZeroSuggestProviderTest,
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Enable prefetching on SRP and disable in-memory caching.
+  // Enable prefetching on SRP.
   base::test::ScopedFeatureList features;
-  features.InitWithFeatures(
-      /*enabled_features=*/{omnibox::kZeroSuggestPrefetchingOnSRP},
-      /*disabled_features=*/{omnibox::kZeroSuggestInMemoryCaching});
+  features.InitAndEnableFeature(omnibox::kZeroSuggestPrefetchingOnSRP);
 
   // Set up the pref to cache the response from the previous run.
   std::string json_response(
@@ -2038,11 +2014,9 @@ TEST_F(ZeroSuggestProviderTest,
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Enable prefetching on Web and disable in-memory caching.
+  // Enable prefetching on Web.
   base::test::ScopedFeatureList features;
-  features.InitWithFeatures(
-      /*enabled_features=*/{omnibox::kZeroSuggestPrefetchingOnWeb},
-      /*disabled_features=*/{omnibox::kZeroSuggestInMemoryCaching});
+  features.InitAndEnableFeature(omnibox::kZeroSuggestPrefetchingOnWeb);
 
   // Set up the pref to cache the response from the previous run.
   std::string json_response(
@@ -2117,10 +2091,6 @@ TEST_F(ZeroSuggestProviderTest, TestZeroSuggestReceivedInvalidResults) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Disable in-memory ZPS caching.
-  base::test::ScopedFeatureList features;
-  features.InitAndDisableFeature(omnibox::kZeroSuggestInMemoryCaching);
-
   AutocompleteInput input = ZeroPrefixInputForNTP(/*is_prefetch=*/false);
   std::vector<std::string> invalid_responses = {"", "}bro|ken{", "[]",
                                                 R"(["",{}])"};
@@ -2174,10 +2144,6 @@ TEST_F(ZeroSuggestProviderTest, TestZeroSuggestReceivedInvalidResults) {
 TEST_F(ZeroSuggestProviderTest, TestPsuggestZeroSuggestPrefetchThenNTPOnFocus) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
-
-  // Disable in-memory ZPS caching.
-  base::test::ScopedFeatureList features;
-  features.InitAndDisableFeature(omnibox::kZeroSuggestInMemoryCaching);
 
   // Set up the pref to cache the response from the previous run.
   std::string json_response(
@@ -2310,12 +2276,9 @@ TEST_F(ZeroSuggestProviderTest, TestCacheStateWithSRPPrefetchDisabled) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Disable in-memory caching and prefetching on SRP.
+  // Disable prefetching on SRP.
   base::test::ScopedFeatureList features;
-  features.InitWithFeatures(
-      /*enabled_features=*/{},
-      /*disabled_features=*/{omnibox::kZeroSuggestInMemoryCaching,
-                             omnibox::kZeroSuggestPrefetchingOnSRP});
+  features.InitAndDisableFeature(omnibox::kZeroSuggestPrefetchingOnSRP);
 
   PrefService* prefs = client_->GetPrefs();
 
@@ -2450,12 +2413,9 @@ TEST_F(ZeroSuggestProviderTest, TestCacheStateWithWebPrefetchDisabled) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Disable in-memory caching and prefetching on Web.
+  // Disable prefetching on Web.
   base::test::ScopedFeatureList features;
-  features.InitWithFeatures(
-      /*enabled_features=*/{},
-      /*disabled_features=*/{omnibox::kZeroSuggestInMemoryCaching,
-                             omnibox::kZeroSuggestPrefetchingOnWeb});
+  features.InitAndDisableFeature(omnibox::kZeroSuggestPrefetchingOnWeb);
 
   PrefService* prefs = client_->GetPrefs();
 
@@ -2595,7 +2555,6 @@ TEST_F(ZeroSuggestProviderTest, TestZeroSuggestPrefetchingOnSRPCounterfactual) {
     features.InitWithFeaturesAndParameters(
         /*enabled_features=*/
         {
-            {omnibox::kZeroSuggestPrefetching, {}},
             {omnibox::kZeroSuggestPrefetchingOnSRP,
              {{"ZeroSuggestPrefetchingOnSRPCounterfactual", "true"}}},
             {omnibox::kZeroSuggestPrefetchingOnWeb, {}},
@@ -2645,7 +2604,6 @@ TEST_F(ZeroSuggestProviderTest, TestZeroSuggestPrefetchingOnSRPCounterfactual) {
     features.InitWithFeaturesAndParameters(
         /*enabled_features=*/
         {
-            {omnibox::kZeroSuggestPrefetching, {}},
             {omnibox::kZeroSuggestPrefetchingOnSRP,
              {{"ZeroSuggestPrefetchingOnSRPCounterfactual", "false"}}},
             {omnibox::kZeroSuggestPrefetchingOnWeb, {}},
@@ -2695,7 +2653,6 @@ TEST_F(ZeroSuggestProviderTest, TestZeroSuggestPrefetchingOnSRPCounterfactual) {
     features.InitWithFeaturesAndParameters(
         /*enabled_features=*/
         {
-            {omnibox::kZeroSuggestPrefetching, {}},
             {omnibox::kZeroSuggestPrefetchingOnSRP,
              {{"ZeroSuggestPrefetchingOnSRPCounterfactual", "true"}}},
             {omnibox::kZeroSuggestPrefetchingOnWeb, {}},
@@ -2745,7 +2702,6 @@ TEST_F(ZeroSuggestProviderTest, TestZeroSuggestPrefetchingOnSRPCounterfactual) {
     features.InitWithFeaturesAndParameters(
         /*enabled_features=*/
         {
-            {omnibox::kZeroSuggestPrefetching, {}},
             {omnibox::kZeroSuggestPrefetchingOnSRP,
              {{"ZeroSuggestPrefetchingOnSRPCounterfactual", "false"}}},
             {omnibox::kZeroSuggestPrefetchingOnWeb, {}},
@@ -2795,7 +2751,6 @@ TEST_F(ZeroSuggestProviderTest, TestZeroSuggestPrefetchingOnSRPCounterfactual) {
     features.InitWithFeaturesAndParameters(
         /*enabled_features=*/
         {
-            {omnibox::kZeroSuggestPrefetching, {}},
             {omnibox::kZeroSuggestPrefetchingOnSRP,
              {{"ZeroSuggestPrefetchingOnSRPCounterfactual", "true"}}},
             {omnibox::kZeroSuggestPrefetchingOnWeb, {}},
@@ -2845,7 +2800,6 @@ TEST_F(ZeroSuggestProviderTest, TestZeroSuggestPrefetchingOnSRPCounterfactual) {
     features.InitWithFeaturesAndParameters(
         /*enabled_features=*/
         {
-            {omnibox::kZeroSuggestPrefetching, {}},
             {omnibox::kZeroSuggestPrefetchingOnSRP,
              {{"ZeroSuggestPrefetchingOnSRPCounterfactual", "false"}}},
             {omnibox::kZeroSuggestPrefetchingOnWeb, {}},
@@ -2999,10 +2953,6 @@ TEST_F(ZeroSuggestProviderTest, TestNoURLResultTypeWithNonEmptyURLInput) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Disable in-memory caching.
-  base::test::ScopedFeatureList features;
-  features.InitAndDisableFeature(omnibox::kZeroSuggestInMemoryCaching);
-
   // Configure the "No URL" input with a non-empty URL.
   AutocompleteInput input = ZeroPrefixInputForNTP(/*is_prefetch=*/false);
   input.set_current_url(GURL("https://www.google.com"));
@@ -3081,12 +3031,6 @@ TEST_F(ZeroSuggestProviderTest, TestDeleteMatchClearsPrefsBasedCache) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Enable ZPS prefetching on NTP and disable in-memory ZPS caching.
-  base::test::ScopedFeatureList features;
-  features.InitWithFeatures(
-      /*enabled_features=*/{omnibox::kZeroSuggestPrefetching},
-      /*disabled_features=*/{omnibox::kZeroSuggestInMemoryCaching});
-
   // Set up the pref to cache the response from the previous run.
   std::string json_response(
       R"(["",["search1", "search2", "search3"],)"
@@ -3100,7 +3044,7 @@ TEST_F(ZeroSuggestProviderTest, TestDeleteMatchClearsPrefsBasedCache) {
   PrefService* prefs = client_->GetPrefs();
   prefs->SetString(omnibox::kZeroSuggestCachedResults, json_response);
 
-  base::Value::Dict new_dict;
+  base::DictValue new_dict;
   new_dict.Set("https://www.google.com", json_response);
   prefs->SetDict(omnibox::kZeroSuggestCachedResultsWithURL,
                  std::move(new_dict));
@@ -3130,15 +3074,11 @@ TEST_F(ZeroSuggestProviderTest, TestDeleteMatchClearsPrefsBasedCache) {
       prefs->GetDict(omnibox::kZeroSuggestCachedResultsWithURL).empty());
 }
 
-TEST_F(ZeroSuggestProviderTest, TestDeleteMatchClearsInMemoryCache) {
+TEST_F(ZeroSuggestProviderTest, TestDeleteMatchClearsCache) {
   EXPECT_CALL(*client_, IsAuthenticated())
       .WillRepeatedly(testing::Return(true));
 
-  // Enable in-memory ZPS caching.
-  base::test::ScopedFeatureList features;
-  features.InitAndEnableFeature(omnibox::kZeroSuggestInMemoryCaching);
-
-  // Set up the in-memory cache with the response from the previous run.
+  // Set up the cache with the response from the previous run.
   std::string json_response(
       R"(["",["search1", "search2", "search3"],)"
       R"([],[],{"google:suggestrelevance":[602, 601, 600],)"
@@ -3169,9 +3109,6 @@ TEST_F(ZeroSuggestProviderTest, TestDeleteMatchClearsInMemoryCache) {
                    .response_json.empty());
 
   provider_->DeleteMatch(provider_->matches()[0]);
-
-  // Verify that the entire cache has been cleared.
-  ASSERT_TRUE(cache_svc->IsInMemoryCacheEmptyForTesting());
 }
 
 TEST_F(ZeroSuggestProviderTest, TestDeleteMatchTriggersDeletionRequest) {

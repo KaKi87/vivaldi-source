@@ -28,7 +28,8 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.params.ParameterAnnotations;
 import org.chromium.base.test.params.ParameterSet;
@@ -36,15 +37,11 @@ import org.chromium.base.test.params.ParameterizedRunner;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.Feature;
-import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.Features.EnableFeatures;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilterProvider;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.test.ChromeJUnit4RunnerDelegate;
@@ -76,19 +73,18 @@ public class TabSwitcherActionMenuRenderTest {
     @Rule
     public ChromeRenderTestRule mRenderTestRule =
             ChromeRenderTestRule.Builder.withPublicCorpus()
-                    .setRevision(4)
+                    .setRevision(5)
                     .setBugComponent(ChromeRenderTestRule.Component.UI_BROWSER_MOBILE_TAB_SWITCHER)
                     .build();
 
     @Mock private Profile mProfile;
-    @Mock private ObservableSupplier<TabModelSelector> mTabModelSelectorSupplier;
-    @Mock private ObservableSupplier<Tab> mCurrentTabSupplier;
     @Mock private TabModelSelector mTabModelSelector;
     @Mock private TabModel mModel;
-    @Mock private TabGroupModelFilterProvider mTabGroupModelFilterProvider;
     @Mock private TabGroupModelFilter mTabGroupModelFilter;
     @Mock private Tab mTab;
 
+    private SettableMonotonicObservableSupplier<TabModelSelector> mTabModelSelectorSupplier;
+    private SettableMonotonicObservableSupplier<Tab> mCurrentTabSupplier;
     private View mView;
 
     public TabSwitcherActionMenuRenderTest(boolean nightModeEnabled) {
@@ -102,16 +98,17 @@ public class TabSwitcherActionMenuRenderTest {
 
         mActivityTestRule.launchActivity(null);
 
-        when(mTabModelSelectorSupplier.get()).thenReturn(mTabModelSelector);
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    mTabModelSelectorSupplier =
+                            ObservableSuppliers.createMonotonic(mTabModelSelector);
+                    mCurrentTabSupplier = ObservableSuppliers.createMonotonic(mTab);
+                });
         when(mTabModelSelector.getModel(true)).thenReturn(mModel);
         when(mModel.getCount()).thenReturn(0);
-        when(mTabModelSelector.getTabGroupModelFilterProvider())
-                .thenReturn(mTabGroupModelFilterProvider);
-        when(mTabGroupModelFilterProvider.getCurrentTabGroupModelFilter())
-                .thenReturn(mTabGroupModelFilter);
+        when(mTabModelSelector.getCurrentTabGroupModelFilter()).thenReturn(mTabGroupModelFilter);
         when(mTabModelSelector.isTabStateInitialized()).thenReturn(true);
         when(mTabGroupModelFilter.isTabModelRestored()).thenReturn(true);
-        when(mCurrentTabSupplier.get()).thenReturn(mTab);
         when(mTabModelSelector.getCurrentTabSupplier()).thenReturn(mCurrentTabSupplier);
     }
 
@@ -123,28 +120,6 @@ public class TabSwitcherActionMenuRenderTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @DisableFeatures(ChromeFeatureList.TAB_GROUP_ENTRY_POINTS_ANDROID)
-    public void testRender_TabSwitcherActionMenu() throws TimeoutException, IOException {
-        IncognitoUtils.setEnabledForTesting(true);
-        showMenu();
-        mRenderTestRule.render(mView, "tab_switcher_action_menu");
-    }
-
-    @Test
-    @MediumTest
-    @Feature({"RenderTest"})
-    @DisableFeatures(ChromeFeatureList.TAB_GROUP_ENTRY_POINTS_ANDROID)
-    public void testRender_TabSwitcherActionMenu_IncognitoDisabled()
-            throws TimeoutException, IOException {
-        IncognitoUtils.setEnabledForTesting(false);
-        showMenu();
-        mRenderTestRule.render(mView, "tab_switcher_action_menu_incognito_disabled");
-    }
-
-    @Test
-    @MediumTest
-    @Feature({"RenderTest"})
-    @EnableFeatures(ChromeFeatureList.TAB_GROUP_ENTRY_POINTS_ANDROID)
     public void testRender_TabSwitcherActionMenu_NoTabGroup() throws TimeoutException, IOException {
         IncognitoUtils.setEnabledForTesting(true);
         showMenu();
@@ -154,7 +129,6 @@ public class TabSwitcherActionMenuRenderTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @EnableFeatures(ChromeFeatureList.TAB_GROUP_ENTRY_POINTS_ANDROID)
     public void testRender_TabSwitcherActionMenu_NoTabGroup_IncognitoDisabled()
             throws TimeoutException, IOException {
         IncognitoUtils.setEnabledForTesting(false);
@@ -166,7 +140,6 @@ public class TabSwitcherActionMenuRenderTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @EnableFeatures(ChromeFeatureList.TAB_GROUP_ENTRY_POINTS_ANDROID)
     public void testRender_TabSwitcherActionMenu_TabGroupExists()
             throws TimeoutException, IOException {
         when(mTabGroupModelFilter.getTabGroupCount()).thenReturn(1);
@@ -178,7 +151,6 @@ public class TabSwitcherActionMenuRenderTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @EnableFeatures(ChromeFeatureList.TAB_GROUP_ENTRY_POINTS_ANDROID)
     public void testRender_TabSwitcherActionMenu_TabGroupExists_IncognitoDisabled()
             throws TimeoutException, IOException {
         when(mTabGroupModelFilter.getTabGroupCount()).thenReturn(1);

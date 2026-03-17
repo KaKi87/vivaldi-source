@@ -27,8 +27,7 @@ using menus::Menu_Node;
 namespace {
 typedef std::pair<Menu_Node*, Menu_Model*> NodeModel;
 
-NodeModel GetMenu(BrowserContext* browser_context,
-                  const std::string& menu) {
+NodeModel GetMenu(BrowserContext* browser_context, const std::string& menu) {
   Menu_Model* model;
   Menu_Node* node;
 
@@ -182,20 +181,19 @@ void MenuContentAPI::SendOnChanged(BrowserContext* browser_context,
 
     ::vivaldi::BroadcastEvent(vivaldi::menu_content::OnChanged::kEventName,
                               vivaldi::menu_content::OnChanged::Create(
-                                  menu, base::NumberToString(node->id()),
-                                  role,
+                                  menu, base::NumberToString(node->id()), role,
                                   base::NumberToString(select_id), nodes),
                               browser_context);
   }
 }
 
 // static
-void MenuContentAPI::SendOnResetAll(content::BrowserContext*  browser_context,
+void MenuContentAPI::SendOnResetAll(content::BrowserContext* browser_context,
                                     menus::Menu_Model* model) {
   ::vivaldi::BroadcastEvent(vivaldi::menu_content::OnResetAll::kEventName,
-                              vivaldi::menu_content::OnResetAll::Create(
+                            vivaldi::menu_content::OnResetAll::Create(
                                 model->mode() == Menu_Model::kContextMenu),
-                              browser_context);
+                            browser_context);
 }
 
 // static
@@ -308,7 +306,8 @@ ExtensionFunction::ResponseAction MenuContentCreateFunction::Run() {
 
     for (auto& item : params->items) {
       std::unique_ptr<Menu_Node> node = std::make_unique<Menu_Node>(
-          base::Uuid::GenerateRandomV4().AsLowercaseString(), Menu_Node::GetNewId());
+          base::Uuid::GenerateRandomV4().AsLowercaseString(),
+          Menu_Node::GetNewId());
       node->SetOrigin(Menu_Node::USER);
       if (item.type == vivaldi::menu_content::NodeType::kSeparator) {
         node->SetType(Menu_Node::SEPARATOR);
@@ -448,14 +447,14 @@ ExtensionFunction::ResponseAction MenuContentUpdateFunction::Run() {
         success = pair.second->SetShowShortcut(pair.first,
                                                *params->changes.showshortcut);
       }
-      if (success &&
-          params->changes.container_mode != vivaldi::menu_content::ContainerMode::kNone) {
+      if (success && params->changes.container_mode !=
+                         vivaldi::menu_content::ContainerMode::kNone) {
         success = pair.second->SetContainerMode(
             node,
             vivaldi::menu_content::ToString(params->changes.container_mode));
       }
-      if (success &&
-          params->changes.container_edge != vivaldi::menu_content::ContainerEdge::kNone) {
+      if (success && params->changes.container_edge !=
+                         vivaldi::menu_content::ContainerEdge::kNone) {
         success = pair.second->SetContainerEdge(
             node,
             vivaldi::menu_content::ToString(params->changes.container_edge));
@@ -495,9 +494,10 @@ ExtensionFunction::ResponseAction MenuContentResetFunction::Run() {
     pair.second->Reset(params->menu);
     return RespondLater();
   } else {
-    Menu_Model* model = params->is_context
-      ? ContextMenuServiceFactory::GetForBrowserContext(browser_context())
-      : MainMenuServiceFactory::GetForBrowserContext(browser_context());
+    Menu_Model* model =
+        params->is_context
+            ? ContextMenuServiceFactory::GetForBrowserContext(browser_context())
+            : MainMenuServiceFactory::GetForBrowserContext(browser_context());
     if (model) {
       AddRef();  // Balanced in MenuModelReset().
       model->AddObserver(this);
@@ -522,9 +522,10 @@ void MenuContentResetFunction::MenuModelReset(menus::Menu_Model* model,
 ExtensionFunction::ResponseAction MenuContentResetAllFunction::Run() {
   std::optional<vivaldi::menu_content::ResetAll::Params> params(
       vivaldi::menu_content::ResetAll::Params::Create(args()));
-  Menu_Model* model = params->is_context
-      ? ContextMenuServiceFactory::GetForBrowserContext(browser_context())
-      : MainMenuServiceFactory::GetForBrowserContext(browser_context());
+  Menu_Model* model =
+      params->is_context
+          ? ContextMenuServiceFactory::GetForBrowserContext(browser_context())
+          : MainMenuServiceFactory::GetForBrowserContext(browser_context());
   if (model) {
     AddRef();  // Balanced in MenuModelReset().
     model->AddObserver(this);

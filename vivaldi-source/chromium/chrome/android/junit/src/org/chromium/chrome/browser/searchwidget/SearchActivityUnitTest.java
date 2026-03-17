@@ -24,6 +24,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.robolectric.Shadows.shadowOf;
 
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeNtpUrl;
+
 import android.app.Activity;
 import android.app.SearchManager;
 import android.content.Intent;
@@ -52,7 +54,7 @@ import org.robolectric.shadows.ShadowActivity;
 import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.Callback;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
@@ -85,7 +87,6 @@ import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityClient.I
 import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityExtras.IntentOrigin;
 import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityExtras.ResolutionType;
 import org.chromium.chrome.browser.ui.searchactivityutils.SearchActivityExtras.SearchType;
-import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
 import org.chromium.components.omnibox.OmniboxFeatureList;
 import org.chromium.components.omnibox.OmniboxFeatures;
@@ -102,7 +103,6 @@ import java.util.Set;
         manifest = Config.NONE,
         shadows = {
             SearchActivityUnitTest.ShadowSearchActivityUtils.class,
-            SearchActivityUnitTest.ShadowProfileManager.class,
             SearchActivityUnitTest.ShadowTabBuilder.class,
         })
 @EnableFeatures({
@@ -147,27 +147,6 @@ public class SearchActivityUnitTest {
         }
     }
 
-    @Implements(ProfileManager.class)
-    public static class ShadowProfileManager {
-        public static Profile sProfile;
-
-        static void setProfile(Profile profile) {
-            sProfile = profile;
-            ProfileManager.onProfileAdded(profile);
-            ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
-        }
-
-        @Implementation
-        public static boolean isInitialized() {
-            return sProfile != null;
-        }
-
-        @Implementation
-        public static Profile getLastUsedRegularProfile() {
-            return sProfile;
-        }
-    }
-
     public @Rule MockitoRule mMockitoRule = MockitoJUnit.rule();
     private @Mock TestSearchActivityUtils mUtils;
     private @Mock TemplateUrlService mTemplateUrlSvc;
@@ -180,7 +159,7 @@ public class SearchActivityUnitTest {
     private @Mock UmaActivityObserver mUmaObserver;
     private @Mock Callback<@Nullable String> mSetCustomTabSearchClient;
     private @Mock LocationBarBackgroundDrawable mSearchBoxBackground;
-    private ObservableSupplier<Profile> mProfileSupplier;
+    private MonotonicObservableSupplier<Profile> mProfileSupplier;
     private OneshotSupplier<ProfileProvider> mProfileProviderSupplier;
 
     private ActivityController<SearchActivity> mController;
@@ -213,7 +192,7 @@ public class SearchActivityUnitTest {
         mAnchorView = new View(mActivity);
         GradientDrawable anchorViewBackground = new GradientDrawable();
         anchorViewBackground.setTint(
-                ContextCompat.getColor(mActivity, R.color.omnibox_suggestion_bg));
+                ContextCompat.getColor(mActivity, R.color.search_suggestion_bg_color));
         mAnchorView.setBackground(anchorViewBackground);
         mActivity.setAnchorViewForTesting(mAnchorView);
 
@@ -223,6 +202,7 @@ public class SearchActivityUnitTest {
         WebContentsFactory.setWebContentsForTesting(mWebContents);
         ShadowTabBuilder.sMockTab = mTab;
         RevenueStats.setCustomTabSearchClientHookForTesting(mSetCustomTabSearchClient);
+        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
     }
 
     @After
@@ -249,6 +229,11 @@ public class SearchActivityUnitTest {
                 .setPageUrl(new GURL(url));
     }
 
+    private void setProfile(Profile profile) {
+        ProfileManager.setLastUsedProfileForTesting(profile);
+        ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
+    }
+
     @Test
     public void searchActivity_forcesPhoneUi() {
         assertTrue(mActivity.getEmbedderUiOverridesForTesting().isForcedPhoneStyleOmnibox());
@@ -256,6 +241,7 @@ public class SearchActivityUnitTest {
 
     @Test
     public void loadUrl_dispatchResultToCallingActivity() {
+        setProfile(mProfile);
         mActivity.handleNewIntent(buildTestServiceIntent(IntentOrigin.CUSTOM_TAB), false);
 
         ArgumentCaptor<OmniboxLoadUrlParams> captor =
@@ -281,6 +267,7 @@ public class SearchActivityUnitTest {
 
     @Test
     public void loadUrl_openInChromeBrowser() {
+        setProfile(mProfile);
         mActivity.handleNewIntent(
                 buildTestWidgetIntent(IntentOrigin.QUICK_ACTION_SEARCH_WIDGET), false);
 
@@ -685,7 +672,7 @@ public class SearchActivityUnitTest {
 
     @Test
     public void refinePageClassWithProfile_refinesBasicUrlForSearchResultsPage() {
-        ShadowProfileManager.setProfile(mProfile);
+        setProfile(mProfile);
 
         {
             // Simulate Search Results Page.
@@ -777,7 +764,7 @@ public class SearchActivityUnitTest {
         mActivity.handleNewIntent(new Intent(), false);
         doNothing().when(mActivity).finishDeferredInitialization();
 
-        ShadowProfileManager.setProfile(mProfile);
+        setProfile(mProfile);
         mActivity.finishNativeInitialization();
 
         ArgumentCaptor<Callback<Boolean>> captor = ArgumentCaptor.forClass(Callback.class);
@@ -796,7 +783,7 @@ public class SearchActivityUnitTest {
         mActivity.handleNewIntent(new Intent(), false);
         doNothing().when(mActivity).finishDeferredInitialization();
 
-        ShadowProfileManager.setProfile(mProfile);
+        setProfile(mProfile);
         mActivity.finishNativeInitialization();
 
         ArgumentCaptor<Callback<Boolean>> captor = ArgumentCaptor.forClass(Callback.class);
@@ -815,7 +802,7 @@ public class SearchActivityUnitTest {
         doNothing().when(mActivity).finishDeferredInitialization();
         mActivity.handleNewIntent(buildTestServiceIntent(IntentOrigin.UNKNOWN), false);
 
-        ShadowProfileManager.setProfile(mProfile);
+        setProfile(mProfile);
         mActivity.finishNativeInitialization();
 
         ArgumentCaptor<Callback<Boolean>> captor = ArgumentCaptor.forClass(Callback.class);
@@ -846,7 +833,7 @@ public class SearchActivityUnitTest {
         mActivity.handleNewIntent(new Intent(), false);
         doNothing().when(mActivity).finishDeferredInitialization();
 
-        ShadowProfileManager.setProfile(mProfile);
+        setProfile(mProfile);
         mActivity.finishNativeInitialization();
 
         ArgumentCaptor<Callback<Boolean>> captor = ArgumentCaptor.forClass(Callback.class);
@@ -872,7 +859,7 @@ public class SearchActivityUnitTest {
 
         mActivity.handleNewIntent(buildTestServiceIntent(IntentOrigin.HUB), false);
 
-        ShadowProfileManager.setProfile(mProfile);
+        setProfile(mProfile);
         mActivity.finishNativeInitialization();
 
         String expectedText = mActivity.getResources().getString(R.string.hub_search_empty_hint);
@@ -894,7 +881,7 @@ public class SearchActivityUnitTest {
 
         mActivity.handleNewIntent(buildTestServiceIntent(IntentOrigin.HUB), false);
 
-        ShadowProfileManager.setProfile(mProfile);
+        setProfile(mProfile);
         mActivity.finishNativeInitialization();
 
         String expectedText =
@@ -941,7 +928,7 @@ public class SearchActivityUnitTest {
     @Test
     public void createProfileProvider_tracksProfileManager() {
         assertNull(mProfileSupplier.get());
-        ShadowProfileManager.setProfile(mProfile);
+        setProfile(mProfile);
         assertEquals(mProfile, mProfileSupplier.get());
     }
 
@@ -1055,12 +1042,10 @@ public class SearchActivityUnitTest {
 
     @Test
     public void onPauseWithNative() {
-        mActivity.setUmaActivityObserverForTesting(mUmaObserver);
         mActivity.onPauseWithNative();
 
-        verify(mUmaObserver).endUmaSession();
         verify(mSetCustomTabSearchClient).onResult(null);
-        verifyNoMoreInteractions(mUmaObserver, mSetCustomTabSearchClient);
+        verifyNoMoreInteractions(mSetCustomTabSearchClient);
     }
 
     @Test
@@ -1079,7 +1064,8 @@ public class SearchActivityUnitTest {
 
     @Test
     public void recordNavigationTargetType() {
-        GURL native_url = new GURL(UrlConstants.NTP_URL);
+        setProfile(mProfile);
+        GURL native_url = new GURL(getOriginalNativeNtpUrl());
         GURL search_url = new GURL("https://google.com");
         GURL web_url = new GURL("https://abc.xyz");
 
@@ -1188,7 +1174,7 @@ public class SearchActivityUnitTest {
                 ((GradientDrawable) mAnchorView.getBackground()).getColor());
         verify(mSearchBoxBackground)
                 .setBackgroundColor(
-                        ContextCompat.getColor(mActivity, R.color.omnibox_suggestion_bg));
+                        ContextCompat.getColor(mActivity, R.color.search_suggestion_bg_color));
 
         // Toggle the incognito state and check that the search box has the correct color scheme.
         mDataProvider.setIsIncognitoForTesting(true);
@@ -1211,6 +1197,6 @@ public class SearchActivityUnitTest {
                 ((GradientDrawable) mAnchorView.getBackground()).getColor());
         verify(mSearchBoxBackground, times(2))
                 .setBackgroundColor(
-                        ContextCompat.getColor(mActivity, R.color.omnibox_suggestion_bg));
+                        ContextCompat.getColor(mActivity, R.color.search_suggestion_bg_color));
     }
 }

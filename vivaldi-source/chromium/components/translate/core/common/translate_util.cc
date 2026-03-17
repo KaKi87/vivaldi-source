@@ -11,24 +11,24 @@
 #include "build/build_config.h"
 #include "components/translate/core/common/translate_switches.h"
 
+namespace {
+// The default number of times user should consecutively translate for "Always
+// Translate" to automatically trigger.
+constexpr int kAutoAlwaysThreshold = 5;
+// The default number of times user should consecutively dismiss the translate
+// infobar for "Never Translate" to automatically trigger.
+constexpr int kAutoNeverThreshold = 20;
+// The default maximum number of times "Always Translate" is automatically
+// triggered.
+constexpr int kMaxNumberOfAutoAlways = 2;
+// The default maximum number of times "Never Translate" is automatically
+// triggered.
+constexpr int kMaxNumberOfAutoNever = 2;
+}  // namespace
+
 namespace translate {
 
 const char kSecurityOrigin[] = "https://translate.googleapis.com/";
-
-// The feature is explicitly disabled on WebView.
-// TODO(crbug.com/40819484): Enable the feature on WebView.
-BASE_FEATURE(kTFLiteLanguageDetectionEnabled,
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN) || \
-    BUILDFLAG(IS_MAC) || BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
-#if defined(VIVALDI_BUILD)
-             base::FEATURE_DISABLED_BY_DEFAULT
-#else
-             base::FEATURE_ENABLED_BY_DEFAULT
-#endif  // defined(VIVALDI_BUILD)
-#else
-             base::FEATURE_DISABLED_BY_DEFAULT
-#endif
-);
 
 GURL GetTranslateSecurityOrigin() {
   std::string security_origin(kSecurityOrigin);
@@ -41,38 +41,34 @@ GURL GetTranslateSecurityOrigin() {
 }
 
 bool IsTFLiteLanguageDetectionEnabled() {
-  return base::FeatureList::IsEnabled(kTFLiteLanguageDetectionEnabled);
+// The feature is explicitly disabled on WebView.
+// TODO(crbug.com/40819484): Enable the feature on WebView.
+#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN) || \
+    BUILDFLAG(IS_MAC) || BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
+#if defined(VIVALDI_BUILD)
+  return false;
+#else // Vivaldi
+  return true;
+#endif // Vivaldi
+#else
+  return false;
+#endif
 }
-
-float GetTFLiteLanguageDetectionThreshold() {
-  return base::GetFieldTrialParamByFeatureAsDouble(
-      kTFLiteLanguageDetectionEnabled, "reliability_threshold", .7);
-}
-
-BASE_FEATURE(kTranslateAutoSnackbars, base::FEATURE_ENABLED_BY_DEFAULT);
 
 int GetAutoAlwaysThreshold() {
-  static constexpr base::FeatureParam<int> auto_always_threshold{
-      &kTranslateAutoSnackbars, "AutoAlwaysThreshold", 5};
-  return auto_always_threshold.Get();
+  return kAutoAlwaysThreshold;
 }
 
 int GetAutoNeverThreshold() {
-  static constexpr base::FeatureParam<int> auto_never_threshold{
-      &kTranslateAutoSnackbars, "AutoNeverThreshold", 20};
-  return auto_never_threshold.Get();
+  return kAutoNeverThreshold;
 }
 
 int GetMaximumNumberOfAutoAlways() {
-  static constexpr base::FeatureParam<int> auto_always_maximum{
-      &kTranslateAutoSnackbars, "AutoAlwaysMaximum", 2};
-  return auto_always_maximum.Get();
+  return kMaxNumberOfAutoAlways;
 }
 
 int GetMaximumNumberOfAutoNever() {
-  static constexpr base::FeatureParam<int> auto_never_maximum{
-      &kTranslateAutoSnackbars, "AutoNeverMaximum", 2};
-  return auto_never_maximum.Get();
+  return kMaxNumberOfAutoNever;
 }
 
 }  // namespace translate

@@ -26,7 +26,8 @@ class SearchEnginesManager {
   const PrepopulatedEngine* GetEngine(const std::string& name) const;
 
   // This returns our main default engine. It will never return a nullptr.
-  const PrepopulatedEngine* GetMainDefaultEngine(PrefService* prefs = nullptr) const;
+  const PrepopulatedEngine* GetMainDefaultEngine(
+      PrefService* prefs = nullptr) const;
 
   int GetCurrentDataVersion() const;
 

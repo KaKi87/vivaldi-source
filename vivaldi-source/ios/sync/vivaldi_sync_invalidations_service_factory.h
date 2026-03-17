@@ -19,8 +19,8 @@ namespace vivaldi {
 class VivaldiSyncInvalidationsServiceFactory
     : public SyncInvalidationsServiceFactory {
  public:
-  VivaldiSyncInvalidationsServiceFactory(const VivaldiSyncInvalidationsServiceFactory&) =
-      delete;
+  VivaldiSyncInvalidationsServiceFactory(
+      const VivaldiSyncInvalidationsServiceFactory&) = delete;
   VivaldiSyncInvalidationsServiceFactory& operator=(
       const VivaldiSyncInvalidationsServiceFactory&) = delete;
 

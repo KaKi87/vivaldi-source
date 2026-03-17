@@ -3,8 +3,8 @@
 #ifndef UI_INFOBAR_CONTAINER_WEB_PROXY_H_
 #define UI_INFOBAR_CONTAINER_WEB_PROXY_H_
 
-#include "components/infobars/core/infobar.h"
 #include "components/infobars/core/confirm_infobar_delegate.h"
+#include "components/infobars/core/infobar.h"
 #include "components/infobars/core/infobar_container.h"
 
 class Profile;
@@ -60,8 +60,6 @@ class InfoBarContainerWebProxy : public infobars::InfoBarContainer {
   void PlatformSpecificReplaceInfoBar(infobars::InfoBar* old_infobar,
                                       infobars::InfoBar* new_infobar) override;
   void PlatformSpecificRemoveInfoBar(infobars::InfoBar* infobar) override;
-
-
 };
 
 }  // namespace vivaldi

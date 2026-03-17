@@ -40,8 +40,7 @@ namespace vivaldi {
 class NoteLoadDetails;
 class NotesStorage;
 
-class NotesModel : public KeyedService ,
-                   public base::SupportsUserData {
+class NotesModel : public KeyedService, public base::SupportsUserData {
  public:
   struct URLAndTitle {
     GURL url;

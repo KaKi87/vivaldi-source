@@ -5,7 +5,6 @@
 #include <algorithm>
 
 #include "base/containers/span.h"
-#include "base/containers/contains.h"
 #include "base/files/file_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/thread_pool.h"
@@ -19,7 +18,7 @@ namespace {
 #if BUILDFLAG(IS_ANDROID)
 constexpr char kunknownFile[] = "unknown_file.png";
 constexpr char kMissingContent[] = "unsynced_file.png";
-#else  // BUILDFLAG(IS_ANDROID)
+#else   // BUILDFLAG(IS_ANDROID)
 constexpr char kunknownFile[] = "resources/unknown_file.png";
 constexpr char kMissingContent[] = "resources/unsynced_file.png";
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -182,8 +181,7 @@ std::string SyncedFileStoreImpl::SetLocalFile(base::Uuid owner_uuid,
   // The checskum will be used as a file name for storage on disk. We use base32
   // in order to support case-insensitive file systems.
   std::string checksum = base32::Base32Encode(
-      base::span(hash),
-      base32::Base32EncodePolicy::OMIT_PADDING);
+      base::span(hash), base32::Base32EncodePolicy::OMIT_PADDING);
 
   checksum += "." + base::NumberToString(content.size());
   DoSetLocalFileRef(owner_uuid, sync_type, checksum);
@@ -239,7 +237,7 @@ void SyncedFileStoreImpl::GetFile(std::string checksum,
                                   GetFileCallback callback) {
   DCHECK(IsLoaded());
 
-  if (!base::Contains(files_data_, checksum)) {
+  if (!files_data_.contains(checksum)) {
     std::move(callback).Run(g_resources->unknown_file);
     return;
   }
@@ -271,7 +269,7 @@ void SyncedFileStoreImpl::GetFile(std::string checksum,
 
 std::string SyncedFileStoreImpl::GetMimeType(std::string checksum) {
   DCHECK(IsLoaded());
-  if (!base::Contains(files_data_, checksum))
+  if (!files_data_.contains(checksum))
     return g_resources->unknown_file_mimetype;
   auto& file_data = files_data_.at(checksum);
   if (!file_data.has_content_locally) {
@@ -343,7 +341,7 @@ void SyncedFileStoreImpl::RemoveAllSyncRefsForType(syncer::DataType sync_type) {
 void SyncedFileStoreImpl::OnReadContentDone(
     std::string checksum,
     std::optional<std::vector<uint8_t>> content) {
-  if (!base::Contains(files_data_, checksum)) {
+  if (!files_data_.contains(checksum)) {
     // The file was removed in the interval since the read was required.
     return;
   }

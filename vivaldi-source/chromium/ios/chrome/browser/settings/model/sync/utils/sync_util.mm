@@ -21,8 +21,9 @@
 #import "ios/chrome/browser/settings/model/sync/utils/sync_error_infobar_delegate.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/show_signin_command.h"
+#import "ios/chrome/browser/shared/public/commands/sync_presenter_commands.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
 #import "ios/chrome/grit/ios_branded_strings.h"
@@ -117,8 +118,8 @@ std::u16string GetIdentityErrorInfoBarTitle(
       return l10n_util::GetStringUTF16(
           IDS_IOS_IDENTITY_ERROR_INFOBAR_VERIFY_ITS_YOU_TITLE);
     case syncer::SyncService::UserActionableError::kBookmarksLimitExceeded:
-      // TODO(crbug.com/452968646): return the required string for the bookmarks
-      // limit exceeded error.
+      return l10n_util::GetStringUTF16(
+          IDS_IOS_SYNC_ERROR_BOOKMARKS_LIMIT_EXCEEDED_TITLE);
     case syncer::SyncService::UserActionableError::kNone:
     case syncer::SyncService::UserActionableError::kNeedsClientUpgrade:
       NOTREACHED();
@@ -161,8 +162,8 @@ NSString* GetIdentityErrorInfoBarMessage(
       return l10n_util::GetNSString(
           IDS_IOS_IDENTITY_ERROR_INFOBAR_MAKE_SURE_YOU_CAN_ALWAYS_USE_CHROME_DATA_MESSAGE);
     case syncer::SyncService::UserActionableError::kBookmarksLimitExceeded:
-      // TODO(crbug.com/452968646): return the required string for the bookmarks
-      // limit exceeded error.
+      return l10n_util::GetNSString(
+          IDS_IOS_SYNC_ERROR_BOOKMARKS_LIMIT_EXCEEDED_MESSAGE);
     case syncer::SyncService::UserActionableError::kNone:
     case syncer::SyncService::UserActionableError::kNeedsClientUpgrade:
       NOTREACHED();
@@ -195,8 +196,8 @@ NSString* GetIdentityErrorInfoBarButtonLabel(
       return l10n_util::GetNSString(
           IDS_IOS_IDENTITY_ERROR_INFOBAR_VERIFY_BUTTON_LABEL);
     case syncer::SyncService::UserActionableError::kBookmarksLimitExceeded:
-      // TODO(crbug.com/452968646): return the required string for the bookmarks
-      // limit exceeded error.
+      return l10n_util::GetNSString(
+          IDS_IOS_SYNC_ERROR_BOOKMARKS_LIMIT_EXCEEDED_BUTTON);
     case syncer::SyncService::UserActionableError::kNone:
     case syncer::SyncService::UserActionableError::kNeedsClientUpgrade:
       NOTREACHED();
@@ -245,9 +246,8 @@ NSString* GetSyncErrorDescriptionForSyncService(
       return l10n_util::GetNSString(
           IDS_IOS_GOOGLE_SERVICES_SETTINGS_SYNC_FIX_RECOVERABILITY_DEGRADED_FOR_PASSWORDS);
     case syncer::SyncService::UserActionableError::kBookmarksLimitExceeded:
-      // TODO(crbug.com/452968646): return the required string for the bookmarks
-      // limit exceeded error.
-      return nil;
+      return l10n_util::GetNSString(
+          IDS_IOS_SYNC_ERROR_BOOKMARKS_LIMIT_EXCEEDED_MESSAGE);
     case syncer::SyncService::UserActionableError::kNeedsClientUpgrade:
       // UI not implemented for this case.
       return nil;
@@ -298,9 +298,7 @@ NSString* GetSyncErrorMessageForProfile(ProfileIOS* profile) {
         kTrustedVaultRecoverabilityDegradedForEverything:
       return GetSyncErrorDescriptionForSyncService(syncService);
     case syncer::SyncService::UserActionableError::kBookmarksLimitExceeded:
-      // TODO(crbug.com/452968646): return the required string for the bookmarks
-      // limit exceeded error.
-      return nil;
+      return GetSyncErrorDescriptionForSyncService(syncService);
     case syncer::SyncService::UserActionableError::kNeedsClientUpgrade:
       // UI not implemented for this case.
       return nil;
@@ -335,9 +333,8 @@ NSString* GetSyncErrorButtonTitleForProfile(ProfileIOS* profile) {
         kTrustedVaultRecoverabilityDegradedForEverything:
       return l10n_util::GetNSString(IDS_IOS_SYNC_VERIFY_ITS_YOU_BUTTON);
     case syncer::SyncService::UserActionableError::kBookmarksLimitExceeded:
-      // TODO(crbug.com/452968646): return the required string for the bookmarks
-      // limit exceeded error.
-      return nil;
+      return l10n_util::GetNSString(
+          IDS_IOS_SYNC_ERROR_BOOKMARKS_LIMIT_EXCEEDED_BUTTON);
     case syncer::SyncService::UserActionableError::kNone:
     // UI not implemented for this case.
     case syncer::SyncService::UserActionableError::kNeedsClientUpgrade:
@@ -359,16 +356,16 @@ bool ShouldShowSyncSettings(syncer::SyncService::UserActionableError error) {
         kTrustedVaultRecoverabilityDegradedForPasswords:
     case syncer::SyncService::UserActionableError::
         kTrustedVaultRecoverabilityDegradedForEverything:
-    case syncer::SyncService::UserActionableError::kBookmarksLimitExceeded:
-    // UI not implemented for this case.
     case syncer::SyncService::UserActionableError::kNeedsClientUpgrade:
       return false;
+    case syncer::SyncService::UserActionableError::kBookmarksLimitExceeded:
+      return true;
   }
 }
 
 bool DisplaySyncErrors(ProfileIOS* profile,
                        web::WebState* web_state,
-                       id<SyncPresenter> presenter,
+                       id<SyncPresenterCommands> sync_presenter_handler,
                        SyncErrorInfoBarTrigger trigger) {
   // Avoid displaying sync errors on incognito tabs.
   if (profile->IsOffTheRecord()) {
@@ -411,7 +408,7 @@ bool DisplaySyncErrors(ProfileIOS* profile,
       InfoBarManagerImpl::FromWebState(web_state);
   DCHECK(infoBarManager);
   bool infobar_displayed = SyncErrorInfoBarDelegate::Create(
-      infoBarManager, profile, presenter, trigger);
+      infoBarManager, profile, sync_presenter_handler, trigger);
   if (infobar_displayed) {
     // Logs when an infobar is shown to user. See crbug.com/265352.
     base::UmaHistogramEnumeration(kSyncErrorInfobarDisplayedHistogramName,

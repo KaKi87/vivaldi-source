@@ -22,7 +22,6 @@
 #include "chrome/installer/util/shell_util.h"
 #include "installer/vivaldi_install_modes.h"
 
-
 // Prepare the window to work with Jump List code in
 // chromium/chrome/browser/win/jumplist.h
 void VivaldiBrowserWindow::SetupShellIntegration(
@@ -30,7 +29,8 @@ void VivaldiBrowserWindow::SetupShellIntegration(
   HWND hwnd = views::HWNDForWidget(widget_->GetTopLevelWidget());
 
   std::wstring app_model_id =
-      shell_integration::win::GetAppUserModelIdForBrowser(GetProfile()->GetPath());
+      shell_integration::win::GetAppUserModelIdForBrowser(
+          GetProfile()->GetPath());
 
   ui::win::SetAppIdForWindow(app_model_id, hwnd);
 

@@ -8,11 +8,6 @@
 
 namespace features {
 
-// Enables mitigation algorithm to prevent attempt of calibration from an
-// attacker.
-BASE_FEATURE(kComputePressureBreakCalibrationMitigation,
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 // Enables an extra set of concrete sensors classes based on Generic Sensor API,
 // which expose previously unexposed platform features, e.g. ALS or Magnetometer
 BASE_FEATURE(kGenericSensorExtraClasses, base::FEATURE_DISABLED_BY_DEFAULT);
@@ -69,12 +64,6 @@ BASE_FEATURE(kLocationProviderManager,
 #endif  // defined(VIVALDI_BUILD)
              );
 #endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
-
-#if BUILDFLAG(IS_CHROMEOS)
-// Enables crash key logging for USB device open operations on ChromeOS. See
-// crbug.com/332722607. Can be disabled as a kill switch if needed.
-BASE_FEATURE(kUsbDeviceLinuxOpenCrashKey, base::FEATURE_ENABLED_BY_DEFAULT);
-#endif  // BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_ANDROID)
 // Enables registering & unregistering of the Battery Status Manager broadcast
@@ -150,5 +139,11 @@ BASE_FEATURE(kSerialSplitDtrAndRts, base::FEATURE_ENABLED_BY_DEFAULT);
 #if BUILDFLAG(IS_MAC)
 BASE_FEATURE(kHidReportRequestExactLength, base::FEATURE_ENABLED_BY_DEFAULT);
 #endif  // BUILDFLAG(IS_MAC)
+
+#if BUILDFLAG(IS_APPLE) && BUILDFLAG(USE_BLINK)
+// Controls whether to use the ellipsoidal altitude from Core Location
+// instead of the default altitude attribute.
+BASE_FEATURE(kEllipsoidalAltitude, base::FEATURE_ENABLED_BY_DEFAULT);
+#endif  // BUILDFLAG(IS_APPLE) && BUILDFLAG(USE_BLINK)
 
 }  // namespace features

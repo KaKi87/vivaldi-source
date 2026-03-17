@@ -178,8 +178,9 @@ void ToolbarButton::UpdateColorsAndInsets() {
   SetEnabledTextColors(highlight_color_animation_.GetTextColor());
 
   // ToolbarButton height is constrained by the height of the location bar.
-  const int extra_height = std::max(
-      0, target_size.height() - GetLayoutConstant(LOCATION_BAR_HEIGHT));
+  const int extra_height =
+      std::max(0, target_size.height() -
+                      GetLayoutConstant(LayoutConstant::kLocationBarHeight));
   const gfx::Insets paint_insets =
       gfx::Insets(extra_height / 2) + *GetProperty(views::kInternalPaddingKey);
 
@@ -253,6 +254,10 @@ void ToolbarButton::UpdateIconsWithColors(const gfx::VectorIcon& icon,
                 ui::ImageModel::FromVectorIcon(icon, pressed_color, icon_size));
   SetImageModel(Button::STATE_DISABLED, ui::ImageModel::FromVectorIcon(
                                             icon, disabled_color, icon_size));
+}
+
+std::optional<SkColor> ToolbarButton::GetBackgroundColor() const {
+  return highlight_color_animation_.GetBackgroundColor();
 }
 
 int ToolbarButton::GetIconSize() const {

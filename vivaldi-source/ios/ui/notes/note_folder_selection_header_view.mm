@@ -16,9 +16,9 @@
 
 using l10n_util::GetNSString;
 
-@interface NoteFolderSelectionHeaderView()<VivaldiSearchBarViewDelegate>
+@interface NoteFolderSelectionHeaderView () <VivaldiSearchBarViewDelegate>
 // Label for the folder name.
-@property (nonatomic,weak) VivaldiSearchBarView* searchBar;
+@property(nonatomic, weak) VivaldiSearchBarView* searchBar;
 
 @end
 
@@ -37,12 +37,11 @@ using l10n_util::GetNSString;
 
 #pragma mark - SET UP UI COMPONENTS
 - (void)setUpUI {
-
   // Search bar
   VivaldiSearchBarView* searchBar = [VivaldiSearchBarView new];
   _searchBar = searchBar;
   NSString* placeholderString =
-    GetNSString(IDS_IOS_NOTE_FOLDER_SELECTION_SEARCHBAR_PLACEHOLDER);
+      GetNSString(IDS_IOS_NOTE_FOLDER_SELECTION_SEARCHBAR_PLACEHOLDER);
   [searchBar setPlaceholder:placeholderString];
   searchBar.delegate = self;
 
@@ -51,7 +50,6 @@ using l10n_util::GetNSString;
                leading:self.leadingAnchor
                 bottom:self.bottomAnchor
               trailing:self.trailingAnchor];
-
 }
 
 #pragma mark - VivaldiSearchBarViewDelegate

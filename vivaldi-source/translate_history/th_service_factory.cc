@@ -2,8 +2,8 @@
 
 #include "translate_history/th_service_factory.h"
 
-#include "base/task/deferred_sequenced_task_runner.h"
 #include "base/memory/singleton.h"
+#include "base/task/deferred_sequenced_task_runner.h"
 #include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/history/core/common/pref_names.h"

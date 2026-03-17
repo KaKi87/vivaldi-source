@@ -4,6 +4,7 @@
 
 package org.chromium.chrome.browser.toolbar;
 
+import static org.chromium.build.NullUtil.assertNonNull;
 import static org.chromium.build.NullUtil.assumeNonNull;
 import static org.chromium.chrome.browser.toolbar.settings.AddressBarPreference.setToolbarPositionAndSource;
 
@@ -22,7 +23,7 @@ import android.widget.PopupWindow;
 import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
@@ -72,7 +73,7 @@ public class ToolbarLongPressMenuHandler implements ConfigurationChangedObserver
     private final int mMenuOmniboxOverlap;
     private int mScreenWidthDp;
     private final Context mContext;
-    private final ObservableSupplier<@Nullable Profile> mProfileSupplier;
+    private final MonotonicObservableSupplier<Profile> mProfileSupplier;
     private final BooleanSupplier mSuppressLongPressSupplier;
     private final Supplier<@Nullable GURL> mUrlSupplier;
     private final Supplier<ViewRectProvider> mUrlBarViewRectProviderSupplier;
@@ -94,7 +95,7 @@ public class ToolbarLongPressMenuHandler implements ConfigurationChangedObserver
      */
     public ToolbarLongPressMenuHandler(
             Context context,
-            ObservableSupplier<@Nullable Profile> profileSupplier,
+            MonotonicObservableSupplier<Profile> profileSupplier,
             boolean isCustomTab,
             BooleanSupplier suppressLongPressSupplier,
             ActivityLifecycleDispatcher lifecycleDispatcher,
@@ -220,7 +221,8 @@ public class ToolbarLongPressMenuHandler implements ConfigurationChangedObserver
 
         // Notify the IPH that the User has interacted with the Bottom Toolbar menu.
         // This effectively disables the IPH bubble.
-        Tracker tracker = TrackerFactory.getTrackerForProfile(mProfileSupplier.get());
+        Tracker tracker =
+                TrackerFactory.getTrackerForProfile(assertNonNull(mProfileSupplier.get()));
         tracker.notifyEvent(EventConstants.BOTTOM_TOOLBAR_MENU_TRIGGERED);
     }
 

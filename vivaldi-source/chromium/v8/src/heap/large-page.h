@@ -10,39 +10,27 @@
 namespace v8 {
 namespace internal {
 
-class LargePageMetadata : public MutablePageMetadata {
+class LargePage final : public MutablePage {
  public:
   // A limit to guarantee that we do not overflow typed slot offset in the old
   // to old remembered set. Note that this limit is higher than what assembler
   // already imposes on x64 and ia32 architectures.
   static constexpr int kMaxCodePageSize = 512 * MB;
 
-  static LargePageMetadata* cast(MutablePageMetadata* metadata) {
-    DCHECK_IMPLIES(metadata, metadata->Chunk()->IsLargePage());
-    return static_cast<LargePageMetadata*>(metadata);
-  }
+  V8_INLINE static LargePage* FromHeapObject(Isolate* i, Tagged<HeapObject> o);
 
-  static LargePageMetadata* cast(MemoryChunkMetadata* metadata) {
-    return cast(MutablePageMetadata::cast(metadata));
-  }
-
-  V8_INLINE static LargePageMetadata* FromHeapObject(Tagged<HeapObject> o);
-
-  LargePageMetadata(Heap* heap, BaseSpace* space, size_t chunk_size,
-                    Address area_start, Address area_end,
-                    VirtualMemory reservation, Executability executable);
-
-  MemoryChunk::MainThreadFlags InitialFlags(Executability executable) const;
+  LargePage(Heap* heap, BaseSpace* space, size_t chunk_size, Address area_start,
+            Address area_end, VirtualMemory reservation,
+            Executability executable,
+            MemoryChunk::MainThreadFlags* trusted_flags);
 
   Tagged<HeapObject> GetObject() const {
     return HeapObject::FromAddress(area_start());
   }
 
-  LargePageMetadata* next_page() {
-    return LargePageMetadata::cast(list_node_.next());
-  }
-  const LargePageMetadata* next_page() const {
-    return static_cast<const LargePageMetadata*>(list_node_.next());
+  LargePage* next_page() { return SbxCast<LargePage>(list_node_.next()); }
+  const LargePage* next_page() const {
+    return static_cast<const LargePage*>(list_node_.next());
   }
 
   void ClearOutOfLiveRangeSlots(Address free_start);
@@ -51,17 +39,20 @@ class LargePageMetadata : public MutablePageMetadata {
   friend class MemoryAllocator;
 };
 
+template <>
+struct CastTraits<LargePage> {
+  static inline bool AllowFrom(const BasePage& page) { return page.is_large(); }
+};
+
 }  // namespace internal
 
 namespace base {
 // Define special hash function for page pointers, to be used with std data
-// structures, e.g. std::unordered_set<LargePageMetadata*,
-// base::hash<LargePageMetadata*>
+// structures, e.g. std::unordered_set<LargePage*, base::hash<LargePage*>>
 template <>
-struct hash<i::LargePageMetadata*> : hash<i::MemoryChunkMetadata*> {};
+struct hash<i::LargePage*> : hash<i::BasePage*> {};
 template <>
-struct hash<const i::LargePageMetadata*> : hash<const i::MemoryChunkMetadata*> {
-};
+struct hash<const i::LargePage*> : hash<const i::BasePage*> {};
 }  // namespace base
 
 }  // namespace v8

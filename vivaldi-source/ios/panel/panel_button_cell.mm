@@ -11,10 +11,11 @@
 
 using l10n_util::GetNSString;
 
-@interface PanelButtonCell() {}
+@interface PanelButtonCell () {
+}
 @property(nonatomic, weak) UIImageView* imageView;
 @property(nonatomic, strong)
-    NSDictionary<NSNumber*, NSDictionary*> *assetConfiguration;
+    NSDictionary<NSNumber*, NSDictionary*>* assetConfiguration;
 @end
 
 @implementation PanelButtonCell
@@ -39,7 +40,7 @@ using l10n_util::GetNSString;
 #pragma mark - SET UP UI COMPONENTS
 - (void)setUpUI {
   // Container to hold the items
-  UIView *container = [UIView new];
+  UIView* container = [UIView new];
   [self addSubview:container];
   [container fillSuperview];
 
@@ -62,40 +63,39 @@ using l10n_util::GetNSString;
 /// and accessibility string.
 - (NSDictionary<NSNumber*, NSDictionary*>*)getAssetConfiguration {
   return @{
-    @(PanelPage::BookmarksPage): @{
-      @"normal": vPanelBookmarks,
-      @"highlighted": vPanelBookmarksActive,
-      @"accessibilityLabel": GetNSString(IDS_IOS_TOOLS_MENU_BOOKMARKS)
+    @(PanelPage::BookmarksPage) : @{
+      @"normal" : vPanelBookmarks,
+      @"highlighted" : vPanelBookmarksActive,
+      @"accessibilityLabel" : GetNSString(IDS_IOS_TOOLS_MENU_BOOKMARKS)
     },
-    @(PanelPage::ReadinglistPage): @{
-      @"normal": vPanelReadingList,
-      @"highlighted": vPanelReadingListActive,
-      @"accessibilityLabel": GetNSString(IDS_IOS_TOOLS_MENU_READING_LIST)
+    @(PanelPage::ReadinglistPage) : @{
+      @"normal" : vPanelReadingList,
+      @"highlighted" : vPanelReadingListActive,
+      @"accessibilityLabel" : GetNSString(IDS_IOS_TOOLS_MENU_READING_LIST)
     },
-    @(PanelPage::NotesPage): @{
-      @"normal": vPanelNotes,
-      @"highlighted": vPanelNotesActive,
-      @"accessibilityLabel": GetNSString(IDS_VIVALDI_TOOLS_MENU_NOTES)
+    @(PanelPage::NotesPage) : @{
+      @"normal" : vPanelNotes,
+      @"highlighted" : vPanelNotesActive,
+      @"accessibilityLabel" : GetNSString(IDS_VIVALDI_TOOLS_MENU_NOTES)
     },
-    @(PanelPage::HistoryPage): @{
-      @"normal": vPanelHistory,
-      @"highlighted": vPanelHistoryActive,
-      @"accessibilityLabel": GetNSString(IDS_IOS_TOOLS_MENU_HISTORY)
+    @(PanelPage::HistoryPage) : @{
+      @"normal" : vPanelHistory,
+      @"highlighted" : vPanelHistoryActive,
+      @"accessibilityLabel" : GetNSString(IDS_IOS_TOOLS_MENU_HISTORY)
     },
-    @(PanelPage::TranslatePage): @{
-      @"normal": vPanelTranslate,
-      @"highlighted": vPanelTranslateActive,
-      @"accessibilityLabel": GetNSString(IDS_VIVALDI_TRANSLATE_TITLE)
+    @(PanelPage::TranslatePage) : @{
+      @"normal" : vPanelTranslate,
+      @"highlighted" : vPanelTranslateActive,
+      @"accessibilityLabel" : GetNSString(IDS_VIVALDI_TRANSLATE_TITLE)
     }
   };
 }
 
 #pragma mark - SETTERS
-- (void)configureCellWithIndex:(NSInteger)index
-                   highlighted:(BOOL)highlighted {
-  NSDictionary *config = self.assetConfiguration[@(index)];
-  NSString *imageName = highlighted ?
-      config[@"highlighted"] : config[@"normal"];
+- (void)configureCellWithIndex:(NSInteger)index highlighted:(BOOL)highlighted {
+  NSDictionary* config = self.assetConfiguration[@(index)];
+  NSString* imageName =
+      highlighted ? config[@"highlighted"] : config[@"normal"];
   self.imageView.image = [UIImage imageNamed:imageName];
   self.accessibilityLabel = config[@"accessibilityLabel"];
 }

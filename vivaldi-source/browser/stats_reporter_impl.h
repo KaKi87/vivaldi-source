@@ -106,7 +106,7 @@ class StatsReporterImpl : public StatsReporter {
       ReportingData local_state_reporting_data,
       std::optional<base::Value> os_profile_reporting_data_json,
       base::TimeDelta next_reporting_time_interval_,
-      std::unique_ptr<std::string> response_body);
+      std::optional<std::string> response_body);
   void ScheduleNextReporting(base::TimeDelta next_try_delay, bool add_jitter);
 
   std::string legacy_user_id_;

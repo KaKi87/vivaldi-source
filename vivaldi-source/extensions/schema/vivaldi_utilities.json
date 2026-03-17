@@ -131,6 +131,10 @@
             "type": "boolean",
             "description": "Window is guest."
           },
+          "fullscreenMenubarVisible": {
+            "type": "boolean",
+            "description": "MacOS window has menubar visible in fullscreen."
+          },
           "html5FullScreen": {
             "type": "boolean",
             "description": "Window is fullscreened through htmlelement.requestFullScreen."

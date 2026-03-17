@@ -50,7 +50,7 @@ ${function() {
       </if>
     </div>
   </div>
-<if expr="enable_glic">
+<if expr="enable_glic"> <!-- Vivaldi keep disabled -->
   <div id="footer-text" class="subtitle"
       ?hidden="${this.shouldHideFooterText_()}">
     $i18nRaw{glicAddProfileHelper}
@@ -81,23 +81,7 @@ ${function() {
   </cr-checkbox>
 </div>
 
-<cr-dialog id="forceSigninErrorDialog">
-  <div slot="title" id="dialog-title" class="key-text">
-    ${this.forceSigninErrorDialogTitle_}</div>
-  <div slot="body" id="dialog-body" class="warning-message">
-    ${this.forceSigninErrorDialogBody_}
-  </div>
-  <div slot="button-container" class="button-container">
-    <cr-button id="cancel-button"
-        @click="${this.onForceSigninErrorDialogOkButtonClicked_}">
-      $i18n{ok}
-    </cr-button>
-    <cr-button id="button-sign-in" class="action-button"
-        @click="${this.onReauthClicked_}"
-        ?hidden="${!this.shouldShownSigninButton_}">
-      $i18n{needsSigninPrompt}
-    </cr-button>
-  </div>
-</cr-dialog>
+<signin-error-dialog id="signinErrorDialog">
+</signin-error-dialog>
 <!--_html_template_end_-->`;
 }

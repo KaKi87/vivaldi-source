@@ -18,7 +18,7 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "components/cronet/android/cronet_test_apk_jni/TestUploadDataStreamHandler_jni.h"
 
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 
 namespace cronet {
 
@@ -27,8 +27,8 @@ static const size_t kReadBufferSize = 32768;
 TestUploadDataStreamHandler::TestUploadDataStreamHandler(
     std::unique_ptr<net::UploadDataStream> upload_data_stream,
     JNIEnv* env,
-    const JavaParamRef<jobject>& jtest_upload_data_stream_handler,
-    jlong jcontext_adapter)
+    const JavaRef<jobject>& jtest_upload_data_stream_handler,
+    int64_t jcontext_adapter)
     : init_callback_invoked_(false),
       read_callback_invoked_(false),
       bytes_read_(0),
@@ -171,18 +171,18 @@ void TestUploadDataStreamHandler::NotifyJavaReadCompleted() {
       base::android::ConvertUTF8ToJavaString(env, data_read));
 }
 
-static jlong JNI_TestUploadDataStreamHandler_CreateTestUploadDataStreamHandler(
+static int64_t
+JNI_TestUploadDataStreamHandler_CreateTestUploadDataStreamHandler(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>&
-        jtest_upload_data_stream_handler,
-    jlong jupload_data_stream,
-    jlong jcontext_adapter) {
+    const base::android::JavaRef<jobject>& jtest_upload_data_stream_handler,
+    int64_t jupload_data_stream,
+    int64_t jcontext_adapter) {
   std::unique_ptr<net::UploadDataStream> upload_data_stream(
       reinterpret_cast<net::UploadDataStream*>(jupload_data_stream));
   TestUploadDataStreamHandler* handler = new TestUploadDataStreamHandler(
       std::move(upload_data_stream), env, jtest_upload_data_stream_handler,
       jcontext_adapter);
-  return reinterpret_cast<jlong>(handler);
+  return reinterpret_cast<int64_t>(handler);
 }
 
 }  // namespace cronet

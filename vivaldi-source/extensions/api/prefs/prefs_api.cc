@@ -286,7 +286,7 @@ ExtensionFunction::ResponseAction PrefsGetForCacheFunction::Run() {
   VivaldiPrefsApiNotification* api =
       VivaldiPrefsApiNotification::FromBrowserContext(profile);
 
-  base::Value::List array;
+  base::ListValue array;
   array.reserve(params.GetList().size() * 2);
   for (const base::Value& path_value : params.GetList()) {
     if (!path_value.is_string())

@@ -32,11 +32,10 @@ class WebsiteDarkModeJavaScriptFeature : public web::JavaScriptFeature {
   ~WebsiteDarkModeJavaScriptFeature() override;
 
   // Disallow copy and assign.
-  WebsiteDarkModeJavaScriptFeature
-      (const WebsiteDarkModeJavaScriptFeature&) = delete;
-  WebsiteDarkModeJavaScriptFeature&
-      operator=(const WebsiteDarkModeJavaScriptFeature&) = delete;
+  WebsiteDarkModeJavaScriptFeature(const WebsiteDarkModeJavaScriptFeature&) =
+      delete;
+  WebsiteDarkModeJavaScriptFeature& operator=(
+      const WebsiteDarkModeJavaScriptFeature&) = delete;
 };
-
 
 #endif  // IOS_WEBSITE_DARK_MODE_WEBSITE_DARK_MODE_JAVA_SCRIPT_FEATURE_H_

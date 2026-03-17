@@ -3,7 +3,6 @@
 #ifndef COMPONENTS_AD_BLOCKER_CORE_ADBLOCK_KNOWN_SOURCES_HANDLER_IMPL_H_
 #define COMPONENTS_AD_BLOCKER_CORE_ADBLOCK_KNOWN_SOURCES_HANDLER_IMPL_H_
 
-#include <array>
 #include <set>
 #include <string>
 #include <vector>

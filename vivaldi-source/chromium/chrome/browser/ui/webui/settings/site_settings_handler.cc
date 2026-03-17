@@ -13,8 +13,8 @@
 #include <vector>
 
 #include "base/barrier_closure.h"
+#include "base/byte_size.h"
 #include "base/check_deref.h"
-#include "base/containers/contains.h"
 #include "base/containers/flat_set.h"
 #include "base/containers/to_value_list.h"
 #include "base/debug/crash_logging.h"
@@ -231,7 +231,7 @@ APIPermissionID APIPermissionFromGroupName(std::string type) {
 // adds their web extent and launch URL to the |exceptions| list.
 void AddExceptionsGrantedByHostedApps(content::BrowserContext* context,
                                       APIPermissionID permission,
-                                      base::Value::List* exceptions) {
+                                      base::ListValue* exceptions) {
   const extensions::ExtensionSet& extensions =
       extensions::ExtensionRegistry::Get(context)->enabled_extensions();
   for (extensions::ExtensionSet::const_iterator extension = extensions.begin();
@@ -502,12 +502,12 @@ url::Origin ResolveOriginInSiteGroup(const GroupingKey& grouping_key,
   return *grouping_key.GetOrigin();
 }
 
-// Converts a given |site_group_map| to a list of base::Value::Dicts, adding
+// Converts a given |site_group_map| to a list of base::DictValues, adding
 // the site engagement score for each origin.
 void ConvertSiteGroupMapToList(
     const SiteSettingsHandler::AllSitesMap& site_group_map,
     const std::set<url::Origin>& origin_permission_set,
-    base::Value::List* list_value,
+    base::ListValue* list_value,
     Profile* profile,
     BrowsingDataModel* browsing_data_model) {
   DCHECK(profile);
@@ -523,7 +523,7 @@ void ConvertSiteGroupMapToList(
   site_engagement::SiteEngagementService* engagement_service =
       site_engagement::SiteEngagementService::Get(profile);
   for (const auto& entry : site_group_map) {
-    base::Value::Dict site_group;
+    base::DictValue site_group;
     const GroupingKey& grouping_key = entry.first;
     site_group.Set(kGroupingKey, grouping_key.Serialize());
 
@@ -542,11 +542,11 @@ void ConvertSiteGroupMapToList(
     }
 
     bool has_installed_pwa = false;
-    base::Value::List origin_list;
+    base::ListValue origin_list;
     for (const auto& origin_is_partitioned : entry.second) {
       const url::Origin& origin = origin_is_partitioned.first;
       bool is_partitioned = origin_is_partitioned.second;
-      base::Value::Dict origin_object;
+      base::DictValue origin_object;
       // If origin is placeholder, use the grouping key for the origin.
       origin_object.Set(
           "origin",
@@ -564,7 +564,7 @@ void ConvertSiteGroupMapToList(
       origin_object.Set(kIsInstalled, is_installed);
 
       origin_object.Set(kHasPermissionSettings,
-                        base::Contains(origin_permission_set, origin));
+                        origin_permission_set.contains(origin));
       origin_list.Append(std::move(origin_object));
     }
     site_group.Set(kHasInstalledPWA, has_installed_pwa);
@@ -586,12 +586,11 @@ void ConvertSiteGroupMapToList(
   }
 }
 
-base::Value::Dict CreateZoomLevelException(
-    const std::string& host_or_spec,
-    const std::string& origin_for_favicon,
-    const std::string& display_name,
-    double zoom) {
-  base::Value::Dict exception;
+base::DictValue CreateZoomLevelException(const std::string& host_or_spec,
+                                         const std::string& origin_for_favicon,
+                                         const std::string& display_name,
+                                         double zoom) {
+  base::DictValue exception;
   exception.Set(site_settings::kHostOrSpec, host_or_spec);
   exception.Set(site_settings::kOriginForFavicon, origin_for_favicon);
   exception.Set(site_settings::kDisplayName, display_name);
@@ -938,7 +937,8 @@ void SiteSettingsHandler::OnGetUsageInfo() {
   }
 
   if (size > 0) {
-    usage_string = base::UTF16ToUTF8(ui::FormatBytes(base::ByteCount(size)));
+    usage_string = base::UTF16ToUTF8(
+        ui::FormatBytes(base::ByteSize(base::checked_cast<uint64_t>(size))));
   }
 
   auto* privacy_sandbox_service =
@@ -1046,7 +1046,7 @@ void SiteSettingsHandler::OnSystemPermissionChanged(
   FireWebUIListener("osGlobalPermissionChanged", GetSystemDeniedPermissions());
 }
 
-void SiteSettingsHandler::HandleFetchUsageTotal(const base::Value::List& args) {
+void SiteSettingsHandler::HandleFetchUsageTotal(const base::ListValue& args) {
   AllowJavascript();
   CHECK_EQ(1U, args.size());
   usage_origin_ = args[0].GetString();
@@ -1056,7 +1056,7 @@ void SiteSettingsHandler::HandleFetchUsageTotal(const base::Value::List& args) {
 }
 
 void SiteSettingsHandler::HandleGetRwsMembershipLabel(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   AllowJavascript();
   CHECK_EQ(3U, args.size());
 
@@ -1074,7 +1074,7 @@ void SiteSettingsHandler::HandleGetRwsMembershipLabel(
 }
 
 void SiteSettingsHandler::HandleClearUnpartitionedUsage(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   CHECK_EQ(1U, args.size());
   auto origin = url::Origin::Create(GURL(args[0].GetString()));
   if (origin.opaque()) {
@@ -1116,7 +1116,7 @@ void SiteSettingsHandler::HandleClearUnpartitionedUsage(
 }
 
 void SiteSettingsHandler::HandleClearPartitionedUsage(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   CHECK_EQ(2U, args.size());
   auto origin = url::Origin::Create(GURL(args[0].GetString()));
   auto grouping_key = GroupingKey::Deserialize(args[1].GetString());
@@ -1138,7 +1138,7 @@ void SiteSettingsHandler::HandleClearPartitionedUsage(
 }
 
 void SiteSettingsHandler::HandleSetDefaultValueForContentType(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   CHECK_EQ(2U, args.size());
   const std::string& content_type = args[0].GetString();
   const std::string& setting = args[1].GetString();
@@ -1176,7 +1176,7 @@ void SiteSettingsHandler::HandleSetDefaultValueForContentType(
 }
 
 void SiteSettingsHandler::HandleGetDefaultValueForContentType(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   AllowJavascript();
 
   CHECK_EQ(2U, args.size());
@@ -1200,12 +1200,12 @@ void SiteSettingsHandler::HandleGetDefaultValueForContentType(
     NOTREACHED() << type << " is not a content setting";
   }
 
-  base::Value::Dict category;
+  base::DictValue category;
   site_settings::GetContentCategorySetting(map, content_type, &category);
   ResolveJavascriptCallback(callback_id, category);
 }
 
-void SiteSettingsHandler::HandleGetAllSites(const base::Value::List& args) {
+void SiteSettingsHandler::HandleGetAllSites(const base::ListValue& args) {
   AllowJavascript();
 
   CHECK_EQ(1U, args.size());
@@ -1275,11 +1275,11 @@ void SiteSettingsHandler::HandleGetAllSites(const base::Value::List& args) {
     const site_settings::ChooserTypeNameEntry* chooser_type =
         site_settings::ChooserTypeFromGroupName(group_name);
     DCHECK(chooser_type);
-    base::Value::List exceptions =
+    base::ListValue exceptions =
         site_settings::GetChooserExceptionListFromProfile(profile_,
                                                           *chooser_type);
     for (const base::Value& exception : exceptions) {
-      const base::Value::List* sites =
+      const base::ListValue* sites =
           exception.GetDict().FindList(site_settings::kSites);
       DCHECK(sites);
       for (const base::Value& site : *sites) {
@@ -1298,7 +1298,7 @@ void SiteSettingsHandler::HandleGetAllSites(const base::Value::List& args) {
   send_sites_list_ = true;
   RebuildModel();
 
-  base::Value::List result;
+  base::ListValue result;
 
   // Respond with currently available data.
   ConvertSiteGroupMapToList(all_sites_map_, origin_permission_set_, &result,
@@ -1309,14 +1309,14 @@ void SiteSettingsHandler::HandleGetAllSites(const base::Value::List& args) {
   ResolveJavascriptCallback(base::Value(callback_id), result);
 }
 
-void SiteSettingsHandler::HandleGetCategoryList(const base::Value::List& args) {
+void SiteSettingsHandler::HandleGetCategoryList(const base::ListValue& args) {
   AllowJavascript();
 
   CHECK_EQ(2U, args.size());
   const std::string& callback_id = args[0].GetString();
   const std::string& origin_string = args[1].GetString();
 
-  base::Value::List result;
+  base::ListValue result;
   for (ContentSettingsType content_type :
        site_settings::GetVisiblePermissionCategories(origin_string, profile_)) {
     result.Append(site_settings::ContentSettingsTypeToGroupName(content_type));
@@ -1326,7 +1326,7 @@ void SiteSettingsHandler::HandleGetCategoryList(const base::Value::List& args) {
 }
 
 void SiteSettingsHandler::HandleGetRecentSitePermissions(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   AllowJavascript();
 
   CHECK_EQ(2U, args.size());
@@ -1339,17 +1339,17 @@ void SiteSettingsHandler::HandleGetRecentSitePermissions(
       profile_, content_types, max_sources);
 
   // Convert groups of TimestampedPermissions for consumption by JS
-  base::Value::List result;
+  base::ListValue result;
   for (const auto& site_permissions : recent_site_permissions) {
     DCHECK(!site_permissions.settings.empty());
-    base::Value::Dict recent_site;
+    base::DictValue recent_site;
     recent_site.Set(site_settings::kOrigin, site_permissions.origin.spec());
     recent_site.Set(site_settings::kDisplayName, site_permissions.display_name);
     recent_site.Set(site_settings::kIncognito, site_permissions.incognito);
 
-    base::Value::List permissions_list;
+    base::ListValue permissions_list;
     for (const auto& p : site_permissions.settings) {
-      base::Value::Dict recent_permission;
+      base::DictValue recent_permission;
       recent_permission.Set(
           site_settings::kType,
 
@@ -1371,12 +1371,12 @@ void SiteSettingsHandler::HandleGetRecentSitePermissions(
   ResolveJavascriptCallback(base::Value(callback_id), result);
 }
 
-base::Value::List SiteSettingsHandler::PopulateCookiesAndUsageData(
+base::ListValue SiteSettingsHandler::PopulateCookiesAndUsageData(
     Profile* profile) {
   std::map<url::Origin, int64_t> origin_size_map;
   std::map<std::pair<std::string, std::optional<std::string>>, int>
       host_cookie_map;
-  base::Value::List list_value;
+  base::ListValue list_value;
 
   GetOriginStorage(&all_sites_map_, &origin_size_map);
   GetHostCookies(&all_sites_map_, &host_cookie_map);
@@ -1385,8 +1385,8 @@ base::Value::List SiteSettingsHandler::PopulateCookiesAndUsageData(
 
   // Merge the origin usage and cookies number into |list_value|.
   for (base::Value& item : list_value) {
-    base::Value::Dict& site_group = item.GetDict();
-    base::Value::List& origin_list = *site_group.FindList(kOriginList);
+    base::DictValue& site_group = item.GetDict();
+    base::ListValue& origin_list = *site_group.FindList(kOriginList);
     int cookie_num = 0;
     auto grouping_key =
         GroupingKey::Deserialize(*site_group.FindString(kGroupingKey));
@@ -1402,7 +1402,7 @@ base::Value::List SiteSettingsHandler::PopulateCookiesAndUsageData(
     // Iterate over the origins for the group, and set their usage and cookie
     // numbers.
     for (base::Value& value : origin_list) {
-      base::Value::Dict& origin_info = value.GetDict();
+      base::DictValue& origin_info = value.GetDict();
       auto origin =
           url::Origin::Create(GURL(*origin_info.FindString("origin")));
       bool is_partitioned =
@@ -1434,17 +1434,16 @@ void SiteSettingsHandler::OnStorageFetched() {
                     PopulateCookiesAndUsageData(profile_));
 }
 
-void SiteSettingsHandler::HandleGetFormattedBytes(
-    const base::Value::List& args) {
+void SiteSettingsHandler::HandleGetFormattedBytes(const base::ListValue& args) {
   AllowJavascript();
   CHECK_EQ(2U, args.size());
-  base::ByteCount num_bytes = base::ByteCount(args[1].GetDouble());
+  base::ByteSize num_bytes =
+      base::ByteSize(base::checked_cast<uint64_t>(args[1].GetDouble()));
   ResolveJavascriptCallback(/*callback_id=*/args[0],
                             base::Value(ui::FormatBytes(num_bytes)));
 }
 
-void SiteSettingsHandler::HandleGetExceptionList(
-    const base::Value::List& args) {
+void SiteSettingsHandler::HandleGetExceptionList(const base::ListValue& args) {
   AllowJavascript();
 
   CHECK_EQ(2U, args.size());
@@ -1453,7 +1452,7 @@ void SiteSettingsHandler::HandleGetExceptionList(
   ContentSettingsType content_type =
       site_settings::ContentSettingsTypeFromGroupName(type);
 
-  base::Value::List exceptions;
+  base::ListValue exceptions;
 
   AddExceptionsGrantedByHostedApps(profile_, APIPermissionFromGroupName(type),
                                    &exceptions);
@@ -1476,7 +1475,7 @@ void SiteSettingsHandler::HandleGetExceptionList(
 }
 
 void SiteSettingsHandler::HandleGetStorageAccessExceptionList(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   AllowJavascript();
 
   CHECK_EQ(2U, args.size());
@@ -1497,7 +1496,7 @@ void SiteSettingsHandler::HandleGetStorageAccessExceptionList(
     incognito_ = nullptr;
   }
 
-  base::Value::List exceptions;
+  base::ListValue exceptions;
   site_settings::GetStorageAccessExceptions(setting, profile_, incognito_,
                                             web_ui(), &exceptions);
 
@@ -1505,7 +1504,7 @@ void SiteSettingsHandler::HandleGetStorageAccessExceptionList(
 }
 
 void SiteSettingsHandler::HandleGetChooserExceptionList(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   AllowJavascript();
 
   CHECK_EQ(2U, args.size());
@@ -1515,24 +1514,24 @@ void SiteSettingsHandler::HandleGetChooserExceptionList(
       site_settings::ChooserTypeFromGroupName(type);
   CHECK(chooser_type);
 
-  base::Value::List exceptions =
+  base::ListValue exceptions =
       site_settings::GetChooserExceptionListFromProfile(profile_,
                                                         *chooser_type);
   ResolveJavascriptCallback(callback_id, exceptions);
 }
 
 void SiteSettingsHandler::HandleGetOriginPermissions(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   AllowJavascript();
 
   CHECK_EQ(3U, args.size());
   const base::Value& callback_id = args[0];
   const std::string& origin = args[1].GetString();
-  const base::Value::List& types = args[2].GetList();
+  const base::ListValue& types = args[2].GetList();
 
   // Note: Invalid URLs will just result in default settings being shown.
   const GURL origin_url(origin);
-  base::Value::List exceptions;
+  base::ListValue exceptions;
   for (const auto& type_val : types) {
     std::string type;
     DCHECK(type_val.is_string());
@@ -1553,7 +1552,7 @@ void SiteSettingsHandler::HandleGetOriginPermissions(
     std::string content_setting_string =
         content_settings::ContentSettingToString(content_setting);
 
-    base::Value::Dict raw_site_exception;
+    base::DictValue raw_site_exception;
     raw_site_exception.Set(site_settings::kEmbeddingOrigin, origin);
     raw_site_exception.Set(site_settings::kIncognito,
                            profile_->IsOffTheRecord());
@@ -1584,18 +1583,18 @@ void SiteSettingsHandler::HandleGetOriginPermissions(
 }
 
 void SiteSettingsHandler::HandleGetFileSystemGrants(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   CHECK_EQ(1U, args.size());
   AllowJavascript();
 
   const base::Value& callback_id = args[0];
-  base::Value::List grants = PopulateFileSystemGrantData();
+  base::ListValue grants = PopulateFileSystemGrantData();
 
   ResolveJavascriptCallback(callback_id, grants);
 }
 
 void SiteSettingsHandler::HandleRevokeFileSystemGrant(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   DCHECK(base::FeatureList::IsEnabled(
       features::kFileSystemAccessPersistentPermissions));
   CHECK_EQ(2U, args.size());
@@ -1615,7 +1614,7 @@ void SiteSettingsHandler::HandleRevokeFileSystemGrant(
 }
 
 void SiteSettingsHandler::HandleRevokeFileSystemGrants(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   DCHECK(base::FeatureList::IsEnabled(
       features::kFileSystemAccessPersistentPermissions));
 
@@ -1633,7 +1632,7 @@ void SiteSettingsHandler::HandleRevokeFileSystemGrants(
 }
 
 void SiteSettingsHandler::HandleSetOriginPermissions(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   CHECK_EQ(3U, args.size());
   const std::string& origin_string = args[0].GetString();
   const std::string* type_string = args[1].GetIfString();
@@ -1819,7 +1818,7 @@ void SiteSettingsHandler::HandleSetOriginPermissions(
 }
 
 void SiteSettingsHandler::HandleResetCategoryPermissionForPattern(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   CHECK_EQ(4U, args.size());
   const std::string& primary_pattern_string = args[0].GetString();
   const std::string& secondary_pattern_string = args[1].GetString();
@@ -1897,15 +1896,10 @@ void SiteSettingsHandler::HandleResetCategoryPermissionForPattern(
     base::RecordAction(base::UserMetricsAction(
         "ThirdPartyCookies.SettingsSiteException.Removed"));
   }
-
-  if (content_type == ContentSettingsType::TRACKING_PROTECTION) {
-    base::RecordAction(base::UserMetricsAction(
-        "Settings.TrackingProtection.SiteExceptionRemoved"));
-  }
 }
 
 void SiteSettingsHandler::HandleSetCategoryPermissionForPattern(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   CHECK_EQ(5U, args.size());
   const std::string& primary_pattern_string = args[0].GetString();
   const std::string& secondary_pattern_string = args[1].GetString();
@@ -2029,15 +2023,10 @@ void SiteSettingsHandler::HandleSetCategoryPermissionForPattern(
     base::RecordAction(base::UserMetricsAction(
         "ThirdPartyCookies.SettingsSiteException.Added"));
   }
-
-  if (content_type == ContentSettingsType::TRACKING_PROTECTION) {
-    base::RecordAction(base::UserMetricsAction(
-        "Settings.TrackingProtection.SiteExceptionAdded"));
-  }
 }
 
 void SiteSettingsHandler::HandleResetChooserExceptionForSite(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   CHECK_EQ(3U, args.size());
 
   const std::string& chooser_type_str = args[0].GetString();
@@ -2054,7 +2043,7 @@ void SiteSettingsHandler::HandleResetChooserExceptionForSite(
   chooser_context->RevokeObjectPermission(origin, args[2].GetDict());
 }
 
-void SiteSettingsHandler::HandleIsOriginValid(const base::Value::List& args) {
+void SiteSettingsHandler::HandleIsOriginValid(const base::ListValue& args) {
   AllowJavascript();
   CHECK_EQ(2U, args.size());
   const base::Value& callback_id = args[0];
@@ -2065,7 +2054,7 @@ void SiteSettingsHandler::HandleIsOriginValid(const base::Value::List& args) {
 }
 
 void SiteSettingsHandler::HandleIsPatternValidForType(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   AllowJavascript();
   CHECK_EQ(3U, args.size());
   const base::Value& callback_id = args[0];
@@ -2081,20 +2070,20 @@ void SiteSettingsHandler::HandleIsPatternValidForType(
   bool is_valid =
       IsPatternValidForType(pattern_string, content_type, profile_, &reason);
 
-  base::Value::Dict return_value;
+  base::DictValue return_value;
   return_value.Set(kIsValidKey, base::Value(is_valid));
   return_value.Set(kReasonKey, base::Value(std::move(reason)));
   ResolveJavascriptCallback(callback_id, return_value);
 }
 
 void SiteSettingsHandler::HandleUpdateIncognitoStatus(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   AllowJavascript();
   FireWebUIListener("onIncognitoStatusChanged",
                     base::Value(profile_->HasPrimaryOTRProfile()));
 }
 
-void SiteSettingsHandler::HandleFetchZoomLevels(const base::Value::List& args) {
+void SiteSettingsHandler::HandleFetchZoomLevels(const base::ListValue& args) {
   AllowJavascript();
   SendZoomLevels();
 }
@@ -2104,7 +2093,7 @@ void SiteSettingsHandler::SendZoomLevels() {
     return;
   }
 
-  base::Value::List zoom_levels_exceptions;
+  base::ListValue zoom_levels_exceptions;
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
     BUILDFLAG(IS_CHROMEOS)
@@ -2160,7 +2149,7 @@ void SiteSettingsHandler::SendZoomLevels() {
             });
   GURL unreachable_web_data_url(content::kUnreachableWebDataURL);
   for (const auto& zoom_level : zoom_levels) {
-    base::Value::Dict exception;
+    base::DictValue exception;
     switch (zoom_level.mode) {
       case content::HostZoomMap::ZOOM_CHANGED_FOR_HOST: {
         std::string host_or_spec = zoom_level.host;
@@ -2201,7 +2190,7 @@ void SiteSettingsHandler::SendZoomLevels() {
   FireWebUIListener("onZoomLevelsChanged", zoom_levels_exceptions);
 }
 
-void SiteSettingsHandler::HandleRemoveZoomLevel(const base::Value::List& args) {
+void SiteSettingsHandler::HandleRemoveZoomLevel(const base::ListValue& args) {
   CHECK_EQ(1U, args.size());
 
   const std::string& host_or_spec = args[0].GetString();
@@ -2235,7 +2224,7 @@ void SiteSettingsHandler::HandleRemoveZoomLevel(const base::Value::List& args) {
 }
 
 void SiteSettingsHandler::HandleFetchBlockAutoplayStatus(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   AllowJavascript();
   SendBlockAutoplayStatus();
 }
@@ -2245,10 +2234,10 @@ void SiteSettingsHandler::SendBlockAutoplayStatus() {
     return;
   }
 
-  base::Value::Dict status;
+  base::DictValue status;
 
   // Whether the block autoplay toggle should be checked.
-  base::Value::Dict pref;
+  base::DictValue pref;
   pref.Set("value",
 
            UnifiedAutoplayConfig::ShouldBlockAutoplay(profile_) &&
@@ -2263,7 +2252,7 @@ void SiteSettingsHandler::SendBlockAutoplayStatus() {
 }
 
 void SiteSettingsHandler::HandleSetBlockAutoplayEnabled(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   AllowJavascript();
 
   if (!UnifiedAutoplayConfig::IsBlockAutoplayUserModifiable(profile_)) {
@@ -2477,7 +2466,7 @@ void SiteSettingsHandler::GetHostCookies(
 }
 
 void SiteSettingsHandler::HandleClearSiteGroupDataAndCookies(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   CHECK_EQ(1U, args.size());
   auto grouping_key = GroupingKey::Deserialize(args[0].GetString());
   net::SchemefulSite https_top_level_site;
@@ -2546,7 +2535,7 @@ void SiteSettingsHandler::HandleClearSiteGroupDataAndCookies(
   RemoveNonModelData(affected_origins);
 }
 
-void SiteSettingsHandler::HandleRecordAction(const base::Value::List& args) {
+void SiteSettingsHandler::HandleRecordAction(const base::ListValue& args) {
   const auto& list = args;
   CHECK_EQ(1U, list.size());
   int action = list[0].GetInt();
@@ -2557,7 +2546,7 @@ void SiteSettingsHandler::HandleRecordAction(const base::Value::List& args) {
 }
 
 void SiteSettingsHandler::HandleGetNumCookiesString(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   CHECK_EQ(2U, args.size());
   const std::string callback_id = args[0].GetString();
   int num_cookies = args[1].GetInt();
@@ -2572,7 +2561,7 @@ void SiteSettingsHandler::HandleGetNumCookiesString(
 }
 
 void SiteSettingsHandler::HandleGetSystemDeniedPermissions(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   CHECK_EQ(1U, args.size());
   const std::string callback_id = args[0].GetString();
 
@@ -2582,7 +2571,7 @@ void SiteSettingsHandler::HandleGetSystemDeniedPermissions(
 }
 
 void SiteSettingsHandler::HandleOpenSystemPermissionSettings(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   CHECK_EQ(1U, args.size());
   const ContentSettingsType permission_type =
       site_settings::ContentSettingsTypeFromGroupName(args[0].GetString());
@@ -2611,13 +2600,13 @@ void SiteSettingsHandler::RemoveNonModelData(
         ->SetWebsiteSettingDefaultScope(
             origin.GetURL(), GURL(),
             ContentSettingsType::REDUCED_ACCEPT_LANGUAGE, base::Value());
-    // Once user clears site setting data for `origins`, the Durable storage bit
-    // should also be reset.
+    // Once user clears site setting data for `origins`, the Persistent storage
+    // bit should also be reset.
     // TODO(crbug.com/40287777): This should be replaced when integrated with
     // the BrowserDataModel.
     HostContentSettingsMapFactory::GetForProfile(profile_)
         ->SetWebsiteSettingDefaultScope(origin.GetURL(), GURL(),
-                                        ContentSettingsType::DURABLE_STORAGE,
+                                        ContentSettingsType::PERSISTENT_STORAGE,
                                         base::Value());
   }
 
@@ -2681,8 +2670,8 @@ BrowsingDataModel* SiteSettingsHandler::GetBrowsingDataModelForTesting() {
 //   }
 //  ...
 // ]
-base::Value::List SiteSettingsHandler::PopulateFileSystemGrantData() {
-  base::Value::List grants;
+base::ListValue SiteSettingsHandler::PopulateFileSystemGrantData() {
+  base::ListValue grants;
 
   if (!base::FeatureList::IsEnabled(
           features::kFileSystemAccessPersistentPermissions)) {
@@ -2705,9 +2694,9 @@ base::Value::List SiteSettingsHandler::PopulateFileSystemGrantData() {
       continue;
     }
 
-    base::Value::Dict origin_file_system_permission_grants;
-    base::Value::List view_grants;
-    base::Value::List edit_grants;
+    base::DictValue origin_file_system_permission_grants;
+    base::ListValue view_grants;
+    base::ListValue edit_grants;
     std::vector<std::string> directory_edit_grants_file_paths;
     std::vector<std::string> file_edit_grants_file_paths;
 
@@ -2718,7 +2707,7 @@ base::Value::List SiteSettingsHandler::PopulateFileSystemGrantData() {
     // Populate the `file_system_permission_grant` object with allowed
     // permissions.
     for (auto& path_info : grantObj.directory_write_grants) {
-      base::Value::Dict directory_write_grant;
+      base::DictValue directory_write_grant;
       const std::string file_path_string =
           FilePathToValue(path_info.path).GetString();
       directory_write_grant.Set(site_settings::kOrigin, origin_string);
@@ -2733,10 +2722,11 @@ base::Value::List SiteSettingsHandler::PopulateFileSystemGrantData() {
     for (auto& path_info : grantObj.directory_read_grants) {
       const std::string file_path_string =
           FilePathToValue(path_info.path).GetString();
-      if (base::Contains(directory_edit_grants_file_paths, file_path_string)) {
+      if (std::ranges::contains(directory_edit_grants_file_paths,
+                                file_path_string)) {
         continue;
       }
-      base::Value::Dict directory_read_grant;
+      base::DictValue directory_read_grant;
       directory_read_grant.Set(site_settings::kOrigin, origin_string);
       directory_read_grant.Set(site_settings::kFileSystemFilePath,
                                file_path_string);
@@ -2746,7 +2736,7 @@ base::Value::List SiteSettingsHandler::PopulateFileSystemGrantData() {
     }
 
     for (auto& path_info : grantObj.file_write_grants) {
-      base::Value::Dict file_write_grant;
+      base::DictValue file_write_grant;
       const std::string file_path_string =
           FilePathToValue(path_info.path).GetString();
       file_write_grant.Set(site_settings::kOrigin, origin_string);
@@ -2761,10 +2751,11 @@ base::Value::List SiteSettingsHandler::PopulateFileSystemGrantData() {
     for (auto& path_info : grantObj.file_read_grants) {
       const std::string file_path_string =
           FilePathToValue(path_info.path).GetString();
-      if (base::Contains(file_edit_grants_file_paths, file_path_string)) {
+      if (std::ranges::contains(file_edit_grants_file_paths,
+                                file_path_string)) {
         continue;
       }
-      base::Value::Dict file_read_grant;
+      base::DictValue file_read_grant;
       file_read_grant.Set(site_settings::kOrigin, origin_string);
       file_read_grant.Set(site_settings::kFileSystemFilePath, file_path_string);
       file_read_grant.Set(site_settings::kDisplayName, file_path_string);
@@ -2796,7 +2787,7 @@ void SiteSettingsHandler::SendNotificationPermissionReviewList() {
 }
 
 base::Value SiteSettingsHandler::GetSystemDeniedPermissions() {
-  base::Value::List blocked_permissions;
+  base::ListValue blocked_permissions;
 
 #if BUILDFLAG(IS_CHROMEOS)
   // This is used to display warning messages in the UI in case that

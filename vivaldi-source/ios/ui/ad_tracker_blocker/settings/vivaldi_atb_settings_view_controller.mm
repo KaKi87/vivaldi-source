@@ -46,9 +46,9 @@ typedef NS_ENUM(NSInteger, ItemType) {
   ItemTypeHeader
 };
 
-}
+}  // namespace
 
-@interface VivaldiATBSettingsViewController()<VivaldiATBConsumer>
+@interface VivaldiATBSettingsViewController () <VivaldiATBConsumer>
 // The Browser in which blocker engine is active.
 @property(nonatomic, assign) Browser* browser;
 // The manager for the adblock that provides all methods and properties for
@@ -63,8 +63,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
 @synthesize browser = _browser;
 
 #pragma mark - INITIALIZER
-- (instancetype)initWithBrowser:(Browser*)browser
-                          title:(NSString*)title {
+- (instancetype)initWithBrowser:(Browser*)browser title:(NSString*)title {
   UITableViewStyle style = ChromeTableViewStyle();
   self = [super initWithStyle:style];
   if (self) {
@@ -101,28 +100,23 @@ typedef NS_ENUM(NSInteger, ItemType) {
   [self.adblockManager getSettingOptions];
 }
 
-
--(void)reloadGlobalSettingModelWithOption:(NSArray*)options {
-
+- (void)reloadGlobalSettingModelWithOption:(NSArray*)options {
   TableViewModel* model = self.tableViewModel;
 
   // Delete any existing section.
-  if ([model
-          hasSectionForSectionIdentifier:SectionIdentifierGlobalSettings])
-    [model
-        removeSectionWithIdentifier:SectionIdentifierGlobalSettings];
+  if ([model hasSectionForSectionIdentifier:SectionIdentifierGlobalSettings])
+    [model removeSectionWithIdentifier:SectionIdentifierGlobalSettings];
 
   // Creates Section for the setting options
-  [model
-      addSectionWithIdentifier:SectionIdentifierGlobalSettings];
+  [model addSectionWithIdentifier:SectionIdentifierGlobalSettings];
 
   // Set up section header
   [model setHeader:[self sectionHeaderWith:SectionIdentifierGlobalSettings]
-                  forSectionWithIdentifier:SectionIdentifierGlobalSettings];
+      forSectionWithIdentifier:SectionIdentifierGlobalSettings];
 
   for (id option in options) {
-    VivaldiATBSettingItem* settingItem = [[VivaldiATBSettingItem alloc]
-        initWithType:ItemTypeGlobalSetting];
+    VivaldiATBSettingItem* settingItem =
+        [[VivaldiATBSettingItem alloc] initWithType:ItemTypeGlobalSetting];
     settingItem.item = option;
     settingItem.globalDefaultOption =
         [self.adblockManager globalBlockingSetting];
@@ -138,42 +132,36 @@ typedef NS_ENUM(NSInteger, ItemType) {
     }
 
     [model addItem:settingItem
-         toSectionWithIdentifier:SectionIdentifierGlobalSettings];
+        toSectionWithIdentifier:SectionIdentifierGlobalSettings];
   }
 
   [self.tableView reloadData];
 }
 
--(void)reloadExceptionAndSourceSettingsModel {
+- (void)reloadExceptionAndSourceSettingsModel {
   TableViewModel* model = self.tableViewModel;
 
   // Delete any existing section.
-  if ([model
-          hasSectionForSectionIdentifier:SectionIdentifierExceptions])
-    [model
-        removeSectionWithIdentifier:SectionIdentifierExceptions];
-  if ([model
-          hasSectionForSectionIdentifier:SectionIdentifierSources])
-    [model
-        removeSectionWithIdentifier:SectionIdentifierSources];
+  if ([model hasSectionForSectionIdentifier:SectionIdentifierExceptions])
+    [model removeSectionWithIdentifier:SectionIdentifierExceptions];
+  if ([model hasSectionForSectionIdentifier:SectionIdentifierSources])
+    [model removeSectionWithIdentifier:SectionIdentifierSources];
 
   // Create sections for exceptions and source settings
-  [model
-      addSectionWithIdentifier:SectionIdentifierExceptions];
-  [model
-      addSectionWithIdentifier:SectionIdentifierSources];
+  [model addSectionWithIdentifier:SectionIdentifierExceptions];
+  [model addSectionWithIdentifier:SectionIdentifierSources];
 
   // Set up section header
   [model setHeader:[self sectionHeaderWith:SectionIdentifierExceptions]
-                  forSectionWithIdentifier:SectionIdentifierExceptions];
+      forSectionWithIdentifier:SectionIdentifierExceptions];
   [model setHeader:[self sectionHeaderWith:SectionIdentifierSources]
-                  forSectionWithIdentifier:SectionIdentifierSources];
+      forSectionWithIdentifier:SectionIdentifierSources];
 
   // Add expection setting option
   TableViewTextItem* exceptionItem =
       [[TableViewTextItem alloc] initWithType:ItemTypeExceptionSetting];
   exceptionItem.text =
-    GetNSString(IDS_BLOCK_PREF_MANAGE_BLOCKING_LEVEL_PER_SITE);
+      GetNSString(IDS_BLOCK_PREF_MANAGE_BLOCKING_LEVEL_PER_SITE);
   [model addItem:exceptionItem
       toSectionWithIdentifier:SectionIdentifierExceptions];
 
@@ -182,18 +170,18 @@ typedef NS_ENUM(NSInteger, ItemType) {
       [[TableViewTextItem alloc] initWithType:ItemTypeSourceSetting];
   manageTrackerSourcesItem.useCustomSeparator = YES;
   manageTrackerSourcesItem.text =
-    GetNSString(IDS_BLOCK_PREF_MANAGE_TRACKER_BLOCKING_SOURCES);
+      GetNSString(IDS_BLOCK_PREF_MANAGE_TRACKER_BLOCKING_SOURCES);
 
   TableViewTextItem* manageAdsSourcesItem =
       [[TableViewTextItem alloc] initWithType:ItemTypeSourceSetting];
   manageAdsSourcesItem.text =
-    GetNSString(IDS_BLOCK_PREF_MANAGE_AD_BLOCKING_SOURCES);
+      GetNSString(IDS_BLOCK_PREF_MANAGE_AD_BLOCKING_SOURCES);
 
   [model addItem:manageTrackerSourcesItem
       toSectionWithIdentifier:SectionIdentifierSources];
   [model addItem:manageAdsSourcesItem
       toSectionWithIdentifier:SectionIdentifierSources];
-  [model addItem: [self strictBlockingItem]
+  [model addItem:[self strictBlockingItem]
       toSectionWithIdentifier:SectionIdentifierSources];
 
   [self.tableView reloadData];
@@ -223,24 +211,25 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 - (void)navigateToSiteSettingViewController {
   NSString* pageTitleString =
-    GetNSString(IDS_BLOCK_PREF_MANAGE_BLOCKING_LEVEL_PER_SITE);
+      GetNSString(IDS_BLOCK_PREF_MANAGE_BLOCKING_LEVEL_PER_SITE);
 
   VivaldiATBPerSiteSettingsViewController* controller =
-    [[VivaldiATBPerSiteSettingsViewController alloc]
-        initWithBrowser:_browser title:pageTitleString];
+      [[VivaldiATBPerSiteSettingsViewController alloc]
+          initWithBrowser:_browser
+                    title:pageTitleString];
   [self.navigationController pushViewController:controller animated:YES];
 }
 
 - (void)navigateToSourceSettingViewControllerWithIndex:(NSInteger)index {
-  NSString* pageTitleString = (index == 0) ?
-    GetNSString(IDS_BLOCK_PREF_MANAGE_TRACKER_BLOCKING_SOURCES) :
-    GetNSString(IDS_BLOCK_PREF_MANAGE_AD_BLOCKING_SOURCES);
+  NSString* pageTitleString =
+      (index == 0) ? GetNSString(IDS_BLOCK_PREF_MANAGE_TRACKER_BLOCKING_SOURCES)
+                   : GetNSString(IDS_BLOCK_PREF_MANAGE_AD_BLOCKING_SOURCES);
 
   VivaldiATBSourceSettingsViewController* controller =
-    [[VivaldiATBSourceSettingsViewController alloc]
-        initWithBrowser:_browser
-                  title:pageTitleString
-             sourceType:index == 0 ? ATBSourceTrackers : ATBSourceAds];
+      [[VivaldiATBSourceSettingsViewController alloc]
+          initWithBrowser:_browser
+                    title:pageTitleString
+               sourceType:index == 0 ? ATBSourceTrackers : ATBSourceAds];
   [self.navigationController pushViewController:controller animated:YES];
 }
 
@@ -267,10 +256,10 @@ typedef NS_ENUM(NSInteger, ItemType) {
       // Iterate through the options and remove the checkmark from any that
       // have it.
       if ([model
-           hasSectionForSectionIdentifier:SectionIdentifierGlobalSettings]) {
+              hasSectionForSectionIdentifier:SectionIdentifierGlobalSettings]) {
         for (TableViewItem* item in
-             [model
-              itemsInSectionWithIdentifier:SectionIdentifierGlobalSettings]) {
+             [model itemsInSectionWithIdentifier:
+                        SectionIdentifierGlobalSettings]) {
           VivaldiATBSettingItem* settingItem =
               base::apple::ObjCCastStrict<VivaldiATBSettingItem>(item);
           if (settingItem.accessoryType == UITableViewCellAccessoryCheckmark) {
@@ -283,8 +272,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
       }
 
       VivaldiATBSettingItem* newSelectedCell =
-          base::apple::ObjCCastStrict<VivaldiATBSettingItem>
-              ([model itemAtIndexPath:indexPath]);
+          base::apple::ObjCCastStrict<VivaldiATBSettingItem>(
+              [model itemAtIndexPath:indexPath]);
       newSelectedCell.accessoryType = UITableViewCellAccessoryCheckmark;
       UITableViewCell* cell = [tableView cellForRowAtIndexPath:indexPath];
       cell.accessoryType = UITableViewCellAccessoryCheckmark;
@@ -308,7 +297,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
   }
 }
 
-#pragma mark: - VivaldiATBConsumer
+#pragma mark : - VivaldiATBConsumer
 
 - (void)didRefreshSettingOptions:(NSArray*)options {
   if (options.count > 0)
@@ -320,13 +309,11 @@ typedef NS_ENUM(NSInteger, ItemType) {
 
 - (TableViewSwitchItem*)strictBlockingItem {
   if (!_strictBlockingItem) {
-    _strictBlockingItem = [[TableViewSwitchItem alloc]
-      initWithType:ItemTypeStrictBlocking];
-    _strictBlockingItem.text =
-      l10n_util::GetNSString(
+    _strictBlockingItem =
+        [[TableViewSwitchItem alloc] initWithType:ItemTypeStrictBlocking];
+    _strictBlockingItem.text = l10n_util::GetNSString(
         IDS_IOS_VIVALDI_AD_AND_TRACKER_BLOCKER_STRICT_BLOCKING_SETTING_TITLE);
-    _strictBlockingItem.detailText =
-      l10n_util::GetNSString(
+    _strictBlockingItem.detailText = l10n_util::GetNSString(
         IDS_IOS_VIVALDI_AD_AND_TRACKER_BLOCKER_STRICT_BLOCKING_SETTING_DETAIL);
     _strictBlockingItem.on = [self getStrictBlockingEnabled];
     _strictBlockingItem.enabled = YES;
@@ -345,14 +332,14 @@ typedef NS_ENUM(NSInteger, ItemType) {
   if (!_browser)
     return NO;
   return _browser->GetProfile()->GetOriginalProfile()->GetPrefs()->GetBoolean(
-    vivaldiprefs::kPrivacyAdBlockerEnableDocumentBlocking);
+      vivaldiprefs::kPrivacyAdBlockerEnableDocumentBlocking);
 }
 
 - (void)setStrictBlockingEnabled:(BOOL)enabled {
   if (!_browser)
     return;
   _browser->GetProfile()->GetOriginalProfile()->GetPrefs()->SetBoolean(
-    vivaldiprefs::kPrivacyAdBlockerEnableDocumentBlocking, enabled);
+      vivaldiprefs::kPrivacyAdBlockerEnableDocumentBlocking, enabled);
 }
 
 @end

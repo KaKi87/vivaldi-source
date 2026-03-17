@@ -23,6 +23,7 @@
 <translation id="2565593432251168402">Внесете ред чрез купове с раздели</translation>
 <translation id="2783161812871838616">Заяви настолна версия</translation>
 <translation id="2806957659107692459">Създай куп</translation>
+<translation id="2830375794722738493">Скривай частните раздели</translation>
 <translation id="2899836479226240291">Може да отваряте автоматично препратки във Vivaldi, като направите приложението водещ браузър.</translation>
 <translation id="3365529507898144230">Запиши в Снимки</translation>
 <translation id="3434473769478814796">Постави и премини</translation>
@@ -76,9 +77,11 @@
 <translation id="6233792867654386826">Отваряне на въведените адреси във Vivaldi.</translation>
 <translation id="6271462272606946663">Скрий „Заяви мобилна версия“</translation>
 <translation id="6309282378909663947">Пароли в Диспечер на пароли на Vivaldi</translation>
+<translation id="6464648082977038075">Затвори частните раздели</translation>
 <translation id="6478587527114893588">Затваряне на купа.</translation>
 <translation id="6527405730445064713">Куп с раздели. Разгънат.</translation>
 <translation id="6532106788206463496">Запиши промените</translation>
+<translation id="6575010608310776688">Продължи в частен режим</translation>
 <translation id="6636411080833380839">Извади от купа</translation>
 <translation id="6644512095122093795">Предлага записване на пароли</translation>
 <translation id="6666425778700353369">ТАКА изтривате купа от всички устройства, на които сте вписани чрез <ph name="USER_EMAIL" />.</translation>

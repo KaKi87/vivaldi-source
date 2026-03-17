@@ -111,7 +111,7 @@ ui::PageTransition HistoryPrivateAPI::PrivateHistoryTransitionToUiTransition(
       NOTREACHED();
   }
   // We have to return something
-  //return ui::PAGE_TRANSITION_LINK;
+  // return ui::PAGE_TRANSITION_LINK;
 }
 // static
 vivaldi::history_private::TransitionType
@@ -144,7 +144,7 @@ HistoryPrivateAPI::UiTransitionToPrivateHistoryTransition(
       NOTREACHED();
   }
   // We have to return something
-  //return vivaldi::history_private::TransitionType::kLink;
+  // return vivaldi::history_private::TransitionType::kLink;
 }
 
 static base::LazyInstance<BrowserContextKeyedAPIFactory<HistoryPrivateAPI>>::
@@ -190,7 +190,7 @@ void HistoryPrivateEventRouter::OnURLsModified(
     urls.push_back(row.url().spec());
   }
   modified.urls = std::move(urls);
-  base::Value::List args = OnVisitModified::Create(modified);
+  base::ListValue args = OnVisitModified::Create(modified);
 
   DispatchEvent(profile_, OnVisitModified::kEventName, std::move(args));
 }
@@ -198,7 +198,7 @@ void HistoryPrivateEventRouter::OnURLsModified(
 // Helper to actually dispatch an event to extension listeners.
 void HistoryPrivateEventRouter::DispatchEvent(Profile* profile,
                                               const std::string& event_name,
-                                              base::Value::List event_args) {
+                                              base::ListValue event_args) {
   if (profile && EventRouter::Get(profile)) {
     EventRouter::Get(profile)->BroadcastEvent(base::WrapUnique(
         new extensions::Event(extensions::events::VIVALDI_EXTENSION_EVENT,
@@ -221,7 +221,7 @@ ExtensionFunction::ResponseAction HistoryPrivateDeleteVisitsFunction::Run() {
   history::HistoryService* hs = GetFunctionCallerHistoryService(*this);
   if (!hs) {
     NOTREACHED();
-    //return RespondNow(NoArguments());
+    // return RespondNow(NoArguments());
   }
 
   // This implementation is copied from BrowsingHistoryService::RemoveVisits
@@ -267,7 +267,7 @@ HistoryPrivateGetTopUrlsPerDayFunction::Run() {
   history::HistoryService* hs = GetFunctionCallerHistoryService(*this);
   if (!hs) {
     NOTREACHED();
-    //return RespondNow(NoArguments());
+    // return RespondNow(NoArguments());
   }
 
   hs->TopUrlsPerDay(
@@ -333,7 +333,7 @@ ExtensionFunction::ResponseAction HistoryPrivateVisitSearchFunction::Run() {
   history::HistoryService* hs = GetFunctionCallerHistoryService(*this);
   if (!hs) {
     NOTREACHED();
-    //return RespondNow(NoArguments());
+    // return RespondNow(NoArguments());
   }
 
   hs->VisitSearch(

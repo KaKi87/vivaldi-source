@@ -23,8 +23,8 @@ class ProfileIOS;
 
 // VivaldiSpeedDialHomeMediator manages model interactions for the
 // VivaldiNewTabPageViewController.
-@interface VivaldiSpeedDialHomeMediator :
-    NSObject<SpeedDialViewControllerDelegate>
+@interface VivaldiSpeedDialHomeMediator
+    : NSObject <SpeedDialViewControllerDelegate>
 
 @property(nonatomic, weak) id<SpeedDialHomeConsumer> consumer;
 

@@ -41,13 +41,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 
 import org.chromium.base.Callback;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
@@ -115,7 +116,6 @@ public class BookmarkBarCoordinatorTest {
     @Mock private BookmarkOpener mBookmarkOpener;
     @Mock private BookmarkManagerOpener mBookmarkManagerOpener;
     @Mock private TopControlsStacker mTopControlsStacker;
-    @Mock private ObservableSupplier<@Nullable Tab> mCurrentTabSupplier;
     @Mock private TopUiThemeColorProvider mTopUiThemeColorProvider;
 
     private BookmarkBarCoordinator mCoordinator;
@@ -123,7 +123,7 @@ public class BookmarkBarCoordinatorTest {
     private RecyclerView mItemsContainer;
     private FakeBookmarkModel mModel;
     private FrameLayout mOverflowButton;
-    private ObservableSupplierImpl<Profile> mProfileSupplier;
+    private SettableMonotonicObservableSupplier<Profile> mProfileSupplier;
     private BookmarkBar mView;
     private FrameLayout mContentContainer;
 
@@ -131,7 +131,7 @@ public class BookmarkBarCoordinatorTest {
     public void setUp() {
         mModel = FakeBookmarkModel.createModel();
         mDesktopFolderId = mModel.getDesktopFolderId();
-        mProfileSupplier = new ObservableSupplierImpl<>(mProfile);
+        mProfileSupplier = ObservableSuppliers.createMonotonic(mProfile);
         BookmarkBarSceneLayerJni.setInstanceForTesting(mBookmarkBarSceneLayerJniMock);
         ResourceFactoryJni.setInstanceForTesting(mResourceFactoryJniMock);
 
@@ -192,9 +192,9 @@ public class BookmarkBarCoordinatorTest {
                         viewStub,
                         mCurrentTab,
                         mBookmarkOpener,
-                        new ObservableSupplierImpl<>(mBookmarkManagerOpener),
+                        ObservableSuppliers.createNonNull(mBookmarkManagerOpener),
                         mTopControlsStacker,
-                        mCurrentTabSupplier,
+                        ObservableSuppliers.alwaysNull(),
                         mTopUiThemeColorProvider);
 
         assertNotNull("Verify view stub inflation during construction.", mView);
@@ -442,16 +442,10 @@ public class BookmarkBarCoordinatorTest {
                     assertItemRenderedAtIndex(itemIds.get(0), 0);
                     assertItemRenderedAtIndex(itemIds.get(1), 1);
 
-                    // Test case: `null` profile.
-                    BookmarkModel.setInstanceForTesting(null);
-                    mProfileSupplier.set(null);
-                    Robolectric.flushForegroundThreadScheduler();
-                    assertItemsRenderedCount(0);
-
                     // Test case: profile w/ populated model.
                     itemIds = setItemsWithinDesktopFolder(List.of("Item 3", "Item 4"));
                     BookmarkModel.setInstanceForTesting(mModel);
-                    mProfileSupplier.set(mProfile);
+                    mProfileSupplier.set(Mockito.mock(Profile.class));
                     Robolectric.flushForegroundThreadScheduler();
                     assertItemsRenderedCount(2);
                     assertItemRenderedAtIndex(itemIds.get(0), 0);
@@ -546,7 +540,7 @@ public class BookmarkBarCoordinatorTest {
         // The expected colors in incognito.
         @ColorInt
         int expectedDarkHairline =
-                ContextCompat.getColor(mView.getContext(), R.color.divider_line_bg_color_light);
+                ContextCompat.getColor(mView.getContext(), R.color.divider_color_light);
 
         ColorStateList expectedLightTint =
                 ContextCompat.getColorStateList(

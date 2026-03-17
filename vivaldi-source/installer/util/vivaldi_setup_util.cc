@@ -17,6 +17,7 @@
 #include "base/win/win_util.h"
 #include "base/win/windows_version.h"
 #include "base/win/wmi.h"
+#include "chrome/common/chrome_constants.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
 #include "installer/mini_installer/setup/install_params.h"
@@ -295,22 +296,24 @@ bool TryToCloseAllRunningBrowsers(
   // Start using a clean shutdown instead of process kill if we update a version
   // that has support for switches::kCleanShutdown. This assume that we do not
   // backport this snippet ofcourse.
-  base::Version old_running_version = GetInstallVersion(installer_state.target_path());
+  base::Version old_running_version =
+      GetInstallVersion(installer_state.target_path());
 
   LOG(ERROR) << "Running " << installer::kChromeExe
              << " has version : " << old_running_version;
 
   // Todays(10.01.25) main branch is on 7.1.3572
   if (old_running_version >= base::Version("7.1.3572.1")) {
-    LOG(ERROR)<< "Using kCleanShutdown";
+    LOG(ERROR) << "Using kCleanShutdown";
     base::CommandLine cmdline =
         base::CommandLine::FromString(::GetCommandLineW());
     cmdline.SetProgram(vivaldi_exe_path);
     cmdline.AppendSwitch(switches::kCleanShutdown);
     base::LaunchProcess(cmdline, base::LaunchOptions());
   } else {
-    LOG(ERROR)<< "Using KillProcesses";
-    // This will cause kSessionExitType profile.exit_type to be set to "Crashed".
+    LOG(ERROR) << "Using KillProcesses";
+    // This will cause kSessionExitType profile.exit_type to be set to
+    // "Crashed".
     KillProcesses(std::move(vivaldi_processes));
   }
 
@@ -730,7 +733,20 @@ void FinalizeSuccessfullInstall(
   UpdateDeltaPatchStatus(true);
 
   base::FilePath user_data_dir;
-  base::PathService::Get(chrome::DIR_USER_DATA, &user_data_dir);
+  if (IsInstallStandalone()) {
+    // Standalone dirs are generated in the parent dir of the install dir
+    // Don't use chrome::DIR_USER_DATA for standalone, since that returns
+    // a dir in the parent of the installer temp dir, not the install target
+    user_data_dir = base::MakeAbsoluteFilePath(
+        installer_state.target_path()
+            .Append(L"..")  // Using ".." to make the relationship clear
+            .Append(chrome::kUserDataDirname));
+    if (!base::PathExists(user_data_dir)) {
+      base::CreateDirectory(user_data_dir);
+    }
+  } else {
+    base::PathService::Get(chrome::DIR_USER_DATA, &user_data_dir);
+  }
 
   RestartUpdateNotifier(installer_state);
   base::DeleteFile(installer_state.target_path().Append(
@@ -759,8 +775,7 @@ void FinalizeSuccessfullInstall(
             << ", install_status = " << static_cast<int>(install_status)
             << ", params = " << params;
 
-    vivaldi::ShellExecuteFromExplorer(vivaldi_path, params,
-                                      base::FilePath());
+    vivaldi::ShellExecuteFromExplorer(vivaldi_path, params, base::FilePath());
   }
 }
 

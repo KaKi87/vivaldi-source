@@ -9,6 +9,7 @@
 #include "base/metrics/field_trial_params.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/contextual_search/contextual_search_context_controller.h"
+#include "components/contextual_search/contextual_search_session_handle.h"
 #include "components/omnibox/common/omnibox_feature_configs.h"
 #include "third_party/omnibox_proto/ntp_composebox_config.pb.h"
 
@@ -28,8 +29,6 @@ BASE_DECLARE_FEATURE(kWebUIOmniboxAimPopup);
 }  // namespace internal
 
 enum class AddContextButtonVariant {
-  // No "Add Context" button.
-  kNone = 0,
   // Variant 1.
   kBelowResults = 1,
   // Variant 2.
@@ -46,6 +45,7 @@ BASE_DECLARE_FEATURE(kWebUIOmniboxAimPopupDisableAnimation);
 BASE_DECLARE_FEATURE(kWebUIOmniboxFullPopup);
 BASE_DECLARE_FEATURE(kWebUIOmniboxPopup);
 BASE_DECLARE_FEATURE(kWebUIOmniboxPopupDebug);
+BASE_DECLARE_FEATURE(kWebUIOmniboxPopupSelectionControl);
 extern const base::FeatureParam<bool> kWebUIOmniboxPopupDebugSxSParam;
 
 // The serialized base64 encoded `omnibox::NTPComposeboxConfig`.
@@ -60,8 +60,6 @@ extern const base::FeatureParam<bool> kContextMenuEnableMultiTabSelection;
 extern const base::FeatureParam<int> kContextMenuMaxTabSuggestions;
 // Whether to allow drag and drop files in the composebox.
 extern const base::FeatureParam<bool> kEnableContextDragAndDrop;
-// Whether or not to enable viewport images with page context uploads.
-extern const base::FeatureParam<bool> kEnableViewportImages;
 // The maximum number of file attachments to upload.
 extern const base::FeatureParam<int> kMaxNumFiles;
 // Whether to show image suggestions under the composebox.
@@ -78,8 +76,6 @@ extern const base::FeatureParam<bool> kShowContextMenu;
 extern const base::FeatureParam<bool> kShowContextMenuDescription;
 // Whether to show tab previews on hover for the composebox context menu.
 extern const base::FeatureParam<bool> kShowContextMenuTabPreviews;
-// Whether to show the create image button in the composebox context menu.
-extern const base::FeatureParam<bool> kShowCreateImageTool;
 // Whether to show the lens search chip in the composebox.
 extern const base::FeatureParam<bool> kShowLensSearchChip;
 // Whether to delay an upload if tab context is added from the recent tab chip.
@@ -90,20 +86,16 @@ extern const base::FeatureParam<bool> kShowRecentTabChip;
 extern const base::FeatureParam<bool> kShowSmartCompose;
 // Whether to show the submit button in the composebox.
 extern const base::FeatureParam<bool> kShowSubmit;
-// Whether to show the tools and models picker in the composebox.
+// Whether to show the tools and models in the composebox.
 extern const base::FeatureParam<bool> kShowToolsAndModels;
+// Whether to show section headers in the context menu.
+extern const base::FeatureParam<bool> kShowContextMenuHeaders;
 // Whether to show the voice search button in steady state composebox.
 extern const base::FeatureParam<bool> kShowVoiceSearchInSteadyComposebox;
 // Whether to show the voice search button in expanded composebox.
 extern const base::FeatureParam<bool> kShowVoiceSearchInExpandedComposebox;
 // Whether to auto submit voice queries in the composebox.
 extern const base::FeatureParam<bool> kAutoSubmitVoiceSearchQuery;
-// Whether or not to use separate request ids for viewport images if the
-// multi-context input flow is enabled.
-extern const base::FeatureParam<bool>
-    kUseSeparateRequestIdsForMultiContextViewportImages;
-// Whether to attach the page title and URL to the suggest request.
-extern const base::FeatureParam<bool> kAttachPageTitleAndUrlToSuggestRequest;
 
 // Returns true if the `kWebUIOmniboxAimPopup` base::Feature is enabled.
 // This does NOT include user eligibility checks. Most UI code should use the
@@ -115,6 +107,12 @@ bool IsAimPopupFeatureEnabled();
 // checks both the base::Feature flag and all other requirements like user
 // eligibility.
 bool IsAimPopupEnabled(Profile* profile);
+bool ShouldShowAimContextMenuOption(Profile* profile);
+
+// Returns true if search content sharing is permitted by enterprise policy.
+bool IsContentSharingEnabled(
+    Profile* profile,
+    contextual_search::ContextualSearchSessionHandle* session_handle);
 
 bool IsCreateImagesEnabled(Profile* profile);
 bool IsDeepSearchEnabled(Profile* profile);

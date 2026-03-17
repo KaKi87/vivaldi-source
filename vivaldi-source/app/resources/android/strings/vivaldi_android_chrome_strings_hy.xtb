@@ -118,14 +118,10 @@
 <translation id="8348430946834215779">Միշտ, երբ հնարավոր է, օգտագործեք HTTPS և ստացեք նախազգուշացում այնպիսի կայքեր բեռնելուց առաջ, որոնցում այն չի աջակցվում</translation>
 <translation id="8560602726703398413">Գտեք Ձեր ընթերցման ցանկն էջանիշերում</translation>
 <translation id="85991616550051997">Գնալ գլխավոր էջ</translation>
-<translation id="8693232767599693749">Դիտե՞լ ընթերցման ռեժիմը։</translation>
 <translation id="8820817407110198400">Էջանիշեր</translation>
 <translation id="9042893549633094279">Գաղտնիություն և անվտանգություն</translation>
 <translation id="9063523880881406963">Անջատել համակարգչային տարբերակի հայցումը</translation>
 <translation id="9080642952018487277">Անցնել գաղտնի ռեժիմին</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {Չի օգտագործվել 1 կամ ավելի օր}
-          other {Չի օգտագործվել # կամ ավելի օր}}</translation>
 <translation id="930124987204876019">Ջնջել պատմությունը, քուքիները, կայքերի տվյալները, քեշը…</translation>
 <translation id="961856697154696964">Ջնջել դիտման տվյալները</translation>
 </translationbundle>

@@ -5,9 +5,9 @@
 
 // Brand-specific constants and install modes for Google Chrome.
 
-#include <array>
 #include <objbase.h>
 #include <stdlib.h>
+#include <array>
 
 #include <rpc.h>
 
@@ -27,12 +27,11 @@
 
 #include "installer/util/vivaldi_install_constants.h"
 
-
 namespace vivaldi {
 
-CLSID GetOrGenerateToastActivatorCLSID(const base::FilePath* target_path /*null*/) {
+CLSID GetOrGenerateToastActivatorCLSID(
+    const base::FilePath* target_path /*null*/) {
   UUID toast_activator_clsid = CLSID_NULL;
-
 
   base::FilePath target_exe;
   if (target_path) {
@@ -40,7 +39,7 @@ CLSID GetOrGenerateToastActivatorCLSID(const base::FilePath* target_path /*null*
   }
 
   // Debug and testing, set to a vivaldi.exe in a installed instance.
-  //target_exe = base::FilePath(L"C:\\test_5\\Application\\vivaldi.exe");
+  // target_exe = base::FilePath(L"C:\\test_5\\Application\\vivaldi.exe");
 
   base::win::RegKey registry_key(
       HKEY_CURRENT_USER, vivaldi::constants::kVivaldiToastActivatorCLSID,
@@ -54,7 +53,6 @@ CLSID GetOrGenerateToastActivatorCLSID(const base::FilePath* target_path /*null*
   if (value_exists) {
     CLSIDFromString(clsid.c_str(), &toast_activator_clsid);
   } else {
-
     // Only create a valid uuid if we have the target path available. This is to
     // avoid writing registry keys when this method is accessed by the installer
     // using temporary paths.
@@ -71,8 +69,7 @@ CLSID GetOrGenerateToastActivatorCLSID(const base::FilePath* target_path /*null*
       HKEY root = install_static::IsSystemInstall() ? HKEY_LOCAL_MACHINE
                                                     : HKEY_CURRENT_USER;
       base::win::RegKey clsidfortarget_key(
-          root, vivaldi::constants::kVivaldiToastActivatorCLSID,
-          KEY_SET_VALUE);
+          root, vivaldi::constants::kVivaldiToastActivatorCLSID, KEY_SET_VALUE);
 
       LONG ret = clsidfortarget_key.WriteValue(
           reinterpret_cast<const wchar_t*>(target_exe.AsUTF16Unsafe().c_str()),
@@ -96,14 +93,6 @@ enum InstallConstantIndex {
   NUM_INSTALL_MODES,
 };
 
-const wchar_t kCompanyPathName[] = L"";
-
-const wchar_t kProductPathName[] = L"Vivaldi";
-
-const size_t kProductPathNameLength = _countof(kProductPathName) - 1;
-
-const char kSafeBrowsingName[] = "vivaldi";
-
 const auto kInstallModes = std::to_array<InstallConstants>({
     // The primary install mode for stable Google Chrome.
     {
@@ -111,40 +100,41 @@ const auto kInstallModes = std::to_array<InstallConstants>({
         .index = VIVALDI_INDEX,
         .install_switch =
             "",  // Empty install_suffix for the primary install mode.
-        .install_suffix =
-            L"",
-        .logo_suffix = L"",         // The empty string means "stable".
+        .install_suffix = L"",
+        .logo_suffix = L"",  // The empty string means "stable".
         .app_guid =
-            L"",         // Empty app_guid since no integraion with Google Update.
-        .base_app_name = L"Vivaldi",  // A distinct base_app_name.
-        .base_app_id = L"Vivaldi",  // A distinct base_app_id.
-        .browser_prog_id_prefix = L"VivaldiHTM",    // ProgID prefix.
+            L"",  // Empty app_guid since no integraion with Google Update.
+        .base_app_name = L"Vivaldi",              // A distinct base_app_name.
+        .base_app_id = L"Vivaldi",                // A distinct base_app_id.
+        .browser_prog_id_prefix = L"VivaldiHTM",  // ProgID prefix.
         .browser_prog_id_description =
-            L"Vivaldi HTML Document",               // ProgID description.
+            L"Vivaldi HTML Document",  // ProgID description.
         .direct_launch_url_scheme = "vivaldi",
-        .pdf_prog_id_prefix = L"VivaldiPPDF",       // PDF ProgID prefix.
+        .pdf_prog_id_prefix = L"VivaldiPPDF",  // PDF ProgID prefix.
         .pdf_prog_id_description =
-            L"Vivaldi PDF Document",                // PDF ProgID description.
+            L"Vivaldi PDF Document",  // PDF ProgID description.
         .active_setup_guid =
             L"{9C142C0C-124C-4467-B117-EBCC62801D7B}",  // Active Setup GUID.
         .legacy_command_execute_clsid =
-            L"{DAB968E0-3A13-4CCC-A3AF-85578ACBE9AB}",  // CommandExecuteImpl CLSID.
+            L"{DAB968E0-3A13-4CCC-A3AF-85578ACBE9AB}",  // CommandExecuteImpl
+                                                        // CLSID.
 
         .toast_activator_clsid =
-            vivaldi::GetOrGenerateToastActivatorCLSID(),  // Toast Activator CLSID.
+            vivaldi::GetOrGenerateToastActivatorCLSID(),  // Toast Activator
+                                                          // CLSID.
 
         .elevator_clsid = {0x412E5152,
                            0x7091,
                            0x4930,
                            {0x92, 0xBD, 0x6A, 0x33, 0x9A, 0xE9, 0x07,
                             0x06}},  // Elevator CLSID.
-        .elevator_iid = {},   // IID elevator_iid;
+        .elevator_iid = {},          // IID elevator_iid;
         .default_channel_name =
             L"",  // Empty default channel name since no update integration.
         .channel_strategy = ChannelStrategy::UNSUPPORTED,
-        .supports_system_level = true,   // Supports system-level installs.
+        .supports_system_level = true,  // Supports system-level installs.
         .supports_set_as_default_browser =
-            true,   // Supports in-product set as default browser UX.
+            true,  // Supports in-product set as default browser UX.
         .app_icon_resource_index =
             icon_resources::kApplicationIndex,  // App icon resource index.
         .app_icon_resource_id = IDR_MAINFRAME,  // App icon resource id.

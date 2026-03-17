@@ -60,7 +60,8 @@ void OmniboxService::StartSearch(
       has_keyword && !autocomplete_input.from_search_field) {
     autocomplete_input.set_keyword_mode_entry_method(
         metrics::OmniboxEventProto::SPACE_IN_MIDDLE);
-    if (template_url->starter_pack_id() > 0) {
+    if (template_url->starter_pack_id() >
+        template_url_starter_pack_data::StarterPackId::kNone) {
       autocomplete_input.set_prefer_keyword(true);
       autocomplete_input.set_allow_exact_keyword_match(true);
     }

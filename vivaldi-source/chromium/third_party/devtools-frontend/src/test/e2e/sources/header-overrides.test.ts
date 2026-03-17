@@ -23,9 +23,9 @@ const ENABLE_OVERRIDES_SELECTOR = '[aria-label="Select folder for overrides"]';
 const OVERRIDES_FILESYSTEM_SELECTOR = '[aria-label="overrides, fs"]';
 const FILE_TREE_HEADERS_FILE_SELECTOR = '[aria-label=".headers, file"] .tree-element-title';
 const NETWORK_VIEW_SELECTOR = '.network-item-view';
-const HEADERS_TAB_SELECTOR = '[aria-label=Headers][role="tab"]';
-const ACTIVE_HEADERS_TAB_SELECTOR = '[aria-label=Headers][role=tab][aria-selected=true]';
-const RESPONSE_HEADERS_SELECTOR = '[aria-label="Response Headers"]';
+const HEADERS_TAB_SELECTOR = '[aria-label=Headers].tabbed-pane-header-tab';
+const ACTIVE_HEADERS_TAB_SELECTOR = '[aria-label=Headers].tabbed-pane-header-tab[aria-selected=true]';
+const RESPONSE_HEADERS_SELECTOR = '[aria-label="Response headers"]';
 const HEADER_ROW_SELECTOR = '.row';
 
 async function createHeaderOverride(devToolsPage: DevToolsPage) {
@@ -105,7 +105,7 @@ describe('The Overrides Panel', function() {
     await inspectedPage.goToResource('network/hello.html');
 
     await waitForSomeRequestsToAppear(1, devToolsPage);
-    await selectRequestByName('hello.html', {devToolsPage});
+    await selectRequestByName('hello.html', {}, devToolsPage);
     await openHeadersTab(devToolsPage);
 
     const responseHeaderSection = await devToolsPage.waitFor(RESPONSE_HEADERS_SELECTOR);
@@ -124,7 +124,7 @@ describe('The Overrides Panel', function() {
 
     await navigateToNetworkTab('hello.html', devToolsPage, inspectedPage);
     await waitForSomeRequestsToAppear(1, devToolsPage);
-    await selectRequestByName('hello.html', {devToolsPage});
+    await selectRequestByName('hello.html', {}, devToolsPage);
     await openHeadersTab(devToolsPage);
 
     await devToolsPage.click('.enable-editing');
@@ -144,7 +144,7 @@ describe('The Overrides Panel', function() {
 
     await navigateToNetworkTab('hello.html', devToolsPage, inspectedPage);
     await waitForSomeRequestsToAppear(1, devToolsPage);
-    await selectRequestByName('hello.html', {devToolsPage});
+    await selectRequestByName('hello.html', {}, devToolsPage);
     await openHeadersTab(devToolsPage);
 
     const responseHeaderSection = await devToolsPage.waitFor(RESPONSE_HEADERS_SELECTOR);

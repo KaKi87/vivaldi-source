@@ -35,7 +35,9 @@ enum class AutocompleteRequestType {
   kSearchPrefetch = 1,
   kAIMode = 2,
   kImageGeneration = 3,
-  kMaxValue = kImageGeneration
+  kCanvas = 4,
+  kDeepSearch = 5,
+  kMaxValue = kDeepSearch
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/omnibox/enums.xml:AutocompleteRequestType)
 
@@ -49,6 +51,17 @@ enum class FocusResultedInNavigationType {
 };
 // LINT.ThenChange(//tools/metrics/histograms/metadata/omnibox/enums.xml:FocusResultedInNavigationTypes)
 
+// LINT.IfChange(ComposeboxDragAndDropType)
+enum class ComposeboxDragAndDropType {
+  kText = 0,
+  kImage = 1,
+  kTab = 2,
+  kPDF = 3,
+  kUnknown = 4,
+  kMaxValue = kUnknown,
+};
+// LINT.ThenChange(//tools/metrics/histograms/metadata/omnibox/enums.xml:ComposeboxDragAndDropType)
+
 // A metrics recorder object for the composebox.
 @interface ComposeboxMetricsRecorder : NSObject
 // Records the AI mode activation source.
@@ -59,6 +72,10 @@ enum class FocusResultedInNavigationType {
 
 // Records the type of attachment button used.
 - (void)recordAttachmentButtonUsed:(FuseboxAttachmentButtonType)buttonType;
+
+// Records the drag and drop type used to attach content to the Composebox
+// context.
+- (void)recordDragAndDropAttempt:(ComposeboxDragAndDropType)type;
 
 // Records the attachment buttons usage in the composebox session.
 - (void)recordAttachmentButtonsUsageInSession;
@@ -83,6 +100,10 @@ enum class FocusResultedInNavigationType {
                                   withAttachments:(BOOL)hasAttachments
                                       requestType:
                                           (AutocompleteRequestType)requestType;
+
+- (void)recordVoiceSearchButtonUsed;
+- (void)recordLensSearchButtonUsed;
+- (void)recordQRScannerButtonUsed;
 
 @end
 

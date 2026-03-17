@@ -4,3 +4,11 @@ update_template_instance("//base:base") {
     "//vivaldi/base:edge_version",
   ]
 }
+
+if (is_win) {
+  update_target("//chrome/browser:browser") {
+    deps += [
+      "//vivaldi/base:obsolete_md5",
+    ]
+  }
+}

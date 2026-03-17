@@ -73,13 +73,15 @@ class WebInstallFromUrlCommand
                            const GURL& install_url,
                            const std::optional<GURL>& manifest_id,
                            base::WeakPtr<content::WebContents> web_contents,
-                           const GURL& last_committed_url,
+                           const GURL& installed_by,
                            WebAppInstallDialogCallback dialog_callback,
                            WebInstallFromUrlCommandCallback installed_callback);
   ~WebInstallFromUrlCommand() override;
 
  protected:
   // WebAppCommand:
+  content::WebContents* GetInstallingWebContents(
+      base::PassKey<WebAppCommandManager>) override;
   void StartWithLock(std::unique_ptr<SharedWebContentsLock> lock) override;
 
  private:
@@ -111,9 +113,8 @@ class WebInstallFromUrlCommand
   // install dialog.
   base::WeakPtr<content::WebContents> web_contents_;
   // The last committed URL of the page that initiated the install.
-  GURL last_committed_url_;
+  GURL installed_by_;
   WebAppInstallDialogCallback dialog_callback_;
-  InstallErrorLogEntry install_error_log_entry_;
 
   std::unique_ptr<SharedWebContentsLock> web_contents_lock_;
   std::unique_ptr<SharedWebContentsWithAppLock>

@@ -31,7 +31,9 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.Shadows;
 import org.robolectric.annotation.Config;
 
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.NullableObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.UserActionTester;
@@ -65,8 +67,9 @@ public class AddToBookmarksToolbarButtonControllerUnitTest {
     @Mock private ActivityLifecycleDispatcherImpl mActivityLifecycleDispatcher;
     @Captor private ArgumentCaptor<ConfigurationChangedObserver> mConfigurationChangedObserver;
 
-    private ObservableSupplierImpl<Tab> mTabSupplier;
-    private ObservableSupplierImpl<BookmarkModel> mBookmarkModelSupplier;
+    private final SettableNullableObservableSupplier<Tab> mTabSupplier =
+            ObservableSuppliers.createNullable();
+    private NullableObservableSupplier<BookmarkModel> mBookmarkModelSupplier;
 
     private UserActionTester mActionTester;
 
@@ -74,12 +77,10 @@ public class AddToBookmarksToolbarButtonControllerUnitTest {
     public void setUp() {
         mActionTester = new UserActionTester();
 
-        mTabSupplier = new ObservableSupplierImpl<>();
         mTabSupplier.set(mTab);
 
         when(mBookmarkModel.isBookmarkModelLoaded()).thenReturn(true);
-        mBookmarkModelSupplier = new ObservableSupplierImpl<>();
-        mBookmarkModelSupplier.set(mBookmarkModel);
+        mBookmarkModelSupplier = ObservableSuppliers.createNonNull(mBookmarkModel);
     }
 
     @After

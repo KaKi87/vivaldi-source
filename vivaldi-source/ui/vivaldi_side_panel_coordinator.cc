@@ -34,7 +34,7 @@ SidePanelCoordinator::SidePanelCoordinator(BrowserWindowInterface* browser)
   }
 }
 
-Profile * SidePanelCoordinator::GetProfile() {
+Profile* SidePanelCoordinator::GetProfile() {
   return browser_->GetProfile();
 }
 
@@ -73,11 +73,10 @@ void SidePanelCoordinator::Show(
 void SidePanelCoordinator::Toggle(SidePanelEntryKey key,
                                   SidePanelOpenTrigger open_trigger) {}
 
-//void SidePanelCoordinator::UpdatePinState() {}
+// void SidePanelCoordinator::UpdatePinState() {}
 
 std::optional<SidePanelEntryId> SidePanelCoordinator::GetCurrentEntryId(
-    SidePanelEntry::PanelType panel_type)
-    const {
+    SidePanelEntry::PanelType panel_type) const {
   return std::optional<SidePanelEntryId>();
 }
 

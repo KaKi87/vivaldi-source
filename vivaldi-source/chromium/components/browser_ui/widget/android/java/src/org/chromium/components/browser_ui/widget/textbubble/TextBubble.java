@@ -24,9 +24,11 @@ import androidx.annotation.StringRes;
 import androidx.appcompat.content.res.AppCompatResources;
 
 import org.chromium.base.MathUtils;
+import org.chromium.base.ResettersForTesting;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
@@ -53,8 +55,8 @@ public class TextBubble implements AnchoredPopupWindow.LayoutObserver {
     private static final Set<TextBubble> sBubbles = new HashSet<>();
 
     /** A supplier which notifies of changes of text bubbles count. */
-    private static final ObservableSupplierImpl<Integer> sCountSupplier =
-            new ObservableSupplierImpl<>();
+    private static final SettableNonNullObservableSupplier<Integer> sCountSupplier =
+            ObservableSuppliers.createNonNull(0);
 
     /** Disable assert error if it fails to be displayed. */
     private static boolean sSkipShowCheckForTesting;
@@ -430,7 +432,7 @@ public class TextBubble implements AnchoredPopupWindow.LayoutObserver {
     /**
      * @return A supplier which notifies of changes of text bubbles count.
      */
-    public static ObservableSupplier<Integer> getCountSupplier() {
+    public static NonNullObservableSupplier<Integer> getCountSupplier() {
         return sCountSupplier;
     }
 
@@ -618,6 +620,8 @@ public class TextBubble implements AnchoredPopupWindow.LayoutObserver {
     }
 
     public static void setSkipShowCheckForTesting(boolean skip) {
+        boolean previousSkip = sSkipShowCheckForTesting;
         sSkipShowCheckForTesting = skip;
+        ResettersForTesting.register(() -> sSkipShowCheckForTesting = previousSkip);
     }
 }

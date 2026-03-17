@@ -38,8 +38,7 @@ bool VivaldiTabCheck::IsOwnedByTabStripOrDevTools(
 }
 
 // static
-bool VivaldiTabCheck::IsOwnedByDevTools(
-    content::WebContents* web_contents) {
+bool VivaldiTabCheck::IsOwnedByDevTools(content::WebContents* web_contents) {
   return web_contents->GetUserData(&kDevToolContextKey);
 }
 

@@ -61,8 +61,7 @@ Visit::VisitsList VivaldiHistoryDatabase::VisitSearch(
       "    JOIN visits v on (u.id = v.url) "
       " WHERE v.visit_time >= ? "
       "  AND v.visit_time < ? "
-      " ORDER BY v.visit_time DESC"
-      ;
+      " ORDER BY v.visit_time DESC";
 
   sql::Statement url_sql(GetDB().GetUniqueStatement(query));
   int64_t begin = begin_time.ToInternalValue();
@@ -81,32 +80,32 @@ Visit::VisitsList VivaldiHistoryDatabase::VisitSearch(
         ui::PageTransitionFromInt(url_sql.ColumnInt(4));
 
     bool has_chain_start = ui::PAGE_TRANSITION_CHAIN_START &
-                        ui::PageTransitionGetQualifier(transitionType);
+                           ui::PageTransitionGetQualifier(transitionType);
     bool has_chain_end = ui::PAGE_TRANSITION_CHAIN_END &
-                        ui::PageTransitionGetQualifier(transitionType);
+                         ui::PageTransitionGetQualifier(transitionType);
     bool is_redirect = ui::PageTransitionIsRedirect(transitionType) &&
-                        !(has_chain_start || has_chain_end);
+                       !(has_chain_start || has_chain_end);
     if (!is_redirect && url.is_valid()) {
-      hosts.push_back(
-        Visit(id, visit_time, url, title, transitionType));
+      hosts.push_back(Visit(id, visit_time, url, title, transitionType));
     }
   }
 
   Visit::VisitsList filteredHosts;
-  // VB-98940: Don't copy http items if their https equivalent is present in history.
+  // VB-98940: Don't copy http items if their https equivalent is present in
+  // history.
   std::copy_if(hosts.begin(), hosts.end(), std::back_inserter(filteredHosts),
-    [&](Visit curr) {
-      std::string curr_url_no_scheme = curr.url.GetContent();
-      if (curr.url.SchemeIs("http")) {
-        for (size_t i = 0; i < hosts.size(); i++) {
-          if (hosts[i].url.GetContent() == curr_url_no_scheme &&
-            curr.url.scheme() != hosts[i].url.scheme()) {
-              return false;
-          }
-        }
-      }
-      return true;
-  });
+               [&](Visit curr) {
+                 std::string curr_url_no_scheme = curr.url.GetContent();
+                 if (curr.url.SchemeIs("http")) {
+                   for (size_t i = 0; i < hosts.size(); i++) {
+                     if (hosts[i].url.GetContent() == curr_url_no_scheme &&
+                         curr.url.scheme() != hosts[i].url.scheme()) {
+                       return false;
+                     }
+                   }
+                 }
+                 return true;
+               });
   return filteredHosts;
 }
 

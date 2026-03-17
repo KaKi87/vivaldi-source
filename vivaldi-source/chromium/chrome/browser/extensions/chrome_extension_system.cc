@@ -28,16 +28,17 @@
 #include "chrome/browser/extensions/extension_management.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/install_verifier_factory.h"
-#include "chrome/browser/extensions/load_error_reporter.h"
 #include "chrome/browser/extensions/shared_module_service.h"
 #include "chrome/browser/extensions/sync/extension_sync_service.h"
-#include "chrome/browser/extensions/unpacked_installer.h"
 #include "chrome/browser/notifications/notifier_state_tracker.h"
 #include "chrome/browser/notifications/notifier_state_tracker_factory.h"
+#include "chrome/browser/policy/cloud/extension_install_policy_service.h"
+#include "chrome/browser/policy/cloud/extension_install_policy_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/webui/extensions/extension_icon_source.h"
 #include "chrome/browser/ui/webui/extensions/extensions_internals_source.h"
 #include "chrome/common/chrome_switches.h"
+#include "components/policy/core/common/features.h"
 #include "components/value_store/value_store_factory_impl.h"
 #include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
@@ -52,9 +53,11 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_util.h"
 #include "extensions/browser/install_verifier.h"
+#include "extensions/browser/load_error_reporter.h"
 #include "extensions/browser/quota_service.h"
 #include "extensions/browser/service_worker_manager.h"
 #include "extensions/browser/state_store.h"
+#include "extensions/browser/unpacked_installer.h"
 #include "extensions/browser/update_install_gate.h"
 #include "extensions/browser/updater/uninstall_ping_sender.h"
 #include "extensions/browser/user_script_manager.h"
@@ -175,6 +178,14 @@ void ChromeExtensionSystem::Shared::RegisterManagementPolicyProviders() {
 
   management_policy_->RegisterProvider(
       InstallVerifierFactory::GetForBrowserContext(profile_));
+
+  if (auto* extension_install_policy_service =
+          policy::ExtensionInstallPolicyServiceFactory::GetForBrowserContext(
+              profile_)) {
+    CHECK(base::FeatureList::IsEnabled(
+        policy::features::kEnableExtensionInstallPolicyFetching));
+    management_policy_->RegisterProvider(extension_install_policy_service);
+  }
 }
 
 void ChromeExtensionSystem::Shared::InitInstallGates() {
@@ -255,6 +266,7 @@ void ChromeExtensionSystem::Shared::Init(bool extensions_enabled) {
     if (chromeos::IsManagedGuestSession()) {
       extensions_permissions_tracker_ =
           std::make_unique<ExtensionsPermissionsTracker>(
+              g_browser_process->local_state(),
               ExtensionRegistry::Get(profile_), profile_);
     }
 #endif
@@ -465,7 +477,7 @@ void ChromeExtensionSystem::InstallUpdate(
 
 void ChromeExtensionSystem::PerformActionBasedOnOmahaAttributes(
     const std::string& extension_id,
-    const base::Value::Dict& attributes) {
+    const base::DictValue& attributes) {
   extension_service()->PerformActionBasedOnOmahaAttributes(extension_id,
                                                            attributes);
 }

@@ -26,7 +26,8 @@ void WriteInstallerRegistryLanguage();
 
 }  // namespace vivaldi
 
-// Add missing 1 and 2-argument entry to chrome/installer/util/l10n_string_util.h
+// Add missing 1 and 2-argument entry to
+// chrome/installer/util/l10n_string_util.h
 
 namespace vivaldi_installer {
 
@@ -36,6 +37,6 @@ std::wstring GetLocalizedStringF2(int message_id,
                                   const std::wstring& arg1,
                                   const std::wstring& arg2);
 
-}
+}  // namespace vivaldi_installer
 
 #endif  // INSTALLER_WIN_VIVALDI_INSTALL_L10N_H_

@@ -64,7 +64,7 @@ namespace installer {
 #define VIVALDI_PRIVACY_LINK L"https://vivaldi.com/privacy"
 
 // Colored emoji font
-#define FONT_SIZE 12.0f
+#define FONT_SIZE 10.0f
 #define DIALOG_FONT_NAME TEXT("Segoe UI")
 #define DIALOG_FONT_NAME_EMOJI TEXT("Segoe UI Emoji")
 
@@ -86,7 +86,7 @@ namespace installer {
 
 #define CHECKBOX_Y_PADDING 10
 
-#define CHECKBOX_TEXT_PADDING 10
+#define CHECKBOX_TEXT_PADDING 12
 
 #define TITLEBAR_LEFT_PADDING 20
 
@@ -99,6 +99,10 @@ namespace installer {
 
 #define SLOGAN_X_PADDING 20
 #define SLOGAN_Y_PADDING 20
+
+#define COMBOBOX_LABEL_PADDING 10
+
+#define COMBOBOX_HEIGHT_INFLATION 5
 
 // background colors
 #define TOP_BACKGROUND_COLOR_LIGHT RGB(255, 255, 255)
@@ -130,17 +134,16 @@ namespace installer {
 #define BUTTON_BORDER_COLOR_LIGHT RGB(0xe5, 0xe5, 0xe5)
 
 #define CHECKBOX_BACKGROUND_COLOR_LIGHT_GDI Gdiplus::Color(255, 255, 255, 255)
-#define CHECKBOX_BACKGROUND_COLOR_DARK_GDI Gdiplus::Color(255,32, 32, 32)
+#define CHECKBOX_BACKGROUND_COLOR_DARK_GDI Gdiplus::Color(255, 32, 32, 32)
 
 #define TEXT_COLOR_LIGHT_GDI Gdiplus::Color(255, 0x33, 0x33, 0x33)
 #define TEXT_COLOR_DARK_GDI Gdiplus::Color(255, 0xc9, 0xc9, 0xc9)
-#define COMBOBOX_HEIGHT_PADDING 5
 
 // Checkbox colors.
-//static const Gdiplus::Color CHECK_COLOR_BORDER_NORMAL(255, 140, 140, 140);
+// static const Gdiplus::Color CHECK_COLOR_BORDER_NORMAL(255, 140, 140, 140);
 static const Gdiplus::Color CHECK_COLOR_FILL_LIGHT(255, 255, 255, 255);
 static const Gdiplus::Color CHECK_COLOR_FILL_DARK(255, 32, 32, 32);
-//static const Gdiplus::Color CHECK_COLOR_FILL_CHECKED(255, 0, 120, 212);
+// static const Gdiplus::Color CHECK_COLOR_FILL_CHECKED(255, 0, 120, 212);
 static const Gdiplus::Color CHECK_COLOR_FILL_HOVER_LIGHT(255, 226, 226, 226);
 static const Gdiplus::Color CHECK_COLOR_FILL_HOVER_DARK(255, 65, 65, 65);
 
@@ -199,10 +202,12 @@ DWORD ToComboIndex(vivaldi::InstallType install_type) {
 ///
 /// A value of 0 indicates apps should use dark mode. A non-zero or missing
 /// value indicates apps should use light mode.
-constexpr const wchar_t kGetPreferredBrightnessRegKey[] =
-    L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
 constexpr const wchar_t kGetPreferredBrightnessRegValue[] =
-    L"AppsUseLightTheme";
+    L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize";
+constexpr const wchar_t kGetPreferredBrightnessRegKey[] = L"AppsUseLightTheme";
+constexpr wchar_t kGetAccentColorBorderValue[] =
+    L"Software\\Microsoft\\Windows\\DWM";
+constexpr const wchar_t kGetAccentColorBorderKey[] = L"ColorPrevalence";
 
 int GetCurrentDpi(HWND window, VivaldiInstallDialog* dialog) {
   // GetDpiForMonitor() is available only in Windows 8.1.
@@ -349,18 +354,11 @@ bool VivaldiInstallDialog::GetControlSize(HWND control, SIZE& size) {
     size.cy = logo_bmp_->GetHeight();
     return true;
   } else if (control == slogan_text_) {
-    // Size is set up while initializing.
-    // Calculated in InitDialog.
-
+    // Calculated in LayoutSlogan.
     size.cx = slogan_width_;
     size.cy = slogan_height_;
-
     return true;
   }
-
-  //  if (!IsWindowVisible(control)) {
-  //    return false;
-  //  }
 
   base::win::ScopedGetDC dc(control);
   base::win::ScopedSelectObject font(dc, dialog_font_);
@@ -406,8 +404,7 @@ bool VivaldiInstallDialog::GetControlSize(HWND control, SIZE& size) {
   // Add some spacing for labels.
   if (control == install_type_label_ || control == language_label_ ||
       control == destination_folder_label_) {
-    xrect.set_height(xrect.height() + this_->GetPixelsFromDPI(4) +
-                     COMBOBOX_HEIGHT_PADDING);
+    xrect.set_height(xrect.height() + this_->GetPixelsFromDPI(2));
   }
 
   // Add some spacing for buttons.
@@ -538,25 +535,23 @@ void VivaldiInstallDialog::UpdateTheme(HWND const window,
     accent_color_ = RGB(GetRValue(color), GetGValue(color), GetBValue(color));
   }
 
-  if (base::win::GetVersion() >= base::win::Version::WIN11) {
-    DwmSetWindowAttribute(window, DWMWA_BORDER_COLOR, &accent_color_,
-                          sizeof(COLORREF));
-  }
+  DWORD accent_on_borders;
+  base::win::RegKey key(HKEY_CURRENT_USER, kGetAccentColorBorderValue,
+                        KEY_QUERY_VALUE);
+  key.ReadValueDW(kGetAccentColorBorderKey, &accent_on_borders);
 
-  DWORD light_mode;
-  DWORD light_mode_size = sizeof(light_mode);
-  LSTATUS result =
-      RegGetValue(HKEY_CURRENT_USER, kGetPreferredBrightnessRegKey,
-                  kGetPreferredBrightnessRegValue, RRF_RT_REG_DWORD, nullptr,
-                  &light_mode, &light_mode_size);
+  use_accent_color_on_borders_ = accent_on_borders == 1;
+
+  DWORD light_mode = 1;
+  base::win::RegKey lightmode_key(
+      HKEY_CURRENT_USER, kGetPreferredBrightnessRegValue, KEY_QUERY_VALUE);
+  lightmode_key.ReadValueDW(kGetPreferredBrightnessRegKey, &light_mode);
 
   dark_mode_ = (light_mode == 0);
 
-  if (result == ERROR_SUCCESS) {
-    BOOL enable_dark_mode = light_mode == 0;
-    DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE,
-                          &enable_dark_mode, sizeof(enable_dark_mode));
-  }
+  BOOL enable_dark_mode = light_mode == 0;
+  DwmSetWindowAttribute(window, DWMWA_USE_IMMERSIVE_DARK_MODE,
+                        &enable_dark_mode, sizeof(enable_dark_mode));
 
   // Create different brushes based on darkmode.
 
@@ -648,6 +643,28 @@ void VivaldiInstallDialog::UpdateTheme(HWND const window,
   //  swprintf(text_buffer, _countof(text_buffer), L"bitmap loaded w:%d, h:%d",
   //           logo_bmp_->GetWidth(), logo_bmp_->GetHeight());
   //  MessageBox(window, text_buffer, nullptr, MB_ICONERROR);
+}
+
+COLORREF VivaldiInstallDialog::GetWindowBorderColor() {
+  COLORREF border_color = GetSysColor(COLOR_WINDOWFRAME);
+
+  if (active_) {
+    if (use_accent_color_on_borders_) {
+      border_color = accent_color_;
+    }
+  } else {
+    // Dim by 30%
+    float brightnessFactor = 0.7f;
+    COLOR16 r = GetRValue(border_color);
+    COLOR16 g = GetGValue(border_color);
+    COLOR16 b = GetBValue(border_color);
+    r = fmin(255, r * brightnessFactor);
+    g = fmin(255, g * brightnessFactor);
+    b = fmin(255, b * brightnessFactor);
+    border_color = RGB(r, g, b);
+  }
+
+  return border_color;
 }
 
 COLORREF VivaldiInstallDialog::GetTextColor() {
@@ -866,8 +883,8 @@ void VivaldiInstallDialog::InitDialog() {
   InitCommonControlsEx(&icex);
 
   window_title_label_ = CreateWindowEx(
-      0, L"STATIC", L"Install Vivaldi", WS_CHILD | WS_VISIBLE, 0, 0, 0, 0,
-      hdlg_, (HMENU)IDC_STATIC_DIALOG_TITLE, nullptr, nullptr);
+      WS_EX_TRANSPARENT, L"STATIC", L"Install Vivaldi", WS_CHILD | WS_VISIBLE,
+      0, 0, 0, 0, hdlg_, (HMENU)IDC_STATIC_DIALOG_TITLE, nullptr, nullptr);
 
   logo_ =
       CreateWindowEx(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_OWNERDRAW, 0,
@@ -973,7 +990,6 @@ void VivaldiInstallDialog::InitDialog() {
   SetWindowSubclass(auto_update_check_,
                     VivaldiInstallDialog::OwnerDrawButtonProc, 0,
                     (DWORD_PTR)update_checkbutton_subclassed_.get());
-
   SetWindowSubclass(register_default_app_check_,
                     VivaldiInstallDialog::OwnerDrawButtonProc, 0,
                     (DWORD_PTR)register_app_checkbutton_subclassed_.get());
@@ -997,6 +1013,19 @@ void VivaldiInstallDialog::InitDialog() {
                     VivaldiInstallDialog::OwnerDrawEditProc, 0,
                     (DWORD_PTR)destination_folder_edit_subclassed_.get());
 
+  // Add all buttons that need to do painting inside the dialog painthandler.
+  child_controls_.push_back(ok_button_subclassed_.get());
+  child_controls_.push_back(cancel_button_subclassed_.get());
+  child_controls_.push_back(mode_button_subclassed_.get());
+  child_controls_.push_back(update_checkbutton_subclassed_.get());
+  child_controls_.push_back(register_app_checkbutton_subclassed_.get());
+  child_controls_.push_back(allow_crashuploads_checkbutton_subclassed_.get());
+  child_controls_.push_back(browse_destination_button_subclassed_.get());
+  child_controls_.push_back(update_checkbutton_subclassed_.get());
+  child_controls_.push_back(install_type_combo_subclassed_.get());
+  child_controls_.push_back(destination_folder_edit_subclassed_.get());
+  child_controls_.push_back(language_combo_subclassed_.get());
+
   std::map<const std::wstring, const std::wstring>::iterator it;
   for (const auto& pair : kLanguages) {
     ComboBox_AddString(language_combo_, pair.name);
@@ -1019,17 +1048,33 @@ void VivaldiInstallDialog::InitDialog() {
   SendMessage(auto_update_check_, BM_SETCHECK,
               disable_standalone_autoupdates_ ? BST_CHECKED : BST_UNCHECKED, 0);
 
-  D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &pD2DFactory_);
+  InitUIFont();
+}
 
-  DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
-                      reinterpret_cast<IUnknown**>(&pDWriteFactory_));
+void VivaldiInstallDialog::LayoutSlogan() {
+  if (pRenderTarget_) {
+    pRenderTarget_->Release();
+  }
+  if (pTextLayout_) {
+    pTextLayout_->Release();
+  }
+
+  if (!pD2DFactory_) {
+    D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &pD2DFactory_);
+  }
+  if (!pDWriteFactory_) {
+    DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory),
+                        reinterpret_cast<IUnknown**>(&pDWriteFactory_));
+  }
 
   float fontsize = 16.f;  // This should be DIPs.
 
-  pDWriteFactory_->CreateTextFormat(
-      DIALOG_FONT_NAME /*_EMOJI*/, NULL, DWRITE_FONT_WEIGHT_NORMAL,
-      DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, fontsize, L"",
-      &pTextFormat_);
+  if (!pTextFormat_) {
+    pDWriteFactory_->CreateTextFormat(
+        DIALOG_FONT_NAME /*_EMOJI*/, NULL, DWRITE_FONT_WEIGHT_NORMAL,
+        DWRITE_FONT_STYLE_NORMAL, DWRITE_FONT_STRETCH_NORMAL, fontsize, L"",
+        &pTextFormat_);
+  }
 
   pTextFormat_->SetWordWrapping(DWRITE_WORD_WRAPPING_WHOLE_WORD);
 
@@ -1072,8 +1117,6 @@ void VivaldiInstallDialog::InitDialog() {
   pD2DFactory_->CreateHwndRenderTarget(
       D2D1::RenderTargetProperties(),
       D2D1::HwndRenderTargetProperties(slogan_text_, size), &pRenderTarget_);
-
-  InitUIFont();
 }
 
 void VivaldiInstallDialog::InitUIFont() {
@@ -1168,8 +1211,7 @@ void VivaldiInstallDialog::TranslateDialog() {
                  GetLocalizedString(IDS_INSTALL_BROWSE_BASE).c_str());
   SetDlgItemText(
       hdlg_, IDC_CHECK_REGISTER,
-      GetLocalizedString(IDS_INSTALL_MAKE_STANDALONE_AVAIL_BASE)
-          .c_str());
+      GetLocalizedString(IDS_INSTALL_MAKE_STANDALONE_AVAIL_BASE).c_str());
   SetDlgItemText(hdlg_, IDC_CHECK_NO_AUTOUPDATE,
                  GetLocalizedString(IDS_DISABLE_AUTOUPDATE_BASE).c_str());
   //  SetDlgItemText(hdlg_, IDC_STATIC_WARN,
@@ -1533,6 +1575,8 @@ bool VivaldiInstallDialog::Layout() {
     return false;
   }
 
+  LayoutSlogan();
+
   this_->dialog_rect_ = gfx::Rect(window_rect);
 
   int dialog_height = 0;
@@ -1639,9 +1683,6 @@ bool VivaldiInstallDialog::Layout() {
     ShowWindow(allow_crash_reports_check_, SW_SHOW);
     ShowWindow(auto_update_check_, showForStandaloneInstall);
 
-    // Padding.
-    // dialog_height += controlSize.cy;
-
     // IDC_STATIC_LANGUAGE
     GetControlSize(language_label_, control_size);
     MoveWindow(language_label_, LEFT_INDENT, dialog_height, control_size.cx,
@@ -1652,7 +1693,10 @@ bool VivaldiInstallDialog::Layout() {
     GetControlSize(install_type_label_, control_size);
     MoveWindow(install_type_label_, middleGround, dialog_height,
                control_size.cx, control_size.cy, FALSE);
+
     dialog_height += control_size.cy;
+    // Padding.
+    dialog_height += GetPixelsFromDPI(COMBOBOX_LABEL_PADDING);
 
     // IDC_COMBO_LANGUAGE
     GetControlSize(language_combo_, control_size);
@@ -1676,12 +1720,11 @@ bool VivaldiInstallDialog::Layout() {
       GetControlSize(destination_folder_edit_, control_size);
       GetControlSize(destination_folder_button_, previous_control_size);
 
-      MoveWindow(
-          destination_folder_edit_, LEFT_INDENT, dialog_height,
-          (window_rect.right - window_rect.left) -
+      MoveWindow(destination_folder_edit_, LEFT_INDENT, dialog_height,
+                 (window_rect.right - window_rect.left) -
                      (previous_control_size.cx + ACTION_BUTTON_PADDING +
                       LEFT_INDENT + 16),
-          control_size.cy, FALSE);
+                 control_size.cy, FALSE);
 
       MoveWindow(destination_folder_button_,
                  (window_rect.right - window_rect.left) -
@@ -1698,7 +1741,6 @@ bool VivaldiInstallDialog::Layout() {
         GetWindowText(destination_folder_edit_, buffer.get(), MAX_PATH - 1);
         this_->UpdateTargetPathResult(base::FilePath(buffer.get()));
       }
-
     }
 
     dialog_height += GetPixelsFromDPI(CHECKBOX_Y_PADDING);
@@ -1843,13 +1885,12 @@ INT_PTR CALLBACK VivaldiInstallDialog::DlgProc(HWND hdlg,
 
       return (INT_PTR)TRUE;
     }
+
     case WM_ACTIVATE: {
       this_->active_ = wparam != WA_INACTIVE;
       if (base::win::GetVersion() >= base::win::Version::WIN11) {
-        DwmSetWindowAttribute(hdlg, DWMWA_BORDER_COLOR,
-                              this_->active_
-                                  ? &this_->accent_color_
-                                  : &this_->inactive_window_border_color_,
+        COLORREF border_color = this_->GetWindowBorderColor();
+        DwmSetWindowAttribute(hdlg, DWMWA_BORDER_COLOR, &border_color,
                               sizeof(COLORREF));
       } else {
         // make sure ncpaint is triggerd to update the border color.
@@ -1895,13 +1936,11 @@ INT_PTR CALLBACK VivaldiInstallDialog::DlgProc(HWND hdlg,
                                   windowRect.bottom - windowRect.top);
 
         // Get accent color
-        COLORREF accentColor = this_->active_
-                                   ? this_->accent_color_
-                                   : this_->inactive_window_border_color_;
+        COLORREF border_color = this_->GetWindowBorderColor();
 
         // Draw the border
-        HPEN hPen = CreatePen(PS_SOLID, WINDOW_BORDER_WIDTH, accentColor);
-        HBRUSH hBrush = CreateSolidBrush(accentColor);
+        HPEN hPen = CreatePen(PS_SOLID, WINDOW_BORDER_WIDTH, border_color);
+        HBRUSH hBrush = CreateSolidBrush(border_color);
 
         SelectObject(hdc, hPen);
         SelectObject(hdc, hBrush);
@@ -2212,6 +2251,28 @@ INT_PTR CALLBACK VivaldiInstallDialog::DlgProc(HWND hdlg,
       MoveToEx(hdcMem, 0, bottomRect.top, NULL);
       LineTo(hdcMem, bottomRect.right, bottomRect.top);
 
+      // Paint anything from the children here.
+      for (auto* child_control : this_->child_controls_) {
+        if (child_control->HasFocus()) {
+          RECT focus_rect;
+          HWND control_hwnd = GetDlgItem(hdlg, child_control->id());
+
+          GetWindowRect(control_hwnd, &focus_rect);
+          MapWindowPoints(nullptr, hdlg, (POINT*)&focus_rect, 2);
+
+          if (child_control->id() == IDC_COMBO_LANGUAGE ||
+              child_control->id() == IDC_COMBO_INSTALLTYPES) {
+            InflateRect(&focus_rect, 4, 7);
+          } else {
+            InflateRect(&focus_rect, 3, 3);
+          }
+
+          VivaldiInstallDialog::DrawRoundRect(
+              hdcMem, gfx::Rect(focus_rect),
+              child_control->owner()->GetTextColor(), false, 3.f);
+        }
+      }
+
       BitBlt(hdc, 0, 0, dialogRect.right, dialogRect.bottom, hdcMem, 0, 0,
              SRCCOPY);
 
@@ -2366,6 +2427,8 @@ VivaldiInstallDialog::OwnerDrawComboboxProc(HWND hWnd,
   SubclassedControl* control = (SubclassedControl*)dwRefData;
 
   switch (uMsg) {
+    case WM_ERASEBKGND:
+      return 1;  // We do this in WM_PAINT.
     case WM_LBUTTONDOWN: {
       control->SetLeftButtonIsDown(true);
       control->SetHasFocus(false);
@@ -2387,7 +2450,8 @@ VivaldiInstallDialog::OwnerDrawComboboxProc(HWND hWnd,
       RECT itemRect;
       GetClientRect(hWnd, &itemRect);
       InflateRect(&itemRect, 10, 10);
-      InvalidateRect(hWnd, &itemRect, TRUE);
+      MapWindowPoints(hWnd, GetParent(hWnd), (POINT*)&itemRect, 2);
+      InvalidateRect(GetParent(hWnd), &itemRect, FALSE);
     } break;
 
     case WM_KILLFOCUS: {
@@ -2395,7 +2459,8 @@ VivaldiInstallDialog::OwnerDrawComboboxProc(HWND hWnd,
       RECT itemRect;
       GetClientRect(hWnd, &itemRect);
       InflateRect(&itemRect, 10, 10);
-      InvalidateRect(hWnd, &itemRect, TRUE);
+      MapWindowPoints(hWnd, GetParent(hWnd), (POINT*)&itemRect, 2);
+      InvalidateRect(GetParent(hWnd), &itemRect, FALSE);
     } break;
 
     case WM_MOUSEMOVE: {
@@ -2431,12 +2496,12 @@ VivaldiInstallDialog::OwnerDrawComboboxProc(HWND hWnd,
         }
       }
       // to draw on the parent DC, CLIPCHILDREN must be off
-      HWND hParent = GetParent(hWnd);
+      /*HWND hParent = GetParent(hWnd);
       style = GetWindowLong(hParent, GWL_STYLE);
       if (style & WS_CLIPCHILDREN) {
         style &= ~WS_CLIPCHILDREN;
         SetWindowLong(hParent, GWL_STYLE, style);
-      }
+      }*/
     } break;
     case WM_NCPAINT:
       if (GetWindowLong(hWnd, GWL_EXSTYLE) & WS_EX_CLIENTEDGE) {
@@ -2501,8 +2566,7 @@ VivaldiInstallDialog::OwnerDrawComboboxProc(HWND hWnd,
     case WM_NCCALCSIZE: {
       if (wParam) {
         NCCALCSIZE_PARAMS* pParams = (NCCALCSIZE_PARAMS*)lParam;
-        InflateRect(&pParams->rgrc[0], 0, COMBOBOX_HEIGHT_PADDING);
-        //        SetWindowLong(hWlg, DWLP_MSGRESULT, 0);
+        InflateRect(&pParams->rgrc[0], 0, COMBOBOX_HEIGHT_INFLATION);
         return FALSE;
       }
       break;
@@ -2570,16 +2634,18 @@ VivaldiInstallDialog::OwnerDrawComboboxProc(HWND hWnd,
       float cx = r.GetRight() - 26.0f;
       float cy = r.Y + r.Height / 2.0f;
       Gdiplus::Pen arrowPen(
-          this_->dark_mode_ ? TEXT_COLOR_DARK_GDI : TEXT_COLOR_LIGHT_GDI, 2.0f);
+          this_->dark_mode_ ? TEXT_COLOR_DARK_GDI : TEXT_COLOR_LIGHT_GDI, 1.5f);
       arrowPen.SetStartCap(Gdiplus::LineCapRound);
       arrowPen.SetEndCap(Gdiplus::LineCapRound);
       graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
       graphics.SetSmoothingMode(Gdiplus::SmoothingModeHighQuality);
 
       // Draw the combobox arrow.
-      Gdiplus::PointF p1(cx - 6.0f, cy - 6.0f);
-      Gdiplus::PointF p2(cx, cy + 2.0f);
-      Gdiplus::PointF p3(cx + 6.0f, cy - 6.0f);
+      Gdiplus::PointF p1(cx - this_->GetPixelsFromDPI(3),
+                         cy - this_->GetPixelsFromDPI(3));
+      Gdiplus::PointF p2(cx, cy + this_->GetPixelsFromDPI(1));
+      Gdiplus::PointF p3(cx + this_->GetPixelsFromDPI(3),
+                         cy - this_->GetPixelsFromDPI(3));
       graphics.DrawLine(&arrowPen, p1, p2);
       graphics.DrawLine(&arrowPen, p2, p3);
 
@@ -2600,29 +2666,8 @@ VivaldiInstallDialog::OwnerDrawComboboxProc(HWND hWnd,
                  DT_LEFT | DT_VCENTER | DT_SINGLELINE);
       }
 
-      RECT focus_rect;
-      GetClientRect(hWnd, &focus_rect);
-      // Calculate in dialog coordinates.
-      GetChildRect(hWnd, &focus_rect);
-
-      HWND parent = GetParent(hWnd);
-      HDC parentdc = GetDC(parent);
-      InflateRect(&focus_rect, 4, 7);
-
-      bool draw_focus = control->HasFocus() && !control->IsLeftButtonDown();
-      if (draw_focus) {
-        gfx::Rect round_focus_rect(focus_rect);
-        VivaldiInstallDialog::DrawRoundRect(parentdc, round_focus_rect,
-                                            this_->GetTextColor(), false, 3.f);
-      } else {
-        InflateRect(&focus_rect, 3, 3);
-        FillRect(parentdc, &focus_rect, this_->background_brush_.get());
-      }
-
       BitBlt(hdc, 0, 0, clientRect.right, clientRect.bottom, hdcMem, 0, 0,
-            SRCCOPY);
-
-      ReleaseDC(parent, parentdc);
+             SRCCOPY);
 
       SelectObject(hdcMem, hbmOld);
       DeleteObject(hbmMem);
@@ -2649,6 +2694,9 @@ VivaldiInstallDialog::OwnerDrawButtonProc(HWND hWnd,
   SubclassedControl* button = (SubclassedControl*)dwRefData;
 
   switch (uMsg) {
+    case WM_ERASEBKGND:
+      return 1;  // We do this in WM_PAINT.
+
     case WM_NCDESTROY:
       RemoveWindowSubclass(hWnd, VivaldiInstallDialog::OwnerDrawButtonProc,
                            uIdSubclass);
@@ -2673,16 +2721,18 @@ VivaldiInstallDialog::OwnerDrawButtonProc(HWND hWnd,
       button->SetHasFocus(true);
       RECT itemRect;
       GetClientRect(hWnd, &itemRect);
-      InflateRect(&itemRect, 10, 10);
-      InvalidateRect(hWnd, &itemRect, TRUE);
+      InflateRect(&itemRect, 5, 7);
+      MapWindowPoints(hWnd, GetParent(hWnd), (POINT*)&itemRect, 2);
+      InvalidateRect(GetParent(hWnd), &itemRect, FALSE);
     } break;
 
     case WM_KILLFOCUS: {
       button->SetHasFocus(false);
       RECT itemRect;
       GetClientRect(hWnd, &itemRect);
-      InflateRect(&itemRect, 10, 10);
-      InvalidateRect(hWnd, &itemRect, TRUE);
+      InflateRect(&itemRect, 5, 7);
+      MapWindowPoints(hWnd, GetParent(hWnd), (POINT*)&itemRect, 2);
+      InvalidateRect(GetParent(hWnd), &itemRect, FALSE);
     } break;
 
     case WM_MOUSEMOVE: {
@@ -2720,15 +2770,27 @@ VivaldiInstallDialog::OwnerDrawButtonProc(HWND hWnd,
       PAINTSTRUCT ps;
       HDC hdc = BeginPaint(hWnd, &ps);
 
+      // Only copy the painted parts from the memhdc.
+      RECT clipRect = ps.rcPaint;
+
       // Paint the whole control to avoid shearing.
       RECT itemRect;
       GetClientRect(hWnd, &itemRect);
+
+      // Only paint within the clipped region.
+      RECT paintRect = clipRect;
+      IntersectRect(&paintRect, &paintRect, &itemRect);
 
       // Doublebuffer painting.
       HDC hdcMem = CreateCompatibleDC(hdc);
       HBITMAP hbmMem =
           CreateCompatibleBitmap(hdc, itemRect.right, itemRect.bottom);
       HBITMAP hbmOld = (HBITMAP)SelectObject(hdcMem, hbmMem);
+
+      HRGN hrgn = CreateRectRgnIndirect(&ps.rcPaint);
+      SelectClipRgn(hdcMem, hrgn);
+
+      FillRect(hdcMem, &itemRect, this_->background_brush_.get());
 
       base::win::ScopedSelectObject buttonFont(hdcMem,
                                                button->owner()->dialog_font_);
@@ -2819,8 +2881,8 @@ VivaldiInstallDialog::OwnerDrawButtonProc(HWND hWnd,
           RECT checkboxrect(itemRect);
           GetWindowText(hWnd, buffer.get(), MAX_PATH - 1);
           SetBkMode(hdcMem, TRANSPARENT);
-          checkboxrect.left += boxSize + 8;
-          checkboxrect.right += boxSize + 8;
+          checkboxrect.left += boxSize + CHECKBOX_TEXT_PADDING;
+          checkboxrect.right += boxSize + CHECKBOX_TEXT_PADDING;
           DrawText(hdcMem, buffer.get(), -1, &checkboxrect,
                    DT_VCENTER | DT_SINGLELINE);
         }
@@ -2943,39 +3005,20 @@ VivaldiInstallDialog::OwnerDrawButtonProc(HWND hWnd,
       // Calculate to dialog coordinates.
       GetChildRect(hWnd, &focus_rect);
 
-      HWND parent = GetParent(hWnd);
-      HDC parentdc = GetDC(parent);
-      InflateRect(&focus_rect, 3, 3);
+      BitBlt(hdc, clipRect.left, clipRect.top, clipRect.right - clipRect.left,
+             clipRect.bottom - clipRect.top, hdcMem, clipRect.left,
+             clipRect.top, SRCCOPY);
 
-      bool draw_focus = button->HasFocus() && !button->IsLeftButtonDown();
-      if (draw_focus) {
-        gfx::Rect round_focus_rect(focus_rect);
-        VivaldiInstallDialog::DrawRoundRect(parentdc, round_focus_rect,
-                                            this_->GetTextColor(), false, 3.f);
-      } else if (button->id() != IDC_BTN_CLOSE) {
-        // Close button does not have a focus rect, do not erase the rect.
-        InflateRect(&focus_rect, 3, 3);
-        // Adjust background for top buttons. If more buttons adjust into a
-        // getter.
-        if (button->id() == IDC_BTN_BROWSE ||
-            button->id() == IDC_CHECK_REGISTER ||
-            button->id() == IDC_CHECK_NO_AUTOUPDATE ||
-            button->id() == IDC_CHECK_ALLOW_CRASHLOGS) {
-          FillRect(parentdc, &focus_rect, this_->background_brush_.get());
-        } else {
-          FillRect(parentdc, &focus_rect, this_->buttondrop_brush_.get());
-        }
-      }
-
-      BitBlt(hdc, 0, 0, itemRect.right, itemRect.bottom, hdcMem, 0, 0,
-             SRCCOPY);
+      /*BitBlt(hdc, 0, 0, itemRect.right, itemRect.bottom, hdcMem, 0, 0,
+             SRCCOPY);*/
 
       SelectObject(hdcMem, hbmOld);
       DeleteObject(hbmMem);
       DeleteDC(hdcMem);
+      DeleteObject(hrgn);
 
       EndPaint(hWnd, &ps);
-      return true;
+      return 0;
     }
   }
   return DefSubclassProc(hWnd, uMsg, wParam, lParam);
@@ -2991,6 +3034,9 @@ LRESULT CALLBACK VivaldiInstallDialog::OwnerDrawEditProc(HWND hWnd,
   SubclassedControl* control = (SubclassedControl*)dwRefData;
 
   switch (uMsg) {
+    case WM_ERASEBKGND:
+      return 1;  // We do this in WM_PAINT.
+
     case WM_NCDESTROY:
       RemoveWindowSubclass(hWnd, VivaldiInstallDialog::OwnerDrawEditProc,
                            uIdSubclass);
@@ -2998,7 +3044,8 @@ LRESULT CALLBACK VivaldiInstallDialog::OwnerDrawEditProc(HWND hWnd,
     case WM_NCCALCSIZE: {
       if (wParam == TRUE) {
         NCCALCSIZE_PARAMS* nc = (NCCALCSIZE_PARAMS*)lParam;
-        InflateRect(&nc->rgrc[0], -4, -12);
+        InflateRect(&nc->rgrc[0], this_->GetPixelsFromDPI(-4),
+                    this_->GetPixelsFromDPI(-12));
       }
       return 0;
     }

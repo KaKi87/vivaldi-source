@@ -11,8 +11,8 @@
 #import "components/prefs/pref_member.h"
 #import "components/strings/grit/components_strings.h"
 #import "components/translate/core/browser/translate_pref_names.h"
-#import "ios/chrome/browser/browser_container/ui_bundled/browser_edit_menu_utils.h"
-#import "ios/chrome/browser/browser_container/ui_bundled/edit_menu_alert_delegate.h"
+#import "ios/chrome/browser/browser_content/ui_bundled/browser_edit_menu_utils.h"
+#import "ios/chrome/browser/browser_content/ui_bundled/edit_menu_alert_delegate.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_controller.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
@@ -35,7 +35,7 @@
 #import "ios/ui/translate/vivaldi_translate_constants.h"
 #import "ios/ui/translate/vivaldi_translate_coordinator.h"
 #import "ios/ui/vivaldi_overflow_menu/vivaldi_oveflow_menu_constants.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
@@ -223,6 +223,10 @@ const NSUInteger kPartialTranslateCharactersLimit = 1000;
     return;
   }
   if (![self shouldInstallPartialTranslate]) {
+    return;
+  }
+
+  if (![self canHandlePartialTranslateSelectionInWebState:webState]) {
     return;
   }
 

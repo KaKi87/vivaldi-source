@@ -6,7 +6,7 @@
 #include <string_view>
 
 #include "chrome/browser/ui/browser_element_identifiers.h"
-#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/interaction/browser_elements.h"
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -36,8 +36,7 @@ class IncognitoModeInSupervisedContextUiTest
  protected:
   auto CheckCountOfIncognitoBrowsers(size_t expected_count) {
     return Check(base::BindLambdaForTesting([expected_count]() {
-                   return BrowserList::GetIncognitoBrowserCount() ==
-                          expected_count;
+                   return chrome::GetIncognitoBrowserCount() == expected_count;
                  }),
                  "Verify count of incognito browsers");
   }
@@ -48,7 +47,7 @@ IN_PROC_BROWSER_TEST_F(IncognitoModeInSupervisedContextUiTest,
                        IncognitoModeIsNotAvailableToSupervisedUser) {
   ASSERT_TRUE(
       IncognitoModePrefs::IsIncognitoAllowed(child().browser().profile()));
-  TurnOnSyncFor(child());
+  SigninToBrowserFor(child());
 
   ASSERT_FALSE(
       IncognitoModePrefs::IsIncognitoAllowed(child().browser().profile()));
@@ -67,7 +66,7 @@ IN_PROC_BROWSER_TEST_F(IncognitoModeInSupervisedContextUiTest,
 // TODO(https://crbug.com/367205684): SelectMenuItem unsupported
 IN_PROC_BROWSER_TEST_F(IncognitoModeInSupervisedContextUiTest,
                        IncognitoModeIsAvailableToHeadOfHousehold) {
-  TurnOnSyncFor(head_of_household());
+  SigninToBrowserFor(head_of_household());
   ASSERT_TRUE(IncognitoModePrefs::IsIncognitoAllowed(
       head_of_household().browser().profile()));
 

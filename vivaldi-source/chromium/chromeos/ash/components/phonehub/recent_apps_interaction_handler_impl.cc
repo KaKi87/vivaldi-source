@@ -54,8 +54,7 @@ RecentAppsInteractionHandlerImpl::RecentAppsInteractionHandlerImpl(
 }
 
 RecentAppsInteractionHandlerImpl::~RecentAppsInteractionHandlerImpl() {
-  if (features::IsEcheNetworkConnectionStateEnabled() &&
-      eche_connection_status_handler_) {
+  if (eche_connection_status_handler_) {
     eche_connection_status_handler_->RemoveObserver(this);
   }
 
@@ -109,10 +108,6 @@ void RecentAppsInteractionHandlerImpl::NotifyRecentAppAddedOrUpdated(
 
 void RecentAppsInteractionHandlerImpl::SetConnectionStatusHandler(
     eche_app::EcheConnectionStatusHandler* eche_connection_status_handler) {
-  if (!features::IsEcheNetworkConnectionStateEnabled()) {
-    return;
-  }
-
   if (eche_connection_status_handler_) {
     eche_connection_status_handler_->RemoveObserver(this);
   }
@@ -165,7 +160,7 @@ void RecentAppsInteractionHandlerImpl::
     LoadRecentAppMetadataListFromPrefIfNeed() {
   if (!has_loaded_prefs_) {
     PA_LOG(INFO) << "LoadRecentAppMetadataListFromPref";
-    const base::Value::List& recent_apps_history_pref =
+    const base::ListValue& recent_apps_history_pref =
         pref_service_->GetList(prefs::kRecentAppsHistory);
     for (const auto& value : recent_apps_history_pref) {
       DCHECK(value.is_dict());
@@ -181,7 +176,7 @@ void RecentAppsInteractionHandlerImpl::SaveRecentAppMetadataListToPref() {
   PA_LOG(INFO) << "SaveRecentAppMetadataListToPref";
   size_t num_recent_apps_to_save =
       std::min(recent_app_metadata_list_.size(), kMaxSavedRecentApps);
-  base::Value::List app_metadata_value_list;
+  base::ListValue app_metadata_value_list;
   for (size_t i = 0; i < num_recent_apps_to_save; ++i) {
     app_metadata_value_list.Append(
         recent_app_metadata_list_[i].first.ToValue());
@@ -214,8 +209,7 @@ void RecentAppsInteractionHandlerImpl::OnAppsAccessChanged() {
 
 void RecentAppsInteractionHandlerImpl::OnConnectionStatusForUiChanged(
     eche_app::mojom::ConnectionStatus connection_status) {
-  if (features::IsEcheNetworkConnectionStateEnabled() &&
-      connection_status_ != connection_status) {
+  if (connection_status_ != connection_status) {
     connection_status_ = connection_status;
     ComputeAndUpdateUiState();
   }
@@ -279,25 +273,7 @@ void RecentAppsInteractionHandlerImpl::ComputeAndUpdateUiState() {
     return;
   }
 
-  if (features::IsEcheNetworkConnectionStateEnabled()) {
-    ui_state_ = GetUiStateFromConnectionStatus();
-    NotifyRecentAppsViewUiStateUpdated();
-    return;
-  }
-
-  if (recent_app_metadata_list_.empty()) {
-    bool notifications_enabled =
-        multidevice_setup_client_->GetFeatureState(
-            Feature::kPhoneHubNotifications) == FeatureState::kEnabledByUser;
-    bool grant_notification_access_on_host =
-        multidevice_feature_access_manager_->GetNotificationAccessStatus() ==
-        phonehub::MultideviceFeatureAccessManager::AccessStatus::kAccessGranted;
-    if (notifications_enabled && grant_notification_access_on_host) {
-      ui_state_ = RecentAppsUiState::PLACEHOLDER_VIEW;
-    }
-  } else {
-    ui_state_ = RecentAppsUiState::ITEMS_VISIBLE;
-  }
+  ui_state_ = GetUiStateFromConnectionStatus();
   NotifyRecentAppsViewUiStateUpdated();
 }
 

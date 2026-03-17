@@ -39,6 +39,9 @@ class RuleManagerImpl : public RuleManager {
   RuleManagerImpl(const RuleManagerImpl&) = delete;
   RuleManagerImpl& operator=(const RuleManagerImpl&) = delete;
 
+  void ResetCompiler(RuleGroup group,
+                     RuleSourceHandler::RulesCompiler rules_compiler);
+
   // Implementing RuleManager
   bool AddRulesSource(RuleGroup group,
                       const RuleSourceCore& source_core) override;

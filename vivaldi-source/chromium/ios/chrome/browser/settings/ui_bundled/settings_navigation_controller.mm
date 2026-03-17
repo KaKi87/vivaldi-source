@@ -18,11 +18,12 @@
 #import "ios/chrome/browser/autofill/ui_bundled/autofill_credit_card_util.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/keyboard/ui_bundled/UIKeyCommand+Chrome.h"
+#import "ios/chrome/browser/passwords/coordinator/password_utils.h"
 #import "ios/chrome/browser/settings/ui_bundled/autofill/autofill_credit_card_edit_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/autofill/autofill_credit_card_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/autofill/autofill_profile_edit_coordinator.h"
 #import "ios/chrome/browser/settings/ui_bundled/autofill/autofill_profile_table_view_controller.h"
-#import "ios/chrome/browser/settings/ui_bundled/bwg/coordinator/bwg_settings_coordinator.h"
+#import "ios/chrome/browser/settings/ui_bundled/bwg/coordinator/gemini_settings_coordinator.h"
 #import "ios/chrome/browser/settings/ui_bundled/content_settings/content_settings_coordinator.h"
 #import "ios/chrome/browser/settings/ui_bundled/content_settings/content_settings_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/default_browser/default_browser_settings_table_view_controller.h"
@@ -46,14 +47,13 @@
 #import "ios/chrome/browser/settings/ui_bundled/settings_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/sync/sync_encryption_passphrase_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/tabs/inactive_tabs/inactive_tabs_settings_coordinator.h"
-#import "ios/chrome/browser/settings/ui_bundled/utils/password_utils.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/browser_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/quick_delete_commands.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
@@ -76,8 +76,7 @@ namespace {
 
 void ConfigureHandlers(id<SettingsRootViewControlling> controller,
                        CommandDispatcher* dispatcher) {
-  controller.applicationHandler =
-      HandlerForProtocol(dispatcher, ApplicationCommands);
+  controller.sceneHandler = HandlerForProtocol(dispatcher, SceneCommands);
   controller.browserHandler = HandlerForProtocol(dispatcher, BrowserCommands);
   controller.settingsHandler = HandlerForProtocol(dispatcher, SettingsCommands);
   controller.snackbarHandler = HandlerForProtocol(dispatcher, SnackbarCommands);
@@ -89,7 +88,7 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
 
 @interface SettingsNavigationController () <
     AutofillProfileEditCoordinatorDelegate,
-    BWGSettingsCoordinatorDelegate,
+    GeminiSettingsCoordinatorDelegate,
     ContentSettingsCoordinatorDelegate,
     GoogleServicesSettingsCoordinatorDelegate,
     ManageAccountsCoordinatorDelegate,
@@ -135,8 +134,9 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
 @property(nonatomic, strong)
     AutofillProfileEditCoordinator* autofillProfileEditCoordinator;
 
-// BWG settings coordinator.
-@property(nonatomic, strong) BWGSettingsCoordinator* BWGSettingsCoordinator;
+// Gemini settings coordinator.
+@property(nonatomic, strong)
+    GeminiSettingsCoordinator* geminiSettingsCoordinator;
 
 // Safety Check coordinator.
 @property(nonatomic, strong) SafetyCheckCoordinator* safetyCheckCoordinator;
@@ -248,7 +248,7 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
           initWithRootViewController:nil
                              browser:browser
                             delegate:delegate];
-  [navigationController showBWGSettingsPage];
+  [navigationController showGeminiSettingsPage];
   return navigationController;
 }
 
@@ -423,12 +423,12 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
                                          delegate
                     userFeedbackData:(UserFeedbackData*)userFeedbackData {
   DCHECK(ios::provider::IsUserFeedbackSupported());
-  id<ApplicationCommands> applicationHandler =
-      HandlerForProtocol(browser->GetCommandDispatcher(), ApplicationCommands);
+  id<SceneCommands> sceneHandler =
+      HandlerForProtocol(browser->GetCommandDispatcher(), SceneCommands);
   UserFeedbackConfiguration* configuration =
       [[UserFeedbackConfiguration alloc] init];
   configuration.data = userFeedbackData;
-  configuration.handler = applicationHandler;
+  configuration.sceneHandler = sceneHandler;
   configuration.singleSignOnService =
       GetApplicationContext()->GetSingleSignOnService();
 
@@ -663,7 +663,6 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
 - (void)viewDidLoad {
   [super viewDidLoad];
 
-  self.view.backgroundColor = [UIColor colorNamed:kPrimaryBackgroundColor];
   self.toolbar.translucent = NO;
   self.navigationBar.barTintColor =
       [UIColor colorNamed:kSecondaryBackgroundColor];
@@ -727,7 +726,7 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
   [self stopPasswordDetailsCoordinator];
   [self stopAutofillProfileEditCoordinator];
   [self stopNotificationsCoordinator];
-  [self stopBWGSettingsCoordinator];
+  [self stopGeminiSettingsCoordinator];
 
   // Reset the delegate to prevent any queued transitions from attempting to
   // close the settings.
@@ -761,20 +760,20 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
 
 #pragma mark - Private
 
-- (void)showBWGSettingsPage {
+- (void)showGeminiSettingsPage {
   CHECK(IsPageActionMenuEnabled());
-  [self stopBWGSettingsCoordinator];
-  self.BWGSettingsCoordinator = [[BWGSettingsCoordinator alloc]
+  [self stopGeminiSettingsCoordinator];
+  self.geminiSettingsCoordinator = [[GeminiSettingsCoordinator alloc]
       initWithBaseNavigationController:self
                                browser:self.browser];
-  self.BWGSettingsCoordinator.delegate = self;
-  [self.BWGSettingsCoordinator start];
+  self.geminiSettingsCoordinator.delegate = self;
+  [self.geminiSettingsCoordinator start];
 }
 
-- (void)stopBWGSettingsCoordinator {
-  self.BWGSettingsCoordinator.delegate = nil;
-  [self.BWGSettingsCoordinator stop];
-  self.BWGSettingsCoordinator = nil;
+- (void)stopGeminiSettingsCoordinator {
+  self.geminiSettingsCoordinator.delegate = nil;
+  [self.geminiSettingsCoordinator stop];
+  self.geminiSettingsCoordinator = nil;
 }
 
 - (void)stopManageAccountsCoordinator {
@@ -928,9 +927,9 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
 - (void)showPasswordDetailsForCredential:
             (password_manager::CredentialUIEntry)credential
                               inEditMode:(BOOL)editMode {
-  // TODO(crbug.com/40067451): Switch back to DCHECK if the number of reports is
-  // low.
-  DUMP_WILL_BE_CHECK(!self.passwordDetailsCoordinator);
+  // Not an invariant due to possible race conditions. DCHECKing for debugging
+  // purposes. See crbug.com/40067451.
+  DCHECK(!self.passwordDetailsCoordinator);
   self.passwordDetailsCoordinator = [[PasswordDetailsCoordinator alloc]
       initWithBaseNavigationController:self
                                browser:self.browser
@@ -1033,10 +1032,10 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
 #pragma mark - PasswordManagerReauthenticationDelegate
 
 - (void)dismissPasswordManagerAfterFailedReauthentication {
-  id<ApplicationCommands> applicationHandler = HandlerForProtocol(
-      self.browser->GetCommandDispatcher(), ApplicationCommands);
+  id<SceneCommands> sceneHandler =
+      HandlerForProtocol(self.browser->GetCommandDispatcher(), SceneCommands);
 
-  [applicationHandler closePresentedViews];
+  [sceneHandler closePresentedViews];
 }
 
 #pragma mark PasswordDetailsCoordinatorDelegate
@@ -1190,8 +1189,8 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
   [self.manageAccountsCoordinator start];
 }
 
-- (void)showBWGSettings {
-  [self showBWGSettingsPage];
+- (void)showGeminiSettings {
+  [self showGeminiSettingsPage];
 }
 
 // TODO(crbug.com/41352590) : Do not pass `baseViewController` through
@@ -1388,11 +1387,11 @@ NSString* const kSettingsDoneButtonId = @"kSettingsDoneButtonId";
   }
 }
 
-#pragma mark - BWGSettingsCoordinatorDelegate
+#pragma mark - GeminiSettingsCoordinatorDelegate
 
-- (void)BWGSettingsCoordinatorViewControllerWasRemoved:
-    (BWGSettingsCoordinator*)coordinator {
-  [self stopBWGSettingsCoordinator];
+- (void)geminiSettingsCoordinatorViewControllerWasRemoved:
+    (GeminiSettingsCoordinator*)coordinator {
+  [self stopGeminiSettingsCoordinator];
 }
 
 #pragma mark - Vivaldi

@@ -13,8 +13,7 @@
 using vivaldi::NoteNode;
 
 // The controller responsible for adding and editing note FOLDER.
-@interface NoteAddEditFolderViewController
-    : UIViewController
+@interface NoteAddEditFolderViewController : UIViewController
 
 // INITIALIZER
 + (instancetype)initWithBrowser:(Browser*)browser
@@ -24,8 +23,7 @@ using vivaldi::NoteNode;
                    allowsCancel:(BOOL)allowsCancel;
 
 // DELEGATE
-@property (nonatomic, weak)
-  id<NoteAddEditControllerDelegate> delegate;
+@property(nonatomic, weak) id<NoteAddEditControllerDelegate> delegate;
 
 @end
 

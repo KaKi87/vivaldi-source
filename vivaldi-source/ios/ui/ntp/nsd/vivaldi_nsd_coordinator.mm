@@ -19,7 +19,8 @@ using l10n_util::GetNSStringF;
 
 using bookmarks::BookmarkNode;
 
-@interface VivaldiNSDCoordinator()<BookmarksFolderChooserCoordinatorDelegate> {
+@interface VivaldiNSDCoordinator () <
+    BookmarksFolderChooserCoordinatorDelegate> {
   // The browser where the editor is being displayed.
   Browser* _browser;
   // The folder chooser coordinator.
@@ -32,7 +33,7 @@ using bookmarks::BookmarkNode;
 @property(nonatomic, strong) VivaldiNSDViewProvider* viewProvider;
 @property(nonatomic, strong) VivaldiNSDMediator* mediator;
 // The location where new item will be added. This can not be nil.
-@property(nonatomic,strong) VivaldiSpeedDialItem* folderItem;
+@property(nonatomic, strong) VivaldiSpeedDialItem* folderItem;
 
 @end
 
@@ -41,7 +42,7 @@ using bookmarks::BookmarkNode;
 @synthesize baseNavigationController = _baseNavigationController;
 
 - (instancetype)initWithBaseNavigationController:
-  (UINavigationController*)navigationController
+                    (UINavigationController*)navigationController
                                          browser:(Browser*)browser
                                           parent:(VivaldiSpeedDialItem*)parent {
   self = [self initWithBaseViewController:navigationController
@@ -56,7 +57,6 @@ using bookmarks::BookmarkNode;
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                                    browser:(Browser*)browser
                                     parent:(VivaldiSpeedDialItem*)parent {
-
   self = [super initWithBaseViewController:viewController browser:browser];
 
   if (self) {
@@ -93,8 +93,7 @@ using bookmarks::BookmarkNode;
 }
 
 - (void)handleDoneButtonTap {
-  if (self.folderItem != nil &&
-      self.folderItem.bookmarkNode != nil &&
+  if (self.folderItem != nil && self.folderItem.bookmarkNode != nil &&
       [[self.viewProvider urlString] length] > 0) {
     [_mediator saveItemWithTitle:[self.viewProvider titleString]
                              url:[self.viewProvider urlString]];
@@ -112,33 +111,30 @@ using bookmarks::BookmarkNode;
 - (void)observeTapEvents {
   __weak __typeof(self) weakSelf = self;
 
-  [self.viewProvider
-      observeManualURLInputTextEvent:^(NSString *inputText) {
+  [self.viewProvider observeManualURLInputTextEvent:^(NSString* inputText) {
     [weakSelf handleManualURLInputTextChange:inputText];
   }];
 
-  [self.viewProvider
-      observeKeyboardReturnTapEvent:^ {
+  [self.viewProvider observeKeyboardReturnTapEvent:^{
     [weakSelf handleDoneButtonTap];
   }];
 
-  [self.viewProvider observeChangeLocationTapEvent:^ {
+  [self.viewProvider observeChangeLocationTapEvent:^{
     [weakSelf handleFolderSelectionEvent];
   }];
 
-  [self.viewProvider
-      observeCategoryDetailsNavigateEvent:^
-        (VivaldiNSDDirectMatchCategory *category) {
+  [self.viewProvider observeCategoryDetailsNavigateEvent:^(
+                         VivaldiNSDDirectMatchCategory* category) {
     [weakSelf handleCategoryTap:category];
   }];
 
-  [self.viewProvider observeViewDismissalEvent:^ {
+  [self.viewProvider observeViewDismissalEvent:^{
     [weakSelf dismiss];
   }];
 }
 
 - (void)setupViewController {
-  UIViewController *controller = [self.viewProvider makeViewController];
+  UIViewController* controller = [self.viewProvider makeViewController];
 
   NSString* type = GetNSString(IDS_IOS_ITEM_TYPE_SPEED_DIAL);
   NSString* title =
@@ -152,22 +148,19 @@ using bookmarks::BookmarkNode;
 }
 
 - (void)configureNavigationBarItems {
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
+  _navigationController.topViewController.navigationItem.rightBarButtonItem =
+      doneItem;
 
-  UIBarButtonItem *doneItem =
-      [[UIBarButtonItem alloc]
-          initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                               target:self
-                               action:@selector(handleDoneButtonTap)];
-  _navigationController.topViewController
-        .navigationItem.rightBarButtonItem = doneItem;
-
-  UIBarButtonItem *cancelItem =
-      [[UIBarButtonItem alloc]
-          initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
-                               target:self
-                               action:@selector(handleCancelButtonTap)];
-  _navigationController.topViewController
-      .navigationItem.leftBarButtonItem = cancelItem;
+  UIBarButtonItem* cancelItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
+                           target:self
+                           action:@selector(handleCancelButtonTap)];
+  _navigationController.topViewController.navigationItem.leftBarButtonItem =
+      cancelItem;
 }
 
 - (void)presentViewController {
@@ -177,14 +170,13 @@ using bookmarks::BookmarkNode;
 }
 
 - (void)setupMediator {
-  ProfileIOS *profile =
-      self.browser->GetProfile()->GetOriginalProfile();
-  BookmarkModel *bookmarkModel =
+  ProfileIOS* profile = self.browser->GetProfile()->GetOriginalProfile();
+  BookmarkModel* bookmarkModel =
       ios::BookmarkModelFactory::GetForProfile(profile);
   self.mediator =
-    [[VivaldiNSDMediator alloc] initWithBookmarkModel:bookmarkModel
-                                              profile:profile
-                                   locationFolderItem:self.folderItem];
+      [[VivaldiNSDMediator alloc] initWithBookmarkModel:bookmarkModel
+                                                profile:profile
+                                     locationFolderItem:self.folderItem];
   self.mediator.consumer = self.viewProvider;
   self.viewProvider.delegate = self.mediator;
 }
@@ -196,47 +188,42 @@ using bookmarks::BookmarkNode;
     return;
 
   std::set<const BookmarkNode*> hiddenNodes;
-  _folderChooserCoordinator =
-      [[BookmarksFolderChooserCoordinator alloc]
-       initWithBaseNavigationController:_baseNavigationController
-                                             ? _baseNavigationController
-                                             : _navigationController
-                                       browser:self.browser
-                                   hiddenNodes:hiddenNodes];
+  _folderChooserCoordinator = [[BookmarksFolderChooserCoordinator alloc]
+      initWithBaseNavigationController:_baseNavigationController
+                                           ? _baseNavigationController
+                                           : _navigationController
+                               browser:self.browser
+                           hiddenNodes:hiddenNodes];
   _folderChooserCoordinator.allowsNewFolders = _allowsNewFolders;
-  [_folderChooserCoordinator
-      setSelectedFolder:self.folderItem.bookmarkNode];
+  [_folderChooserCoordinator setSelectedFolder:self.folderItem.bookmarkNode];
   _folderChooserCoordinator.delegate = self;
   [_folderChooserCoordinator start];
 }
 
 - (void)handleCategoryTap:(VivaldiNSDDirectMatchCategory*)category {
-  UIViewController *controller =
+  UIViewController* controller =
       [self.viewProvider makeCategoryDetailsViewController];
   controller.title = category.titleString;
 
-  UIBarButtonItem *doneItem =
-      [[UIBarButtonItem alloc]
-          initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                               target:self
-                               action:@selector(handleCancelButtonTap)];
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleCancelButtonTap)];
   controller.navigationItem.rightBarButtonItem = doneItem;
 
-  [_navigationController pushViewController:controller
-                                   animated:YES];
+  [_navigationController pushViewController:controller animated:YES];
 }
 
 - (void)handleManualURLInputTextChange:(NSString*)inputText {
-  UIBarButtonSystemItem buttonType =
-      [inputText length] > 0 ? UIBarButtonSystemItemSave :
-          UIBarButtonSystemItemDone;
-  UIBarButtonItem *doneItem =
-      [[UIBarButtonItem alloc]
-          initWithBarButtonSystemItem:buttonType
-                               target:self
-                               action:@selector(handleDoneButtonTap)];
-  _navigationController.topViewController
-        .navigationItem.rightBarButtonItem = doneItem;
+  UIBarButtonSystemItem buttonType = [inputText length] > 0
+                                         ? UIBarButtonSystemItemSave
+                                         : UIBarButtonSystemItemDone;
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:buttonType
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
+  _navigationController.topViewController.navigationItem.rightBarButtonItem =
+      doneItem;
 }
 
 - (void)stopFolderChooserCordinator {
@@ -263,9 +250,9 @@ using bookmarks::BookmarkNode;
 #pragma mark - BookmarksFolderChooserCoordinatorDelegate
 
 - (void)bookmarksFolderChooserCoordinatorDidConfirm:
-(BookmarksFolderChooserCoordinator*)coordinator
+            (BookmarksFolderChooserCoordinator*)coordinator
                                  withSelectedFolder:
-(const bookmarks::BookmarkNode*)folder {
+                                     (const bookmarks::BookmarkNode*)folder {
   DCHECK(_folderChooserCoordinator);
   DCHECK(folder);
   VivaldiSpeedDialItem* selectedFolderItem =
@@ -276,7 +263,7 @@ using bookmarks::BookmarkNode;
 }
 
 - (void)bookmarksFolderChooserCoordinatorDidCancel:
-(BookmarksFolderChooserCoordinator*)coordinator {
+    (BookmarksFolderChooserCoordinator*)coordinator {
   DCHECK(_folderChooserCoordinator);
   [self stopFolderChooserCordinator];
 }

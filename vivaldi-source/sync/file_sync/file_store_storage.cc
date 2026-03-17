@@ -43,8 +43,8 @@ const std::string& AsString(const base::Uuid& value) {
 }
 
 template <typename T>
-base::Value::List SerializeReferenceSet(const std::set<T>& reference_set) {
-  base::Value::List references_list;
+base::ListValue SerializeReferenceSet(const std::set<T>& reference_set) {
+  base::ListValue references_list;
 
   for (const auto& reference : reference_set) {
     references_list.Append(AsString(reference));
@@ -54,9 +54,9 @@ base::Value::List SerializeReferenceSet(const std::set<T>& reference_set) {
 }
 
 template <typename T>
-base::Value::Dict SerializeReferences(
+base::DictValue SerializeReferences(
     const std::map<syncer::DataType, std::set<T>>& references) {
-  base::Value::Dict references_dict;
+  base::DictValue references_dict;
 
   for (const auto& reference_set : references) {
     references_dict.Set(
@@ -68,8 +68,8 @@ base::Value::Dict SerializeReferences(
   return references_dict;
 }
 
-base::Value::Dict SerializeFileInfo(const SyncedFileData& file_data) {
-  base::Value::Dict file_info;
+base::DictValue SerializeFileInfo(const SyncedFileData& file_data) {
+  base::DictValue file_info;
 
   file_info.Set(kHasContentLocally, file_data.has_content_locally);
   file_info.Set(kMimeType, file_data.mimetype);
@@ -97,7 +97,7 @@ struct ReferenceConverter<std::string> {
 };
 
 template <typename T>
-std::set<T> LoadReferencesList(const base::Value::List& references_list) {
+std::set<T> LoadReferencesList(const base::ListValue& references_list) {
   std::set<T> references;
   for (const auto& reference : references_list) {
     if (!reference.is_string())
@@ -109,7 +109,7 @@ std::set<T> LoadReferencesList(const base::Value::List& references_list) {
 
 template <typename T>
 std::map<syncer::DataType, std::set<T>> LoadReferences(
-    const base::Value::Dict& references_dict) {
+    const base::DictValue& references_dict) {
   std::map<syncer::DataType, std::set<T>> references;
   for (const auto references_for_type : references_dict) {
     int model_type_field_number;
@@ -133,8 +133,7 @@ std::map<syncer::DataType, std::set<T>> LoadReferences(
   return references;
 }
 
-std::optional<SyncedFileData> LoadFileInfo(
-    const base::Value::Dict& file_info) {
+std::optional<SyncedFileData> LoadFileInfo(const base::DictValue& file_info) {
   SyncedFileData file_data;
 
   std::optional<bool> has_content_locally =
@@ -149,7 +148,7 @@ std::optional<SyncedFileData> LoadFileInfo(
     return std::nullopt;
   file_data.mimetype = *mimetype;
 
-  const base::Value::Dict* local_references_dict =
+  const base::DictValue* local_references_dict =
       file_info.FindDict(kLocalReferences);
   if (!local_references_dict)
     return std::nullopt;
@@ -157,7 +156,7 @@ std::optional<SyncedFileData> LoadFileInfo(
   file_data.local_references =
       LoadReferences<base::Uuid>(*local_references_dict);
 
-  const base::Value::Dict* sync_references_dict =
+  const base::DictValue* sync_references_dict =
       file_info.FindDict(kSyncReferences);
   if (!sync_references_dict)
     return std::nullopt;
@@ -189,7 +188,7 @@ SyncedFilesData DoLoad(const base::FilePath& path) {
 
   auto& root = json->GetDict();
 
-  base::Value::Dict* files_info = root.FindDict(kFilesInfo);
+  base::DictValue* files_info = root.FindDict(kFilesInfo);
   if (!files_info)
     return files_data;
 
@@ -255,9 +254,9 @@ void SyncedFileStoreStorage::OnFileStoreDeleted() {
 
 base::ImportantFileWriter::BackgroundDataProducerCallback
 SyncedFileStoreStorage::GetSerializedDataProducerForBackgroundSequence() {
-  base::Value::Dict root;
+  base::DictValue root;
 
-  base::Value::Dict files_info;
+  base::DictValue files_info;
 
   const auto& files_data = files_data_getter_.Run();
   for (const auto& file_data : files_data) {
@@ -270,7 +269,7 @@ SyncedFileStoreStorage::GetSerializedDataProducerForBackgroundSequence() {
   root.Set(kFilesInfo, std::move(files_info));
 
   return base::BindOnce(
-      [](base::Value::Dict root) -> std::optional<std::string> {
+      [](base::DictValue root) -> std::optional<std::string> {
         // This runs on the background sequence.
         std::string output;
         JSONStringValueSerializer serializer(&output);

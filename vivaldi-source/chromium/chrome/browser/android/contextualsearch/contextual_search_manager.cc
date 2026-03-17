@@ -34,7 +34,6 @@
 #include "chrome/android/chrome_jni_headers/ContextualSearchManager_jni.h"
 #include "chrome/android/chrome_jni_headers/ContextualSearchPolicy_jni.h"
 
-using base::android::JavaParamRef;
 using base::android::JavaRef;
 using content::WebContents;
 
@@ -69,8 +68,8 @@ void ContextualSearchManager::Destroy(JNIEnv* env) {
 
 void ContextualSearchManager::StartSearchTermResolutionRequest(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& j_contextual_search_context,
-    const JavaParamRef<jobject>& j_base_web_contents) {
+    const base::android::JavaRef<jobject>& j_contextual_search_context,
+    const JavaRef<jobject>& j_base_web_contents) {
   WebContents* base_web_contents =
       WebContents::FromJavaWebContents(j_base_web_contents);
   DCHECK(base_web_contents);
@@ -87,8 +86,8 @@ void ContextualSearchManager::StartSearchTermResolutionRequest(
 
 void ContextualSearchManager::GatherSurroundingText(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& j_contextual_search_context,
-    const JavaParamRef<jobject>& j_base_web_contents) {
+    const base::android::JavaRef<jobject>& j_contextual_search_context,
+    const JavaRef<jobject>& j_base_web_contents) {
   WebContents* base_web_contents =
       WebContents::FromJavaWebContents(j_base_web_contents);
   DCHECK(base_web_contents);
@@ -105,7 +104,7 @@ void ContextualSearchManager::GatherSurroundingText(
 void ContextualSearchManager::RemoveLastHistoryEntry(
     JNIEnv* env,
     std::string& search_url,
-    jlong search_start_time_ms) {
+    int64_t search_start_time_ms) {
   // The deletion window is from the time a search URL was put in history, up
   // to a short amount of time later.
   base::Time begin_time =
@@ -157,15 +156,15 @@ void ContextualSearchManager::OnTextSurroundingSelectionAvailable(
       env, java_manager_, encoding, surrounding_text, start_offset, end_offset);
 }
 
-static jlong JNI_ContextualSearchManager_Init(JNIEnv* env,
-                                              const JavaParamRef<jobject>& obj,
-                                              Profile* profile) {
+static int64_t JNI_ContextualSearchManager_Init(JNIEnv* env,
+                                                const JavaRef<jobject>& obj,
+                                                Profile* profile) {
   ContextualSearchManager* manager =
       new ContextualSearchManager(env, obj, profile);
   return reinterpret_cast<intptr_t>(manager);
 }
 
-static jboolean JNI_ContextualSearchPolicy_IsContextualSearchResolutionUrlValid(
+static bool JNI_ContextualSearchPolicy_IsContextualSearchResolutionUrlValid(
     JNIEnv* env,
     Profile* profile) {
   // Attempt to resolve a (empty) query. Return whether resulting URL is

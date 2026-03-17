@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">Opna í nýjum flipabunka</translation>
 <translation id="1925021887439448749">Færðu inn sérsniðna vefslóð</translation>
 <translation id="2038563949887743358">Kveiktu á borðtölvuútgáfu</translation>
+<translation id="2072027001582274150">Ónotaðir eða tvöfaldir flipar</translation>
 <translation id="208033313373016095">Leshamur fyrir vefsíður</translation>
 <translation id="2149973817440762519">Breyta bókamerki</translation>
 <translation id="2306442503286132111">Bókamerki vistað í <ph name="FOLDER_NAME" /> möppu</translation>
@@ -46,6 +47,10 @@
 <translation id="385051799172605136">Til baka</translation>
 <translation id="3987993985790029246">Afrita tengil</translation>
 <translation id="399014816462153200">Lestu greinar:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> flipi}
+          other {<ph name="TAB_COUNT_MANY" /> flipar <ph name="TAB_COUNT_INCOGNITO" /> einka}}</translation>
+<translation id="408336132633586393">Einkagluggi</translation>
 <translation id="4121750346708795461">Með því að nota þetta forrit, samþykkir þú <ph name="BEGIN_LINK1" />Notendaleyfi Vivaldi<ph name="END_LINK1" /> og <ph name="BEGIN_LINK2" /> Persónuverndarstefnu<ph name="END_LINK2" />.</translation>
 <translation id="4137746084635924146">Núverandi tungumál tækis</translation>
 <translation id="4167670741834902166">Nýr einkaflipi</translation>
@@ -55,9 +60,7 @@
 <translation id="4269820728363426813">Afrita slóð tengils</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Kveiktu á skjálás í stillingum Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Lykilorðastýring</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {Flipar og grúppur ekki notað í einn dag eða fleiri}
-          other {Flipar og grúppur ekki notað í # daga eða fleiri}}</translation>
+<translation id="441100617989818073">Ónotaðir eða tvöfaldir flipar og grúppur</translation>
 <translation id="451872707440238414">Leita í bókamerkjunum þínum</translation>
 <translation id="4526803704855831732">Einkaflipar</translation>
 <translation id="4532845899244822526">Velja möppu</translation>
@@ -71,6 +74,9 @@ Að ýta til þess að leita er aðgerð, sem bara er í boði þegar Google er 
 <translation id="4883379392681899581">Fara úr einkaham</translation>
 <translation id="4943872375798546930">Engin niðurstaða</translation>
 <translation id="49576331685473090">Innihaldssía</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> einkaflipi}
+          other {<ph name="TAB_COUNT_NORMAL" /> einkaflipar}}</translation>
 <translation id="5079259810715830221">Þegar Google síða biður um að fá að forsækja tengt efni þá mun Vivaldi dulkóða og sækja efni frá Google án þess að nota kökur. Þetta gerir tengdum síðum ókleyft að sjá persónuauðkenni þín.</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" /> geymslusvæði</translation>
 <translation id="5144385790872094440">Sumar síður sem þú opnar eru forhlaðnar. Síður kunna að vera forhlaðnar á Google-þjónum þegar þær eru tengdar við vefsvæði eða forrit Google.</translation>
@@ -103,6 +109,7 @@ Að ýta til þess að leita er aðgerð, sem bara er í boði þegar Google er 
 <translation id="6909589135458168665">Forhlaða síðum</translation>
 <translation id="7029995644714925509">Þegar síða biður um að fá að forsækja tengt efni þá mun Vivaldi dulkóða og sækja efni frá Google án þess að nota kökur. Þetta gerir tengdum síðum ókleyft að sjá persónuauðkenni þín.</translation>
 <translation id="706339621163631076">Persónuverndarstefna vafrans</translation>
+<translation id="7100573672995171864">Sérsníddu og stjórnaðu Vivaldi</translation>
 <translation id="732145680195464316">Bókamerki vistað í <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Senda „Do Not Track“ beiðni</translation>
 <translation id="7359002509206457351">Fá aðgang að greiðslumátum</translation>
@@ -124,14 +131,11 @@ Að ýta til þess að leita er aðgerð, sem bara er í boði þegar Google er 
 <translation id="8348430946834215779">Nota HTTPS þegar hægt er og fá viðvörun áður en síðum sem styðja það ekki er hlaðið</translation>
 <translation id="8560602726703398413">Finndu leslistann þinn í bókamerkjum</translation>
 <translation id="85991616550051997">Fara á heimasíðu</translation>
-<translation id="8693232767599693749">Skoða lesham?</translation>
+<translation id="8738163682604285902">Skoða lesham?</translation>
 <translation id="8820817407110198400">Bókamerki</translation>
 <translation id="9042893549633094279">Friðhelgi og öryggi</translation>
 <translation id="9063523880881406963">Slökktu á borðtölvuútgáfu</translation>
 <translation id="9080642952018487277">Fara í einkaham</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {Ekki notað í einn dag eða fleiri}
-          other {Ekki notað í # daga eða fleiri}}</translation>
 <translation id="930124987204876019">Eyddu sögu, fótsporum, vefsvæðagögnum, skyndiminni…</translation>
 <translation id="961856697154696964">Eyða sögu vafranotkunar</translation>
 </translationbundle>

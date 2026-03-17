@@ -46,7 +46,8 @@ class BookmarkMenuController : public BookmarkMergedSurfaceServiceObserver,
                          views::Widget* parent,
                          const BookmarkParentFolder& folder,
                          size_t start_child_index,
-                         bool for_drop);
+                         bool for_drop,
+                         bool vivaldi_has_mnemonics = false);
 
   BookmarkMenuController(const BookmarkMenuController&) = delete;
   BookmarkMenuController& operator=(const BookmarkMenuController&) = delete;
@@ -139,6 +140,7 @@ class BookmarkMenuController : public BookmarkMergedSurfaceServiceObserver,
       views::MenuItemView* menu,
       const gfx::Point& screen_point,
       gfx::Rect* rect,
+      bool* has_mnemonics,
       views::MenuAnchorPosition* anchor) override;
   views::MenuItemView* GetNextSiblingMenu(
       bool next,

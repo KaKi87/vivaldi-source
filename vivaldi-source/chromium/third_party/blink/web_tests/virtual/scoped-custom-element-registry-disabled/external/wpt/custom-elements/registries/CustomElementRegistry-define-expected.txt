@@ -6,4 +6,3 @@ This is a testharness.js-based test.
 [FAIL] Defining an element in a scoped global registry does not add a definition to the global registry
   Failed to construct 'CustomElementRegistry': Illegal constructor
 Harness: the test ran to completion.
-

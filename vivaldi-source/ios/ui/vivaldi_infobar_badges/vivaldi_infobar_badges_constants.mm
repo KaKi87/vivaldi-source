@@ -10,7 +10,8 @@ NSString* vInfobarBadgeTranslateSelected = @"vivaldi_badge_translate_selected";
 
 // reader mode badge
 NSString* vInfobarBadgeReaderMode = @"vivaldi_badge_readermode";
-NSString* vInfobarBadgeReaderModeSelected = @"vivaldi_badge_readermode_selected";
+NSString* vInfobarBadgeReaderModeSelected =
+    @"vivaldi_badge_readermode_selected";
 
 // more badge
 NSString* vInfobarBadgeMore = @"vivaldi_badge_more";
@@ -30,7 +31,8 @@ NSString* vInfobarBadgeKeySelected = @"vivaldi_badge_key_selected";
 
 // credit card badge
 NSString* vInfobarBadgeCreditCard = @"vivaldi_badge_credit_card";
-NSString* vInfobarBadgeCreditCardSelected = @"vivaldi_badge_credit_card_selected";
+NSString* vInfobarBadgeCreditCardSelected =
+    @"vivaldi_badge_credit_card_selected";
 
 // camera badge
 NSString* vInfobarBadgeCamera = @"vivaldi_badge_camera";

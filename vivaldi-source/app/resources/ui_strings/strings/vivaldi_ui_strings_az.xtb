@@ -26,7 +26,7 @@
 <translation id="5076340679995252485">&amp;Yerləşdirmək</translation>
 <translation id="520299402983819650"><ph name="QUANTITY" /> PB</translation>
 <translation id="5613020302032141669">Ox sola</translation>
-<translation id="5754277640426581776">{MINUTES, plural, =1 {1 dəq} digər {# dəq}}</translation>
+<translation id="5754277640426581776">{MINUTES, plural, =1 {1 dəq} other {# dəq}}</translation>
 <translation id="5768079895599174203">{DAYS, plural, =1 {1 gün və }one{# gün }few{# gün }many{# gün}other{# gün}}</translation>
 <translation id="5906667377645263094">{SECONDS, plural, =1 {1 saniyə qaldı} other {# saniyə qaldı}}</translation>
 <translation id="5943826764092288734">{HOURS, plural, =1 {1 saat} other {# saat}}</translation>

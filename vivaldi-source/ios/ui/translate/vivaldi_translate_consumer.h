@@ -22,14 +22,18 @@ NS_SWIFT_UI_ACTOR
     (NSArray<VivaldiTranslateLanguageItem*>*)languages;
 
 - (void)translationWillBeginWithSourceText:(NSString*)sourceText
-            sourceLang:(VivaldiTranslateLanguageItem*)sourceLange
-                destLang:(VivaldiTranslateLanguageItem*)sourceLang;
+                                sourceLang:
+                                    (VivaldiTranslateLanguageItem*)sourceLange
+                                  destLang:
+                                      (VivaldiTranslateLanguageItem*)sourceLang;
 
 - (void)translationDidFinishWithSourceText:(NSString*)sourceText
-          translatedText:(NSString*)translatedText
-              sourceLang:(VivaldiTranslateLanguageItem*)sourceLange
-                  destLang:(VivaldiTranslateLanguageItem*)sourceLang
-                      autoDetectSource:(BOOL)autoDetectSource;
+                            translatedText:(NSString*)translatedText
+                                sourceLang:
+                                    (VivaldiTranslateLanguageItem*)sourceLange
+                                  destLang:
+                                      (VivaldiTranslateLanguageItem*)sourceLang
+                          autoDetectSource:(BOOL)autoDetectSource;
 
 - (void)translationDidFail;
 

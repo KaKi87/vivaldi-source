@@ -10,7 +10,7 @@
 namespace content {
 class NavigationHandle;
 class RenderFrameHost;
-}
+}  // namespace content
 
 namespace adblock_filter {
 class StateAndLogsImpl;

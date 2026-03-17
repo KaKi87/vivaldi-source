@@ -29,9 +29,8 @@ void WindowPrivateSetControlButtonsPositionFunction::RequestChange(
     vivaldi::window_private::ControlButtonsPosition position) {
   auto* ns_window = window.GetNativeNSWindow();
 
-  const auto *positionAsString = vivaldi::window_private::ToString(position);
-  NSString* ns_position =
-      [NSString stringWithUTF8String:positionAsString];
+  const auto* positionAsString = vivaldi::window_private::ToString(position);
+  NSString* ns_position = [NSString stringWithUTF8String:positionAsString];
 
   NSDictionary* userInfo = @{@"position" : ns_position};
   [[NSNotificationCenter defaultCenter]
@@ -44,8 +43,7 @@ void WindowPrivatePerformHapticFeedbackFunction::PerformHapticFeedback() {
   if (@available(macos 12.0.1, *)) {
     [[NSHapticFeedbackManager defaultPerformer]
         performFeedbackPattern:NSHapticFeedbackPatternAlignment
-              performanceTime:NSHapticFeedbackPerformanceTimeNow
-    ];
+               performanceTime:NSHapticFeedbackPerformanceTimeNow];
   }
 }
 

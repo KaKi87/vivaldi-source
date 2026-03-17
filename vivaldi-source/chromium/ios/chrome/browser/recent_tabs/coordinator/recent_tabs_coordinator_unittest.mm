@@ -41,8 +41,8 @@
 #import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/settings_commands.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
@@ -103,6 +103,8 @@ class OpenTabsUIDelegateMock : public sync_sessions::OpenTabsUIDelegate {
   MOCK_METHOD1(GetAllForeignSessions,
                bool(std::vector<raw_ptr<const sync_sessions::SyncedSession,
                                         VectorExperimental>>* sessions));
+  MOCK_CONST_METHOD0(GetAllForeignSessionLastModifiedTimes,
+                     base::flat_map<std::string, base::Time>());
   MOCK_METHOD3(GetForeignTab,
                bool(const std::string& tag,
                     const SessionID tab_id,
@@ -243,14 +245,14 @@ class RecentTabsTableCoordinatorTest : public BlockCleanupTest {
     coordinator_ = [[RecentTabsCoordinator alloc]
         initWithBaseViewController:base_view_controller_
                            browser:browser_.get()];
-    mock_application_commands_handler_ =
-        [OCMockObject mockForProtocol:@protocol(ApplicationCommands)];
+    mock_scene_handler_ =
+        [OCMockObject mockForProtocol:@protocol(SceneCommands)];
     mock_settings_commands_handler_ =
         [OCMockObject mockForProtocol:@protocol(SettingsCommands)];
 
     [browser_->GetCommandDispatcher()
-        startDispatchingToTarget:mock_application_commands_handler_
-                     forProtocol:@protocol(ApplicationCommands)];
+        startDispatchingToTarget:mock_scene_handler_
+                     forProtocol:@protocol(SceneCommands)];
     [browser_->GetCommandDispatcher()
         startDispatchingToTarget:mock_settings_commands_handler_
                      forProtocol:@protocol(SettingsCommands)];
@@ -290,7 +292,7 @@ class RecentTabsTableCoordinatorTest : public BlockCleanupTest {
 
   // Must be declared *after* `profile_` so it can outlive it.
   RecentTabsCoordinator* coordinator_;
-  id<ApplicationCommands> mock_application_commands_handler_;
+  id<SceneCommands> mock_scene_handler_;
   id<SettingsCommands> mock_settings_commands_handler_;
 };
 

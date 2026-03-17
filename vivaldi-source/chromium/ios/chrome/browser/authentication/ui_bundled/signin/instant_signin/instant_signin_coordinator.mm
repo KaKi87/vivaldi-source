@@ -80,11 +80,10 @@
 }
 
 - (void)dealloc {
-  // TODO(crbug.com/40067451): Switch back to DCHECK if the number of reports is
-  // low.
-  DUMP_WILL_BE_CHECK(!_mediator) << base::SysNSStringToUTF8([self description]);
-  DUMP_WILL_BE_CHECK(!_signinLogger)
-      << base::SysNSStringToUTF8([self description]);
+  // Not an invariant due to possible race conditions. DCHECKing for debugging
+  // purposes. See crbug.com/40067451.
+  DCHECK(!_mediator) << base::SysNSStringToUTF8([self description]);
+  DCHECK(!_signinLogger) << base::SysNSStringToUTF8([self description]);
 }
 
 #pragma mark - ChromeCoordinator
@@ -143,7 +142,8 @@
       SIGNED_IN_WITH_NON_DEFAULT_ACCOUNT;
   _identityChooserCoordinator = [[IdentityChooserCoordinator alloc]
       initWithBaseViewController:self.baseViewController
-                         browser:self.browser];
+                         browser:self.browser
+                 defaultIdentity:nil];
   _identityChooserCoordinator.delegate = self;
   [_identityChooserCoordinator start];
 }
@@ -193,13 +193,6 @@
 
 #pragma mark - IdentityChooserCoordinatorDelegate
 
-- (void)identityChooserCoordinatorDidClose:
-    (IdentityChooserCoordinator*)coordinator {
-  // `_identityChooserCoordinator.delegate` was set to nil before calling this
-  // method since `identityChooserCoordinatorDidTapOnAddAccount:` or
-  // `identityChooserCoordinator:didSelectIdentity:` have been called before.
-  NOTREACHED() << base::SysNSStringToUTF8([self description]);
-}
 
 - (void)identityChooserCoordinatorDidTapOnAddAccount:
     (IdentityChooserCoordinator*)coordinator {
@@ -211,7 +204,7 @@
 }
 
 - (void)identityChooserCoordinator:(IdentityChooserCoordinator*)coordinator
-                 didSelectIdentity:(id<SystemIdentity>)identity {
+      didCloseWithSelectedIdentity:(id<SystemIdentity>)identity {
   CHECK_EQ(coordinator, _identityChooserCoordinator)
       << base::SysNSStringToUTF8([self description]);
   _identityChooserCoordinator.delegate = nil;
@@ -355,9 +348,9 @@
 
 // Adds an activity overlay to block the UI.
 - (void)showActivityOverlay {
-  // TODO(crbug.com/40067451): Switch back to DCHECK if the number of reports is
-  // low.
-  DUMP_WILL_BE_CHECK(!_activityOverlayCoordinator);
+  // Not an invariant due to possible race conditions. DCHECKing for debugging
+  // purposes. See crbug.com/40067451.
+  DCHECK(!_activityOverlayCoordinator);
   _activityOverlayCoordinator = [[ActivityOverlayCoordinator alloc]
       initWithBaseViewController:self.baseViewController
                          browser:self.browser];

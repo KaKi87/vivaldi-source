@@ -27,10 +27,12 @@
 
 """CI Dawn builders using GN and a standalone Dawn checkout (instead of Chromium)."""
 
+load("@chromium-luci//args.star", "args")
 load("@chromium-luci//builder_config.star", "builder_config")
 load("@chromium-luci//builders.star", "os")
 load("@chromium-luci//ci.star", "ci")
 load("@chromium-luci//consoles.star", "consoles")
+load("@chromium-luci//gardener_rotations.star", "gardener_rotations")
 load("@chromium-luci//gn_args.star", "gn_args")
 load("//constants.star", "siso")
 
@@ -49,6 +51,8 @@ ci.defaults.set(
     siso_remote_jobs = siso.remote_jobs.DEFAULT,
     thin_tester_cores = 2,
     builderless = True,
+    notifies = ["gardener-notifier"],
+    gardener_rotations = gardener_rotations.rotation("dawn", None, None),
 )
 
 ################################################################################
@@ -133,12 +137,50 @@ dawn_linux_parent_builder(
             "dawn_swiftshader",
             "linux_clang",
             "component",
-            "release",
+            "release_with_dchecks",
             "x64",
         ],
     ),
     console_view_entry = consoles.console_view_entry(
         category = "linux|build|clang|rel",
+        short_name = "x64",
+    ),
+)
+
+dawn_linux_parent_builder(
+    name = "dawn-linux-x64-builder-tsan",
+    description_html = "Compiles release Dawn test binaries for Linux/x64 w/ TSAN enabled",
+    schedule = "triggered",
+    builder_spec = builder_config.builder_spec(
+        gclient_config = builder_config.gclient_config(
+            config = "dawn",
+            apply_configs = [
+                # dawn_node is intentionally omitted since none of the tests
+                # that are run with TSAN use node.
+                "dawn_wasm",
+            ],
+        ),
+        chromium_config = builder_config.chromium_config(
+            config = "dawn_base",
+            build_config = builder_config.build_config.RELEASE,
+            target_arch = builder_config.target_arch.INTEL,
+            target_bits = 64,
+            target_platform = builder_config.target_platform.LINUX,
+        ),
+    ),
+    gn_args = gn_args.config(
+        configs = [
+            "dawn_swiftshader",
+            "linux_clang",
+            "minimal_symbols",
+            "non_component",
+            "release_with_dchecks",
+            "tsan",
+            "x64",
+        ],
+    ),
+    console_view_entry = consoles.console_view_entry(
+        category = "linux|build|clang|tsan",
         short_name = "x64",
     ),
 )
@@ -205,7 +247,7 @@ dawn_linux_parent_builder(
             "dawn_swiftshader",
             "linux_clang",
             "component",
-            "release",
+            "release_with_dchecks",
             "x86",
         ],
     ),
@@ -241,7 +283,7 @@ dawn_mac_parent_builder(
             "component",
             "dawn_node_bindings",
             "mac_clang",
-            "release",
+            "release_with_dchecks",
         ],
     ),
     console_view_entry = consoles.console_view_entry(
@@ -310,7 +352,7 @@ dawn_mac_parent_builder(
             "component",
             "dawn_node_bindings",
             "mac_clang",
-            "release",
+            "release_with_dchecks",
             "x64",
         ],
     ),
@@ -344,7 +386,7 @@ dawn_win_parent_builder(
             "component",
             "dawn_node_bindings",
             "dawn_swiftshader",
-            "release",
+            "release_with_dchecks",
             "win_clang",
             "arm64",
         ],
@@ -380,7 +422,7 @@ dawn_win_parent_builder(
             "component",
             "dawn_node_bindings",
             "dawn_swiftshader",
-            "release",
+            "release_with_dchecks",
             "win_clang",
             "x64",
         ],
@@ -489,7 +531,7 @@ dawn_win_parent_builder(
             "dawn_node_bindings",
             "dawn_swiftshader",
             "non_component",
-            "release",
+            "release_with_dchecks",
             "win_msvc",
             "x64",
         ],
@@ -524,7 +566,7 @@ dawn_win_parent_builder(
             "component",
             "dawn_node_bindings",
             "dawn_swiftshader",
-            "release",
+            "release_with_dchecks",
             "win_clang",
             "x64",
         ],
@@ -590,7 +632,7 @@ dawn_win_parent_builder(
         configs = [
             "component",
             "dawn_swiftshader",
-            "release",
+            "release_with_dchecks",
             "win_clang",
             "x86",
         ],
@@ -659,7 +701,7 @@ ci.builder(
             "libfuzzer",
             "linux_clang",
             "non_component",
-            "release",
+            "release_with_dchecks",
             "x64",
         ],
     ),
@@ -725,7 +767,7 @@ ci.builder(
             "libfuzzer",
             "linux_clang",
             "non_component",
-            "release",
+            "release_with_dchecks",
             "x86",
         ],
     ),
@@ -743,6 +785,7 @@ ci.builder(
     # Run daily at 5PM Pacific.
     schedule = "0 0 * * *",
     triggered_by = [],
+    gardener_rotations = args.ignore_default(None),
     builder_spec = builder_config.builder_spec(
         gclient_config = builder_config.gclient_config(
             config = "dawn",
@@ -760,7 +803,7 @@ ci.builder(
             "component",
             "dawn_swiftshader",
             "linux_clang",
-            "release",
+            "release_with_dchecks",
             "tint_build_ir_binary",
             "x64",
         ],
@@ -898,6 +941,30 @@ ci.thin_tester(
 )
 
 ci.thin_tester(
+    name = "dawn-linux-x64-sws-tsan",
+    description_html = "Tests release Dawn on Linux/x64 with SwiftShader with TSAN",
+    parent = "dawn-linux-x64-builder-tsan",
+    builder_spec = builder_config.builder_spec(
+        execution_mode = builder_config.execution_mode.TEST,
+        gclient_config = builder_config.gclient_config(
+            config = "dawn",
+        ),
+        chromium_config = builder_config.chromium_config(
+            config = "dawn_base",
+            build_config = builder_config.build_config.RELEASE,
+            target_arch = builder_config.target_arch.INTEL,
+            target_bits = 64,
+            target_platform = builder_config.target_platform.LINUX,
+        ),
+        run_tests_serially = True,
+    ),
+    console_view_entry = consoles.console_view_entry(
+        category = "linux|test|clang|tsan|x64",
+        short_name = "sws",
+    ),
+)
+
+ci.thin_tester(
     name = "dawn-linux-x86-sws-dbg",
     description_html = "Tests debug Dawn on Linux/x86 with SwiftShader",
     parent = "dawn-linux-x86-builder-dbg",
@@ -1014,6 +1081,30 @@ ci.thin_tester(
     console_view_entry = consoles.console_view_entry(
         category = "mac|test|clang|rel|x64",
         short_name = "555x",
+    ),
+)
+
+ci.thin_tester(
+    name = "dawn-mac-x64-intel-uhd630-exp-rel",
+    description_html = "Tests release Dawn on Mac/x64 on 2018 Mac Minis w/ Intel UHD 630 GPUs w/ experimental OS configs",
+    parent = "dawn-mac-x64-builder-rel",
+    builder_spec = builder_config.builder_spec(
+        execution_mode = builder_config.execution_mode.TEST,
+        gclient_config = builder_config.gclient_config(
+            config = "dawn",
+        ),
+        chromium_config = builder_config.chromium_config(
+            config = "dawn_base",
+            build_config = builder_config.build_config.RELEASE,
+            target_arch = builder_config.target_arch.INTEL,
+            target_bits = 64,
+            target_platform = builder_config.target_platform.MAC,
+        ),
+        run_tests_serially = True,
+    ),
+    console_view_entry = consoles.console_view_entry(
+        category = "mac|test|clang|exp|x64",
+        short_name = "630",
     ),
 )
 
@@ -1205,6 +1296,30 @@ ci.thin_tester(
     ),
     console_view_entry = consoles.console_view_entry(
         category = "win|test|clang|asan|x64",
+        short_name = "1660",
+    ),
+)
+
+ci.thin_tester(
+    name = "dawn-win-x64-nvidia-gtx1660-exp-rel",
+    description_html = "Tests release Dawn on Windows/x64 on NVIDIA GTX 1660 GPUs w/ experimental OS/driver configs",
+    parent = "dawn-win-x64-builder-rel",
+    builder_spec = builder_config.builder_spec(
+        execution_mode = builder_config.execution_mode.TEST,
+        gclient_config = builder_config.gclient_config(
+            config = "dawn",
+        ),
+        chromium_config = builder_config.chromium_config(
+            config = "dawn_base",
+            build_config = builder_config.build_config.RELEASE,
+            target_arch = builder_config.target_arch.INTEL,
+            target_bits = 64,
+            target_platform = builder_config.target_platform.WIN,
+        ),
+        run_tests_serially = True,
+    ),
+    console_view_entry = consoles.console_view_entry(
+        category = "win|test|clang|exp|x64",
         short_name = "1660",
     ),
 )

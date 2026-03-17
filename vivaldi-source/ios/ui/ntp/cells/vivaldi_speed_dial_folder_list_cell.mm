@@ -13,17 +13,15 @@
 namespace {
 // Padding for title label. In order - Top, Left, Bottom, Right
 // Padding for labels. In order - Top, Left, Bottom, Right
-const UIEdgeInsets faviconPadding =
-    UIEdgeInsetsMake(0.f, 14.f, 0.f, 0.f);
-const UIEdgeInsets titleLabelPadding =
-    UIEdgeInsetsMake(0.f, 12.f, 0.f, 8.f);
-}
+const UIEdgeInsets faviconPadding = UIEdgeInsetsMake(0.f, 14.f, 0.f, 0.f);
+const UIEdgeInsets titleLabelPadding = UIEdgeInsetsMake(0.f, 12.f, 0.f, 8.f);
+}  // namespace
 
-@interface VivaldiSpeedDialFolderListCell()
+@interface VivaldiSpeedDialFolderListCell ()
 // Title label for the folder item
-@property(nonatomic,weak) UILabel* titleLabel;
+@property(nonatomic, weak) UILabel* titleLabel;
 // Icon for the folder item
-@property(nonatomic,weak) UIImageView* iconView;
+@property(nonatomic, weak) UIImageView* iconView;
 @end
 
 @implementation VivaldiSpeedDialFolderListCell
@@ -46,7 +44,6 @@ const UIEdgeInsets titleLabelPadding =
   self.iconView.image = nil;
 }
 
-
 #pragma mark - SET UP UI COMPONENTS
 - (void)setUpUI {
   self.layer.cornerRadius = vSpeedDialItemCornerRadius;
@@ -54,22 +51,19 @@ const UIEdgeInsets titleLabelPadding =
   self.layer.borderColor = UIColor.clearColor.CGColor;
 
   // Add drop shadow to parent
-  [self
-    addShadowWithBackground: [UIColor colorNamed:
-                              vNTPSpeedDialCellBackgroundColor]
-                     offset: vSpeedDialItemShadowOffset
-                shadowColor: [UIColor colorNamed:vSpeedDialItemShadowColor]
-                     radius: vSpeedDialItemShadowRadius
-                    opacity: vSpeedDialItemShadowOpacity
-  ];
-  self.backgroundColor =
-    [UIColor colorNamed: vNTPSpeedDialCellBackgroundColor];
+  [self addShadowWithBackground:[UIColor
+                                    colorNamed:vNTPSpeedDialCellBackgroundColor]
+                         offset:vSpeedDialItemShadowOffset
+                    shadowColor:[UIColor colorNamed:vSpeedDialItemShadowColor]
+                         radius:vSpeedDialItemShadowRadius
+                        opacity:vSpeedDialItemShadowOpacity];
+  self.backgroundColor = [UIColor colorNamed:vNTPSpeedDialCellBackgroundColor];
 
   // Container to hold the title and icon
-  UIView *container = [UIView new];
+  UIView* container = [UIView new];
   container.layer.cornerRadius = vSpeedDialItemCornerRadius;
   container.backgroundColor =
-    [UIColor colorNamed: vNTPSpeedDialCellBackgroundColor];
+      [UIColor colorNamed:vNTPSpeedDialCellBackgroundColor];
   container.clipsToBounds = true;
   [self addSubview:container];
   [container fillSuperview];
@@ -79,13 +73,13 @@ const UIEdgeInsets titleLabelPadding =
   _iconView = iconView;
   iconView.contentMode = UIViewContentModeScaleAspectFit;
   iconView.backgroundColor = UIColor.clearColor;
-  [container addSubview: iconView];
-  [iconView anchorTop: nil
-              leading: container.leadingAnchor
-               bottom: nil
-             trailing: nil
-              padding: faviconPadding
-                 size: vSpeedDialFolderIconSizeList];
+  [container addSubview:iconView];
+  [iconView anchorTop:nil
+              leading:container.leadingAnchor
+               bottom:nil
+             trailing:nil
+              padding:faviconPadding
+                 size:vSpeedDialFolderIconSizeList];
   [iconView centerYInSuperview];
 
   // Folder name label
@@ -97,12 +91,12 @@ const UIEdgeInsets titleLabelPadding =
   titleLabel.numberOfLines = 1;
   titleLabel.textAlignment = NSTextAlignmentLeft;
 
-  [container addSubview: titleLabel];
-  [titleLabel anchorTop: nil
-                leading: iconView.trailingAnchor
-                 bottom: nil
-               trailing: container.trailingAnchor
-                padding: titleLabelPadding];
+  [container addSubview:titleLabel];
+  [titleLabel anchorTop:nil
+                leading:iconView.trailingAnchor
+                 bottom:nil
+               trailing:container.trailingAnchor
+                padding:titleLabelPadding];
   [titleLabel centerYInSuperview];
 }
 

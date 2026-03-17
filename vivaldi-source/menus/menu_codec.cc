@@ -51,7 +51,7 @@ bool MenuCodec::Decode(Menu_Node* root,
       const std::string* type = menu.GetDict().FindString("type");
       const std::string* guid = menu.GetDict().FindString("guid");
       bool guid_valid = guid && !guid->empty() &&
-          base::Uuid::ParseCaseInsensitive(*guid).is_valid();
+                        base::Uuid::ParseCaseInsensitive(*guid).is_valid();
       if (guid_valid) {
         std::map<std::string, bool>::iterator it = guids_.find(*guid);
         if (it != guids_.end()) {
@@ -59,7 +59,7 @@ bool MenuCodec::Decode(Menu_Node* root,
 #if defined(OFFICIAL_BUILD)
           return false;
 #else
-          return false; // Return true to continue if needed in devel mode.
+          return false;  // Return true to continue if needed in devel mode.
 #endif
         }
         guids_[*guid] = true;
@@ -104,7 +104,7 @@ bool MenuCodec::Decode(Menu_Node* root,
                                          ? menu.GetDict().FindString("version")
                                          : &force_version;
         const base::Value* deleted_list = menu.GetDict().Find("deleted");
-        const base::Value* expired_list =  menu.GetDict().Find("expired");
+        const base::Value* expired_list = menu.GetDict().Find("expired");
         if (format) {
           control->format = *format;
         }
@@ -165,9 +165,10 @@ bool MenuCodec::DecodeNode(Menu_Node* parent,
     const std::string* title = value.GetDict().FindString("title");
     const std::string* guid = value.GetDict().FindString("guid");
     const std::string* parameter = value.GetDict().FindString("parameter");
-    const int origin = value.GetDict().FindInt("origin").value_or(Menu_Node::BUNDLE);
+    const int origin =
+        value.GetDict().FindInt("origin").value_or(Menu_Node::BUNDLE);
     bool guid_valid = guid && !guid->empty() &&
-      base::Uuid::ParseCaseInsensitive(*guid).is_valid();
+                      base::Uuid::ParseCaseInsensitive(*guid).is_valid();
     if (guid_valid) {
       std::map<std::string, bool>::iterator it = guids_.find(*guid);
       if (it != guids_.end()) {
@@ -175,7 +176,7 @@ bool MenuCodec::DecodeNode(Menu_Node* parent,
 #if defined(OFFICIAL_BUILD)
         return false;
 #else
-        return false; // Return true to continue if needed in devel mode.
+        return false;  // Return true to continue if needed in devel mode.
 #endif
       }
       guids_[*guid] = true;
@@ -229,7 +230,8 @@ bool MenuCodec::DecodeNode(Menu_Node* parent,
       } else if (*type == "checkbox") {
         node->SetType(Menu_Node::CHECKBOX);
       } else if (*type == "radio") {
-        const std::string* radio_group = value.GetDict().FindString("radiogroup");
+        const std::string* radio_group =
+            value.GetDict().FindString("radiogroup");
         if (!radio_group) {
           LOG(ERROR) << "Menu Codec: Radio group missing for " << action;
           return false;
@@ -240,7 +242,8 @@ bool MenuCodec::DecodeNode(Menu_Node* parent,
         node->SetType(Menu_Node::SEPARATOR);
       } else if (*type == "folder") {
         node->SetType(Menu_Node::FOLDER);
-        const base::Value* children_of_folder = value.GetDict().Find("children");
+        const base::Value* children_of_folder =
+            value.GetDict().Find("children");
         if (children_of_folder) {
           if (!DecodeNode(node.get(), *children_of_folder, is_bundle)) {
             return false;
@@ -369,7 +372,7 @@ base::Value MenuCodec::EncodeNode(Menu_Node* node) {
       break;
     default:
       NOTREACHED();
-      //break;
+      // break;
   }
 
   if (is_folder) {

@@ -232,10 +232,6 @@
   gridViewController.reauthHandler = _reauthAgent;
   gridViewController.menuProvider = _tabContextMenuHelper;
 
-  // Vivaldi
-  gridViewController.isIncognito = YES;
-  // End Vivaldi
-
   gridViewController.dragDropHandler = _mediator;
   gridViewController.mutator = _mediator;
   gridViewController.gridProvider = _mediator;
@@ -252,6 +248,12 @@
   gridViewController.theme = GridThemeDark;
 
   _mediator.consumer = gridViewController;
+
+  // Vivaldi
+  gridViewController.isIncognito = YES;
+  gridViewController.emptyStateView.overrideUserInterfaceStyle =
+      UIUserInterfaceStyleDark;
+  // End Vivaldi
 
   return gridViewController;
 }

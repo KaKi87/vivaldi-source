@@ -113,9 +113,11 @@ class VivaldiUIEvents : public VivaldiEventHooks {
       const blink::WebMouseWheelEvent& event) override;
 
   void DoHandleDragEnd(content::WebContents* web_contents,
-                       bool outside_or_webview_in_same_window,
                        int client_x,
-                       int client_y) override;
+                       int client_y,
+                       int screen_x,
+                       int screen_y,
+                       bool canceled) override;
 
   std::unique_ptr<MouseGestures> mouse_gestures_;
   WheelGestures wheel_gestures_;

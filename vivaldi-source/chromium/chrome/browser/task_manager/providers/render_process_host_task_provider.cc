@@ -18,8 +18,8 @@
 #include "extensions/browser/process_map.h"  // nogncheck
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)
-#include "chrome/browser/glic/public/glic_enabling.h"
+#if BUILDFLAG(ENABLE_GLIC)                             // Vivaldi keep disabled
+#include "chrome/browser/glic/public/glic_enabling.h"  // nogncheck
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #include "chrome/browser/glic/widget/glic_window_controller.h"
@@ -33,7 +33,7 @@ namespace task_manager {
 
 namespace {
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 bool IsHostForGlic(content::RenderProcessHost* host) {
   // This needs to match the GlicKeyedServiceFactory initialization logic in
   // EnsureBrowserContextKeyedServiceFactoriesBuilt().
@@ -45,7 +45,7 @@ bool IsHostForGlic(content::RenderProcessHost* host) {
       host->GetBrowserContext());
   return glic_service && glic_service->IsProcessHostForGlic(host);
 }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
 }  // namespace
 
@@ -101,7 +101,7 @@ void RenderProcessHostTaskProvider::CreateTask(
   data.SetProcess(host->GetProcess().Duplicate());
 
   auto subtype = ChildProcessTask::ProcessSubtype::kUnknownRenderProcess;
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (IsHostForGlic(host)) {
     subtype = ChildProcessTask::ProcessSubtype::kGlicRenderProcess;
   }
@@ -117,8 +117,9 @@ void RenderProcessHostTaskProvider::DeleteTask(
   auto itr = tasks_by_rph_id_.find(render_process_host_id);
   // If the render process host id isn't being tracked in `tasks_by_rph_id` do
   // nothing.
-  if (itr == tasks_by_rph_id_.end())
+  if (itr == tasks_by_rph_id_.end()) {
     return;
+  }
 
   NotifyObserverTaskRemoved(itr->second.get());
 

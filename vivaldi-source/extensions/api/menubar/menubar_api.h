@@ -12,6 +12,7 @@ class BrowserContext;
 }
 
 class CommandUpdater;
+class Profile;
 
 namespace extensions {
 
@@ -21,13 +22,11 @@ class MenubarAPI {
   static bool GetIsEnabledWithNoWindows(int id, bool* enabled);
   static bool GetIsEnabled(int id, bool hasWindow, bool* enabled);
   static bool GetIsSupportedInSettings(int id);
-  static bool HasActiveWindow();
   static bool HandleActionById(content::BrowserContext* browser_context,
                                int window_id,
                                int command_id,
                                const std::string& parameter = "");
 };
-
 
 class MenubarGetHasWindowsFunction : public ExtensionFunction {
  public:

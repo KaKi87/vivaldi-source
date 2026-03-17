@@ -5,7 +5,6 @@
 
 #include "base/threading/thread_restrictions.h"
 
-
 void ChromiumProfileLock::Init() {}
 
 void ChromiumProfileLock::Lock() {}
@@ -13,6 +12,6 @@ void ChromiumProfileLock::Lock() {}
 void ChromiumProfileLock::Unlock() {}
 
 bool ChromiumProfileLock::HasAcquired() {
-    base::VivaldiScopedAllowBlocking allow_blocking;
-    return !base::IsLink(lock_file_);
+  base::VivaldiScopedAllowBlocking allow_blocking;
+  return !base::IsLink(lock_file_);
 }

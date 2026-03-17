@@ -5,10 +5,10 @@
 #import "base/apple/foundation_util.h"
 #import "base/strings/sys_string_conversions.h"
 #import "components/favicon/ios/web_favicon_driver.h"
-#import "components/search_engines/template_url_service.h"
 #import "components/search_engines/template_url.h"
-#import "ios/chrome/browser/page_info/ui_bundled/page_info_site_security_description.h"
-#import "ios/chrome/browser/page_info/ui_bundled/page_info_site_security_mediator.h"
+#import "components/search_engines/template_url_service.h"
+#import "ios/chrome/browser/page_info/coordinator/page_info_site_security_mediator.h"
+#import "ios/chrome/browser/page_info/ui/page_info_site_security_description.h"
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
@@ -25,8 +25,8 @@
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
 #import "ios/ui/ntp/vivaldi_speed_dial_constants.h"
 #import "ios/ui/site_tracker_prefs/vivaldi_site_tracker_prefs_consumer.h"
-#import "ios/web/public/web_state_observer_bridge.h"
 #import "ios/web/public/web_state.h"
+#import "ios/web/public/web_state_observer_bridge.h"
 #import "ui/base/l10n/l10n_util.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
@@ -34,23 +34,23 @@ namespace {
 NSString* vivaldiDomain = @"vivaldi.com";
 
 bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
-    if (host == domain) {
-        return true;
-    }
-    // Build ".<domain>" once to avoid repeated string concatenation
-    std::string dotDomain = "." + domain;
-    // If host is strictly longer than dotDomain and ends with dotDomain
-    if (host.size() > dotDomain.size() &&
-        host.compare(host.size() - dotDomain.size(),
-                     dotDomain.size(), dotDomain) == 0) {
-        return true;
-    }
-    return false;
+  if (host == domain) {
+    return true;
+  }
+  // Build ".<domain>" once to avoid repeated string concatenation
+  std::string dotDomain = "." + domain;
+  // If host is strictly longer than dotDomain and ends with dotDomain
+  if (host.size() > dotDomain.size() &&
+      host.compare(host.size() - dotDomain.size(), dotDomain.size(),
+                   dotDomain) == 0) {
+    return true;
+  }
+  return false;
 }
-}
+}  // namespace
 
-@interface VivaldiSiteTrackerPrefsMediator ()<CRWWebStateObserver,
-                                              VivaldiATBConsumer> {
+@interface VivaldiSiteTrackerPrefsMediator () <CRWWebStateObserver,
+                                               VivaldiATBConsumer> {
   // The WebState this instance is observing. Will be null after
   // -webStateDestroyed: has been called.
   web::WebState* _webState;
@@ -104,7 +104,7 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
   if ([self activeWebState]) {
     _webState = [self activeWebState];
     _webStateObserverBridge =
-    std::make_unique<web::WebStateObserverBridge>(self);
+        std::make_unique<web::WebStateObserverBridge>(self);
     _webState->AddObserver(_webStateObserverBridge.get());
   }
 }
@@ -118,8 +118,7 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
 
 - (void)updateSiteSecurityDescription {
   _siteSecurityDescription = [self updatedSiteSecurityDescription];
-  [self.consumer
-      setPageInfoSecurityDescription:_siteSecurityDescription];
+  [self.consumer setPageInfoSecurityDescription:_siteSecurityDescription];
 }
 
 - (PageInfoSiteSecurityDescription*)updatedSiteSecurityDescription {
@@ -131,7 +130,7 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
 // Returns the favicon for the page
 - (UIImage*)favicon {
   favicon::FaviconDriver* faviconDriver =
-  favicon::WebFaviconDriver::FromWebState([self activeWebState]);
+      favicon::WebFaviconDriver::FromWebState([self activeWebState]);
   UIImage* fallbackFavicon = [UIImage imageNamed:vNTPSDFallbackFavicon];
   if (faviconDriver && faviconDriver->FaviconIsValid()) {
     gfx::Image favicon = faviconDriver->GetFavicon();
@@ -176,8 +175,8 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
 - (BOOL)adsExceptionsEnabled {
   if (!self.adblockManager)
     return NO;
-  if ([self blockingLevelForSite:self.activePageDomain]
-          == ATBSettingNoBlocking) {
+  if ([self blockingLevelForSite:self.activePageDomain] ==
+      ATBSettingNoBlocking) {
     return NO;
   }
   GURL visibleURL = self.activeWebState->GetVisibleURL();
@@ -195,38 +194,35 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
   TemplateURLService* templateURLService =
       ios::TemplateURLServiceFactory::GetForProfile(_browser->GetProfile());
   if (!templateURLService) {
-    return l10n_util::GetNSString
-        (IDS_IOS_VIVALDI_AD_AND_TRACKER_BLOCKER_AD_EXCEPTIONS_EXPANDED_DESCRIPTION_GENERIC);
+    return l10n_util::GetNSString(
+        IDS_IOS_VIVALDI_AD_AND_TRACKER_BLOCKER_AD_EXCEPTIONS_EXPANDED_DESCRIPTION_GENERIC);
   }
   GURL visibleURL = self.activeWebState->GetVisibleURL();
   std::string host = visibleURL.GetHost();
   TemplateURL* templateURL =
       templateURLService->GetTemplateURLForHost(visibleURL.GetHost());
   if (!templateURL) {
-    return l10n_util::GetNSString
-        (IDS_IOS_VIVALDI_AD_AND_TRACKER_BLOCKER_AD_EXCEPTIONS_EXPANDED_DESCRIPTION_GENERIC);
+    return l10n_util::GetNSString(
+        IDS_IOS_VIVALDI_AD_AND_TRACKER_BLOCKER_AD_EXCEPTIONS_EXPANDED_DESCRIPTION_GENERIC);
   }
   return l10n_util::GetNSStringF(
       IDS_IOS_VIVALDI_AD_AND_TRACKER_BLOCKER_AD_EXCEPTIONS_EXPANDED_DESCRIPTION,
-          templateURL->short_name());
+      templateURL->short_name());
 }
 
 - (void)updateAdsExceptionBannerItem {
-  if ([self adsExceptionsEnabled] &&
-      [[self adsExceptionsMessage] length] > 0) {
+  if ([self adsExceptionsEnabled] && [[self adsExceptionsMessage] length] > 0) {
     [self.consumer setAdsExceptionEnabled:YES
                                   message:[self adsExceptionsMessage]];
   } else {
-    [self.consumer setAdsExceptionEnabled:NO
-                                  message:nil];
+    [self.consumer setAdsExceptionEnabled:NO message:nil];
   }
 }
 
 - (void)notifyCommonConsumers {
   [self.consumer setGlobalBlockingLevel:[self defaultBlockingLevel]];
-  [self.consumer
-       setBlockingLevelForDomain:
-          [self blockingLevelForSite:self.activePageDomain]];
+  [self.consumer setBlockingLevelForDomain:
+                     [self blockingLevelForSite:self.activePageDomain]];
   [self.consumer setRulesGroupApplying:[self isRulesApplying]];
   [self.consumer setActiveWebStateFavicon:[self favicon]];
   [self updateSiteSecurityDescription];
@@ -243,19 +239,17 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
   [self.consumer setActiveWebStateFavicon:[self favicon]];
 
   // Tracker Blocking
-  [self.consumer
-      setBlockingLevelForDomain:
-          [self blockingLevelForSite:self.activePageDomain]];
+  [self.consumer setBlockingLevelForDomain:
+                     [self blockingLevelForSite:self.activePageDomain]];
   [self.consumer setGlobalBlockingLevel:[self defaultBlockingLevel]];
   [self.consumer setRulesGroupApplying:[self isRulesApplying]];
   [self updateAdsExceptionBannerItem];
 
   // Site info
-  [self.consumer
-      setPageInfoSecurityDescription:_siteSecurityDescription];
+  [self.consumer setPageInfoSecurityDescription:_siteSecurityDescription];
 }
 
-#pragma mark: - VivaldiATBConsumer
+#pragma mark : - VivaldiATBConsumer
 
 - (void)didRefreshSettingOptions:(NSArray*)options {
   if (options.count == 0)
@@ -294,8 +288,7 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
   if (ruleApplyInProgressForThisSession)
     return;
   // More checks.
-  if (!self.activePageDomain ||
-      exceptions.count == 0)
+  if (!self.activePageDomain || exceptions.count == 0)
     return;
   [self notifyCommonConsumers];
 }
@@ -308,13 +301,13 @@ bool IsDomainOrSubdomain(const std::string& host, const std::string& domain) {
   // Change settings
   if (![VivaldiGlobalHelpers isValidDomain:domain])
     return;
-  [self.adblockManager setExceptionForDomain:domain
-                                blockingType:blockingType];
+  [self.adblockManager setExceptionForDomain:domain blockingType:blockingType];
 }
 
 #pragma mark - CRWWebStateObserver
-- (void)webState:(web::WebState*)webState didUpdateFaviconURLCandidates:
-    (const std::vector<web::FaviconURL>&)candidates {
+- (void)webState:(web::WebState*)webState
+    didUpdateFaviconURLCandidates:
+        (const std::vector<web::FaviconURL>&)candidates {
   DCHECK_EQ(_webState, webState);
   if (_webState) {
     [self.consumer setActiveWebStateFavicon:[self favicon]];

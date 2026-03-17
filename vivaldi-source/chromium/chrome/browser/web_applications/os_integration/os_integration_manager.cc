@@ -241,6 +241,13 @@ void OsIntegrationManager::Synchronize(
 
   CHECK(set_provider_called_);
 
+  // Do not allow apps that are suggested for migration to have OS integration.
+  if (provider_->registrar_unsafe().AppMatches(
+          app_id, WebAppFilter::IsAppSuggestedForMigration())) {
+    std::move(callback).Run();
+    return;
+  }
+
   if (sub_managers_.empty()) {
     std::move(callback).Run();
     return;
@@ -357,11 +364,6 @@ void OsIntegrationManager::GetShortcutInfoForAppFromRegistrar(
       base::BindOnce(&OsIntegrationManager::OnIconsRead,
                      weak_ptr_factory_.GetWeakPtr(), app_id,
                      std::move(callback)));
-}
-
-bool OsIntegrationManager::IsFileHandlingAPIAvailable(
-    const webapps::AppId& app_id) {
-  return true;
 }
 
 const apps::FileHandlers* OsIntegrationManager::GetEnabledFileHandlers(

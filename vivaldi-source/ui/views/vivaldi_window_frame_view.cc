@@ -1,23 +1,41 @@
 // Copyright (c) 2025 Vivaldi Technologies AS. All rights reserved.
 
-#include "ui/base/hit_test.h"
 #include "ui/views/vivaldi_window_frame_view.h"
+#include "ui/views/event_monitor.h"
 #include "ui/views/widget/widget.h"
 #include "ui/vivaldi_browser_window.h"
 
-VivaldiNativeFrameView::VivaldiNativeFrameView(views::Widget* widget,
-                                               VivaldiBrowserWindow* window)
-    : NativeFrameView(widget), window_(window) {}
+VivaldiWindowFrameEventObserver::VivaldiWindowFrameEventObserver(
+    VivaldiBrowserWindow* window)
+    : window_(window) {
+  event_monitor_ = views::EventMonitor::CreateWindowMonitor(
+      this, window_->GetNativeWindow(), {ui::EventType::kMouseMoved});
+}
 
-VivaldiNativeFrameView::~VivaldiNativeFrameView() = default;
+VivaldiWindowFrameEventObserver::~VivaldiWindowFrameEventObserver() {
+  event_monitor_.reset();
+}
 
-int VivaldiNativeFrameView::NonClientHitTest(const gfx::Point& point) {
-  views::Widget* widget = window_->GetWidget();
-  if (!widget) {
-    return HTNOWHERE;
+void VivaldiWindowFrameEventObserver::OnEvent(const ui::Event& event) {
+  if (event.IsMouseEvent()) {
+    OnMouseEvent(*event.AsMouseEvent());
+  }
+}
+
+void VivaldiWindowFrameEventObserver::OnMouseEvent(
+    const ui::MouseEvent& event) {
+  if (event.type() != ui::EventType::kMouseMoved) {
+    return;
   }
 
-  window_->ReportNCMousePosition(point);
-
-  return HTNOWHERE;
+  const gfx::Point point(event.x(), event.y());
+  window_->ReportMousePosition(point);
 }
+
+VivaldiNativeFrameView::VivaldiNativeFrameView(VivaldiBrowserWindow* window)
+    : NativeFrameView(window->GetWidget()),
+      window_(window),
+      window_frame_event_observer_(
+          std::make_unique<VivaldiWindowFrameEventObserver>(window_)) {}
+
+VivaldiNativeFrameView::~VivaldiNativeFrameView() = default;

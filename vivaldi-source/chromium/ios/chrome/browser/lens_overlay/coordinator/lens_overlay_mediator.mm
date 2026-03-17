@@ -29,9 +29,9 @@
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list_observer_bridge.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/lens_overlay_commands.h"
 #import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/NSString+Chromium.h"
@@ -374,7 +374,7 @@ typedef NS_ENUM(NSUInteger, LensOverlayFilterState) {
     }
     // Multimodal query on a text selection are not handled. Thumbnail is not
     // updated.
-    CHECK(!isMultimodal, kLensOverlayNotFatalUntil);
+    CHECK(!isMultimodal);
   } else {
     // On image selection, hide the thumbnail and user selection when loading an
     // unimodal query.

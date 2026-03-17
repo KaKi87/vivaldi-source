@@ -13,22 +13,23 @@ namespace direct_match {
 class DirectMatchService;
 
 class DirectMatchServiceFactory : public ProfileKeyedServiceFactoryIOS {
-public:
+ public:
   static DirectMatchService* GetForProfile(ProfileIOS* profile);
   static DirectMatchService* GetForProfileIfExists(ProfileIOS* profile);
   static DirectMatchServiceFactory* GetInstance();
 
-private:
+ private:
   friend class base::NoDestructor<DirectMatchServiceFactory>;
 
   DirectMatchServiceFactory();
   ~DirectMatchServiceFactory() override;
   DirectMatchServiceFactory(const DirectMatchServiceFactory&) = delete;
-  DirectMatchServiceFactory& operator=(const DirectMatchServiceFactory&) = delete;
+  DirectMatchServiceFactory& operator=(const DirectMatchServiceFactory&) =
+      delete;
 
   // ProfileKeyedServiceFactoryIOS implementation.
   std::unique_ptr<KeyedService> BuildServiceInstanceFor(
-       ProfileIOS* profile) const override;
+      ProfileIOS* profile) const override;
 };
 
 }  // namespace direct_match

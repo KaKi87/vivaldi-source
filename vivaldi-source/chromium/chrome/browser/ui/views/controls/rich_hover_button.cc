@@ -22,6 +22,7 @@
 #include "ui/views/border.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/table_layout.h"
+#include "ui/views/metadata/view_factory.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/style/typography_provider.h"
 #include "ui/views/view_class_properties.h"
@@ -127,7 +128,7 @@ std::u16string_view RichHoverButton::GetTitleText() const {
 }
 
 void RichHoverButton::SetTitleText(std::u16string_view title_text) {
-  title_->SetText(std::u16string(title_text));
+  title_->SetText(title_text);
   UpdateAccessibleName();
 }
 
@@ -174,7 +175,7 @@ void RichHoverButton::SetSubtitleText(std::u16string_view subtitle_text) {
       subtitle_->SetAutoColorReadabilityEnabled(false);
       base::Extend(subtitle_row_views_, AddFillerViews(children().size()));
     }
-    subtitle_->SetText(std::u16string(subtitle_text));
+    subtitle_->SetText(subtitle_text);
   }
   RecreateLayout();
   UpdateAccessibleName();

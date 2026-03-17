@@ -152,7 +152,6 @@ def get_common_properties(os, clang, rbe_project, remote_jobs):
             "enable_cloud_monitoring": True,
             "enable_cloud_profiler": True,
             "enable_cloud_trace": True,
-            "metrics_project": "chromium-reclient-metrics",
             "project": rbe_project,
         },
     }
@@ -160,7 +159,6 @@ def get_common_properties(os, clang, rbe_project, remote_jobs):
         reclient_props = {
             "instance": rbe_project,
             "jobs": remote_jobs,
-            "metrics_project": "chromium-reclient-metrics",
             "scandeps_server": True,
         }
         properties["$build/reclient"] = reclient_props
@@ -438,16 +436,36 @@ luci.console_view_entry(
 # * win-msvc-rel-x64
 #   * dawn-cq-win-x64-msvc-rel
 
-dawn_cmake_standalone_builder("cmake-linux-clang-dbg-x64", clang = True, debug = True, cpu = "x64", asan = False, ubsan = False)
-dawn_cmake_standalone_builder("cmake-linux-clang-dbg-x64-asan", clang = True, debug = True, cpu = "x64", asan = True, ubsan = False)
-dawn_cmake_standalone_builder("cmake-linux-clang-dbg-x64-ubsan", clang = True, debug = True, cpu = "x64", asan = False, ubsan = True)
-dawn_cmake_standalone_builder("cmake-linux-clang-rel-x64", clang = True, debug = False, cpu = "x64", asan = False, ubsan = False)
-dawn_cmake_standalone_builder("cmake-linux-clang-rel-x64-asan", clang = True, debug = False, cpu = "x64", asan = True, ubsan = False)
-dawn_cmake_standalone_builder("cmake-linux-clang-rel-x64-ubsan", clang = True, debug = False, cpu = "x64", asan = False, ubsan = True)
-dawn_cmake_standalone_builder("cmake-mac-dbg", clang = True, debug = True, cpu = "x64", asan = False, ubsan = False, experimental = False)
-dawn_cmake_standalone_builder("cmake-mac-rel", clang = True, debug = False, cpu = "x64", asan = False, ubsan = False, experimental = False)
+# The following CMake builders have been replaced with functionally equivalent
+# ones defined using chromium-luci code. See crbug.com/459517292.
+# * cmake-linux-clang-dbg-x64
+#   * dawn-linux-x64-sws-cmake-dbg
+#   * dawn-cq-linux-x64-sws-cmake-dbg
+# * cmake-linux-clang-rel-x64-asan
+#   * dawn-linux-x64-sws-cmake-asan
+#   * dawn-cq-linux-x64-sws-cmake-asan
+# * cmake-linux-clang-rel-x64-ubsan
+#   * dawn-linux-x64-sws-cmake-asan
+#   * dawn-cq-linux-x64-sws-cmake-asan
+# * cmake-linux-clang-rel-x64
+#   * dawn-linux-x64-sws-cmake-rel
+#   * dawn-cq-linux-x64-sws-cmake-rel
+# * cmake-mac-dbg
+#   * dawn-mac-x64-sws-cmake-dbg
+#   * dawn-cq-mac-x64-sws-cmake-rel
+# * cmake-mac-rel
+#   * dawn-mac-x64-sws-cmake-rel
+#   * dawn-cq-mac-x64-sws-cmake-rel
+# * cmake-win-msvc-rel-x64
+#   * dawn-win-x64-sws-msvc-cmake-rel
+#   * dawn-cq-win-x64-msvc-cmake-rel
+
+# The following CMake builders have been removed due to deciding that they were
+# not providing value in go/dawn-standalone-builders-dd.
+# * cmake-linux-clang-dbg-x64-asan
+# * cmake-linux-clang-dbg-x64-ubsan
+
 dawn_cmake_standalone_builder("cmake-win-msvc-dbg-x64", clang = False, debug = True, cpu = "x64", asan = False, ubsan = False)
-dawn_cmake_standalone_builder("cmake-win-msvc-rel-x64", clang = False, debug = False, cpu = "x64", asan = False, ubsan = False)
 
 clang_tidy_dawn_tryjob()
 

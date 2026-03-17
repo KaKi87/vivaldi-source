@@ -19,7 +19,7 @@ namespace {
 bool IsPathSafe(const std::string& path) {
   for (size_t i = 0; i < path.size(); ++i) {
     // Prevent '..' in the url.
-    if (i > 0 && path[i] == '.' && path[i-1] == '.')
+    if (i > 0 && path[i] == '.' && path[i - 1] == '.')
       return false;
 
     // Prevent passing '.' character by %-notation
@@ -29,8 +29,7 @@ bool IsPathSafe(const std::string& path) {
   return true;
 }
 
-} // namespace
-
+}  // namespace
 
 void SetVivaldiPathRequestFilter(::content::WebUIDataSource* source,
                                  const std::string& subdir_name) {
@@ -95,8 +94,8 @@ void SetVivaldiPathRequestFilter(::content::WebUIDataSource* source,
           subdir_name));
 }
 
-void RegisterVivaldiWebIU(::content::WebUIConfigMap &map) {
+void RegisterVivaldiWebIU(::content::WebUIConfigMap& map) {
   map.AddWebUIConfig(std::make_unique<VivaldiProfilePickerUIConfig>());
 }
 
-} // namespace vivaldi
+}  // namespace vivaldi

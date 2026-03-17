@@ -6,6 +6,7 @@
 
 #include <string>
 
+#include "base/check_deref.h"
 #include "build/build_config.h"
 #include "ui/gfx/switches.h"
 
@@ -36,30 +37,6 @@
 namespace headless {
 
 namespace {
-const char kNewHeadlessModeSwitchValue[] = "new";
-const char kOldHeadlessModeSwitchValue[] = "old";
-
-enum HeadlessMode {
-  kNoHeadlessMode,
-  kOldHeadlessMode,
-  kNewHeadlessMode,
-  kDefaultHeadlessMode = kNewHeadlessMode
-};
-
-HeadlessMode GetHeadlessMode() {
-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  if (!command_line->HasSwitch(switches::kHeadless))
-    return kNoHeadlessMode;
-
-  std::string switch_value =
-      command_line->GetSwitchValueASCII(switches::kHeadless);
-  if (switch_value == kOldHeadlessModeSwitchValue)
-    return kOldHeadlessMode;
-  if (switch_value == kNewHeadlessModeSwitchValue)
-    return kNewHeadlessMode;
-
-  return kDefaultHeadlessMode;
-}
 
 class HeadlessModeHandleImpl : public HeadlessModeHandle {
  public:
@@ -83,30 +60,31 @@ class HeadlessModeHandleImpl : public HeadlessModeHandle {
  private:
   // Returns error text if failed.
   std::string SetUpCommandLine() {
-    base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
+    base::CommandLine& command_line =
+        CHECK_DEREF(base::CommandLine::ForCurrentProcess());
 
     // Default to incognito mode unless it is forced or user data directory is
     // explicitly specified.
-    if (!command_line->HasSwitch(::switches::kIncognito) &&
-        !command_line->HasSwitch(::switches::kUserDataDir)) {
-      command_line->AppendSwitch(::switches::kIncognito);
+    if (!command_line.HasSwitch(::switches::kIncognito) &&
+        !command_line.HasSwitch(::switches::kUserDataDir)) {
+      command_line.AppendSwitch(::switches::kIncognito);
     }
 
     // Enable unattended mode.
-    if (!command_line->HasSwitch(::switches::kNoErrorDialogs)) {
-      command_line->AppendSwitch(::switches::kNoErrorDialogs);
+    if (!command_line.HasSwitch(::switches::kNoErrorDialogs)) {
+      command_line.AppendSwitch(::switches::kNoErrorDialogs);
     }
 
     // Disable first run user experience.
-    if (!command_line->HasSwitch(::switches::kNoFirstRun)) {
-      command_line->AppendSwitch(::switches::kNoFirstRun);
+    if (!command_line.HasSwitch(::switches::kNoFirstRun)) {
+      command_line.AppendSwitch(::switches::kNoFirstRun);
     }
 
     // Excplicitely specify unique user data dir because if there is no one
     // provided, Chrome will fall back to the default one which will prevent
     // parallel headless processes execution, see https://crbug.com/1477376.
-    if (!command_line->HasSwitch(::switches::kUserDataDir) &&
-        !command_line->HasSwitch(::switches::kProcessType)) {
+    if (!command_line.HasSwitch(::switches::kUserDataDir) &&
+        !command_line.HasSwitch(::switches::kProcessType)) {
       if (std::string error = CreateUniqueUserDataDir(); !error.empty()) {
         return error;
       }
@@ -114,25 +92,25 @@ class HeadlessModeHandleImpl : public HeadlessModeHandle {
       if (!base::DirectoryExists(user_data_dir)) {
         return "Missing headless user data directory.";
       }
-      command_line->AppendSwitchPath(switches::kUserDataDir, user_data_dir);
+      command_line.AppendSwitchPath(switches::kUserDataDir, user_data_dir);
     }
 
 #if BUILDFLAG(IS_LINUX)
     // Headless mode on Linux relies on ozone/headless platform.
-    command_line->AppendSwitchASCII(::switches::kOzonePlatform,
-                                    switches::kHeadless);
-    if (!command_line->HasSwitch(switches::kScreenInfo) &&
-        !command_line->HasSwitch(switches::kOzoneOverrideScreenSize)) {
-      command_line->AppendSwitchASCII(switches::kOzoneOverrideScreenSize,
-                                      "800,600");
+    command_line.AppendSwitchASCII(::switches::kOzonePlatform,
+                                   switches::kHeadless);
+    if (!command_line.HasSwitch(switches::kScreenInfo) &&
+        !command_line.HasSwitch(switches::kOzoneOverrideScreenSize)) {
+      command_line.AppendSwitchASCII(switches::kOzoneOverrideScreenSize,
+                                     "800,600");
     }
 
     // If Ozone/Headless is enabled, Vulkan initialization crashes unless
     // Angle implementation is specified explicitly.
-    if (!command_line->HasSwitch(switches::kUseGL) &&
-        !command_line->HasSwitch(switches::kUseANGLE) &&
-        !command_line->HasSwitch(switches::kEnableGPU)) {
-      command_line->AppendSwitchASCII(
+    if (!command_line.HasSwitch(switches::kUseGL) &&
+        !command_line.HasSwitch(switches::kUseANGLE) &&
+        !command_line.HasSwitch(switches::kEnableGPU)) {
+      command_line.AppendSwitchASCII(
           switches::kUseANGLE, gl::kANGLEImplementationSwiftShaderForWebGLName);
     }
 #endif  // BUILDFLAG(IS_LINUX)
@@ -178,16 +156,15 @@ class HeadlessModeHandleImpl : public HeadlessModeHandle {
 }  // namespace
 
 bool IsHeadlessMode() {
-  return GetHeadlessMode() == kNewHeadlessMode;
-}
-
-bool IsOldHeadlessMode() {
-  return GetHeadlessMode() == kOldHeadlessMode;
+  const base::CommandLine& command_line =
+      CHECK_DEREF(base::CommandLine::ForCurrentProcess());
+  return command_line.HasSwitch(switches::kHeadless);
 }
 
 bool IsChromeSchemeUrlAllowed() {
-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  return command_line->HasSwitch(switches::kAllowChromeSchemeUrl);
+  const base::CommandLine& command_line =
+      CHECK_DEREF(base::CommandLine::ForCurrentProcess());
+  return command_line.HasSwitch(switches::kAllowChromeSchemeUrl);
 }
 
 base::expected<std::unique_ptr<HeadlessModeHandle>, std::string>
@@ -205,17 +182,6 @@ namespace headless {
 
 bool IsHeadlessMode() {
   return false;
-}
-
-bool IsOldHeadlessMode() {
-  // In addition to Linux, Windows and Mac (which are handled above),
-  // the old headless mode is also supported on ChromeOS, see chrome_main.cc.
-#if BUILDFLAG(IS_CHROMEOS)
-  base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  return command_line->HasSwitch(switches::kHeadless);
-#else
-  return false;
-#endif
 }
 
 bool IsChromeSchemeUrlAllowed() {

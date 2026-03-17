@@ -2,7 +2,7 @@
 #define EXTENSIONS_HELPER_VIVALDI_TAB_UTILS_H_
 
 namespace content {
-  class WebContents;
+class WebContents;
 }
 
 class TabStripModel;
@@ -30,9 +30,9 @@ enum struct TabType {
 
 struct TabInfo {
   int tab_id = -1;
-  content::WebContents * web_contents = nullptr;
-  Browser * browser = nullptr;
-  TabStripModel * tab_strip = nullptr;
+  content::WebContents* web_contents = nullptr;
+  Browser* browser = nullptr;
+  TabStripModel* tab_strip = nullptr;
   int index = -1;
   TabType type = TabType::NOT_SET;
 };
@@ -40,8 +40,8 @@ struct TabInfo {
 bool IsPanel(TabType type);
 bool IsPage(TabType type);
 bool IsWidget(TabType type);
-TabType GetVivaldiPanelType(content::WebContents *);
+TabType GetVivaldiPanelType(content::WebContents*);
 
-} // namespace vivaldi
+}  // namespace vivaldi
 
-#endif // EXTENSIONS_HELPER_VIVALDI_TAB_UTILS_H_
+#endif  // EXTENSIONS_HELPER_VIVALDI_TAB_UTILS_H_

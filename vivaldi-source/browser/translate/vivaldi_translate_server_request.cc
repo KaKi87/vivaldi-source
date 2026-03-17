@@ -93,7 +93,8 @@ void VivaldiTranslateServerRequest::StartRequest(
   // See
   // https://chromium.googlesource.com/chromium/src/+/lkgr/docs/network_traffic_annotations.md
   net::NetworkTrafficAnnotationTag traffic_annotation =
-      net::DefineNetworkTrafficAnnotation("vivaldi_translate_server_request", R"(
+      net::DefineNetworkTrafficAnnotation("vivaldi_translate_server_request",
+                                          R"(
         semantics {
           sender: "Vivaldi Translate Server Request"
           description: "Translate text to a specific language."
@@ -140,8 +141,7 @@ void VivaldiTranslateServerRequest::AbortRequest() {
 }
 
 void VivaldiTranslateServerRequest::OnRequestResponse(
-    std::unique_ptr<std::string> response_body) {
-
+    std::optional<std::string> response_body) {
   if (!response_body || response_body->empty()) {
     LOG(WARNING) << "Translate from server "
                  << " failed with error " << url_loader_->NetError();
@@ -153,16 +153,16 @@ void VivaldiTranslateServerRequest::OnRequestResponse(
     std::optional<base::Value> json =
         base::JSONReader::Read(*response_body, options);
     if (json) {
-      const base::Value::List* translated_values;
-      const base::Value::List* source_values;
+      const base::ListValue* translated_values;
+      const base::ListValue* source_values;
       if (json->is_dict()) {
         std::vector<std::string> translated_strings;
         std::vector<std::string> source_strings;
         /*
           Typical error, check for that first:
           {
-            "message": "Both or one lang is invalid - source: [object Object], target: en",
-            "code": "INVALID_LANG_CODE"
+            "message": "Both or one lang is invalid - source: [object Object],
+          target: en", "code": "INVALID_LANG_CODE"
           }
           {
             "message": "Unable to recognize source language",

@@ -109,6 +109,7 @@
 #include "components/crash/core/app/crash_switches.h"
 #include "components/crash/core/app/run_as_crashpad_handler_win.h"
 #include "content/public/common/content_switches.h"
+#include "services/webnn/buildflags.h"
 #include "url/gurl.h"
 
 #if BUILDFLAG(CLANG_PROFILING)
@@ -117,6 +118,10 @@
 
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
 #include "chrome/installer/util/google_update_util.h"
+#endif
+
+#if BUILDFLAG(WEBNN_INSTALL_RUNTIME_IN_CHROME_INSTALLER)
+#include "chrome/installer/setup/install_win_app_runtime.h"
 #endif
 
 using installer::InitialPreferences;
@@ -467,7 +472,7 @@ installer::InstallStatus RenameChromeExecutables(
                              *installer_state, setup_exe, install_list.get());
 
   // Add work items to delete Chrome's "opv", "cpv", and "cmd" values.
-  // TODO(grt): Clean this up; https://crbug.com/577816.
+  // TODO(grt): Clean this up; https://crbug.com/40452395.
   const HKEY reg_root = installer_state->root_key();
   const std::wstring clients_key = install_static::GetClientsKeyPath();
 
@@ -1324,6 +1329,14 @@ InstallStatus InstallProductsHelper(InstallationState& original_state,
             app_guid, base::UTF8ToWide(installer_version->GetString()));
       }
     }
+
+#if BUILDFLAG(WEBNN_INSTALL_RUNTIME_IN_CHROME_INSTALLER)
+    // Triggers the installation of Windows App Runtime for WebNN support on
+    // Windows 11 version 24H2 or later.
+    MaybeTriggerWinAppRuntimeInstallation(
+        system_install, installer_state.target_path().AppendASCII(
+                            installer_version->GetString()));
+#endif
   }
 
   // temp_path's dtor will take care of deleting or scheduling itself for
@@ -1607,9 +1620,9 @@ int WINAPI wWinMain(HINSTANCE instance,
                     int show_command) {
   const auto process_exit_code = SetupMain();
 
-  // https://crbug.com/896565: Graceful shutdown sometimes fails for reasons out
-  // of the installer's control. Crashes from such failures are inactionable, so
-  // terminate the process forthwith. Do not use
+  // https://crbug.com/40092754: Graceful shutdown sometimes fails for reasons
+  // out of the installer's control. Crashes from such failures are
+  // inactionable, so terminate the process forthwith. Do not use
   // base::Process::TerminateCurrentProcessImmediately because it will crash the
   // process with int 3 in cases where ::TerminateProcess returns; see
   // https://crbug.com/1489598. It is better for the installer to try to return

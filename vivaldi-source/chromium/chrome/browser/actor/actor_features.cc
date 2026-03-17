@@ -73,6 +73,9 @@ BASE_FEATURE_PARAM(bool,
                    "include_hardcoded_block_list_entries",
                    true);
 
+BASE_FEATURE(kGlicRecordNavigationConfirmationRequestMetrics,
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
 BASE_FEATURE(kGlicEnableAutoLoginDialogs, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kGlicEnableAutoLoginPersistedPermissions,
@@ -102,6 +105,8 @@ BASE_FEATURE(kGlicNavigateWithoutUserGesture, base::FEATURE_ENABLED_BY_DEFAULT);
 // performAction return first when a task is stopped or paused.
 BASE_FEATURE(kGlicPerformActionsReturnsBeforeStateChange,
              base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kGlicEarlyAddTaskTabs, base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kGlicSkipBeforeUnloadDialogAndNavigate,
              base::FEATURE_DISABLED_BY_DEFAULT);
@@ -141,5 +146,8 @@ BASE_FEATURE(kActorRestartObservationDelayControllerOnNavigate,
 
 BASE_FEATURE(kActorSendBrowserSignalForAction,
              base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kGlicActorLoadAndExtractContentTool,
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 }  // namespace actor

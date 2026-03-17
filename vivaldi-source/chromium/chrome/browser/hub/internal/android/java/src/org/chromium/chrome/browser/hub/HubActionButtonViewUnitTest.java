@@ -36,7 +36,8 @@ import org.robolectric.ParameterizedRobolectricTestRunner.Parameter;
 import org.robolectric.ParameterizedRobolectricTestRunner.Parameters;
 
 import org.chromium.base.DeviceInfo;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.test.BaseRobolectricTestRule;
 import org.chromium.base.test.util.Features;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
@@ -80,7 +81,7 @@ public class HubActionButtonViewUnitTest {
     private Button mActionButton;
     private PropertyModel mPropertyModel;
     private HubColorMixer mColorMixer;
-    private ObservableSupplierImpl<Pane> mFocusedPaneSupplier;
+    private MonotonicObservableSupplier<Pane> mFocusedPaneSupplier;
 
     @Before
     public void setUp() throws Exception {
@@ -98,13 +99,11 @@ public class HubActionButtonViewUnitTest {
         FrameLayout toolbarContainer = (FrameLayout) inflater.inflate(layoutId, null, false);
         mActionButton = toolbarContainer.findViewById(R.id.toolbar_action_button);
 
-        mFocusedPaneSupplier = new ObservableSupplierImpl<>();
+        mFocusedPaneSupplier = ObservableSuppliers.alwaysNull();
         mColorMixer =
                 spy(
                         new HubColorMixerImpl(
-                                mActivity,
-                                new ObservableSupplierImpl<>(true),
-                                mFocusedPaneSupplier));
+                                mActivity, ObservableSuppliers.alwaysTrue(), mFocusedPaneSupplier));
         mPropertyModel =
                 new PropertyModel.Builder(HubActionButtonProperties.ALL_ACTION_BUTTON_KEYS)
                         .with(ACTION_BUTTON_VISIBLE, true)
@@ -117,7 +116,7 @@ public class HubActionButtonViewUnitTest {
     private FullButtonData makeTestButtonData() {
         DisplayButtonData displayButtonData =
                 new ResourceButtonData(
-                        R.string.button_new_tab, R.string.button_new_tab, R.drawable.ic_add);
+                        R.string.button_new_tab, R.string.button_new_tab, R.drawable.ic_add_24dp);
         return new DelegateButtonData(displayButtonData, mOnButton);
     }
 

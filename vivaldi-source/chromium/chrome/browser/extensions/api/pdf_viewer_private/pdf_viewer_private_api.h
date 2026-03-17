@@ -111,6 +111,26 @@ class PdfViewerPrivateSetPdfPluginAttributesFunction
   ResponseAction Run() override;
 };
 
+#if 0
+class PdfViewerPrivateGlicSummarizeFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("pdfViewerPrivate.glicSummarize",
+                             PDFVIEWERPRIVATE_GLICSUMMARIZE)
+
+  PdfViewerPrivateGlicSummarizeFunction();
+  PdfViewerPrivateGlicSummarizeFunction(
+      const PdfViewerPrivateGlicSummarizeFunction&) = delete;
+  PdfViewerPrivateGlicSummarizeFunction& operator=(
+      const PdfViewerPrivateGlicSummarizeFunction&) = delete;
+
+ protected:
+  ~PdfViewerPrivateGlicSummarizeFunction() override;
+
+  // Override from ExtensionFunction:
+  ResponseAction Run() override;
+};
+#endif
+
 }  // namespace extensions
 
 #endif  // CHROME_BROWSER_EXTENSIONS_API_PDF_VIEWER_PRIVATE_PDF_VIEWER_PRIVATE_API_H_

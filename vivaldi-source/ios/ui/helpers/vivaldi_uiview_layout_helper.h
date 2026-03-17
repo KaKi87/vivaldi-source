@@ -5,12 +5,12 @@
 
 #import <UIKit/UIKit.h>
 
-@interface UIView(VivaldiLayout)
+@interface UIView (VivaldiLayout)
 
-#pragma mark:- SETTERS
+#pragma mark :- SETTERS
 /// Applies constraint to the view with passed anchors alongside padding and
 /// size
-- (void) anchorTop:(NSLayoutYAxisAnchor*)top
+- (void)anchorTop:(NSLayoutYAxisAnchor*)top
           leading:(NSLayoutXAxisAnchor*)leading
            bottom:(NSLayoutYAxisAnchor*)bottom
          trailing:(NSLayoutXAxisAnchor*)trailing
@@ -19,14 +19,14 @@
 
 /// Applies constraint to the view with passed anchors.
 /// The default padding is zero and size is not affected.
-- (void) anchorTop:(NSLayoutYAxisAnchor*)top
+- (void)anchorTop:(NSLayoutYAxisAnchor*)top
           leading:(NSLayoutXAxisAnchor*)leading
            bottom:(NSLayoutYAxisAnchor*)bottom
          trailing:(NSLayoutXAxisAnchor*)trailing;
 
 /// Applies constraint to the view with passed anchors with padding.
 /// Size is not affected.
-- (void) anchorTop:(NSLayoutYAxisAnchor*)top
+- (void)anchorTop:(NSLayoutYAxisAnchor*)top
           leading:(NSLayoutXAxisAnchor*)leading
            bottom:(NSLayoutYAxisAnchor*)bottom
          trailing:(NSLayoutXAxisAnchor*)trailing
@@ -34,58 +34,56 @@
 
 /// Applies constraint to the view with passed anchors with size.
 /// The default padding is zero.
-- (void) anchorTop:(NSLayoutYAxisAnchor*)top
+- (void)anchorTop:(NSLayoutYAxisAnchor*)top
           leading:(NSLayoutXAxisAnchor*)leading
            bottom:(NSLayoutYAxisAnchor*)bottom
          trailing:(NSLayoutXAxisAnchor*)trailing
              size:(CGSize)size;
 
 /// The child view takes the size of the parent view with user provided padding.
-- (void) fillSuperviewWithPadding:(UIEdgeInsets)padding;
+- (void)fillSuperviewWithPadding:(UIEdgeInsets)padding;
 /// The child view takes the size of the parent view without padding.
 /// The default padding is zero.
-- (void) fillSuperview;
+- (void)fillSuperview;
 /// The child view follows the safe area insets in all side with user provided
 /// padding.
-- (void) fillSuperviewToSafeAreaInsetWithPadding:(UIEdgeInsets)padding;
+- (void)fillSuperviewToSafeAreaInsetWithPadding:(UIEdgeInsets)padding;
 /// The child view follows the safe area insets in all side without padding.
 /// The default padding is zero.
-- (void) fillSuperviewToSafeAreaInset;
+- (void)fillSuperviewToSafeAreaInset;
 
 /// The child view placed in the center of the superview with user provided
 /// size.
-- (void) centerInSuperviewWithSize:(CGSize)size;
+- (void)centerInSuperviewWithSize:(CGSize)size;
 /// The child view placed in the center of the superview. The size is calculated
 /// from the constaints of the
 /// child view of this view.
-- (void) centerInSuperview;
+- (void)centerInSuperview;
 
 /// Center the view horizontally within the superview
-- (void) centerXInSuperview;
+- (void)centerXInSuperview;
 /// Center the view vertically within the superview
-- (void) centerYInSuperview;
+- (void)centerYInSuperview;
 /// Center the view with respect to a given value
-- (void) centerToView:(UIView*)view;
+- (void)centerToView:(UIView*)view;
 /// Center the view horizontally with respect to a given value
-- (void) centerXToView:(UIView*)view;
+- (void)centerXToView:(UIView*)view;
 /// Center the view vertically with respect to a given value
-- (void) centerYToView:(UIView*)view;
+- (void)centerYToView:(UIView*)view;
 
 /// Match the constraints of a given view
-- (void) matchToView:(UIView*)view;
+- (void)matchToView:(UIView*)view;
 /// Match the constraints of a given view with provided padding.
-- (void) matchToView:(UIView*)view
-             padding:(UIEdgeInsets)padding;
+- (void)matchToView:(UIView*)view padding:(UIEdgeInsets)padding;
 
 /// Set width for a view
-- (void) setWidthWithConstant:(CGFloat)constant;
+- (void)setWidthWithConstant:(CGFloat)constant;
 /// Set height for a view
-- (void) setHeightWithConstant:(CGFloat)constant;
+- (void)setHeightWithConstant:(CGFloat)constant;
 /// Set size for a view
-- (void) setViewSize:(CGSize)size;
+- (void)setViewSize:(CGSize)size;
 
-
-#pragma mark:- GETTERS
+#pragma mark :- GETTERS
 /// Returns safe top anchor
 - (NSLayoutYAxisAnchor*)safeTopAnchor;
 /// Returns safe leading/left anchor

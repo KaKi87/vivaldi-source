@@ -18,7 +18,8 @@
 #define HOSTNAME_404 "return-404.vivaldi.com"
 #define KNOWN_404(path) "https://" HOSTNAME_404 path
 
-#define VIVALDI_HELP_SETTINGS_ABOUT "https://help.vivaldi.com/?pk_campaign=v-menu"
+#define VIVALDI_HELP_SETTINGS_ABOUT \
+  "https://help.vivaldi.com/?pk_campaign=v-menu"
 #define VIVALDI_HELP_PRIVACY_ABOUT_UNSAFE \
   "https://help.vivaldi.com/desktop/privacy/warnings-about-unsafe-websites/"
 #define VIVALDI_CRASH_REPORT_UPLOAD_URL "https://crash.vivaldi.com/submit"
@@ -65,6 +66,8 @@ extern const char kSparkleLastCheckTimeSettingName[];
 
 inline constexpr int kVivaldiCrashLoopDetectionTimeoutInSeconds = 10;
 
+// Defines the URL of Kagi search.
+constexpr char kVivaldiKagiURL[] = "https://kagi.com";
 constexpr char kVivaldiSiteSettingsURL[] = "vivaldi://settings/privacy";
 
 }  // namespace vivaldi

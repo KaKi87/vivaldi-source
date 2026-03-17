@@ -3,8 +3,8 @@
 #import "ios/ui/settings/pagezoom/dialog/vivaldi_pagezoom_view_controller.h"
 
 #import "base/strings/sys_string_conversions.h"
-#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/shared/public/commands/text_zoom_commands.h"
+#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/ui/ntp/vivaldi_ntp_constants.h"
 #import "ui/base/l10n/l10n_util.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
@@ -30,23 +30,23 @@ const CGFloat kDividerTopPadding = 15.0;
 const CGFloat kSettingsButtonTopPadding = 15.0;
 
 // Icons
-NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
+NSString* fallbackIcon = @"vivaldi_ntp_fallback_favicon";
 }  // namespace
 
 @interface VivaldiPageZoomViewController ()
 
-@property (nonatomic, strong) UIImageView *iconImageView;
-@property (nonatomic, strong) UILabel *titleLabel;
-@property (nonatomic, strong) UILabel *zoomLabel;
-@property (nonatomic, strong) UIButton *resetButton;
-@property (nonatomic, strong) UIButton *minusButton;
-@property (nonatomic, strong) UIButton *plusButton;
-@property (nonatomic, strong) UIButton *doneButton;
-@property (nonatomic, strong) UIView *contentView;
-@property (nonatomic, strong) UIView *dividerView;
-@property (nonatomic, strong) UIView *dividerLine;
-@property (nonatomic, strong) UIButton *openZoomSettingsButton;
-@property (nonatomic, strong) NSLayoutConstraint *contentsTopConstraint;
+@property(nonatomic, strong) UIImageView* iconImageView;
+@property(nonatomic, strong) UILabel* titleLabel;
+@property(nonatomic, strong) UILabel* zoomLabel;
+@property(nonatomic, strong) UIButton* resetButton;
+@property(nonatomic, strong) UIButton* minusButton;
+@property(nonatomic, strong) UIButton* plusButton;
+@property(nonatomic, strong) UIButton* doneButton;
+@property(nonatomic, strong) UIView* contentView;
+@property(nonatomic, strong) UIView* dividerView;
+@property(nonatomic, strong) UIView* dividerLine;
+@property(nonatomic, strong) UIButton* openZoomSettingsButton;
+@property(nonatomic, strong) NSLayoutConstraint* contentsTopConstraint;
 @end
 
 @implementation VivaldiPageZoomViewController
@@ -64,7 +64,7 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
   // Configure rounded corners only at bottom
   self.view.layer.cornerRadius = kCornerRadius;
   self.view.layer.maskedCorners =
-    kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
+      kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
 
   // Add shadow
   self.view.layer.shadowColor = [UIColor blackColor].CGColor;
@@ -72,7 +72,8 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
   self.view.layer.shadowRadius = kShadowRadius;
   self.view.layer.shadowOpacity = kShadowOpacity;
 
-  // Important: Set masksToBounds to NO on the main layer to allow shadow to show
+  // Important: Set masksToBounds to NO on the main layer to allow shadow to
+  // show
   self.view.layer.masksToBounds = NO;
 
   // Add a content view inside main view to handle the corner masking
@@ -80,21 +81,20 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
   self.contentView.backgroundColor = [UIColor colorNamed:vNTPBackgroundColor];
   self.contentView.layer.cornerRadius = kCornerRadius;
   self.contentView.layer.maskedCorners =
-    kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
+      kCALayerMinXMaxYCorner | kCALayerMaxXMaxYCorner;
   self.contentView.layer.masksToBounds = YES;
   self.contentView.translatesAutoresizingMaskIntoConstraints = NO;
   [self.view addSubview:self.contentView];
 
   // Pin content view to main view edges
   [NSLayoutConstraint activateConstraints:@[
-    [self.contentView.topAnchor
-      constraintEqualToAnchor:self.view.topAnchor],
+    [self.contentView.topAnchor constraintEqualToAnchor:self.view.topAnchor],
     [self.contentView.leadingAnchor
-      constraintEqualToAnchor:self.view.leadingAnchor],
+        constraintEqualToAnchor:self.view.leadingAnchor],
     [self.contentView.trailingAnchor
-      constraintEqualToAnchor:self.view.trailingAnchor],
+        constraintEqualToAnchor:self.view.trailingAnchor],
     [self.contentView.bottomAnchor
-      constraintEqualToAnchor:self.view.bottomAnchor],
+        constraintEqualToAnchor:self.view.bottomAnchor],
   ]];
 
   [self setupUI];
@@ -107,25 +107,26 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
 
 // Add support for orientation changes
 - (void)viewWillTransitionToSize:(CGSize)size
-       withTransitionCoordinator:(
-         id<UIViewControllerTransitionCoordinator>
-       )coordinator {
+       withTransitionCoordinator:
+           (id<UIViewControllerTransitionCoordinator>)coordinator {
   [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
 
   // Update shadow path for new size
-  [coordinator animateAlongsideTransition:
-    ^(id<UIViewControllerTransitionCoordinatorContext> context) {
-    // Update shadow path if needed
-    [self updateShadowPathForSize:size];
-  } completion:nil];
+  [coordinator
+      animateAlongsideTransition:^(
+          id<UIViewControllerTransitionCoordinatorContext> context) {
+        // Update shadow path if needed
+        [self updateShadowPathForSize:size];
+      }
+                      completion:nil];
 }
 
 // Helper method to update shadow path
 - (void)updateShadowPathForSize:(CGSize)size {
   CGRect shadowRect =
-    CGRectMake(0, 0, MIN(size.width, kMaxDialogWidth), size.height);
+      CGRectMake(0, 0, MIN(size.width, kMaxDialogWidth), size.height);
   self.view.layer.shadowPath =
-    [UIBezierPath bezierPathWithRect:shadowRect].CGPath;
+      [UIBezierPath bezierPathWithRect:shadowRect].CGPath;
 }
 
 - (void)viewDidLayoutSubviews {
@@ -150,7 +151,7 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
 - (void)setupUI {
   // Icon
   self.iconImageView =
-    [[UIImageView alloc] initWithImage: [UIImage imageNamed:fallbackIcon]];
+      [[UIImageView alloc] initWithImage:[UIImage imageNamed:fallbackIcon]];
   self.iconImageView.contentMode = UIViewContentModeScaleAspectFit;
   self.iconImageView.translatesAutoresizingMaskIntoConstraints = NO;
   [self.contentView addSubview:self.iconImageView];
@@ -162,11 +163,11 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
   [self.contentView addSubview:self.titleLabel];
 
   // Reset Button
-  NSString *resetTitle = GetNSString(IDS_IOS_PAGEZOOM_SETTING_RESET_TITLE);
+  NSString* resetTitle = GetNSString(IDS_IOS_PAGEZOOM_SETTING_RESET_TITLE);
   self.resetButton = [UIButton buttonWithType:UIButtonTypeSystem];
   [self.resetButton setTitle:resetTitle forState:UIControlStateNormal];
   self.resetButton.titleLabel.font =
-    [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+      [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   self.resetButton.titleLabel.adjustsFontForContentSizeCategory = YES;
   self.resetButton.translatesAutoresizingMaskIntoConstraints = NO;
   [self.resetButton addTarget:self.zoomHandler
@@ -181,15 +182,16 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
   [self.contentView addSubview:self.dividerLine];
 
   // Open Zoom Settings Button
-  NSString *settingTitle =
-    GetNSString(IDS_IOS_PAGEZOOM_OPEN_ZOOM_SETTING_BUTTON);
+  NSString* settingTitle =
+      GetNSString(IDS_IOS_PAGEZOOM_OPEN_ZOOM_SETTING_BUTTON);
   self.openZoomSettingsButton = [UIButton buttonWithType:UIButtonTypeSystem];
-  [self.openZoomSettingsButton
-    setTitle:settingTitle forState:UIControlStateNormal];
+  [self.openZoomSettingsButton setTitle:settingTitle
+                               forState:UIControlStateNormal];
   self.openZoomSettingsButton.titleLabel.font =
-    [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
-  self.openZoomSettingsButton.titleLabel.adjustsFontForContentSizeCategory=YES;
-  self.openZoomSettingsButton.translatesAutoresizingMaskIntoConstraints=NO;
+      [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+  self.openZoomSettingsButton.titleLabel.adjustsFontForContentSizeCategory =
+      YES;
+  self.openZoomSettingsButton.translatesAutoresizingMaskIntoConstraints = NO;
   [self.openZoomSettingsButton addTarget:self
                                   action:@selector(openZoomSettingsTapped)
                         forControlEvents:UIControlEventTouchUpInside];
@@ -207,7 +209,7 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
   self.minusButton = [UIButton buttonWithType:UIButtonTypeSystem];
   [self.minusButton setTitle:@"−" forState:UIControlStateNormal];
   self.minusButton.titleLabel.font =
-    [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+      [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   self.minusButton.titleLabel.adjustsFontForContentSizeCategory = YES;
   self.minusButton.translatesAutoresizingMaskIntoConstraints = NO;
   [self.minusButton addTarget:self.zoomHandler
@@ -219,7 +221,7 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
   self.plusButton = [UIButton buttonWithType:UIButtonTypeSystem];
   [self.plusButton setTitle:@"+" forState:UIControlStateNormal];
   self.plusButton.titleLabel.font =
-    [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+      [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   self.plusButton.titleLabel.adjustsFontForContentSizeCategory = YES;
   self.plusButton.translatesAutoresizingMaskIntoConstraints = NO;
   [self.plusButton addTarget:self.zoomHandler
@@ -228,11 +230,11 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
   [self.contentView addSubview:self.plusButton];
 
   // Done Button
-  NSString *doneTitle = GetNSString(IDS_IOS_PAGEZOOM_SETTING_DONE_TITLE);
+  NSString* doneTitle = GetNSString(IDS_IOS_PAGEZOOM_SETTING_DONE_TITLE);
   self.doneButton = [UIButton buttonWithType:UIButtonTypeSystem];
   [self.doneButton setTitle:doneTitle forState:UIControlStateNormal];
   self.doneButton.titleLabel.font =
-    [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+      [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   self.doneButton.titleLabel.adjustsFontForContentSizeCategory = YES;
   self.doneButton.translatesAutoresizingMaskIntoConstraints = NO;
   [self.doneButton addTarget:self
@@ -257,88 +259,90 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
   [NSLayoutConstraint activateConstraints:@[
     self.contentsTopConstraint,
     [self.iconImageView.trailingAnchor
-      constraintEqualToAnchor:self.titleLabel.leadingAnchor
-                     constant:-kIconTitleSpacing],
+        constraintEqualToAnchor:self.titleLabel.leadingAnchor
+                       constant:-kIconTitleSpacing],
     [self.iconImageView.widthAnchor constraintEqualToConstant:kIconSize],
     [self.iconImageView.heightAnchor constraintEqualToConstant:kIconSize],
 
     [self.titleLabel.centerYAnchor
-      constraintEqualToAnchor:self.iconImageView.centerYAnchor],
+        constraintEqualToAnchor:self.iconImageView.centerYAnchor],
     [self.titleLabel.centerXAnchor
-      constraintEqualToAnchor:self.contentView.centerXAnchor]
+        constraintEqualToAnchor:self.contentView.centerXAnchor]
   ]];
 
   // Reset Button
   [NSLayoutConstraint activateConstraints:@[
     [self.resetButton.topAnchor
-      constraintEqualToAnchor:self.iconImageView.bottomAnchor
-                    constant:kTopPadding],
+        constraintEqualToAnchor:self.iconImageView.bottomAnchor
+                       constant:kTopPadding],
     [self.resetButton.leadingAnchor
-      constraintEqualToAnchor:self.contentView.safeAreaLayoutGuide.leadingAnchor
-                     constant:kHorizontalPadding]
+        constraintEqualToAnchor:self.contentView.safeAreaLayoutGuide
+                                    .leadingAnchor
+                       constant:kHorizontalPadding]
   ]];
 
   // Divider Line
   [NSLayoutConstraint activateConstraints:@[
     [self.dividerLine.topAnchor
-      constraintEqualToAnchor:self.resetButton.bottomAnchor
-                     constant:kDividerTopPadding],
+        constraintEqualToAnchor:self.resetButton.bottomAnchor
+                       constant:kDividerTopPadding],
     [self.dividerLine.leadingAnchor
-      constraintEqualToAnchor:
-        self.contentView.safeAreaLayoutGuide.leadingAnchor],
+        constraintEqualToAnchor:self.contentView.safeAreaLayoutGuide
+                                    .leadingAnchor],
     [self.dividerLine.trailingAnchor
-      constraintEqualToAnchor:
-        self.contentView.safeAreaLayoutGuide.trailingAnchor],
+        constraintEqualToAnchor:self.contentView.safeAreaLayoutGuide
+                                    .trailingAnchor],
     [self.dividerLine.heightAnchor constraintEqualToConstant:kDividerHeight]
   ]];
 
   // Open Zoom Settings Button
   [NSLayoutConstraint activateConstraints:@[
     [self.openZoomSettingsButton.topAnchor
-      constraintEqualToAnchor:self.dividerLine.bottomAnchor
-                     constant:kSettingsButtonTopPadding],
+        constraintEqualToAnchor:self.dividerLine.bottomAnchor
+                       constant:kSettingsButtonTopPadding],
     [self.openZoomSettingsButton.leadingAnchor
-      constraintEqualToAnchor:self.contentView.safeAreaLayoutGuide.leadingAnchor
-                     constant:kHorizontalPadding]
+        constraintEqualToAnchor:self.contentView.safeAreaLayoutGuide
+                                    .leadingAnchor
+                       constant:kHorizontalPadding]
   ]];
 
   // Zoom Label
   [NSLayoutConstraint activateConstraints:@[
     [self.zoomLabel.centerYAnchor
-      constraintEqualToAnchor:self.resetButton.centerYAnchor],
+        constraintEqualToAnchor:self.resetButton.centerYAnchor],
     [self.zoomLabel.centerXAnchor
-      constraintEqualToAnchor:self.contentView.centerXAnchor]
+        constraintEqualToAnchor:self.contentView.centerXAnchor]
   ]];
 
   // Minus and Plus Buttons
   [NSLayoutConstraint activateConstraints:@[
     [self.minusButton.centerYAnchor
-      constraintEqualToAnchor:self.zoomLabel.centerYAnchor],
+        constraintEqualToAnchor:self.zoomLabel.centerYAnchor],
     [self.minusButton.trailingAnchor
-      constraintEqualToAnchor:self.zoomLabel.leadingAnchor
-                     constant:-kButtonSpacing],
+        constraintEqualToAnchor:self.zoomLabel.leadingAnchor
+                       constant:-kButtonSpacing],
 
     [self.plusButton.centerYAnchor
-      constraintEqualToAnchor:self.zoomLabel.centerYAnchor],
+        constraintEqualToAnchor:self.zoomLabel.centerYAnchor],
     [self.plusButton.leadingAnchor
-      constraintEqualToAnchor:self.zoomLabel.trailingAnchor
-                     constant:kButtonSpacing]
+        constraintEqualToAnchor:self.zoomLabel.trailingAnchor
+                       constant:kButtonSpacing]
   ]];
 
   // Done Button
   [NSLayoutConstraint activateConstraints:@[
     [self.doneButton.centerYAnchor
-      constraintEqualToAnchor:self.resetButton.centerYAnchor],
+        constraintEqualToAnchor:self.resetButton.centerYAnchor],
     [self.doneButton.trailingAnchor
-      constraintEqualToAnchor:
-        self.contentView.safeAreaLayoutGuide.trailingAnchor
-      constant:-kHorizontalPadding]
+        constraintEqualToAnchor:self.contentView.safeAreaLayoutGuide
+                                    .trailingAnchor
+                       constant:-kHorizontalPadding]
   ]];
 
   [NSLayoutConstraint activateConstraints:@[
     [self.openZoomSettingsButton.bottomAnchor
-      constraintEqualToAnchor:self.contentView.bottomAnchor
-                     constant:-kBottomPadding]
+        constraintEqualToAnchor:self.contentView.bottomAnchor
+                       constant:-kBottomPadding]
   ]];
 }
 
@@ -351,7 +355,7 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
 - (void)openZoomSettingsTapped {
   // Check if the delegate have showVivaldiPageZoomSettings method
   if ([self.settingsDelegate
-        respondsToSelector:@selector(showVivaldiPageZoomSettings)]) {
+          respondsToSelector:@selector(showVivaldiPageZoomSettings)]) {
     // Call the delegate to show zoom settings
     [self.settingsDelegate showVivaldiPageZoomSettings];
   }
@@ -376,22 +380,22 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
 }
 
 - (void)setCurrentHostURL:(NSString*)host {
-  NSString *fullText = l10n_util::GetNSStringF(
-      IDS_IOS_PAGEZOOM_SETTING_HOST_TITLE,
-      base::SysNSStringToUTF16(host));
-  NSMutableAttributedString *attributedString =
+  NSString* fullText = l10n_util::GetNSStringF(
+      IDS_IOS_PAGEZOOM_SETTING_HOST_TITLE, base::SysNSStringToUTF16(host));
+  NSMutableAttributedString* attributedString =
       [[NSMutableAttributedString alloc] initWithString:fullText];
 
   // Get the body font descriptor and create a bold version
-  UIFontDescriptor *bodyDescriptor =
-    [UIFontDescriptor preferredFontDescriptorWithTextStyle:UIFontTextStyleBody];
-  UIFont *boldFont =
-    [UIFont systemFontOfSize:bodyDescriptor.pointSize weight:UIFontWeightBold];
+  UIFontDescriptor* bodyDescriptor = [UIFontDescriptor
+      preferredFontDescriptorWithTextStyle:UIFontTextStyleBody];
+  UIFont* boldFont = [UIFont systemFontOfSize:bodyDescriptor.pointSize
+                                       weight:UIFontWeightBold];
 
   // Apply bold font to the domain part
   NSRange hostRange = [fullText rangeOfString:host];
   [attributedString addAttribute:NSFontAttributeName
-                           value:boldFont range:hostRange];
+                           value:boldFont
+                           range:hostRange];
 
   self.titleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   self.titleLabel.adjustsFontForContentSizeCategory = YES;
@@ -410,8 +414,9 @@ NSString *fallbackIcon = @"vivaldi_ntp_fallback_favicon";
   // Update shadow color based on interface style
   self.view.layer.shadowColor = [UIColor blackColor].CGColor;
   self.view.layer.shadowOpacity =
-    self.traitCollection.userInterfaceStyle ==
-      UIUserInterfaceStyleDark ? kShadowOpacityDark : kShadowOpacity;
+      self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark
+          ? kShadowOpacityDark
+          : kShadowOpacity;
 }
 
 @end

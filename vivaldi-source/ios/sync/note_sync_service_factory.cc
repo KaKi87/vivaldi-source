@@ -11,7 +11,7 @@ namespace vivaldi {
 
 // static
 sync_notes::NoteSyncService* NoteSyncServiceFactory::GetForProfile(
-   ProfileIOS* profile) {
+    ProfileIOS* profile) {
   return GetInstance()->GetServiceForProfileAs<sync_notes::NoteSyncService>(
       profile, /*create=*/true);
 }

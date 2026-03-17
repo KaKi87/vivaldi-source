@@ -84,8 +84,12 @@ namespace signin {
 class IdentityManager;
 }  // namespace signin
 
+namespace skills {
+class SkillsService;
+}  // namespace skills
+
 namespace supervised_user {
-class SupervisedUserSettingsService;
+class FamilyLinkSettingsService;
 }  // namespace supervised_user
 
 namespace sync_bookmarks {
@@ -172,6 +176,7 @@ class CommonControllerBuilder {
   void SetIdentityManager(signin::IdentityManager* identity_manager);
   void SetDataTypeStoreService(
       syncer::DataTypeStoreService* data_type_store_service);
+  void SetSkillsService(skills::SkillsService* skills_service);
 
 #if !BUILDFLAG(IS_ANDROID)
   void SetPasskeyModel(webauthn::PasskeyModel* passkey_model);
@@ -204,9 +209,8 @@ class CommonControllerBuilder {
   void SetSharingMessageBridge(SharingMessageBridge* sharing_message_bridge);
 
 #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
-  void SetSupervisedUserSettingsService(
-      supervised_user::SupervisedUserSettingsService*
-          supervised_user_settings_service);
+  void SetFamilyLinkSettingsService(
+      supervised_user::FamilyLinkSettingsService* family_link_settings_service);
 #endif  // BUILDFLAG(ENABLE_SUPERVISED_USERS)
 
   void SetTabGroupSyncService(
@@ -306,8 +310,8 @@ class CommonControllerBuilder {
   SafeOptional<raw_ptr<sync_bookmarks::BookmarkSyncService>>
       account_bookmark_sync_service_;
   SafeOptional<raw_ptr<bookmarks::BookmarkModel>> bookmark_model_;
-  SafeOptional<raw_ptr<supervised_user::SupervisedUserSettingsService>>
-      supervised_user_settings_service_;
+  SafeOptional<raw_ptr<supervised_user::FamilyLinkSettingsService>>
+      family_link_settings_service_;
   SafeOptional<raw_ptr<plus_addresses::PlusAddressSettingService>>
       plus_address_setting_service_;
   SafeOptional<scoped_refptr<plus_addresses::PlusAddressWebDataService>>
@@ -324,6 +328,7 @@ class CommonControllerBuilder {
   SafeOptional<raw_ptr<tab_groups::TabGroupSyncService>>
       tab_group_sync_service_;
   SafeOptional<raw_ptr<TemplateURLService>> template_url_service_;
+  SafeOptional<raw_ptr<skills::SkillsService>> skills_service_;
 
   // Vivaldi
   SafeOptional<raw_ptr<sync_notes::NoteSyncService>> note_sync_service_;

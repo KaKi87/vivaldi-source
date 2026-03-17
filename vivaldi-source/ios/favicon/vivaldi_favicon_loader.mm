@@ -9,8 +9,8 @@
 #include "base/logging.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/strings/sys_string_conversions.h"
-#include "components/favicon_base/favicon_types.h"
 #include "components/favicon/core/fallback_url_util.h"
+#include "components/favicon_base/favicon_types.h"
 #include "ios/chrome/common/ui/favicon/favicon_attributes.h"
 #include "ios/favicon/vivaldi_favicon_service.h"
 #include "ui/gfx/image/image.h"
@@ -92,8 +92,7 @@ VivaldiFaviconLoader::CreateLargeIconResultToAttributesCallback(
     bool cached) {
   return base::BindOnce(
       [](FaviconAttributesCompletionBlock completion, bool cached,
-         const GURL& icon_url,
-         const favicon_base::LargeIconResult& result) {
+         const GURL& icon_url, const favicon_base::LargeIconResult& result) {
         FaviconAttributes* attributes =
             CreateValidatedFaviconAttributes(icon_url, result);
         RunCompletion(completion, attributes, cached);
@@ -111,8 +110,8 @@ void VivaldiFaviconLoader::RequestFaviconWithMode(
   // Consider responses cached unless explicitly forcing
   // a fresh download.
   bool cached = options != VivaldiFaviconOptions::kAlwaysFresh;
-  auto callback = CreateLargeIconResultToAttributesCallback(
-      icon_url, completion, cached);
+  auto callback =
+      CreateLargeIconResultToAttributesCallback(icon_url, completion, cached);
   service_method(options, std::move(callback));
 }
 
@@ -201,9 +200,8 @@ void VivaldiFaviconLoader::GetLargeIconRawBitmapOrFallbackStyleForPageUrl(
     float min_size_in_points,
     float size_in_points,
     FaviconAttributesCompletionBlock completion) {
-  auto cpp_callback = CreateLargeIconResultToAttributesCallback(page_url,
-                                                                completion,
-                                                                false);
+  auto cpp_callback =
+      CreateLargeIconResultToAttributesCallback(page_url, completion, false);
 
   service_->GetLargeIconRawBitmapOrFallbackStyleForPageUrl(
       page_url, PointsToPixels(min_size_in_points),
@@ -214,9 +212,8 @@ void VivaldiFaviconLoader::GetIconRawBitmapOrFallbackStyleForPageUrl(
     const GURL& page_url,
     float size_in_points,
     FaviconAttributesCompletionBlock completion) {
-  auto cpp_callback = CreateLargeIconResultToAttributesCallback(page_url,
-                                                                completion,
-                                                                false);
+  auto cpp_callback =
+      CreateLargeIconResultToAttributesCallback(page_url, completion, false);
 
   service_->GetIconRawBitmapOrFallbackStyleForPageUrl(
       page_url, PointsToPixels(size_in_points), std::move(cpp_callback));
@@ -227,9 +224,8 @@ void VivaldiFaviconLoader::GetLargeIconRawBitmapOrFallbackStyleForIconUrl(
     float min_size_in_points,
     float size_in_points,
     FaviconAttributesCompletionBlock completion) {
-  auto cpp_callback = CreateLargeIconResultToAttributesCallback(icon_url,
-                                                                completion,
-                                                                false);
+  auto cpp_callback =
+      CreateLargeIconResultToAttributesCallback(icon_url, completion, false);
 
   service_->GetLargeIconRawBitmapOrFallbackStyleForIconUrl(
       icon_url, PointsToPixels(min_size_in_points),

@@ -8,7 +8,7 @@
 class PrefRegistrySimple;
 
 // Class to store and manage the prefs for the panels.
-@interface PanelPrefs: NSObject
+@interface PanelPrefs : NSObject
 
 /// Registers the local preferences.
 + (void)registerLocalStatePrefs:(PrefRegistrySimple*)registry;

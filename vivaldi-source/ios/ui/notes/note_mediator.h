@@ -15,7 +15,7 @@ namespace user_prefs {
 class PrefRegistrySyncable;
 }  // namespace user_prefs
 
-class GURL; // TODO
+class GURL;  // TODO
 @class MDCSnackbarMessage;
 @class URLWithTitle;
 
@@ -23,8 +23,7 @@ class GURL; // TODO
 @interface NoteMediator : NSObject
 
 - (instancetype)init NS_UNAVAILABLE;
-- (instancetype)initWithProfile:(ProfileIOS*)profile
-    NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithProfile:(ProfileIOS*)profile NS_DESIGNATED_INITIALIZER;
 
 // Registers the feature preferences.
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry;

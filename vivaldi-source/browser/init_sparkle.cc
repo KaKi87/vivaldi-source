@@ -28,12 +28,14 @@ namespace {
 const char kVivaldiAppCastUrl[] =
 #if defined(OFFICIAL_BUILD) && \
     (UPDATE_SOURCE_WIN(VIVALDI_RELEASE) == UPDATE_PREVIEW_SOURCE_WINDOWS)
-#define WIN_ARM64_APPCAST_URL "https://update.vivaldi.com/update/1.0/public/appcast.arm64.xml"
-#define WIN_X64_APPCAST_URL "https://update.vivaldi.com/update/1.0/public/appcast.x64.xml"
+#define WIN_ARM64_APPCAST_URL \
+  "https://update.vivaldi.com/update/1.0/public/appcast.arm64.xml"
+#define WIN_X64_APPCAST_URL \
+  "https://update.vivaldi.com/update/1.0/public/appcast.x64.xml"
 // This is the public TP/Beta/Final release channel
 #if BUILDFLAG(IS_MAC)
     "https://update.vivaldi.com/update/1.0/public/mac/appcast.xml";
-#elif defined(_WIN64)  && defined(_M_ARM64)
+#elif defined(_WIN64) && defined(_M_ARM64)
     WIN_ARM64_APPCAST_URL;
 #elif defined(_WIN64)
     WIN_X64_APPCAST_URL;
@@ -42,8 +44,10 @@ const char kVivaldiAppCastUrl[] =
 #endif
 #elif defined(OFFICIAL_BUILD)
 // This is the public snapshot release channel
-#define WIN_ARM64_APPCAST_URL "https://update.vivaldi.com/update/1.0/win/appcast.arm64.xml"
-#define WIN_X64_APPCAST_URL "https://update.vivaldi.com/update/1.0/win/appcast.x64.xml"
+#define WIN_ARM64_APPCAST_URL \
+  "https://update.vivaldi.com/update/1.0/win/appcast.arm64.xml"
+#define WIN_X64_APPCAST_URL \
+  "https://update.vivaldi.com/update/1.0/win/appcast.x64.xml"
 #if BUILDFLAG(IS_MAC)
     "https://update.vivaldi.com/update/1.0/snapshot/mac/appcast.xml";
 #elif defined(_WIN64) && defined(_M_ARM64)
@@ -55,8 +59,10 @@ const char kVivaldiAppCastUrl[] =
 #endif
 #else
 // This is the internal sopranos release channel
-#define WIN_ARM64_APPCAST_URL "https://update.vivaldi.com/update/1.0/sopranos_new/appcast.arm64.xml"
-#define WIN_X64_APPCAST_URL "https://update.vivaldi.com/update/1.0/sopranos_new/appcast.x64.xml"
+#define WIN_ARM64_APPCAST_URL \
+  "https://update.vivaldi.com/update/1.0/sopranos_new/appcast.arm64.xml"
+#define WIN_X64_APPCAST_URL \
+  "https://update.vivaldi.com/update/1.0/sopranos_new/appcast.x64.xml"
 #if BUILDFLAG(IS_MAC)
     "https://update.vivaldi.com/update/1.0/sopranos_new/mac/appcast.xml";
 #elif defined(_WIN64) && defined(_M_ARM64)
@@ -80,21 +86,25 @@ GURL GetAppcastUrl() {
   // Check if win64 is running on arm64
   if (base::win::OSInfo::GetInstance()->IsWowAMD64OnARM64()) {
     url = GURL(WIN_ARM64_APPCAST_URL);
-    LOG(ERROR) << "Sparkle: x64 is running on arm64: Appcast changed from win64 to arm64 variant " << url.possibly_invalid_spec();
+    LOG(ERROR) << "Sparkle: x64 is running on arm64: Appcast changed from "
+                  "win64 to arm64 variant "
+               << url.possibly_invalid_spec();
   }
-#else // End Win x64
+#else   // End Win x64
   // Check if win32 is running in Win64 or on an Arm64 device
   if (base::win::OSInfo::GetInstance()->IsWowX86OnAMD64()) {
     url = GURL(WIN_X64_APPCAST_URL);
-    LOG(ERROR) << "Sparkle: x86 is running on arm64: Appcast changed from win32 to win64 variant "
+    LOG(ERROR) << "Sparkle: x86 is running on arm64: Appcast changed from "
+                  "win32 to win64 variant "
                << url.possibly_invalid_spec();
   } else if (base::win::OSInfo::GetInstance()->IsWowX86OnARM64()) {
     url = GURL(WIN_ARM64_APPCAST_URL);
-    LOG(ERROR) << "Sparkle: x86 is running on arm64: Appcast changed from win32 to win-arm64 variant "
+    LOG(ERROR) << "Sparkle: x86 is running on arm64: Appcast changed from "
+                  "win32 to win-arm64 variant "
                << url.possibly_invalid_spec();
   }
-#endif // End Win32
-#endif // End Windows mode check
+#endif  // End Win32
+#endif  // End Windows mode check
 
   DCHECK(url.is_valid());
 

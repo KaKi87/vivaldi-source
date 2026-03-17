@@ -2,10 +2,10 @@
 
 #import "ios/ui/site_tracker_prefs/vivaldi_site_tracker_prefs_coordinator.h"
 
-#import "ios/chrome/browser/page_info/ui_bundled/page_info_presentation_commands.h"
-#import "ios/chrome/browser/page_info/ui_bundled/page_info_security_coordinator.h"
-#import "ios/chrome/browser/page_info/ui_bundled/page_info_site_security_description.h"
-#import "ios/chrome/browser/page_info/ui_bundled/page_info_site_security_mediator.h"
+#import "ios/chrome/browser/page_info/coordinator/page_info_security_coordinator.h"
+#import "ios/chrome/browser/page_info/coordinator/page_info_site_security_mediator.h"
+#import "ios/chrome/browser/page_info/ui/page_info_presentation_commands.h"
+#import "ios/chrome/browser/page_info/ui/page_info_site_security_description.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/url/chrome_url_constants.h"
@@ -24,11 +24,11 @@
 #import "ui/base/l10n/l10n_util.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-@interface VivaldiSiteTrackerPrefsCoordinator()
-                              <PageInfoCommands,
-                              PageInfoPresentationCommands,
-                              UIAdaptivePresentationControllerDelegate,
-                              VivaldiSiteTrackerPrefsViewPresentationDelegate> {
+@interface VivaldiSiteTrackerPrefsCoordinator () <
+    PageInfoCommands,
+    PageInfoPresentationCommands,
+    UIAdaptivePresentationControllerDelegate,
+    VivaldiSiteTrackerPrefsViewPresentationDelegate> {
   // Coordinator for the security screen.
   PageInfoSecurityCoordinator* _securityCoordinator;
   PageInfoSiteSecurityDescription* _siteSecurityDescription;
@@ -66,22 +66,22 @@
   web::WebState* webState =
       self.browser->GetWebStateList()->GetActiveWebState();
   _siteSecurityDescription =
-      [PageInfoSiteSecurityMediator
-          configurationForWebState:webState];
+      [PageInfoSiteSecurityMediator configurationForWebState:webState];
 
-  UINavigationController* navigationController =
-      [[UINavigationController alloc]
-          initWithRootViewController:self.controller];
+  UINavigationController* navigationController = [[UINavigationController alloc]
+      initWithRootViewController:self.controller];
   navigationController.presentationController.delegate = self;
   self.navigationController = navigationController;
 
   UISheetPresentationController* sheetPc =
       navigationController.sheetPresentationController;
   if (IsSplitToolbarMode(self.baseViewController)) {
-    sheetPc.detents = @[UISheetPresentationControllerDetent.mediumDetent,
-                        UISheetPresentationControllerDetent.largeDetent];
+    sheetPc.detents = @[
+      UISheetPresentationControllerDetent.mediumDetent,
+      UISheetPresentationControllerDetent.largeDetent
+    ];
   } else {
-    sheetPc.detents = @[UISheetPresentationControllerDetent.largeDetent];
+    sheetPc.detents = @[ UISheetPresentationControllerDetent.largeDetent ];
   }
   sheetPc.prefersScrollingExpandsWhenScrolledToEdge = NO;
   sheetPc.widthFollowsPreferredContentSizeWhenEdgeAttached = YES;
@@ -133,15 +133,14 @@
   VivaldiATBSettingsViewController* settingsController =
       [[VivaldiATBSettingsViewController alloc]
           initWithBrowser:self.browser
-              title:settingsTitleString];
-  [self.navigationController
-      pushViewController:settingsController animated:YES];
+                    title:settingsTitleString];
+  [self.navigationController pushViewController:settingsController
+                                       animated:YES];
 }
 
 - (void)handleDoneButtonTap {
   [self stop];
-  [self.baseViewController dismissViewControllerAnimated:YES
-                                              completion:nil];
+  [self.baseViewController dismissViewControllerAnimated:YES completion:nil];
 }
 
 #pragma mark - VivaldiSiteTrackerPrefsViewPresentationDelegate
@@ -158,11 +157,10 @@
 #pragma mark - PageInfoPresentationCommands
 
 - (void)showSecurityPage {
-  _securityCoordinator =
-      [[PageInfoSecurityCoordinator alloc]
-          initWithBaseNavigationController:self.navigationController
-              browser:self.browser
-                  siteSecurityDescription:_siteSecurityDescription];
+  _securityCoordinator = [[PageInfoSecurityCoordinator alloc]
+      initWithBaseNavigationController:self.navigationController
+                               browser:self.browser
+               siteSecurityDescription:_siteSecurityDescription];
   _securityCoordinator.pageInfoPresentationHandler = self;
   _securityCoordinator.pageInfoCommandsHandler = self;
   _securityCoordinator.openedViaSiteTrackerPrefModal = YES;

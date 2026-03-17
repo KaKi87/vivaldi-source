@@ -10,7 +10,6 @@ import {
   CONSOLE_TAB_SELECTOR,
   focusConsolePrompt,
 } from '../helpers/console-helpers.js';
-import {triggerLocalFindDialog} from '../helpers/memory-helpers.js';
 import {
   clickInfobarButton,
   getAllRequestNames,
@@ -31,8 +30,8 @@ const configureAndCheckHeaderOverrides = async (devToolsPage: DevToolsPage, insp
   await devToolsPage.click('#tab-headers-component', {
     root: networkView,
   });
-  await devToolsPage.waitFor('#tab-headers-component[role=tab][aria-selected=true]', networkView);
-  let responseHeaderSection = await devToolsPage.waitFor('[aria-label="Response Headers"]', networkView);
+  await devToolsPage.waitFor('#tab-headers-component.tabbed-pane-header-tab[aria-selected=true]', networkView);
+  let responseHeaderSection = await devToolsPage.waitFor('[aria-label="Response headers"]', networkView);
 
   let row = await devToolsPage.waitFor('.row', responseHeaderSection);
   assert.deepEqual(await getTextFromHeadersRow(row, devToolsPage), [
@@ -57,13 +56,13 @@ const configureAndCheckHeaderOverrides = async (devToolsPage: DevToolsPage, insp
   ]);
 
   await navigateToNetworkTab('hello.html', devToolsPage, inspectedPage);
-  await selectRequestByName('hello.html', {devToolsPage});
+  await selectRequestByName('hello.html', {}, devToolsPage);
   networkView = await devToolsPage.waitFor('.network-item-view');
   await devToolsPage.click('#tab-headers-component', {
     root: networkView,
   });
 
-  responseHeaderSection = await devToolsPage.waitFor('[aria-label="Response Headers"]');
+  responseHeaderSection = await devToolsPage.waitFor('[aria-label="Response headers"]');
   row = await devToolsPage.waitFor('.row.header-overridden', responseHeaderSection);
   assert.deepEqual(await getTextFromHeadersRow(row, devToolsPage), ['cache-control', 'Foo']);
 };
@@ -78,11 +77,11 @@ describe('The Network Request view', () => {
 
        await waitForSomeRequestsToAppear(SIMPLE_PAGE_REQUEST_NUMBER + 1, devToolsPage);
 
-       await selectRequestByName('image.svg?id=0', {devToolsPage});
+       await selectRequestByName('image.svg?id=0', {}, devToolsPage);
        let networkView = await devToolsPage.waitFor('.network-item-view');
        await devToolsPage.clickMoreTabsButton(networkView);
        await devToolsPage.click('[aria-label=Timing]');
-       await devToolsPage.waitFor('[aria-label=Timing][role=tab][aria-selected=true]', networkView);
+       await devToolsPage.waitFor('[aria-label=Timing].tabbed-pane-header-tab[aria-selected=true]', networkView);
 
        await devToolsPage.click(CONSOLE_TAB_SELECTOR);
        await focusConsolePrompt(devToolsPage);
@@ -91,7 +90,7 @@ describe('The Network Request view', () => {
        await devToolsPage.waitFor('.network-log-grid');
 
        networkView = await devToolsPage.waitFor('.network-item-view');
-       const selectedTabHeader = await devToolsPage.waitFor('[role=tab][aria-selected=true]', networkView);
+       const selectedTabHeader = await devToolsPage.waitFor('.tabbed-pane-header-tab[aria-selected=true]', networkView);
        const selectedTabText = await selectedTabHeader.evaluate(element => element.textContent || '');
 
        assert.strictEqual(selectedTabText, 'Timing');
@@ -120,14 +119,14 @@ describe('The Network Request view', () => {
     const names = await getAllRequestNames(devToolsPage);
     const name = names.find(v => v?.startsWith('data:'));
     assert.isOk(name);
-    await selectRequestByName(name, {devToolsPage});
+    await selectRequestByName(name, {}, devToolsPage);
 
     const styleSrcError = expectError(`Loading the stylesheet '${stylesheet}' violates`);
     const networkView = await devToolsPage.waitFor('.network-item-view');
-    await devToolsPage.click('[aria-label=Preview][role=tab]', {
+    await devToolsPage.click('[aria-label=Preview].tabbed-pane-header-tab', {
       root: networkView,
     });
-    await devToolsPage.waitFor('[aria-label=Preview][role=tab][aria-selected=true]', networkView);
+    await devToolsPage.waitFor('[aria-label=Preview].tabbed-pane-header-tab[aria-selected=true]', networkView);
 
     const frame = await devToolsPage.waitFor('.html-preview-frame');
     const content = await devToolsPage.waitForFunction(async () => (await frame.contentFrame()) ?? undefined);
@@ -155,13 +154,13 @@ describe('The Network Request view', () => {
       const name = names.find(v => v?.startsWith('data:'));
       return name;
     });
-    await selectRequestByName(name, {devToolsPage});
+    await selectRequestByName(name, {}, devToolsPage);
 
     const networkView = await devToolsPage.waitFor('.network-item-view');
-    await devToolsPage.click('[aria-label=Preview][role=tab]', {
+    await devToolsPage.click('[aria-label=Preview].tabbed-pane-header-tab', {
       root: networkView,
     });
-    await devToolsPage.waitFor('[aria-label=Preview][role=tab][aria-selected=true]', networkView);
+    await devToolsPage.waitFor('[aria-label=Preview].tabbed-pane-header-tab[aria-selected=true]', networkView);
 
     const frame = await devToolsPage.waitFor('.html-preview-frame');
     const content = await devToolsPage.waitForFunction(async () => (await frame.contentFrame()) ?? undefined);
@@ -176,13 +175,13 @@ describe('The Network Request view', () => {
     await navigateToNetworkTab('eventstream.html', devToolsPage, inspectedPage);
     await waitForSomeRequestsToAppear(2, devToolsPage);
 
-    await selectRequestByName('event-stream.rawresponse', {devToolsPage});
+    await selectRequestByName('event-stream.rawresponse', {}, devToolsPage);
 
     const networkView = await devToolsPage.waitFor('.network-item-view');
-    await devToolsPage.click('[aria-label=EventStream][role=tab]', {
+    await devToolsPage.click('[aria-label=EventStream].tabbed-pane-header-tab', {
       root: networkView,
     });
-    await devToolsPage.waitFor('[aria-label=EventStream][role=tab][aria-selected=true]', networkView);
+    await devToolsPage.waitFor('[aria-label=EventStream].tabbed-pane-header-tab[aria-selected=true]', networkView);
     return await devToolsPage.waitFor('.event-source-messages-view');
   };
 
@@ -290,13 +289,13 @@ describe('The Network Request view', () => {
 
       await waitForSomeRequestsToAppear(2, devToolsPage);
 
-      await selectRequestByName('localhost', {devToolsPage});
+      await selectRequestByName('localhost', {}, devToolsPage);
 
       const networkView = await devToolsPage.waitFor('.network-item-view');
-      await devToolsPage.click('[aria-label=Messages][role=tab]', {
+      await devToolsPage.click('[aria-label=Messages].tabbed-pane-header-tab', {
         root: networkView,
       });
-      await devToolsPage.waitFor('[aria-label=Messages][role=tab][aria-selected=true]', networkView);
+      await devToolsPage.waitFor('[aria-label=Messages].tabbed-pane-header-tab[aria-selected=true]', networkView);
       return await devToolsPage.waitFor('.resource-chunk-view');
     };
 
@@ -345,13 +344,13 @@ describe('The Network Request view', () => {
 
     await waitForSomeRequestsToAppear(2, devToolsPage);
 
-    await selectRequestByName('image.svg?id=42&param=a%20b', {devToolsPage});
+    await selectRequestByName('image.svg?id=42&param=a%20b', {}, devToolsPage);
 
     const networkView = await devToolsPage.waitFor('.network-item-view');
-    await devToolsPage.click('[aria-label=Headers][role="tab"]', {
+    await devToolsPage.click('[aria-label=Headers].tabbed-pane-header-tab', {
       root: networkView,
     });
-    await devToolsPage.waitFor('[aria-label=Headers][role=tab][aria-selected=true]', networkView);
+    await devToolsPage.waitFor('[aria-label=Headers].tabbed-pane-header-tab[aria-selected=true]', networkView);
     const expectedHeadersContent = [
       {
         aria: 'General',
@@ -369,7 +368,7 @@ describe('The Network Request view', () => {
         ],
       },
       {
-        aria: 'Response Headers',
+        aria: 'Response headers',
         rows: [
           'cache-control',
           'max-age=%',
@@ -436,12 +435,12 @@ describe('The Network Request view', () => {
       assertOutlineMatches(sectionContent.rows, rowsText);
     }
 
-    await devToolsPage.click('[aria-label=Payload][role="tab"]', {
+    await devToolsPage.click('[aria-label=Payload].tabbed-pane-header-tab', {
       root: networkView,
     });
-    await devToolsPage.waitFor('[aria-label=Payload][role=tab][aria-selected=true]', networkView);
+    await devToolsPage.waitFor('[aria-label=Payload].tabbed-pane-header-tab[aria-selected=true]', networkView);
     const payloadView = await devToolsPage.waitFor('.request-payload-view');
-    const payloadOutline = await devToolsPage.$$('[role=treeitem]:not(.hidden)', payloadView);
+    const payloadOutline = await devToolsPage.$$('ol:not(.hidden) > [role=treeitem]:not(.hidden)', payloadView);
     const payloadOutlineText =
         await Promise.all(payloadOutline.map(async item => await item.evaluate(el => el.textContent || '')));
     const expectedPayloadContent = [
@@ -473,14 +472,14 @@ describe('The Network Request view', () => {
 
     await waitForSomeRequestsToAppear(2, devToolsPage);
 
-    await selectRequestByName('image.svg?id=42&param=a%20b', {devToolsPage});
+    await selectRequestByName('image.svg?id=42&param=a%20b', {}, devToolsPage);
 
     const networkView = await devToolsPage.waitFor('.network-item-view');
-    await devToolsPage.click('[aria-label=Headers][role="tab"]', {
+    await devToolsPage.click('[aria-label=Headers].tabbed-pane-header-tab', {
       root: networkView,
     });
-    await devToolsPage.waitFor('[aria-label=Headers][role=tab][aria-selected=true]', networkView);
-    const section = await devToolsPage.waitFor('[aria-label="Response Headers"]');
+    await devToolsPage.waitFor('[aria-label=Headers].tabbed-pane-header-tab[aria-selected=true]', networkView);
+    const section = await devToolsPage.waitFor('[aria-label="Response headers"]');
     await devToolsPage.click('input', {
       root: section,
     });
@@ -570,15 +569,15 @@ describe('The Network Request view', () => {
 
     await waitForSomeRequestsToAppear(3, devToolsPage);
 
-    await selectRequestByName('image.svg?id=42&param=a%20b', {devToolsPage});
+    await selectRequestByName('image.svg?id=42&param=a%20b', {}, devToolsPage);
 
     const networkView = await devToolsPage.waitFor('.network-item-view');
-    await devToolsPage.click('[aria-label=Payload][role="tab"]', {
+    await devToolsPage.click('[aria-label=Payload].tabbed-pane-header-tab', {
       root: networkView,
     });
-    await devToolsPage.waitFor('[aria-label=Payload][role=tab][aria-selected=true]', networkView);
+    await devToolsPage.waitFor('[aria-label=Payload].tabbed-pane-header-tab[aria-selected=true]', networkView);
 
-    await selectRequestByName('image.svg', {devToolsPage});
+    await selectRequestByName('image.svg', {}, devToolsPage);
     await devToolsPage.waitForElementWithTextContent('foogamma');
   });
 
@@ -587,7 +586,7 @@ describe('The Network Request view', () => {
     void inspectedPage.evaluate(() => fetch('image.svg?delay'));
     await waitForSomeRequestsToAppear(2, devToolsPage);
 
-    await selectRequestByName('image.svg?delay', {devToolsPage});
+    await selectRequestByName('image.svg?delay', {}, devToolsPage);
     await inspectedPage.evaluate(async () => await fetch('/?send_delayed'));
   });
 
@@ -595,10 +594,7 @@ describe('The Network Request view', () => {
     await devToolsPage.setupOverridesFSMocks();
     await devToolsPage.useSoftMenu();
     await navigateToNetworkTab('hello.html', devToolsPage, inspectedPage);
-    await selectRequestByName(
-        'hello.html',
-        {button: 'right', devToolsPage},
-    );
+    await selectRequestByName('hello.html', {button: 'right'}, devToolsPage);
 
     await devToolsPage.click('aria/Override headers');
 
@@ -608,7 +604,7 @@ describe('The Network Request view', () => {
   it('can create header overrides via header\'s pencil icon', async ({devToolsPage, inspectedPage}) => {
     await devToolsPage.setupOverridesFSMocks();
     await navigateToNetworkTab('hello.html', devToolsPage, inspectedPage);
-    await selectRequestByName('hello.html', {devToolsPage});
+    await selectRequestByName('hello.html', {}, devToolsPage);
 
     const networkView = await devToolsPage.waitFor('.network-item-view');
     await devToolsPage.click('#tab-headers-component', {
@@ -624,11 +620,11 @@ describe('The Network Request view', () => {
 
     await waitForSomeRequestsToAppear(2, devToolsPage);
 
-    await selectRequestByName('image.svg?id=42&param=a%20b', {devToolsPage});
+    await selectRequestByName('image.svg?id=42&param=a%20b', {}, devToolsPage);
     const SEARCH_QUERY = '[aria-label="Find"]';
     const SEARCH_RESULT = '.search-result';
 
-    await triggerLocalFindDialog(devToolsPage);
+    await devToolsPage.pressKey('f', {control: true});
     await devToolsPage.waitFor(SEARCH_QUERY);
     const inputElement = await devToolsPage.$(SEARCH_QUERY);
     assert.isOk(inputElement, 'Unable to find search input field');
@@ -638,5 +634,94 @@ describe('The Network Request view', () => {
     await devToolsPage.page.keyboard.press('Enter');
 
     await devToolsPage.waitFor(SEARCH_RESULT);
+  });
+
+  describe('preview', () => {
+    async function searchInPreview(devToolsPage: DevToolsPage, query: string, totalMatches: number) {
+      const SEARCH_QUERY = '.search-replace.search';
+
+      await devToolsPage.summonSearchBox();
+      const inputElement = await devToolsPage.waitFor(SEARCH_QUERY);
+      assert.isOk(inputElement, 'Unable to find search input field');
+
+      await inputElement.focus();
+      await inputElement.click({clickCount: 3});  // Select all text.
+      await inputElement.type(query);
+
+      await devToolsPage.waitForFunction(async () => {
+        const searchStatusText = await devToolsPage.getTextContent('.search-results-matches');
+        if (totalMatches > 0) {
+          return searchStatusText.endsWith(`of ${totalMatches}`);
+        }
+        return !searchStatusText;
+      });
+    }
+
+    async function setupPreviewTest(
+        devToolsPage: DevToolsPage, inspectedPage: InspectedPage, url: string, resourceName?: string) {
+      await navigateToNetworkTab('hello.html', devToolsPage, inspectedPage);
+      await inspectedPage.evaluate(url => fetch(url), url);
+      await waitForSomeRequestsToAppear(3, devToolsPage);
+
+      if (!resourceName) {
+        resourceName = url.length > 20 ? url.substring(0, 19) + '…' : url;
+      }
+
+      await selectRequestByName(resourceName, {}, devToolsPage);
+
+      const networkView = await devToolsPage.waitFor('.network-item-view');
+      await devToolsPage.click('[aria-label=Preview].tabbed-pane-header-tab', {
+        root: networkView,
+      });
+      await devToolsPage.waitFor('[aria-label=Preview].tabbed-pane-header-tab[aria-selected=true]', networkView);
+      // Wait for the preview to load.
+      await devToolsPage.click(
+          '.json-view, .shadow-xml-view, devtools-text-editor, .html-preview-frame',
+          {clickOptions: {offset: {x: 10, y: 10}}});
+    }
+
+    it('can be searched for JSON content', async ({devToolsPage, inspectedPage}) => {
+      const url = 'data:application/json,%5B533%2C3223%5D';
+      await setupPreviewTest(devToolsPage, inspectedPage, url);
+
+      await searchInPreview(devToolsPage, '533', 1);
+      await searchInPreview(devToolsPage, '322', 1);
+    });
+
+    it('can be searched for JSON content with special mime type', async ({devToolsPage, inspectedPage}) => {
+      const url = 'data:application/vnd.document+json,%7B%22foo0foo%22%3A%20123%7D';
+      await setupPreviewTest(devToolsPage, inspectedPage, url);
+      await searchInPreview(devToolsPage, 'foo', 1);
+    });
+
+    it('can be searched for XML content', async ({devToolsPage, inspectedPage}) => {
+      const url = 'data:text/xml,%3Cbar%3E%3Cfoo%2F%3Etest%3C%2Fbar%3E';
+      await setupPreviewTest(devToolsPage, inspectedPage, url);
+      await searchInPreview(devToolsPage, 'bar', 2);
+      await searchInPreview(devToolsPage, 'foo', 1);
+      await searchInPreview(devToolsPage, 'test', 1);
+    });
+
+    it('can be searched for XML content with comments', async ({devToolsPage, inspectedPage}) => {
+      const url = 'data:text/xml,%3Cbar%3E%3C!--%20FOO%20--%3E%3C%2Fbar%3E';
+      await setupPreviewTest(devToolsPage, inspectedPage, url);
+      await searchInPreview(devToolsPage, 'FOO', 1);
+      await searchInPreview(devToolsPage, 'bar', 2);
+    });
+
+    it('can be searched for XML content with CDATA', async ({devToolsPage, inspectedPage}) => {
+      const url = 'data:text/xml,%3Ca%3E%3C!%5BCDATA%5BGGG%5D%5D%3E%3Cg%20tee%3D%22gee%22%3Etee%3C%2Fg%3E%3C%2Fa%3E';
+      await setupPreviewTest(devToolsPage, inspectedPage, url);
+      await searchInPreview(devToolsPage, 'GGG', 1);
+      await searchInPreview(devToolsPage, 'tee', 2);
+      await searchInPreview(devToolsPage, 'CDATA', 1);
+    });
+
+    it('can be searched for JSON content with XML mime type', async ({devToolsPage, inspectedPage}) => {
+      const url = 'data:text/xml,%7B%22foo0%22%3A%20%22barr%22%2C%20%22barr%22%3A%20%22fooo%22%7D';
+      await setupPreviewTest(devToolsPage, inspectedPage, url);
+      await searchInPreview(devToolsPage, 'fooo', 1);
+      await searchInPreview(devToolsPage, 'bar', 2);
+    });
   });
 });

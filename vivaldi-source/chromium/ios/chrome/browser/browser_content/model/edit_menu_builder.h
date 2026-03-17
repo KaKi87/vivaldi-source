@@ -1,0 +1,32 @@
+// Copyright 2024 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#ifndef IOS_CHROME_BROWSER_BROWSER_CONTENT_MODEL_EDIT_MENU_BUILDER_H_
+#define IOS_CHROME_BROWSER_BROWSER_CONTENT_MODEL_EDIT_MENU_BUILDER_H_
+
+#import <UIKit/UIKit.h>
+
+namespace web {
+class WebState;
+}
+
+// A protocol to customize the edit menu.
+@protocol EditMenuBuilder <NSObject>
+
+// Customizes the edit menu.
+- (void)buildEditMenuWithBuilder:(id<UIMenuBuilder>)builder
+                      inWebState:(web::WebState*)webState;
+
+// Vivaldi
+@optional
+// Customizes the edit menu when no text selection is available. Used for cases
+// that need to surface actions even when UIKit only shows Paste/AutoFill such
+// as 'Add as Search Engine'
+- (void)buildSelectionlessEditMenuWithBuilder:(id<UIMenuBuilder>)builder
+                                   inWebState:(web::WebState*)webState;
+// End Vivaldi
+
+@end
+
+#endif  // IOS_CHROME_BROWSER_BROWSER_CONTENT_MODEL_EDIT_MENU_BUILDER_H_

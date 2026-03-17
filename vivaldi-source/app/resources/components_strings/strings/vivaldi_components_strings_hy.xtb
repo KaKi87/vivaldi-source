@@ -31,7 +31,7 @@
 <translation id="2224337661447660594">Ինտերնետ չկա</translation>
 <translation id="2283340219607151381">Պահպանել և լրացնել հասցեները</translation>
 <translation id="2292556288342944218">Ձեր մուտքն ինտերնետ արգելափակված է</translation>
-<translation id="2317259163369394535"><ph name="DOMAIN" />-ը պահանջում է օգտվողի անուն և գաղտնաբառ։</translation>
+<translation id="2317259163369394535"><ph name="DOMAIN" />-ը պահանջում է օգտանուն և գաղտնաբառ։</translation>
 <translation id="2337852623177822836">Կարգավորումը կառավարվում է Ձեր ադմինիստրատորի կողմից</translation>
 <translation id="2355395290879513365">Հարձակվողները կարող են տեսնել այս կայքում Ձեզ երևացող պատկերները և փոխել դրանք՝ Ձեզ մոլորեցնելու նպատակով։</translation>
 <translation id="2359808026110333948">Շարունակել</translation>
@@ -75,7 +75,7 @@
 <translation id="3614001939154393113">Հնարավոր է՝ հաքերները փորձում են <ph name="BEGIN_BOLD" /><ph name="SITE" /><ph name="END_BOLD" /> կայքից հափշտակել Ձեր տվյալները (օրինակ՝ գաղտնաբառեր, հաղորդագրություններ կամ բանկային քարտերի տվյալներ): <ph name="BEGIN_LEARN_MORE_LINK" />Իմացեք ավելին այս նախազգուշացման մասին<ph name="END_LEARN_MORE_LINK" /></translation>
 <translation id="3630155396527302611">Եթե ծրագիրն ընդգրկված է այն ծրագրերի ցանկում, որոնց թույլատրված է ցանցից օգտվել,
 փորձեք հեռացնել այն այդ ցանկից և կրկին ավելացնել։</translation>
-<translation id="3658742229777143148">Վերստուգում</translation>
+<translation id="3658742229777143148">Թողարկման տարբերակ</translation>
 <translation id="3681007416295224113">Հավաստագրի տվյալներ</translation>
 <translation id="3717027428350673159"><ph name="BEGIN_LINK" />Ստուգել պրոքսին, հրապատը և DNS-ի կոնֆիգուրացիան<ph name="END_LINK" /></translation>
 <translation id="382518646247711829">Եթե Դուք օգտագործում եք պրոքսի սերվեր…</translation>
@@ -93,8 +93,7 @@
 <translation id="4241830393007970744">Կայքում, որը փորձում եք այցելել, հաքերները կարող են խաբեությամբ Ձեզ ստիպել ծրագրեր տեղադրել կամ բացահայտել այնպիտի տվյալներ, ինչպիսիք են Ձեր գաղտնաբառերը, հեռախոսահամարը, կամ բանկային քարտերի համարները։</translation>
 <translation id="4250431568374086873">Ձեր միացումն այս կայքին լիովին անվտանգ չէ</translation>
 <translation id="4265872034478892965">Թույլատրված է Ձեր ադմինիստրատորի կողմից</translation>
-<translation id="4305666528087210886">Ձեր ֆայլին հնարավոր չէ մոտենալ</translation>
-<translation id="4408413947728134509">Քուքիներ <ph name="NUM_COOKIES" /></translation>
+<translation id="4305666528087210886">Ձեր ֆայլը հասանելի չէ</translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" />-ը չի ընդունել Ձեր մուտքի հավաստագիրը կամ այդպիսին չի տրամադրվել։</translation>
 <translation id="4506599922270137252">Կապվել համակարգի ադմինիստրատորի հետ</translation>
 <translation id="4522570452068850558">Մանրամասներ</translation>
@@ -104,14 +103,13 @@
 <translation id="4701488924964507374"><ph name="SENTENCE1" /> <ph name="SENTENCE2" /></translation>
 <translation id="4708268264240856090">Ձեր միացումն ընդհատվեց</translation>
 <translation id="4722547256916164131"><ph name="BEGIN_LINK" />Աշխատեցնել Windows-ի ցանցային ախտորոշումը<ph name="END_LINK" /></translation>
-<translation id="4744603770635761495">Կատարելի ֆայլի ուղի</translation>
+<translation id="4744603770635761495">Կատարվող ֆայլի ուղի</translation>
 <translation id="4750917950439032686">Ձեր տվյալները (օրինակ՝ գաղտնաբառերը կամ բանկային քարտի համարները), երբ ուղարկվում են այս կայքին, գաղտնի են։</translation>
 <translation id="4764776831041365478"><ph name="URL" /> հասցեով վեբ էջը, հնարավոր է, որ ժամանակավորապես անհասանելի է կամ մշտապես տեղափոխվել է նոր վեբ հասցե։</translation>
 <translation id="483241715238664915">Միացնել զգուշացումները</translation>
 <translation id="4943872375798546930">Արդյունք չկա</translation>
 <translation id="5017554619425969104">Ձեր պատճենած տեքստը</translation>
 <translation id="5023310440958281426">Ստուգեք Ձեր ադմինիստրատորի կողմից սահմանված դրույթները</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(օգտագործվում է 1 հատը)} other {(օգտագործվում է # հատը)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Ստուգել պրոքսի հասցեն<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 բիթ)</translation>
 <translation id="5216942107514965959">Վերջին այցելությունն այսօր</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Դուք չպետք է այս կայքում մուտքագրեք որևէ անձնական տվյալ (օրինակ՝ գաղտնաբառ կամ բանկային քարտի համար), քանի որ հարձակվողներն այն կարող են գողանալ։</translation>
 <translation id="5863515189965725638">Խմբագրել IBAN-ը</translation>
 <translation id="5869405914158311789">Այս կայքն անհասանելի է</translation>
-<translation id="5920262536204764679">{NUM_COOKIES, plural, =1 {1 օգտագործվող} other {# օգտագործվող}}</translation>
 <translation id="5932224571077948991">Կայքը ցույց է տալիս կպչուն կամ մոլորեցնող գովազդ</translation>
 <translation id="6051221802930200923">Դուք այս պահին չեք կարող այցելել <ph name="SITE" />, քանի որ այդ կայքն օգտագործում է Certificate Pinning մեխանիզմը։ Սովորաբար ցանցային սխալներն ու հարձակումները ժամանակավոր են, ուստի միառժամանակ հետո այս էջը հավանաբար կաշխատի։</translation>
 <translation id="6146055958333702838">Ստուգեք մալուխներն ու վերագործարկեք երթուղիչները, մոդեմները
@@ -201,13 +198,13 @@
 <translation id="8332188693563227489">Մուտքը <ph name="HOST_NAME" /> արգելված է</translation>
 <translation id="8473863474539038330">Հասցեներ և ավելին</translation>
 <translation id="8498891568109133222"><ph name="HOST_NAME" /> կայքի պատասխանը շատ է երկարաձգվում։</translation>
-<translation id="8503813439785031346">Օգտվողի անուն</translation>
+<translation id="8503813439785031346">Օգտանուն</translation>
 <translation id="8703575177326907206">Ձեր միացումը <ph name="DOMAIN" />-ի հետ գաղտնագրված չէ։</translation>
 <translation id="8740359287975076522"><ph name="HOST_NAME" />-ի &lt;abbr id="dnsDefinition"&gt;DNS հասցեն&lt;/abbr&gt; գտնել չհաջողվեց։ Կատարվում է խնդրի ախտորոշում։</translation>
 <translation id="8820817407110198400">Էջանիշեր</translation>
 <translation id="8963117664422609631">Անցնել կայքի կարգավորումներին</translation>
 <translation id="8975012916872825179">Ներառում է տվյալներ, ինչպիսիք են հեռախոսահամարները, էլ․ փոստի և առաքման հասցեները</translation>
-<translation id="9001074447101275817"><ph name="DOMAIN" /> պրոքսին պահանջում է օգտվողի անուն և գաղտնաբառ։</translation>
+<translation id="9001074447101275817"><ph name="DOMAIN" /> պրոքսին պահանջում է օգտանուն և գաղտնաբառ։</translation>
 <translation id="9008201768610948239">Անտեսել</translation>
 <translation id="9025348182339809926">(անվավեր)</translation>
 <translation id="9039213469156557790">Բացի այդ, այս էջը պարունակում է ոչ անվտանգ ռեսուրսներ։ Փոխանցվելիս դրանք կարող են դիտվել երրորդ անձանց կողմից, և հարձակվողը կարող է փոփոխել դրանք՝ էջի վարքագիծը փոխելու նպատակով։</translation>

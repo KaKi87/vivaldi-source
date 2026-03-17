@@ -23,32 +23,23 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/android/chrome_jni_headers/DomDistillerTabUtils_jni.h"
 
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
 
 namespace android {
 
 static void JNI_DomDistillerTabUtils_DistillCurrentPageAndViewIfSuccessful(
     JNIEnv* env,
-    const JavaParamRef<jobject>& j_web_contents,
-    const JavaParamRef<jobject>& j_callback) {
+    const JavaRef<jobject>& j_web_contents,
+    base::OnceCallback<void(bool)> callback) {
   content::WebContents* web_contents =
       content::WebContents::FromJavaWebContents(j_web_contents);
-  ::DistillCurrentPageAndViewIfSuccessful(
-      web_contents,
-      base::BindOnce(
-          [](const jni_zero::ScopedJavaGlobalRef<jobject>& callback,
-             bool success) {
-            if (callback) {
-              base::android::RunBooleanCallbackAndroid(callback, success);
-            }
-          },
-          jni_zero::ScopedJavaGlobalRef<jobject>(j_callback)));
+  ::DistillCurrentPageAndViewIfSuccessful(web_contents, std::move(callback));
 }
 
 static void JNI_DomDistillerTabUtils_DistillCurrentPage(
     JNIEnv* env,
-    const JavaParamRef<jobject>& j_source_web_contents) {
+    const JavaRef<jobject>& j_source_web_contents) {
   content::WebContents* source_web_contents =
       content::WebContents::FromJavaWebContents(j_source_web_contents);
   ::DistillCurrentPage(source_web_contents);
@@ -56,8 +47,8 @@ static void JNI_DomDistillerTabUtils_DistillCurrentPage(
 
 static void JNI_DomDistillerTabUtils_DistillAndView(
     JNIEnv* env,
-    const JavaParamRef<jobject>& j_source_web_contents,
-    const JavaParamRef<jobject>& j_destination_web_contents) {
+    const JavaRef<jobject>& j_source_web_contents,
+    const JavaRef<jobject>& j_destination_web_contents) {
   content::WebContents* source_web_contents =
       content::WebContents::FromJavaWebContents(j_source_web_contents);
   content::WebContents* destination_web_contents =
@@ -68,7 +59,7 @@ static void JNI_DomDistillerTabUtils_DistillAndView(
 static std::u16string
 JNI_DomDistillerTabUtils_GetFormattedUrlFromOriginalDistillerUrl(
     JNIEnv* env,
-    const JavaParamRef<jobject>& j_url) {
+    const JavaRef<jobject>& j_url) {
   GURL url = url::GURLAndroid::ToNativeGURL(env, j_url);
 
   if (url.spec().length() > content::kMaxURLDisplayChars)
@@ -83,14 +74,14 @@ JNI_DomDistillerTabUtils_GetFormattedUrlFromOriginalDistillerUrl(
                                   nullptr);
 }
 
-static jint JNI_DomDistillerTabUtils_GetDistillerHeuristics(JNIEnv* env) {
-  return static_cast<jint>(dom_distiller::GetDistillerHeuristicsType());
+static int32_t JNI_DomDistillerTabUtils_GetDistillerHeuristics(JNIEnv* env) {
+  return static_cast<int32_t>(dom_distiller::GetDistillerHeuristicsType());
 }
 
 static void JNI_DomDistillerTabUtils_SetInterceptNavigationDelegate(
     JNIEnv* env,
-    const JavaParamRef<jobject>& delegate,
-    const JavaParamRef<jobject>& j_web_contents) {
+    const JavaRef<jobject>& delegate,
+    const JavaRef<jobject>& j_web_contents) {
   content::WebContents* web_contents =
       content::WebContents::FromJavaWebContents(j_web_contents);
   DCHECK(web_contents);
@@ -102,11 +93,8 @@ static void JNI_DomDistillerTabUtils_SetInterceptNavigationDelegate(
 
 static void JNI_DomDistillerTabUtils_RunReadabilityHeuristicsOnWebContents(
     JNIEnv* env,
-    const JavaParamRef<jobject>& j_web_contents,
-    const JavaParamRef<jobject>& j_callback) {
-  base::OnceCallback<void(bool)> callback =
-      base::BindOnce(&base::android::RunBooleanCallbackAndroid,
-                     base::android::ScopedJavaGlobalRef<jobject>(j_callback));
+    const JavaRef<jobject>& j_web_contents,
+    base::OnceCallback<void(bool)> callback) {
   content::WebContents* web_contents =
       content::WebContents::FromJavaWebContents(j_web_contents);
   ::RunReadabilityHeuristicsOnWebContents(web_contents, std::move(callback));

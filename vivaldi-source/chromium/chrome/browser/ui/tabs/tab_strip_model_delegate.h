@@ -12,8 +12,8 @@
 #include "base/functional/callback_forward.h"
 #include "chrome/common/chrome_features.h"
 #include "components/sessions/core/session_id.h"
+#include "components/split_tabs/split_tab_id.h"
 #include "components/tab_groups/tab_group_id.h"
-#include "components/tabs/public/split_tab_id.h"
 #include "components/tabs/public/tab_interface.h"
 
 class Browser;
@@ -164,10 +164,6 @@ class TabStripModelDelegate {
   virtual bool ShouldRunUnloadListenerBeforeClosing(
       content::WebContents* contents) = 0;
 
-  // Returns whether favicon should be shown.
-  virtual bool ShouldDisplayFavicon(
-      content::WebContents* web_contents) const = 0;
-
   // Returns whether the delegate allows reloading of WebContents.
   virtual bool CanReload() const = 0;
 
@@ -218,7 +214,7 @@ class TabStripModelDelegate {
       const std::vector<tab_groups::TabGroupId>& group_ids,
       base::OnceCallback<void()> callback) = 0;
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   // Glic related delegation (see GlicKeyedService and GlicSharingManager).
   // Note: 'Pinning' in Glic is a distinct notion.
 
@@ -233,6 +229,10 @@ class TabStripModelDelegate {
 
   // Opens the Glic window if not already open.
   virtual void OpenGlicWindowFromSharedTab() = 0;
+
+  // Unpins the specified tabs from all Glic conversations.
+  virtual void GlicUnpinTabsFromAllConversations(
+      base::span<const tabs::TabHandle> tab_handles);
 #endif
 };
 

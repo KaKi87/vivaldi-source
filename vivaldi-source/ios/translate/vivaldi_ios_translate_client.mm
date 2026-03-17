@@ -32,11 +32,11 @@
 #import "components/translate/core/common/language_detection_details.h"
 #import "ios/chrome/browser/infobars/model/infobar_ios.h"
 #import "ios/chrome/browser/infobars/model/infobar_manager_impl.h"
-#import "ios/chrome/browser/language_detection/model/language_detection_model_loader_service_ios_factory.h"
-#import "ios/chrome/browser/language_detection/model/language_detection_model_service_factory.h"
 #import "ios/chrome/browser/language/model/accept_languages_service_factory.h"
 #import "ios/chrome/browser/language/model/language_model_manager_factory.h"
 #import "ios/chrome/browser/language/model/url_language_histogram_factory.h"
+#import "ios/chrome/browser/language_detection/model/language_detection_model_loader_service_ios_factory.h"
+#import "ios/chrome/browser/language_detection/model/language_detection_model_service_factory.h"
 #import "ios/chrome/browser/shared/model/paths/paths.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/translate/model/translate_ranker_factory.h"
@@ -46,7 +46,7 @@
 #import "ios/web/public/browser_state.h"
 #import "ios/web/public/navigation/navigation_context.h"
 #import "ios/web/public/web_state.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 #import "third_party/metrics_proto/translate_event.pb.h"
 #import "url/gurl.h"
 
@@ -72,18 +72,14 @@ VivaldiIOSTranslateClient::VivaldiIOSTranslateClient(web::WebState* web_state)
       translate_driver_(
           web_state,
           LanguageDetectionModelLoaderServiceIOSFactory::GetForProfile(
-               ProfileIOS::FromBrowserState(
-                  web_state->GetBrowserState()))),
+              ProfileIOS::FromBrowserState(web_state->GetBrowserState()))),
       translate_manager_(std::make_unique<translate::TranslateManager>(
           this,
           translate::TranslateRankerFactory::GetForProfile(
-              ProfileIOS::FromBrowserState(
-                  web_state->GetBrowserState())),
+              ProfileIOS::FromBrowserState(web_state->GetBrowserState())),
           LanguageModelManagerFactory::GetForProfile(
-               ProfileIOS::FromBrowserState(
-                  web_state->GetBrowserState()))
+              ProfileIOS::FromBrowserState(web_state->GetBrowserState()))
               ->GetPrimaryModel())) {
-
   std::string script = VivaldiIOSTranslateClient::GetTranslateScript();
   DCHECK(!script.empty());
   translate_manager_->SetTranslationScript(script);
@@ -121,10 +117,9 @@ std::string& VivaldiIOSTranslateClient::GetTranslateScript() {
 /* static */
 void VivaldiIOSTranslateClient::LoadTranslationScript() {
   if (VivaldiIOSTranslateClient::GetTranslateScript().empty()) {
-
-    base::FilePath scriptPath =
-        base::apple::MainBundlePath().AppendASCII(kTranslateBundleDir)
-                                     .AppendASCII(kTranslateBundleName);
+    base::FilePath scriptPath = base::apple::MainBundlePath()
+                                    .AppendASCII(kTranslateBundleDir)
+                                    .AppendASCII(kTranslateBundleName);
 
     std::string script;
     if (!base::ReadFileToString(scriptPath, &script)) {
@@ -166,7 +161,6 @@ bool VivaldiIOSTranslateClient::ShowTranslateUI(
     const std::string& target_language,
     translate::TranslateErrors error_type,
     bool triggered_from_menu) {
-
   DCHECK(web_state_);
   if (error_type != translate::TranslateErrors::NONE) {
     step = translate::TRANSLATE_STEP_TRANSLATE_ERROR;
@@ -205,7 +199,7 @@ language::AcceptLanguagesService*
 VivaldiIOSTranslateClient::GetAcceptLanguagesService() {
   DCHECK(web_state_);
   return AcceptLanguagesServiceFactory::GetForProfile(
-       ProfileIOS::FromBrowserState(web_state_->GetBrowserState()));
+      ProfileIOS::FromBrowserState(web_state_->GetBrowserState()));
 }
 
 bool VivaldiIOSTranslateClient::IsTranslatableURL(const GURL& url) {

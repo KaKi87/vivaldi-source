@@ -20,11 +20,15 @@ class IndexModelObserver : public base::CheckedObserver {
 
   // Invoked when the model has been changed after initial loading.
   virtual void IndexModelNodeChanged(Index_Model* model, Index_Node* node) {}
-  virtual void IndexModelNodeAdded(Index_Model* model, Index_Node* node,
-                                   int64_t parent_id, size_t index,
+  virtual void IndexModelNodeAdded(Index_Model* model,
+                                   Index_Node* node,
+                                   int64_t parent_id,
+                                   size_t index,
                                    const std::string& owner) {}
-  virtual void IndexModelNodeMoved(Index_Model* model, int64_t id,
-                                   int64_t parent_id, size_t index) {}
+  virtual void IndexModelNodeMoved(Index_Model* model,
+                                   int64_t id,
+                                   int64_t parent_id,
+                                   size_t index) {}
   virtual void IndexModelNodeRemoved(Index_Model* model, int64_t id) {}
 
   // Invoked from the destructor of the MenuModel.

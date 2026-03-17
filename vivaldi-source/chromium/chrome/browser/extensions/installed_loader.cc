@@ -27,7 +27,6 @@
 #include "chrome/browser/extensions/extension_allowlist.h"
 #include "chrome/browser/extensions/extension_management.h"
 #include "chrome/browser/extensions/extension_util.h"
-#include "chrome/browser/extensions/load_error_reporter.h"
 #include "chrome/browser/extensions/profile_util.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/chrome_switches.h"
@@ -46,6 +45,7 @@
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/extension_util.h"
 #include "extensions/browser/install_prefs_helper.h"
+#include "extensions/browser/load_error_reporter.h"
 #include "extensions/browser/management_policy.h"
 #include "extensions/browser/permissions_manager.h"
 #include "extensions/browser/pref_types.h"
@@ -114,7 +114,7 @@ enum class ExternalItemState {
   kMaxValue = kNonwebstoreUninstalled
 };
 
-bool IsManifestCorrupt(const base::Value::Dict& manifest) {
+bool IsManifestCorrupt(const base::DictValue& manifest) {
   // Because of bug #272524 sometimes manifests got mangled in the preferences
   // file, one particularly bad case resulting in having both a background page
   // and background scripts values. In those situations we want to reload the
@@ -398,7 +398,7 @@ void InstalledLoader::LoadAllExtensions(Profile* profile) {
         continue;
       }
 
-      info.extension_manifest = std::make_unique<base::Value::Dict>(
+      info.extension_manifest = std::make_unique<base::DictValue>(
           extension->manifest()->value()->Clone());
       should_write_prefs = true;
     }

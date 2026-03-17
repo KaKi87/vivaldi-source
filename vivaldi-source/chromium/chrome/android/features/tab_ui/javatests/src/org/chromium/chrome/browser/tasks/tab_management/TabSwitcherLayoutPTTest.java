@@ -16,12 +16,16 @@ import static org.chromium.base.GarbageCollectionTestUtils.canBeGarbageCollected
 import static org.chromium.base.test.transit.TransitAsserts.assertFinalDestination;
 import static org.chromium.base.test.transit.TransitAsserts.assertFinalDestinations;
 import static org.chromium.chrome.browser.flags.ChromeFeatureList.ANDROID_ELEGANT_TEXT_HEIGHT;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeNtpUrl;
 import static org.chromium.chrome.test.util.ChromeTabUtils.getIndexOnUiThread;
 
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
+import android.view.View;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.filters.MediumTest;
 
 import org.junit.Before;
@@ -32,6 +36,7 @@ import org.junit.runner.RunWith;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.CriteriaHelper;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
@@ -135,7 +140,7 @@ public class TabSwitcherLayoutPTTest {
             CtaPageStation currentStation) {
         return currentStation
                 .openRegularTabSwitcherAnd()
-                .pickUpCarryOnAnd(
+                .enterStateAnd(
                         new TabThumbnailsCapturedCarryOn(
                                 currentStation.getTabModelSelector(), /* isIncognito= */ false))
                 .completeAndGet(RegularTabSwitcherStation.class);
@@ -146,7 +151,7 @@ public class TabSwitcherLayoutPTTest {
             CtaPageStation currentStation) {
         return currentStation
                 .openIncognitoTabSwitcherAnd()
-                .pickUpCarryOnAnd(
+                .enterStateAnd(
                         new TabThumbnailsCapturedCarryOn(
                                 currentStation.getTabModelSelector(), /* isIncognito= */ true))
                 .completeAndGet(IncognitoTabSwitcherStation.class);
@@ -236,7 +241,7 @@ public class TabSwitcherLayoutPTTest {
                         mStartPage,
                         3,
                         0,
-                        UrlConstants.NTP_URL,
+                        getOriginalNativeNtpUrl(),
                         RegularNewTabPageStation::newBuilder);
         // Make sure all thumbnails are there before switching tabs.
         RegularTabSwitcherStation tabSwitcherStation =
@@ -309,6 +314,69 @@ public class TabSwitcherLayoutPTTest {
 
         mRenderTestRule.render(
                 tabSwitcher.getActivity().findViewById(R.id.pane_frame), "regular_pinned_tabs");
+
+        RegularNewTabPageStation previousPage =
+                tabSwitcher.leaveHubToPreviousTabViaBack(RegularNewTabPageStation.newBuilder());
+        assertFinalDestination(previousPage);
+    }
+
+    @Test
+    @MediumTest
+    @Feature({"RenderTest"})
+    @EnableFeatures(ChromeFeatureList.ANDROID_PINNED_TABS)
+    @DisabledTest(message = "crbug.com/444244174")
+    public void testRenderGrid_PinnedTabs_Scrolled() throws IOException {
+        ChromeTabbedActivity cta = mCtaTestRule.getActivity();
+        RegularNewTabPageStation pageStation =
+                Journeys.prepareTabsWithThumbnails(
+                        mStartPage,
+                        28,
+                        0,
+                        UrlConstants.NTP_URL,
+                        RegularNewTabPageStation::newBuilder);
+
+        // Make sure all thumbnails are there before switching tabs.
+        RegularTabSwitcherStation tabSwitcherStation =
+                enterRegularHtsWithThumbnailChecking(pageStation);
+
+        // Pin 2 tabs
+        RegularNewTabPageStation firstPage =
+                tabSwitcherStation.selectTabAtIndex(0, RegularNewTabPageStation.newBuilder());
+        int firstTabId = firstPage.loadedTabElement.value().getId();
+        RegularNewTabPageStation secondPage = firstPage.openNewTabFast();
+        int secondTabId = secondPage.loadedTabElement.value().getId();
+        RegularTabSwitcherStation tabSwitcher = secondPage.openRegularTabSwitcher();
+
+        TabSwitcherListEditorFacility<RegularTabSwitcherStation> editor =
+                tabSwitcher.openAppMenu().clickSelectTabs();
+        editor = editor.addTabToSelection(0, firstTabId);
+        editor = editor.addTabToSelection(1, secondTabId);
+
+        editor.openAppMenuWithEditor().pinTabs();
+
+        // Scroll to the bottom to make the pinned tab strip visible.
+        ThreadUtils.runOnUiThreadBlocking(
+                () -> {
+                    RecyclerView recyclerView = cta.findViewById(R.id.tab_list_recycler_view);
+                    recyclerView.scrollToPosition(recyclerView.getAdapter().getItemCount() - 1);
+                });
+
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    RecyclerView recyclerView = cta.findViewById(R.id.tab_list_recycler_view);
+                    if (recyclerView.getScrollState() != RecyclerView.SCROLL_STATE_IDLE) {
+                        return false;
+                    }
+                    FrameLayout parent = (FrameLayout) recyclerView.getParent();
+                    View pinnedTabView = parent.getChildAt(0);
+                    return pinnedTabView != null
+                            && pinnedTabView.getVisibility() == View.VISIBLE
+                            && pinnedTabView.getAlpha() == 1.0f
+                            && pinnedTabView.getTranslationY() == 0f;
+                });
+
+        mRenderTestRule.render(
+                cta.findViewById(R.id.hub_main_container), "regular_pinned_tabs_scrolled");
 
         RegularNewTabPageStation previousPage =
                 tabSwitcher.leaveHubToPreviousTabViaBack(RegularNewTabPageStation.newBuilder());
@@ -759,7 +827,6 @@ public class TabSwitcherLayoutPTTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_GROUPS_COLOR_UPDATE_GM3})
     public void testRenderGrid_TabGroupColor_2TabsInGroup() throws IOException {
         doTestRenderGrid_TabGroupColor_Parameterized(
                 /* isIncognito= */ false,
@@ -770,7 +837,6 @@ public class TabSwitcherLayoutPTTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_GROUPS_COLOR_UPDATE_GM3})
     public void testRenderGrid_TabGroupColor_Incognito_2TabsInGroup() throws IOException {
         doTestRenderGrid_TabGroupColor_Parameterized(
                 /* isIncognito= */ true,
@@ -781,7 +847,6 @@ public class TabSwitcherLayoutPTTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_GROUPS_COLOR_UPDATE_GM3})
     public void testRenderGrid_TabGroupColor_5TabsInGroup() throws IOException {
         doTestRenderGrid_TabGroupColor_Parameterized(
                 /* isIncognito= */ false,
@@ -792,7 +857,6 @@ public class TabSwitcherLayoutPTTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_GROUPS_COLOR_UPDATE_GM3})
     public void testRenderGrid_TabGroupColor_Incognito_5TabsInGroup() throws IOException {
         doTestRenderGrid_TabGroupColor_Parameterized(
                 /* isIncognito= */ true,

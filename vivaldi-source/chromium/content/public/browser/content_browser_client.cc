@@ -50,7 +50,6 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/responsiveness_calculator_delegate.h"
 #include "content/public/browser/sms_fetcher.h"
-#include "content/public/browser/speculation_host_delegate.h"
 #include "content/public/browser/tracing_delegate.h"
 #include "content/public/browser/url_loader_request_interceptor.h"
 #include "content/public/browser/web_authentication_delegate.h"
@@ -192,7 +191,7 @@ bool ContentBrowserClient::
         BrowserContext* browser_context,
         const GURL& site_instance_original_url) {
   DCHECK(browser_context);
-  return true;
+  return false;
 }
 
 bool ContentBrowserClient::ShouldAllowProcessPerSiteForMultipleMainFrames(
@@ -227,10 +226,6 @@ bool ContentBrowserClient::ShouldLockProcessToSite(
     BrowserContext* browser_context,
     const GURL& effective_url) {
   DCHECK(browser_context);
-  return true;
-}
-
-bool ContentBrowserClient::ShouldEnforceNewCanCommitUrlChecks() {
   return true;
 }
 
@@ -326,11 +321,11 @@ size_t ContentBrowserClient::GetProcessCountToIgnoreForLimit() {
   return 0;
 }
 
-std::optional<network::ParsedPermissionsPolicy>
+std::optional<std::vector<blink::mojom::IsolatedAppPermissionPolicyEntryPtr>>
 ContentBrowserClient::GetPermissionsPolicyForIsolatedWebApp(
-    WebContents* web_contents,
-    const url::Origin& app_origin) {
-  return network::ParsedPermissionsPolicy();
+    BrowserContext* browser_context,
+    const url::Origin& iwa_origin) {
+  return std::nullopt;
 }
 
 bool ContentBrowserClient::ShouldTryToUseExistingProcessHost(
@@ -734,18 +729,6 @@ bool ContentBrowserClient::IsPrivateAggregationDebugModeAllowed(
   return true;
 }
 
-bool ContentBrowserClient::IsCookieDeprecationLabelAllowed(
-    content::BrowserContext* browser_context) {
-  return false;
-}
-
-bool ContentBrowserClient::IsCookieDeprecationLabelAllowedForContext(
-    content::BrowserContext* browser_context,
-    const url::Origin& top_frame_origin,
-    const url::Origin& context_origin) {
-  return false;
-}
-
 bool ContentBrowserClient::IsFullCookieAccessAllowed(
     content::BrowserContext* browser_context,
     content::WebContents* web_contents,
@@ -1104,6 +1087,13 @@ bool ContentBrowserClient::ShouldRestrictCoreSharingOnRenderer() {
   return false;
 }
 
+std::optional<std::wstring>
+ContentBrowserClient::GetWindowsSecurityAttributeName() const {
+  // Embedders should override this method and return the name of the security
+  // attribute previously assigned to the browser's process token.
+  return std::nullopt;
+}
+
 #endif  // BUILDFLAG(IS_WIN)
 
 std::vector<std::unique_ptr<blink::URLLoaderThrottle>>
@@ -1236,7 +1226,7 @@ void ContentBrowserClient::ConfigureNetworkContextParams(
     network::mojom::NetworkContextParams* network_context_params,
     cert_verifier::mojom::CertVerifierCreationParams*
         cert_verifier_creation_params) {
-  network_context_params->user_agent = GetUserAgentBasedOnPolicy(context);
+  network_context_params->user_agent = GetUserAgent();
   network_context_params->accept_language = "en-us,en";
 }
 
@@ -1245,8 +1235,8 @@ ContentBrowserClient::GetNetworkContextsParentDirectory() {
   return {};
 }
 
-base::Value::Dict ContentBrowserClient::GetNetLogConstants() {
-  return base::Value::Dict();
+base::DictValue ContentBrowserClient::GetNetLogConstants() {
+  return base::DictValue();
 }
 
 #if BUILDFLAG(IS_ANDROID)
@@ -1422,8 +1412,8 @@ bool ContentBrowserClient::CanAcceptUntrustedExchangesIfNeeded() {
 void ContentBrowserClient::OnNetworkServiceDataUseUpdate(
     GlobalRenderFrameHostId render_frame_host_id,
     int32_t network_traffic_annotation_id_hash,
-    int64_t recv_bytes,
-    int64_t sent_bytes) {}
+    base::ByteSize recv_bytes,
+    base::ByteSize sent_bytes) {}
 
 base::FilePath ContentBrowserClient::GetSandboxedStorageServiceDataDirectory() {
   return base::FilePath();
@@ -1458,11 +1448,6 @@ std::string ContentBrowserClient::GetProduct() {
 
 std::string ContentBrowserClient::GetUserAgent() {
   return std::string();
-}
-
-std::string ContentBrowserClient::GetUserAgentBasedOnPolicy(
-    content::BrowserContext* content) {
-  return GetUserAgent();
 }
 
 blink::UserAgentMetadata ContentBrowserClient::GetUserAgentMetadata() {
@@ -1603,6 +1588,12 @@ void ContentBrowserClient::IsClipboardCopyAllowedByPolicy(
   std::move(callback).Run(metadata.format_type, data, std::nullopt);
 }
 
+bool ContentBrowserClient::IsDragAllowedByPolicy(
+    const ClipboardEndpoint& source,
+    const DropData& drop_data) {
+  return true;
+}
+
 #if BUILDFLAG(ENABLE_VR)
 XrIntegrationClient* ContentBrowserClient::GetXrIntegrationClient() {
   return nullptr;
@@ -1626,11 +1617,11 @@ void ContentBrowserClient::GrantAdditionalRequestPrivilegesToWorkerProcess(
     int child_id,
     const GURL& script_url) {}
 
-ContentBrowserClient::PrivateNetworkRequestPolicyOverride
-ContentBrowserClient::ShouldOverridePrivateNetworkRequestPolicy(
+ContentBrowserClient::LocalNetworkAccessRequestPolicyOverride
+ContentBrowserClient::ShouldOverrideLocalNetworkAccessRequestPolicy(
     BrowserContext* browser_context,
     const url::Origin& origin) {
-  return PrivateNetworkRequestPolicyOverride::kDefault;
+  return LocalNetworkAccessRequestPolicyOverride::kDefault;
 }
 
 bool ContentBrowserClient::IsJitDisabledForSite(BrowserContext* browser_context,
@@ -1648,6 +1639,10 @@ bool ContentBrowserClient::AreV8OptimizationsEnabledForSite(
 
 bool ContentBrowserClient::DisallowV8FeatureFlagOverridesForSite(
     const GURL& site_url) {
+  return false;
+}
+
+bool ContentBrowserClient::IsAndroidAdvancedProtectionEnabled() {
   return false;
 }
 
@@ -1698,12 +1693,6 @@ bool ContentBrowserClient::SuppressDifferentOriginSubframeJSDialogs(
 
 std::unique_ptr<AnchorElementPreconnectDelegate>
 ContentBrowserClient::CreateAnchorElementPreconnectDelegate(
-    RenderFrameHost& render_frame_host) {
-  return nullptr;
-}
-
-std::unique_ptr<SpeculationHostDelegate>
-ContentBrowserClient::CreateSpeculationHostDelegate(
     RenderFrameHost& render_frame_host) {
   return nullptr;
 }
@@ -1776,20 +1765,6 @@ bool ContentBrowserClient::AreIsolatedWebAppsEnabled(
   // The whole logic of the IWAs lives in //chrome. So IWAs should be
   // enabled at that layer.
   return false;
-}
-
-bool ContentBrowserClient::IsThirdPartyStoragePartitioningAllowed(
-    content::BrowserContext*,
-    const url::Origin&) {
-  return true;
-}
-
-bool ContentBrowserClient::IsUnpartitionedStorageAccessAllowedByUserPreference(
-    content::BrowserContext* browser_context,
-    const GURL& url,
-    const net::SiteForCookies& site_for_cookies,
-    const url::Origin& top_frame_origin) {
-  return true;
 }
 
 bool ContentBrowserClient::AreDeprecatedAutomaticBeaconCredentialsAllowed(
@@ -2002,13 +1977,14 @@ bool ContentBrowserClient::IsRendererProcessPriorityEnabled() {
   return true;
 }
 
-std::unique_ptr<KeepAliveRequestTracker>
+std::vector<std::unique_ptr<KeepAliveRequestTracker>>
 ContentBrowserClient::MaybeCreateKeepAliveRequestTracker(
     const network::ResourceRequest& request,
     std::optional<ukm::SourceId> ukm_source_id,
+    content::BrowserContext* browser_context,
     KeepAliveRequestTracker::IsContextDetachedCallback
         is_context_detached_callback) {
-  return nullptr;
+  return {};
 }
 
 std::optional<std::vector<std::u16string>>
@@ -2049,6 +2025,21 @@ void ContentBrowserClient::RecordAssistedLogin(AssistedLoginType login_type) {}
 std::optional<bool> ContentBrowserClient::GetOverrideValueForStaticStorageQuota(
     BrowserContext* browser_context) {
   return std::nullopt;
+}
+std::string ContentBrowserClient::GetDnsTxtResolverUrlPrefix() {
+  return std::string();
+}
+
+bool ContentBrowserClient::ShouldAllowPrefetchRedirection(
+    content::BrowserContext& browser_context,
+    const GURL& url,
+    const std::string& embedder_histogram_suffix) {
+  return true;
+}
+
+bool ContentBrowserClient::OriginSupportsConcreteCrossOriginIsolation(
+    const url::Origin& origin) {
+  return true;
 }
 
 }  // namespace content

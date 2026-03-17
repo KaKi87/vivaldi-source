@@ -10,8 +10,8 @@
 #include "content/public/renderer/render_frame.h"
 #include "third_party/blink/public/platform/browser_interface_broker_proxy.h"
 
-#include "components/content_injection/renderer/content_injection_manager.h"
 #include "components/ad_blocker/public/content/mojom/adblock_cosmetic_filter.mojom-blink.h"
+#include "components/content_injection/renderer/content_injection_manager.h"
 #include "mojo/public/cpp/bindings/remote.h"
 #include "renderer/mojo/vivaldi_frame_host_service.mojom-blink.h"
 #include "renderer/vivaldi_frame_service_impl.h"

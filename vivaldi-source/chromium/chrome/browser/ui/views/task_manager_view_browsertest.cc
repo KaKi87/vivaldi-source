@@ -19,9 +19,9 @@
 #include "chrome/browser/task_manager/task_manager_tester.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/tab_contents/tab_contents_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/task_manager/task_manager_columns.h"
@@ -477,6 +477,18 @@ IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, CloseByAccelerator) {
 
   EXPECT_TRUE(GetView()->GetWidget()->IsClosed());
 }
+
+#if BUILDFLAG(IS_WIN)
+IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, CloseByAcceleratorOnWindows) {
+  chrome::ShowTaskManager(browser());
+
+  EXPECT_FALSE(GetView()->GetWidget()->IsClosed());
+
+  GetView()->AcceleratorPressed(ui::Accelerator(ui::VKEY_F4, ui::EF_ALT_DOWN));
+
+  EXPECT_TRUE(GetView()->GetWidget()->IsClosed());
+}
+#endif  // BUILDFLAG(IS_WIN)
 
 #if BUILDFLAG(IS_CHROMEOS)
 IN_PROC_BROWSER_TEST_F(TaskManagerViewTest, AppType) {

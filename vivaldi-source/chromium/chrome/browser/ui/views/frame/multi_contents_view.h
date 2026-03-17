@@ -22,6 +22,7 @@
 
 class BrowserView;
 class ContentsWebView;
+class CustomFloatingCorner;
 class MultiContentsDropTargetView;
 class MultiContentsResizeArea;
 class MultiContentsViewDelegate;
@@ -50,6 +51,8 @@ class MultiContentsView : public views::View,
   METADATA_HEADER(MultiContentsView, views::View)
 
  public:
+  using FocusableViewMap = base::flat_map<std::string, views::View*>;
+
   struct ViewWidths {
     double start_width = 0;
     double resize_width = 0;
@@ -120,10 +123,6 @@ class MultiContentsView : public views::View,
     return initial_start_width_on_resize_.has_value();
   }
 
-  // Returns the minimum width for a single view within the `MultiContentsView`.
-  // Returns 0 if not in a split view.
-  int GetMinViewWidth() const;
-
   // Returns accessible panes to be used in BrowserView to create the order of
   // pane traversal.
   std::vector<views::View*> GetAccessiblePanes();
@@ -171,9 +170,15 @@ class MultiContentsView : public views::View,
     return background_view_;
   }
 
+  const FocusableViewMap* GetFocusableViewsMapFor(
+      const ContentsContainerView* container) const;
+
  private:
   FRIEND_TEST_ALL_PREFIXES(MultiContentsViewBrowserTest, DropTargetLayout);
-  FRIEND_TEST_ALL_PREFIXES(MultiContentsViewBrowserTest, SeparatorLayout);
+  FRIEND_TEST_ALL_PREFIXES(MultiContentsViewBrowserTest,
+                           LeadingSeparatorLayout);
+  FRIEND_TEST_ALL_PREFIXES(MultiContentsViewBrowserTest,
+                           TrailingSeparatorLayout);
 
   // Encapsulates the views required to draw a separator around contents.
   struct ContentsSeparators {
@@ -182,8 +187,7 @@ class MultiContentsView : public views::View,
     raw_ptr<views::View> top_separator = nullptr;
     raw_ptr<views::View> leading_separator = nullptr;
     raw_ptr<views::View> trailing_separator = nullptr;
-    raw_ptr<views::View> top_leading_rounded_corner = nullptr;
-    raw_ptr<views::View> top_trailing_rounded_corner = nullptr;
+    raw_ptr<CustomFloatingCorner> corner_separator = nullptr;
 
     bool should_show_top = false;
     bool should_show_leading = false;
@@ -191,6 +195,7 @@ class MultiContentsView : public views::View,
   };
 
   static constexpr int kMinWebContentsWidth = 200;
+  static constexpr int kConstrainedMinWebContentsWidth = 50;
   static constexpr double kMinWebContentsWidthPercentage = 0.1;
 
   // LayoutDelegate:
@@ -215,12 +220,23 @@ class MultiContentsView : public views::View,
   void OnNtpFooterFocused(views::WebView*);
   void OnActorOverlayFocused(views::WebView*);
 
+  // Callback for when Read Anything Immersive Mode Overlay is focused. If the
+  // focus comes from an inactive pane in a split view, this method activates
+  // the corresponding tab.
+  void OnReadAnythingOverlayFocused(ContentsContainerView* container,
+                                    views::WebView* web_view);
+
   ViewWidths GetViewWidths(gfx::Rect available_space) const;
 
   // Clamps to the minimum of kMinWebContentsWidth or
-  // kMinWebContentsWidthPercentage multiplied by the window width. This allows
-  // for some flexibility when it comes to particularly narrow windows.
-  ViewWidths ClampToMinWidth(ViewWidths widths) const;
+  // kMinWebContentsWidthPercentage multiplied by the available width. This
+  // allows for some flexibility when it comes to particularly narrow windows.
+  ViewWidths ClampToMinWidth(gfx::Rect available_space,
+                             ViewWidths widths) const;
+
+  // Returns the minimum width for a single view within the `MultiContentsView`.
+  // Returns 0 if not in a split view.
+  int GetMinViewWidth(gfx::Rect available_space) const;
 
   void UpdateContentsBorderAndOverlay();
 
@@ -250,6 +266,11 @@ class MultiContentsView : public views::View,
   // ActorOverlayWebView is focused.
   std::vector<base::CallbackListSubscription>
       actor_overlay_focused_subscriptions_;
+
+  // Holds subscriptions for when the attached web contents to
+  // ReadAnythingImmersiveOverlayView is focused.
+  std::vector<base::CallbackListSubscription>
+      read_anything_overlay_focused_subscriptions_;
 
   // The handle responsible for resizing the two contents views as relative to
   // each other.
@@ -290,6 +311,13 @@ class MultiContentsView : public views::View,
   // Tracks and handles drag and drop settings change.
   PrefChangeRegistrar pref_change_registrar_;
   bool is_drag_drop_pref_enabled_ = false;
+
+  // Maps a container to its current focusable children. This is needed since
+  // for split tabs, some of these webviews are part of the focus helper for the
+  // tab and need to be set as the focused view. This is used by
+  // `BrowserView::MaybeUpdateStoredFocusForWebContents`
+  base::flat_map<ContentsContainerView*, FocusableViewMap>
+      container_focusable_map_;
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_MULTI_CONTENTS_VIEW_H_

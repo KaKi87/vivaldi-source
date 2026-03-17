@@ -105,8 +105,7 @@
           LayoutSides::kTop,
       NSDirectionalEdgeInsetsMake(
           kNoteCellVerticalInset, kNoteCellHorizontalLeadingInset,
-          kNoteCellVerticalInset,
-          kNoteCellHorizontalAccessoryViewSpacing));
+          kNoteCellVerticalInset, kNoteCellHorizontalAccessoryViewSpacing));
 
   // Chevron accessory view.
   UIImageView* navigationChevronImage = [[UIImageView alloc]

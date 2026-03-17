@@ -23,7 +23,7 @@ std::string CORE_EXPORT ElementPath(blink::WebElement& element);
 bool CORE_EXPORT IsVisible(blink::WebElement element);
 bool CORE_EXPORT IsRadioButton(blink::Element* element);
 
-blink::ScrollableArea CORE_EXPORT *ScrollableAreaFor(const blink::Node* node);
+blink::ScrollableArea CORE_EXPORT* ScrollableAreaFor(const blink::Node* node);
 
 void CORE_EXPORT HoverElement(blink::Element* element);
 void CORE_EXPORT ClearHover(blink::Element* element);

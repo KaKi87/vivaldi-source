@@ -40,7 +40,7 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 // End Vivaldi
 

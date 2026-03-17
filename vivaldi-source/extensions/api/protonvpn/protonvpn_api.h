@@ -9,13 +9,14 @@ namespace extensions {
 
 class ProtonvpnGetStatusFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("protonvpn.getStatus", PROTONVPN_PRIVATE_GET_STATUS)
+  DECLARE_EXTENSION_FUNCTION("protonvpn.getStatus",
+                             PROTONVPN_PRIVATE_GET_STATUS)
 
  protected:
   ~ProtonvpnGetStatusFunction() override = default;
   ResponseAction Run() override;
 };
 
-} // namespace extensions
+}  // namespace extensions
 
 #endif /* EXTENSIONS_API_PROTONVPN_API_H */

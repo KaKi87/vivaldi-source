@@ -13,6 +13,9 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import static org.chromium.chrome.browser.tabmodel.PersistentStoreMigrationManager.StoreType.INVALID;
+import static org.chromium.chrome.browser.tabmodel.PersistentStoreMigrationManager.StoreType.LEGACY;
+
 import android.util.Pair;
 
 import org.junit.After;
@@ -48,10 +51,10 @@ import org.chromium.chrome.browser.tab.TabStateStorageServiceFactory;
 import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tabmodel.MismatchedIndicesHandler;
 import org.chromium.chrome.browser.tabmodel.NextTabPolicy.NextTabPolicySupplier;
+import org.chromium.chrome.browser.tabmodel.PersistentStoreMigrationManager;
 import org.chromium.chrome.browser.tabmodel.TabCreatorManager;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelJniBridge;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilterProvider;
 import org.chromium.chrome.browser.tabmodel.TabModelJniBridgeJni;
 import org.chromium.chrome.browser.tabmodel.TabModelSelectorBase;
 import org.chromium.chrome.browser.tabmodel.TabPersistentStoreImpl;
@@ -81,8 +84,8 @@ public class TabbedModeTabModelOrchestratorUnitTest {
     @Mock private TabModelJniBridge.Natives mTabModelJniBridgeJni;
     @Mock private RecentlyClosedBridge.Natives mRecentlyClosedBridgeJni;
     @Mock private TabWindowManager mTabWindowManager;
+    @Mock private PersistentStoreMigrationManager mPersistentStoreMigrationManager;
     @Mock private TabModelSelectorBase mTabModelSelector;
-    @Mock private TabGroupModelFilterProvider mTabGroupModelFilterProvider;
     @Mock private TabModel mTabModel;
     @Mock private TabStateStorageService mTabStateStorageService;
     @Captor private ArgumentCaptor<Runnable> mRunnableCaptor;
@@ -110,8 +113,6 @@ public class TabbedModeTabModelOrchestratorUnitTest {
         mProfileProviderSupplier.set(mProfileProvider);
         when(mProfileProvider.getOriginalProfile()).thenReturn(mProfile);
         mCipherFactory = new CipherFactory();
-        when(mTabModelSelector.getTabGroupModelFilterProvider())
-                .thenReturn(mTabGroupModelFilterProvider);
         TabModelJniBridgeJni.setInstanceForTesting(mTabModelJniBridgeJni);
         RecentlyClosedBridgeJni.setInstanceForTesting(mRecentlyClosedBridgeJni);
         when(mRecentlyClosedBridgeJni.init(any(), any())).thenReturn(1L);
@@ -171,11 +172,16 @@ public class TabbedModeTabModelOrchestratorUnitTest {
 
     @Test
     public void testDestroy() {
+        when(mTabModel.getProfile()).thenReturn(mProfile);
         when(mTabModelSelector.getModel(anyBoolean())).thenReturn(mTabModel);
         when(mTabModelSelector.isTabStateInitialized()).thenReturn(true);
         when(mTabWindowManager.requestSelector(
                         any(), any(), any(), any(), any(), any(), any(), anyInt()))
                 .thenReturn(new Pair<>(0, mTabModelSelector));
+        when(mPersistentStoreMigrationManager.getAuthoritativeStoreType()).thenReturn(LEGACY);
+        when(mPersistentStoreMigrationManager.getShadowStoreType()).thenReturn(INVALID);
+        when(mTabWindowManager.getPersistentStoreMigrationManagerById(anyInt()))
+                .thenReturn(mPersistentStoreMigrationManager);
         TabWindowManagerSingleton.setTabWindowManagerForTesting(mTabWindowManager);
         ArchivedTabModelOrchestrator.setInstanceForTesting(mArchivedTabModelOrchestrator);
         DeferredStartupHandler.setInstanceForTests(mDeferredStartupHandler);

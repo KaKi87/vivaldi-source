@@ -44,12 +44,16 @@ public interface AccountPickerDelegate {
      */
     void addAccount();
 
-    /** Called when the current signed-in account is signed-out prior to the sign-in operation. */
-    default void onSignoutBeforeSignin() {}
-
     /** Called when the sign-in finishes successfully. */
     void onSignInComplete(
             CoreAccountInfo accountInfo, AccountPickerDelegate.SigninStateController controller);
+
+    /**
+     * Called when the sign-in process cannot proceed and has been cancelled. This happens, for
+     * example, if the user manually dismisses the bottom sheet or the targent account is removed
+     * during the seamless sign-in process.
+     */
+    default void onSignInCancel() {}
 
     default @FlowVariant String getSigninFlowVariant() {
         return FlowVariant.OTHER;

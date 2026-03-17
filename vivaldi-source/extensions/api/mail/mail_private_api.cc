@@ -145,13 +145,13 @@ void MailEventRouter::OnMigrationProgress(MailClientService* service,
                                           int progress,
                                           int total,
                                           std::string msg) {
-  base::Value::List args = OnUpgradeProgress::Create(progress, total, msg);
+  base::ListValue args = OnUpgradeProgress::Create(progress, total, msg);
   DispatchEvent(profile_, OnUpgradeProgress::kEventName, std::move(args));
 }
 
 void MailEventRouter::OnDeleteMessagesProgress(MailClientService* service,
                                                int total) {
-  base::Value::List args = OnDeleteMessagesProgress::Create(total);
+  base::ListValue args = OnDeleteMessagesProgress::Create(total);
   DispatchEvent(profile_, OnDeleteMessagesProgress::kEventName,
                 std::move(args));
 }
@@ -159,7 +159,7 @@ void MailEventRouter::OnDeleteMessagesProgress(MailClientService* service,
 // Helper to actually dispatch an event to extension listeners.
 void MailEventRouter::DispatchEvent(Profile* profile,
                                     const std::string& event_name,
-                                    base::Value::List event_args) {
+                                    base::ListValue event_args) {
   if (profile && EventRouter::Get(profile)) {
     EventRouter* event_router = EventRouter::Get(profile);
     if (event_router) {

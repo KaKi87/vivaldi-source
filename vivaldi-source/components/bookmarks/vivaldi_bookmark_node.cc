@@ -26,7 +26,7 @@ const GURL TitledUrlNode::GetTitledUrlDisplayURL() const {
   return GURL();
 }
 
- // Vivaldi: Returns the nodes id.
+// Vivaldi: Returns the nodes id.
 int64_t TitledUrlNode::GetId() const {
   return 0;
 }

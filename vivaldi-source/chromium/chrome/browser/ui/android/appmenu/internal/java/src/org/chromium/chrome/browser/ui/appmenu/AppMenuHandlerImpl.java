@@ -61,6 +61,9 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+
 /**
  * Object responsible for handling the creation, showing, hiding of the AppMenu and notifying the
  * AppMenuObservers about these actions.
@@ -326,6 +329,9 @@ class AppMenuHandlerImpl
             // Vivaldi - Pass overview mode handler to AppMenu
             if (mIsInOverviewModeSupplier != null)
                 mAppMenu.setIsInOverviewModeSupplier(mIsInOverviewModeSupplier);
+            if (BuildConfig.IS_VIVALDI && mBrowserControlsStateProvider != null) {
+                mAppMenu.setBrowserControlsStateProvider(mBrowserControlsStateProvider);
+            }
         }
 
         setupModelForHighlightAndClick(mModelList, mHighlightMenuId, this);
@@ -598,6 +604,8 @@ class AppMenuHandlerImpl
         registerDefaultViewBinders(adapter, iconBeforeItem);
         customSizingProviders.append(
                 AppMenuItemType.DIVIDER, DividerLineMenuItemViewBinder::getPixelHeight);
+        customSizingProviders.append(
+                AppMenuItemType.BUTTON_ROW, AppMenuItemViewBinder::getIconRowItemPixelHeight);
 
         mDelegate.registerCustomViewBinders(adapter, customSizingProviders);
     }

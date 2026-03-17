@@ -6,7 +6,7 @@ package org.chromium.chrome.browser.ui;
 
 import org.chromium.base.Callback;
 import org.chromium.base.CallbackController;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -41,7 +41,7 @@ import java.util.function.Supplier;
 @NullMarked
 class BottomSheetManager extends EmptyBottomSheetObserver implements DestroyObserver {
     /** A means of accessing the focus state of the omnibox. */
-    private final ObservableSupplier<Boolean> mOmniboxFocusStateSupplier;
+    private final MonotonicObservableSupplier<Boolean> mOmniboxFocusStateSupplier;
 
     /** An observer of the omnibox that suppresses the sheet when the omnibox is focused. */
     private final Callback<Boolean> mOmniboxFocusObserver;
@@ -97,7 +97,7 @@ class BottomSheetManager extends EmptyBottomSheetObserver implements DestroyObse
             BrowserControlsVisibilityManager controlsVisibilityManager,
             ExpandedSheetHelper expandedSheetHelper,
             Supplier<SnackbarManager> snackbarManagerSupplier,
-            ObservableSupplier<Boolean> omniboxFocusStateSupplier,
+            MonotonicObservableSupplier<Boolean> omniboxFocusStateSupplier,
             Supplier<OverlayPanelManager> overlayManager,
             OneshotSupplier<LayoutStateProvider> layoutStateProviderSupplier) {
         mSheetController = controller;
@@ -154,7 +154,7 @@ class BottomSheetManager extends EmptyBottomSheetObserver implements DestroyObse
                     }
                 };
 
-        mTabProvider.addSyncObserverAndCallIfNonNull(mOnActiveTabChanged);
+        mTabProvider.asObservable().addSyncObserverAndCallIfNonNull(mOnActiveTabChanged);
 
         mBrowserControlsObserver =
                 new BrowserControlsStateProvider.Observer() {
@@ -280,7 +280,7 @@ class BottomSheetManager extends EmptyBottomSheetObserver implements DestroyObse
         mCallbackController.destroy();
         if (mLastActivityTab != null) mLastActivityTab.removeObserver(mTabObserver);
         mSheetController.removeObserver(this);
-        mTabProvider.removeObserver(mOnActiveTabChanged);
+        mTabProvider.asObservable().removeObserver(mOnActiveTabChanged);
         mBrowserControlsVisibilityManager.removeObserver(mBrowserControlsObserver);
         mOmniboxFocusStateSupplier.removeObserver(mOmniboxFocusObserver);
         var layoutStateProvider = mLayoutStateProviderSupplier.get();

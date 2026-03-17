@@ -19,13 +19,13 @@
 #include "chrome/browser/password_manager/actor_login/actor_login_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/common/actor.mojom-data-view.h"
+#include "chrome/common/actor.mojom-shared.h"
 #include "chrome/common/actor/action_result.h"
-#include "chrome/common/actor_webui.mojom-data-view.h"
 #include "chrome/common/actor_webui.mojom.h"
 #include "components/favicon/core/favicon_service.h"
 #include "components/password_manager/core/browser/actor_login/actor_login_types.h"
 #include "components/password_manager/core/browser/features/password_features.h"
+#include "components/password_manager/core/browser/password_manager_util.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/gfx/image/image.h"
 #include "url/gurl.h"
@@ -76,10 +76,17 @@ mojom::ActionResultCode LoginResultToActorResult(
 
 }  // namespace
 
-AttemptLoginTool::AttemptLoginTool(TaskId task_id,
-                                   ToolDelegate& tool_delegate,
-                                   tabs::TabInterface& tab)
-    : Tool(task_id, tool_delegate), tab_handle_(tab.GetHandle()) {}
+AttemptLoginTool::AttemptLoginTool(
+    TaskId task_id,
+    ToolDelegate& tool_delegate,
+    tabs::TabInterface& tab,
+    std::optional<PageTarget> password_button,
+    std::optional<PageTarget> sign_in_with_google_button)
+    : Tool(task_id, tool_delegate),
+      tab_handle_(tab.GetHandle()),
+      password_button_(password_button),
+      sign_in_with_google_button_(sign_in_with_google_button),
+      attempt_login_tool_start_time_(base::TimeTicks::Now()) {}
 
 AttemptLoginTool::~AttemptLoginTool() {
   // Uploading the quality log on the destruction of the tool.
@@ -87,7 +94,7 @@ AttemptLoginTool::~AttemptLoginTool() {
   Profile* profile =
       tab ? Profile::FromBrowserContext(tab->GetContents()->GetBrowserContext())
           : nullptr;
-  // TODO(crbug,com/459397449): Update where the log is uploaded and
+  // TODO(crbug.com/459397449): Update where the log is uploaded and
   // send a pointer to the profile/service when creating the log instead
   // of at the moment of uploading.
   if (!profile) {
@@ -96,8 +103,7 @@ AttemptLoginTool::~AttemptLoginTool() {
   OptimizationGuideKeyedService* opt_guide_service =
       OptimizationGuideKeyedServiceFactory::GetForProfile(profile);
   if (opt_guide_service &&
-      base::FeatureList::IsEnabled(
-          password_manager::features::kActorLoginQualityLogs)) {
+      password_manager_util::ShouldUploadActorLoginMqls()) {
     // TODO(crbug.com/459393643): Add a check for filtering out logs of
     // enterprise users.
     quality_logger_.UploadFinalLog(
@@ -142,6 +148,7 @@ void AttemptLoginTool::Invoke(ToolCallback callback) {
     GetActorLoginService().AttemptLogin(
         tab, user_selected_credential_and_pemission->credential,
         should_store_permission, quality_logger_.AsWeakPtr(),
+        attempt_login_tool_start_time_,
         base::BindOnce(&AttemptLoginTool::OnAttemptLogin,
                        weak_ptr_factory_.GetWeakPtr(),
                        user_selected_credential_and_pemission->credential,
@@ -376,7 +383,7 @@ void AttemptLoginTool::OnCredentialCachingDone(
       webui::mojom::UserGrantedPermissionDuration::kAlwaysAllow;
   GetActorLoginService().AttemptLogin(
       tab, selected_credential, should_store_permission,
-      quality_logger_.AsWeakPtr(),
+      quality_logger_.AsWeakPtr(), attempt_login_tool_start_time_,
       base::BindOnce(&AttemptLoginTool::OnAttemptLogin,
                      weak_ptr_factory_.GetWeakPtr(), selected_credential,
                      should_store_permission));
@@ -479,6 +486,7 @@ void AttemptLoginTool::MaybeRetryCredentialNeedingFocus() {
   GetActorLoginService().AttemptLogin(
       tab, credential_awaiting_task_focus_->first,
       credential_awaiting_task_focus_->second, quality_logger_.AsWeakPtr(),
+      attempt_login_tool_start_time_,
       base::BindOnce(&AttemptLoginTool::OnAttemptLogin,
                      weak_ptr_factory_.GetWeakPtr(),
                      credential_awaiting_task_focus_->first,

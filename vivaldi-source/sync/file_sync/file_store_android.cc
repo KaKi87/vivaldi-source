@@ -10,7 +10,7 @@
 
 static jlong JNI_SyncedFileStore_Init(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj) {
+    const base::android::JavaRef<jobject>& obj) {
   SyncedFileStoreAndroid* synced_file_store =
       new SyncedFileStoreAndroid(env, obj);
   return reinterpret_cast<intptr_t>(synced_file_store);
@@ -29,8 +29,8 @@ SyncedFileStoreAndroid::~SyncedFileStoreAndroid() = default;
 
 void SyncedFileStoreAndroid::GetFile(
     JNIEnv* env,
-    const base::android::JavaParamRef<jstring>& checksum,
-    const base::android::JavaParamRef<jobject> callback) {
+    const base::android::JavaRef<jstring>& checksum,
+    const base::android::JavaRef<jobject>& callback) {
   auto forward_content = [](JNIEnv* env, JavaObjectWeakGlobalRef weak_callback,
                             std::optional<base::span<const uint8_t>> content) {
     auto callback = weak_callback.get(env);
@@ -48,3 +48,5 @@ void SyncedFileStoreAndroid::GetFile(
                        base::BindOnce(forward_content, env,
                                       JavaObjectWeakGlobalRef(env, callback)));
 }
+
+DEFINE_JNI_FOR_SyncedFileStore_SEE_JNI_ZERO_README()

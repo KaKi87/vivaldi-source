@@ -79,6 +79,7 @@
 #include "ui/views/layout/flex_layout_types.h"
 #include "ui/views/layout/flex_layout_view.h"
 #include "ui/views/layout/layout_types.h"
+#include "ui/views/metadata/view_factory.h"
 #include "ui/views/style/platform_style.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/view_class_properties.h"
@@ -350,11 +351,11 @@ void PartialTranslateBubbleView::SetViewState(
 }
 
 PartialTranslateBubbleView::PartialTranslateBubbleView(
-    views::View* anchor_view,
+    views::BubbleAnchor anchor,
     std::unique_ptr<PartialTranslateBubbleModel> model,
     content::WebContents* web_contents,
     base::OnceClosure on_closing)
-    : LocationBarBubbleDelegateView(anchor_view,
+    : LocationBarBubbleDelegateView(anchor,
                                     web_contents,
                                     /*autosize=*/true),
       model_(std::move(model)),

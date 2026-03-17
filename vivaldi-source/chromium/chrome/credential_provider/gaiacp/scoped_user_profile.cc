@@ -24,6 +24,7 @@
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "base/strings/strcat.h"
 #include "base/strings/strcat_win.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
@@ -54,7 +55,7 @@ constexpr int kProfilePictureSizes[] = {32, 40, 48, 96, 192, 240, 448};
 
 std::string GetEncryptedRefreshToken(
     base::win::ScopedHandle::Handle logon_handle,
-    const base::Value::Dict& properties) {
+    const base::DictValue& properties) {
   std::string refresh_token = GetDictStringUTF8(properties, kKeyRefreshToken);
   if (refresh_token.empty()) {
     LOGFN(ERROR) << "Refresh token is empty";
@@ -437,7 +438,7 @@ bool ScopedUserProfile::IsValid() {
 }
 
 HRESULT ScopedUserProfile::ExtractAssociationInformation(
-    const base::Value::Dict& properties,
+    const base::DictValue& properties,
     std::wstring* sid,
     std::wstring* id,
     std::wstring* email,
@@ -511,8 +512,7 @@ HRESULT ScopedUserProfile::RegisterAssociation(
   return S_OK;
 }
 
-HRESULT ScopedUserProfile::SaveAccountInfo(
-    const base::Value::Dict& properties) {
+HRESULT ScopedUserProfile::SaveAccountInfo(const base::DictValue& properties) {
   LOGFN(VERBOSE);
 
   std::wstring sid;

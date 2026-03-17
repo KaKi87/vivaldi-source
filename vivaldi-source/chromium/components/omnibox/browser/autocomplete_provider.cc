@@ -21,6 +21,7 @@
 #include "components/omnibox/browser/autocomplete_provider_listener.h"
 #include "components/omnibox/browser/history_provider.h"
 #include "components/omnibox/browser/omnibox_field_trial.h"
+#include "components/search_engines/template_url_starter_pack_data.h"
 #include "components/url_formatter/url_fixer.h"
 #include "url/gurl.h"
 
@@ -269,7 +270,9 @@ AutocompleteProvider::AdjustInputForStarterPackKeyword(
     const TemplateURL* template_url =
         AutocompleteInput::GetSubstitutingTemplateURLForInput(turl_service,
                                                               &keyword_input);
-    if (template_url && template_url->starter_pack_id() > 0) {
+    if (template_url &&
+        template_url->starter_pack_id() !=
+            template_url_starter_pack_data::StarterPackId::kNone) {
       return {keyword_input, template_url};
     }
   }
@@ -284,7 +287,7 @@ AutocompleteProvider::FixupReturn AutocompleteProvider::FixupUserInput(
 
   // Fixup and canonicalize user input.
   const GURL canonical_gurl(
-      url_formatter::FixupURL(base::UTF16ToUTF8(input_text), std::string()));
+      url_formatter::FixupURL(base::UTF16ToUTF8(input_text)));
   std::string canonical_gurl_str(canonical_gurl.possibly_invalid_spec());
   if (canonical_gurl_str.empty()) {
     // This probably won't happen, but there are no guarantees.

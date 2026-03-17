@@ -38,7 +38,7 @@ class ZoomAPI : public BrowserContextKeyedAPI,
 
   // ZoomObserver implementation.
   void OnZoomControllerDestroyed(
-    zoom::ZoomController* zoom_controller) override;
+      zoom::ZoomController* zoom_controller) override;
   void OnZoomChanged(
       const zoom::ZoomController::ZoomChangedEventData& data) override;
 

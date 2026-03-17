@@ -4,6 +4,8 @@
 
 package org.chromium.chrome.browser.history;
 
+import static org.chromium.build.NullUtil.assumeNonNull;
+
 import android.content.Context;
 import android.text.method.LinkMovementMethod;
 import android.view.LayoutInflater;
@@ -51,7 +53,7 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
     private final ArrayList<HistoryItemView> mItemViews;
     private final DefaultFaviconHelper mFaviconHelper;
     private final boolean mShowAppFilter;
-    private final SigninPromoCoordinator mHistorySyncPromoCoordinator;
+    private @Nullable final SigninPromoCoordinator mHistorySyncPromoCoordinator;
 
     private @Nullable RecyclerView mRecyclerView;
     private HistoryProvider mHistoryProvider;
@@ -103,7 +105,7 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
     public HistoryAdapter(
             HistoryContentManager manager,
             HistoryProvider provider,
-            SigninPromoCoordinator historySyncPromoCoordinator) {
+            @Nullable SigninPromoCoordinator historySyncPromoCoordinator) {
         setHasStableIds(true);
         mHistoryProvider = provider;
         mHistoryProvider.setObserver(this);
@@ -489,6 +491,7 @@ public class HistoryAdapter extends DateDividedAdapter implements BrowsingHistor
     }
 
     private View getHistorySyncPromoView() {
+        assumeNonNull(mHistorySyncPromoCoordinator);
         View promoView = mHistorySyncPromoCoordinator.buildPromoView(null);
         mHistorySyncPromoCoordinator.setView(promoView);
         return promoView;

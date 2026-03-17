@@ -5,7 +5,6 @@
 package org.chromium.chrome.browser.educational_tip;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -39,7 +38,6 @@ import org.chromium.chrome.browser.tab_group_sync.TabGroupSyncFeatures;
 import org.chromium.chrome.browser.tab_group_sync.TabGroupSyncFeaturesJni;
 import org.chromium.chrome.browser.tab_group_sync.TabGroupSyncServiceFactory;
 import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
-import org.chromium.chrome.browser.tabmodel.TabGroupModelFilterProvider;
 import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.ui.default_browser_promo.DefaultBrowserPromoUtils;
@@ -67,7 +65,6 @@ public class EducationalTipCardProviderSignalHandlerUnitTest {
     @Mock private TabGroupModelFilter mIncognitoFilter;
     @Mock private TabModel mNormalModel;
     @Mock private TabModel mIncognitoModel;
-    @Mock private TabGroupModelFilterProvider mProvider;
     @Mock private Profile mProfile;
     @Mock private TabGroupSyncService mMockTabGroupSyncService;
     @Mock private TabGroupSyncFeatures.Natives mTabGroupSyncFeaturesJniMock;
@@ -83,9 +80,9 @@ public class EducationalTipCardProviderSignalHandlerUnitTest {
         mContext = ApplicationProvider.getApplicationContext();
         when(mActionDelegate.getContext()).thenReturn(mContext);
         when(mActionDelegate.getTabModelSelector()).thenReturn(mTabModelSelector);
-        when(mTabModelSelector.getTabGroupModelFilterProvider()).thenReturn(mProvider);
-        when(mProvider.getTabGroupModelFilter(/* isIncognito= */ false)).thenReturn(mNormalFilter);
-        when(mProvider.getTabGroupModelFilter(/* isIncognito= */ true))
+        when(mTabModelSelector.getTabGroupModelFilter(/* isIncognito= */ false))
+                .thenReturn(mNormalFilter);
+        when(mTabModelSelector.getTabGroupModelFilter(/* isIncognito= */ true))
                 .thenReturn(mIncognitoFilter);
         when(mTabModelSelector.getModel(/* incognito= */ false)).thenReturn(mNormalModel);
         when(mTabModelSelector.getModel(/* incognito= */ true)).thenReturn(mIncognitoModel);
@@ -102,13 +99,8 @@ public class EducationalTipCardProviderSignalHandlerUnitTest {
 
     @Test
     @SmallTest
-    @EnableFeatures({
-        ChromeFeatureList.EDUCATIONAL_TIP_MODULE,
-        ChromeFeatureList.DEFAULT_BROWSER_PROMO_ANDROID2
-    })
+    @EnableFeatures({ChromeFeatureList.DEFAULT_BROWSER_PROMO_ANDROID2})
     public void testCreateInputContext_DefaultBrowserPromoCard() {
-        assertTrue(ChromeFeatureList.sEducationalTipModule.isEnabled());
-
         InputContext inputContext =
                 EducationalTipCardProviderSignalHandler.createInputContext(
                         ModuleType.DEFAULT_BROWSER_PROMO, mActionDelegate, mProfile, mTracker);
@@ -203,10 +195,7 @@ public class EducationalTipCardProviderSignalHandlerUnitTest {
 
     @Test
     @SmallTest
-    @EnableFeatures({ChromeFeatureList.EDUCATIONAL_TIP_MODULE})
     public void testCreateInputContext_TabGroupPromoCard_TabGroupExists() {
-        assertTrue(ChromeFeatureList.sEducationalTipModule.isEnabled());
-
         when(mTabModelSelector.isTabStateInitialized()).thenReturn(true);
         when(mTabModelSelector.isReparentingInProgress()).thenReturn(false);
         when(mTabModelSelector.getCurrentModel()).thenReturn(mTabModel);
@@ -235,10 +224,7 @@ public class EducationalTipCardProviderSignalHandlerUnitTest {
 
     @Test
     @SmallTest
-    @EnableFeatures({ChromeFeatureList.EDUCATIONAL_TIP_MODULE})
     public void testCreateInputContext_TabGroupPromoCard_NumberOfTabs() {
-        assertTrue(ChromeFeatureList.sEducationalTipModule.isEnabled());
-
         InputContext inputContext;
 
         // Test cases when tab state is already initialized.
@@ -278,13 +264,13 @@ public class EducationalTipCardProviderSignalHandlerUnitTest {
         // Test cases when tab state is not initialized.
         when(mTabModelSelector.isTabStateInitialized()).thenReturn(false);
 
-        when(mActionDelegate.getTabCountForRelaunchFromSharedPrefs()).thenReturn(10);
+        when(mActionDelegate.getTabCountForRelaunchFromPersistentStore()).thenReturn(10);
         inputContext =
                 EducationalTipCardProviderSignalHandler.createInputContext(
                         ModuleType.TAB_GROUP_PROMO, mActionDelegate, mProfile, mTracker);
         assertEquals(10, inputContext.getEntryValue("number_of_tabs").floatValue, 0.01);
 
-        when(mActionDelegate.getTabCountForRelaunchFromSharedPrefs()).thenReturn(15);
+        when(mActionDelegate.getTabCountForRelaunchFromPersistentStore()).thenReturn(15);
         inputContext =
                 EducationalTipCardProviderSignalHandler.createInputContext(
                         ModuleType.TAB_GROUP_PROMO, mActionDelegate, mProfile, mTracker);
@@ -293,9 +279,7 @@ public class EducationalTipCardProviderSignalHandlerUnitTest {
 
     @Test
     @SmallTest
-    @EnableFeatures({ChromeFeatureList.EDUCATIONAL_TIP_MODULE})
     public void testCreateInputContext_TabGroupSyncPromoCard() {
-        assertTrue(ChromeFeatureList.sEducationalTipModule.isEnabled());
         when(mMockTabGroupSyncService.getAllGroupIds()).thenReturn(new String[] {});
 
         InputContext inputContext =

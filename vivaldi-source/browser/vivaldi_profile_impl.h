@@ -9,6 +9,6 @@ namespace vivaldi {
 // true == profile is okay
 bool VivaldiValidateProfile(Profile*);
 void VivaldiInitProfile(Profile*);
-}
+}  // namespace vivaldi
 
 #endif  // BROWSER_VIVALDI_PROFILE_IMPL_H_

@@ -5,6 +5,7 @@
 package org.chromium.chrome.test.transit;
 
 import static org.chromium.base.test.transit.Triggers.noopTo;
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeNtpUrl;
 
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -20,7 +21,6 @@ import org.chromium.chrome.test.batch.BlankCTATabInitialStateRule;
 import org.chromium.chrome.test.transit.ntp.RegularNewTabPageStation;
 import org.chromium.chrome.test.transit.page.CtaPageStation;
 import org.chromium.chrome.test.transit.page.WebPageStation;
-import org.chromium.components.embedder_support.util.UrlConstants;
 
 import java.util.List;
 
@@ -70,7 +70,7 @@ public class AutoResetCtaTransitTestRule extends BaseCtaTransitTestRule implemen
             Log.i(TAG, "Keep first window at %s", activeStations.get(0));
             for (Station<?> station : activeStations.subList(1, numWindows)) {
                 Log.i(TAG, "Close window at %s", station);
-                station.getActivity().finish();
+                finishActivityWithCleanup(station.getActivity());
             }
         }
 
@@ -92,7 +92,7 @@ public class AutoResetCtaTransitTestRule extends BaseCtaTransitTestRule implemen
     public RegularNewTabPageStation startOnNtp() {
         WebPageStation blankPage = startOnBlankPage();
         return blankPage.loadPageProgrammatically(
-                UrlConstants.NTP_URL, RegularNewTabPageStation.newBuilder());
+                getOriginalNativeNtpUrl(), RegularNewTabPageStation.newBuilder());
     }
 
     /**

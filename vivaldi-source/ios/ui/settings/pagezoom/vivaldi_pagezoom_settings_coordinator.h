@@ -13,7 +13,8 @@ class Browser;
 @property(nonatomic, assign) BOOL isFromDialog;
 // Designated initializer.
 - (instancetype)initWithBaseNavigationController:
-    (UINavigationController*)navigationController browser:(Browser*)browser;
+                    (UINavigationController*)navigationController
+                                         browser:(Browser*)browser;
 @end
 
 #endif  // IOS_UI_SETTINGS_PAGEZOOM_VIVALDI_PAGEZOOM_SETTINGS_COORDINATOR_H_

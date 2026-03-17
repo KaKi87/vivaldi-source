@@ -5,6 +5,8 @@
 #include "chrome/browser/ui/startup/infobar_utils.h"
 
 #include "base/command_line.h"
+#include "base/metrics/histogram_functions.h"
+#include "base/rand_util.h"
 #include "build/branding_buildflags.h"
 #include "build/buildflag.h"
 #include "chrome/browser/browser_process.h"
@@ -52,6 +54,11 @@
 #if BUILDFLAG(IS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
 #include "chrome/browser/global_features.h"
 #include "chrome/browser/win/installer_downloader/installer_downloader_controller.h"
+#endif
+
+#if BUILDFLAG(IS_WIN)
+#include "chrome/browser/startup/startup_launch_manager.h"  // nogncheck
+#include "chrome/browser/ui/startup/startup_launch_infobar_manager_impl.h"  // nogncheck
 #endif
 
 namespace {
@@ -140,7 +147,10 @@ void AddInfoBarsIfNecessary(BrowserWindowInterface* browser,
   }
 
   // Web apps should not display the session restore bubble (crbug.com/1264121)
-  if (!is_web_app && HasPendingUncleanExit(browser->GetProfile())) {
+  const bool should_display_bubble =
+      !is_web_app && HasPendingUncleanExit(browser->GetProfile());
+  base::UmaHistogramBoolean("Startup.CrashBubbleShown", should_display_bubble);
+  if (should_display_bubble) {
     SessionCrashedBubble::ShowIfNotOffTheRecordProfile(
         browser,
         /*skip_tab_checking=*/false);
@@ -188,6 +198,15 @@ void AddInfoBarsIfNecessary(BrowserWindowInterface* browser,
     }
   }
 
+#if BUILDFLAG(IS_WIN)
+  if (auto* startup_launch_manager =
+          StartupLaunchManager::From(g_browser_process)) {
+    startup_launch_manager->SetInfoBarManager(
+        std::make_unique<StartupLaunchInfoBarManagerImpl>());
+    startup_launch_manager->MaybeShowInfoBars();
+  }
+#endif
+
 #if BUILDFLAG(IS_WIN) && BUILDFLAG(GOOGLE_CHROME_BRANDING)
   if (auto* controller =
           g_browser_process->GetFeatures()->installer_downloader_controller()) {
@@ -202,23 +221,6 @@ void AddInfoBarsIfNecessary(BrowserWindowInterface* browser,
     return;
   }
 
-  base::OnceCallback<void(bool)> default_browser_prompt_shown_callback =
-      base::DoNothing();
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
-  if (base::FeatureList::IsEnabled(features::kPdfInfoBar)) {
-    default_browser_prompt_shown_callback = base::BindOnce(
-        &pdf::infobar::PdfInfoBarController::MaybeShowInfoBarAtStartup,
-        browser->GetWeakPtr());
-  }
-
-  if (base::FeatureList::IsEnabled(features::kOfferPinToTaskbarInfoBar)) {
-    default_browser_prompt_shown_callback = base::BindOnce(
-        &default_browser::PinInfoBarController::MaybeShowInfoBarForBrowser,
-        browser->GetWeakPtr(),
-        std::move(default_browser_prompt_shown_callback));
-  }
-#endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
-
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
   if (base::FeatureList::IsEnabled(features::kSessionRestoreInfobar)) {
     auto* session_restore_infobar_controller =
@@ -230,8 +232,51 @@ void AddInfoBarsIfNecessary(BrowserWindowInterface* browser,
 
   // The default browser prompt should only be shown after the first run.
   if (is_first_run == chrome::startup::IsFirstRun::kNo) {
-    ShowDefaultBrowserPrompt(profile,
-                             std::move(default_browser_prompt_shown_callback));
+#if !defined(VIVALDI_BUILD) && (BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN))
+    const bool pin_feature_enabled =
+        base::FeatureList::IsEnabled(features::kOfferPinToTaskbarInfoBar);
+
+    if (pin_feature_enabled &&
+        base::FeatureList::IsEnabled(features::kSeparateDefaultAndPinPrompt)) {
+      const int seed = features::kSeparateDefaultAndPinPromptRandSeed.Get();
+      const int choice = (seed > 0) ? (seed % 2) : base::RandInt(0, 1);
+
+      base::OnceCallback<void(bool)> pdf_callback = base::DoNothing();
+      if (base::FeatureList::IsEnabled(features::kPdfInfoBar)) {
+        pdf_callback = base::BindOnce(
+            &pdf::infobar::PdfInfoBarController::MaybeShowInfoBarAtStartup,
+            browser->GetWeakPtr());
+      }
+
+      if (choice == 0) {
+        // Experiment Arm 1: Show default browser prompt first, then PDF.
+        ShowDefaultBrowserPrompt(profile, std::move(pdf_callback));
+      } else {
+        // Experiment Arm 2: Show Pin to Taskbar prompt first, then PDF.
+        default_browser::PinInfoBarController::MaybeShowInfoBarForBrowser(
+            browser->GetWeakPtr(), std::move(pdf_callback),
+            /*another_infobar_shown=*/false);
+      }
+    } else {
+      // Default browser prompt with either pinning if enabled or fallback to
+      // pdf if enabled.
+      base::OnceCallback<void(bool)> callback = base::DoNothing();
+      if (base::FeatureList::IsEnabled(features::kPdfInfoBar)) {
+        callback = base::BindOnce(
+            &pdf::infobar::PdfInfoBarController::MaybeShowInfoBarAtStartup,
+            browser->GetWeakPtr());
+      }
+      if (pin_feature_enabled) {
+        callback = base::BindOnce(
+            &default_browser::PinInfoBarController::MaybeShowInfoBarForBrowser,
+            browser->GetWeakPtr(), std::move(callback));
+      }
+      ShowDefaultBrowserPrompt(profile, std::move(callback));
+    }
+#else
+    // Purely default browser path since it's non mac/windows.
+    // ShowDefaultBrowserPrompt(profile, base::DoNothing());
+#endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
   }
-#endif
+#endif  // !BUILDFLAG(IS_CHROMEOS) && !BUILDFLAG(IS_ANDROID)
 }

@@ -1,9 +1,9 @@
 // Copyright (c) 2019 Vivaldi Technologies AS. All rights reserved
 
+#include "components/sync_sessions/vivaldi_specific.h"
 #include "base/logging.h"
 #include "components/sync/protocol/session_specifics.pb.h"
 #include "components/sync_sessions/synced_session.h"
-#include "components/sync_sessions/vivaldi_specific.h"
 
 namespace sync_sessions {
 
@@ -18,13 +18,12 @@ namespace sync_sessions {
 // update the sync server.
 
 void SetVivaldiSpecificFromSyncData(const sync_pb::VivaldiSpecific& sync_data,
-    sync_sessions::VivaldiSpecific *data)
-{
+                                    sync_sessions::VivaldiSpecific* data) {
   DCHECK(data);
 
   if (sync_data.vivaldi_panels_size() > 0) {
     sync_sessions::VivaldiSpecific::Panels panels;
-    for (auto &sync_panel: sync_data.vivaldi_panels()) {
+    for (auto& sync_panel : sync_data.vivaldi_panels()) {
       sync_sessions::VivaldiSpecific::Panel panel;
       panel.url = sync_panel.initial_url();
 
@@ -46,9 +45,10 @@ void SetVivaldiSpecificFromSyncData(const sync_pb::VivaldiSpecific& sync_data,
 
   if (sync_data.vivaldi_workspaces_size() > 0) {
     sync_sessions::VivaldiSpecific::Workspaces workspaces;
-    for (auto &sync_workspace: sync_data.vivaldi_workspaces()) {
+    for (auto& sync_workspace : sync_data.vivaldi_workspaces()) {
       if (!sync_workspace.has_id()) {
-        LOG(WARNING) << "missing VivaldiWorkspace::id in sync_pb::VivaldiSpecific";
+        LOG(WARNING)
+            << "missing VivaldiWorkspace::id in sync_pb::VivaldiSpecific";
         continue;
       }
 
@@ -77,8 +77,9 @@ void SetVivaldiSpecificFromSyncData(const sync_pb::VivaldiSpecific& sync_data,
   }
 }
 
-void SetSyncDataFromVivaldiSpecific(const VivaldiSpecific& data,
-                                    sync_pb::VivaldiSpecific* vivaldi_specific) {
+void SetSyncDataFromVivaldiSpecific(
+    const VivaldiSpecific& data,
+    sync_pb::VivaldiSpecific* vivaldi_specific) {
   DCHECK(vivaldi_specific);
   if (data.panels) {
     for (auto& panel : *data.panels) {
@@ -108,4 +109,4 @@ void SetSyncDataFromVivaldiSpecific(const VivaldiSpecific& data,
   }
 }
 
-} // namespace sync_sessions
+}  // namespace sync_sessions

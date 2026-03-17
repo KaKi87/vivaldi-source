@@ -54,10 +54,10 @@
 #include "chrome/browser/signin/signin_util.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/cocoa/bookmarks/bookmark_menu_bridge.h"
 #include "chrome/browser/ui/cocoa/history_menu_bridge.h"
 #include "chrome/browser/ui/cocoa/test/run_loop_testing.h"
@@ -772,9 +772,10 @@ IN_PROC_BROWSER_TEST_F(AppControllerBrowserTest,
   EXPECT_EQ(chrome::GetTotalBrowserCount(), 1u);
   // Close the current browser.
   Profile* profile = browser()->profile();
+  ui_test_utils::BrowserDestroyedObserver observer(browser());
   chrome::CloseAllBrowsers();
-  ui_test_utils::WaitForBrowserToClose();
-  EXPECT_TRUE(BrowserList::GetInstance()->empty());
+  observer.Wait();
+  EXPECT_TRUE(GlobalBrowserCollection::GetInstance()->IsEmpty());
   // Create an incognito browser and check that it is the last active browser.
   Browser* incognito_browser = CreateIncognitoBrowser(profile);
   EXPECT_TRUE(incognito_browser->profile()->IsIncognitoProfile());
@@ -851,9 +852,10 @@ IN_PROC_BROWSER_TEST_F(AppControllerBrowserTest, OpenUrlWhenForcedIncognito) {
   EXPECT_EQ(chrome::GetTotalBrowserCount(), 1u);
   // Close the current non-incognito browser.
   Profile* profile = browser()->profile();
+  ui_test_utils::BrowserDestroyedObserver observer(browser());
   chrome::CloseAllBrowsers();
-  ui_test_utils::WaitForBrowserToClose();
-  EXPECT_TRUE(BrowserList::GetInstance()->empty());
+  observer.Wait();
+  EXPECT_TRUE(GlobalBrowserCollection::GetInstance()->IsEmpty());
   // Force incognito mode.
   IncognitoModePrefs::SetAvailability(
       profile->GetPrefs(), policy::IncognitoModeAvailability::kForced);
@@ -884,9 +886,10 @@ IN_PROC_BROWSER_TEST_F(AppControllerBrowserTest,
   EXPECT_EQ(chrome::GetTotalBrowserCount(), 1u);
   // Close the current non-incognito browser.
   Profile* profile = browser()->profile();
+  ui_test_utils::BrowserDestroyedObserver observer(browser());
   chrome::CloseAllBrowsers();
-  ui_test_utils::WaitForBrowserToClose();
-  EXPECT_TRUE(BrowserList::GetInstance()->empty());
+  observer.Wait();
+  EXPECT_TRUE(GlobalBrowserCollection::GetInstance()->IsEmpty());
   // Force incognito mode.
   IncognitoModePrefs::SetAvailability(
       profile->GetPrefs(), policy::IncognitoModeAvailability::kForced);
@@ -1228,9 +1231,10 @@ IN_PROC_BROWSER_TEST_F(AppControllerMainMenuBrowserTest,
   EXPECT_EQ(chrome::GetTotalBrowserCount(), 1u);
   // Close the current non-incognito browser.
   Profile* profile = browser()->profile();
+  ui_test_utils::BrowserDestroyedObserver observer(browser());
   chrome::CloseAllBrowsers();
-  ui_test_utils::WaitForBrowserToClose();
-  EXPECT_TRUE(BrowserList::GetInstance()->empty());
+  observer.Wait();
+  EXPECT_TRUE(GlobalBrowserCollection::GetInstance()->IsEmpty());
   // Force incognito mode.
   IncognitoModePrefs::SetAvailability(
       profile->GetPrefs(), policy::IncognitoModeAvailability::kForced);

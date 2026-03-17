@@ -121,7 +121,8 @@ ExtensionFunction::ResponseAction AutoUpdateStartUpdateFunction::Run() {
   std::optional<vivaldi::auto_update::StartUpdate::Params> params(
       vivaldi::auto_update::StartUpdate::Params::Create(args()));
 
-  VivaldiUpdateService* service = VivaldiUpdateServiceFactory::GetForProfile(GetProfile());
+  VivaldiUpdateService* service =
+      VivaldiUpdateServiceFactory::GetForProfile(GetProfile());
   service->StartUpdate(
       params->should_start_update,
       base::BindOnce(&AutoUpdateStartUpdateFunction::StartUpdateCB, this),

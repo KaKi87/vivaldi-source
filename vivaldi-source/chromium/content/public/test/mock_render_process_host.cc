@@ -9,7 +9,6 @@
 #include <utility>
 #include <vector>
 
-#include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/lazy_instance.h"
@@ -258,7 +257,8 @@ bool MockRenderProcessHost::ShutdownRequested() {
 bool MockRenderProcessHost::FastShutdownIfPossible(size_t page_count,
                                                    bool skip_unload_handlers,
                                                    bool ignore_workers,
-                                                   bool ignore_keep_alive) {
+                                                   bool ignore_keep_alive,
+                                                   bool ignore_pending_reuse) {
   if (GetActiveViewCount() != page_count)
     return false;
   // We aren't actually going to do anything, but set |fast_shutdown_started_|
@@ -560,15 +560,15 @@ bool MockRenderProcessHost::HostHasNotBeenUsed() {
 }
 
 bool MockRenderProcessHost::IsSpare() const {
-  return base::Contains(SpareRenderProcessHostManagerImpl::Get().GetSpares(),
-                        this);
+  return std::ranges::contains(
+      SpareRenderProcessHostManagerImpl::Get().GetSpares(), this);
 }
 
 void MockRenderProcessHost::SetProcessLock(
     const IsolationContext& isolation_context,
     const ProcessLock& process_lock) {
   ChildProcessSecurityPolicyImpl::GetInstance()->LockProcess(
-      isolation_context, GetDeprecatedID(), !IsUnused(), process_lock);
+      isolation_context, GetID(), !IsUnused(), process_lock);
   if (process_lock.IsASiteOrOrigin())
     is_renderer_locked_to_site_ = true;
 }
@@ -690,6 +690,19 @@ MockRenderProcessHostFactory::BuildRenderProcessHost(
       GetOrCreateStoragePartitionConfig(browser_context, site_instance);
   return std::make_unique<MockRenderProcessHost>(
       browser_context, storage_partition_config, is_for_guests_only);
+}
+
+base::ScopedClosureRunner MockRenderProcessHost::DelayProcessShutdown(
+    const base::TimeDelta& subframe_shutdown_timeout,
+    const base::TimeDelta& unload_handler_timeout,
+    const SiteInfo& site_info) {
+  return base::ScopedClosureRunner();
+}
+
+void MockRenderProcessHost::StopTrackingProcessForShutdownDelay() {}
+
+bool MockRenderProcessHost::IsOnlyHostingPrerenderedFramesOrEmpty() {
+  return false;
 }
 
 }  // namespace content

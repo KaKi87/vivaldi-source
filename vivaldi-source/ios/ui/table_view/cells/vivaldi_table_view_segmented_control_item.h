@@ -14,13 +14,12 @@
 
 @end
 
-
 @interface VivaldiTableViewSegmentedControlCell : LegacyTableViewCell
 
 @property(nonatomic, strong) UISegmentedControl* segmentedControl;
 
--(void)initWithLabels:(NSArray*)labels;
--(void)setSelectedItem:(NSInteger)selectedItem;
+- (void)initWithLabels:(NSArray*)labels;
+- (void)setSelectedItem:(NSInteger)selectedItem;
 
 @end
 

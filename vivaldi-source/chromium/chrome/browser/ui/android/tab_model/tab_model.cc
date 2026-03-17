@@ -14,21 +14,15 @@
 #include "chrome/browser/sync/session_sync_service_factory.h"
 #include "chrome/browser/sync/sessions/sync_sessions_web_contents_router.h"
 #include "chrome/browser/sync/sessions/sync_sessions_web_contents_router_factory.h"
+#include "chrome/browser/ui/android/tab_model/tab_model_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "components/omnibox/browser/location_bar_model_impl.h"
 #include "components/sessions/core/session_id.h"
 #include "components/sync_sessions/open_tabs_ui_delegate.h"
 #include "components/sync_sessions/session_sync_service.h"
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 
-#if BUILDFLAG(IS_DESKTOP_ANDROID)
-#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"  // nogncheck
-#endif
-
 using chrome::android::ActivityType;
-
-// Keep this in sync with
-// chrome/android/java/src/org/chromium/chrome/browser/tabmodel/TabList.java
-static int INVALID_TAB_INDEX = -1;
 
 namespace {
 sync_sessions::OpenTabsUIDelegate* GetOpenTabsUIDelegate(Profile* profile) {
@@ -51,7 +45,7 @@ sync_sessions::OpenTabsUIDelegate* GetOpenTabsUIDelegate(Profile* profile) {
 // |SessionID:NewUnique|.
 //
 // TODO(http://crbug.com/444518651): remove the if-def when
-// |BrowserWindowInterface| is compiled into all Android builds.
+// |BrowserWindowInterface| is compiled and running on all Android builds.
 SessionID GetInitialSessionId() {
 #if BUILDFLAG(IS_DESKTOP_ANDROID)
   return SessionID::InvalidValue();
@@ -61,11 +55,12 @@ SessionID GetInitialSessionId() {
 }
 }  // namespace
 
-DEFINE_USER_DATA(TabModel);
-
-TabModel::TabModel(Profile* profile, ActivityType activity_type)
+TabModel::TabModel(Profile* profile,
+                   ActivityType activity_type,
+                   TabModelType tab_model_type)
     : profile_(profile),
       activity_type_(activity_type),
+      tab_model_type_(tab_model_type),
       live_tab_context_(new AndroidLiveTabContext(this)),
       synced_window_delegate_(new browser_sync::SyncedWindowDelegateAndroid(
           this,
@@ -96,7 +91,7 @@ sessions::LiveTabContext* TabModel::GetLiveTabContext() const {
 
 content::WebContents* TabModel::GetActiveWebContents() const {
   int active_index = GetActiveIndex();
-  if (active_index == INVALID_TAB_INDEX) {
+  if (active_index == kInvalidIndex) {
     return nullptr;
   }
   return GetWebContentsAt(active_index);
@@ -161,17 +156,26 @@ void TabModel::RecordActualSyncedTabsHistogram() {
 }
 
 // TODO(http://crbug.com/444518651): remove the if-def when
-// |BrowserWindowInterface| is compiled into all Android builds.
+// |BrowserWindowInterface| is compiled and running on all Android builds.
 #if BUILDFLAG(IS_DESKTOP_ANDROID)
 void TabModel::SetSessionId(SessionID session_id) {
   session_id_ = session_id;
 }
+#endif
 
 // static
-// From //chrome/browser/ui/tabs/tab_list_interface.h
-TabListInterface* TabListInterface::From(
-    BrowserWindowInterface* browser_window_interface) {
-  return ui::ScopedUnownedUserData<TabModel>::Get(
-      browser_window_interface->GetUnownedUserDataHost());
+// From //chrome/browser/tab_list/tab_list_interface.h
+bool TabListInterface::CanEditTabList(Profile& profile) {
+  for (TabModel* model : TabModelList::models()) {
+    if (model->GetProfile() != &profile ||
+        model->GetTabModelType() != TabModel::TabModelType::kStandard) {
+      continue;
+    }
+
+    if (!model->IsThisTabListEditable()) {
+      return false;
+    }
+  }
+
+  return true;
 }
-#endif

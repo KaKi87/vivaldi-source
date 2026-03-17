@@ -86,6 +86,7 @@ Chcete-li upravit hledaný výraz, vyberte jej dlouhým stisknutím. Chcete-li v
 <translation id="6336451774241870485">Nový soukromý list</translation>
 <translation id="6337323516034698937">Pro odeslání tohoto listu do dalšího zařízení se přihlaste k Vivaldi synchronizaci na obou zařízeních. Zadejte také svůj šifrovací klíč, pokud je třeba.</translation>
 <translation id="6341580099087024258">Ptát se, kam ukládat soubory</translation>
+<translation id="6364438453358674297">Odebrat návrh z historie?</translation>
 <translation id="6404511346730675251">Upravit záložku</translation>
 <translation id="650224091954855786">{FILE_COUNT, plural,
           =1 {Byl stažen jeden soubor}
@@ -101,6 +102,7 @@ Chcete-li upravit hledaný výraz, vyberte jej dlouhým stisknutím. Chcete-li v
 <translation id="6909589135458168665">Předběžně načítat stránky</translation>
 <translation id="7029995644714925509">Když web požádá o soukromé přednačtení odkazů na jejich stránce, Vivaldi zašifruje a přednačte stránky pomocí Google serverů bez cookies. Tím je vaše identita skryta před přednačítanou stránkou.</translation>
 <translation id="706339621163631076">Nakládání se soukromím</translation>
+<translation id="7100573672995171864">Přizpůsobení a ovládání Vivaldi</translation>
 <translation id="732145680195464316">Záložka uložena v <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Odesílat požadavek Do Not Track</translation>
 <translation id="7359002509206457351">Poskytnout přístup k platební metodám</translation>
@@ -119,7 +121,6 @@ Chcete-li upravit hledaný výraz, vyberte jej dlouhým stisknutím. Chcete-li v
 <translation id="8348430946834215779">Používejte HTTPS, kdykoli je to možné, a nechte se upozornit, než načtete web, který tento protokol nepodporuje</translation>
 <translation id="8560602726703398413">Seznam četby naleznete v záložkách</translation>
 <translation id="85991616550051997">Přejít na domovskou stránku</translation>
-<translation id="8693232767599693749">Zobrazit režim čtení?</translation>
 <translation id="8820817407110198400">Záložky</translation>
 <translation id="9042893549633094279">Soukromí a bezpečí</translation>
 <translation id="9063523880881406963">Vypnout funkci Stránky pro počítač</translation>

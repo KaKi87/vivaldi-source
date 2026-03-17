@@ -13,11 +13,11 @@
 class PrefService;
 
 namespace vivaldi {
-  class VivaldiAccountManager;
+class VivaldiAccountManager;
 }
 
 namespace syncer {
-  class SyncService;
+class SyncService;
 }
 
 @interface VivaldiSyncMediator
@@ -25,9 +25,9 @@ namespace syncer {
                 VivaldiSyncSettingsViewControllerServiceDelegate>
 
 - (instancetype)initWithAccountManager:
-      (vivaldi::VivaldiAccountManager*)vivaldiAccountManager
-      syncService:(syncer::SyncService*)syncService
-      prefService:(PrefService*)prefService
+                    (vivaldi::VivaldiAccountManager*)vivaldiAccountManager
+                           syncService:(syncer::SyncService*)syncService
+                           prefService:(PrefService*)prefService
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;
@@ -41,18 +41,18 @@ namespace syncer {
 - (void)clearPendingRegistration;
 
 - (void)login:(std::string)username
-        password:(std::string)password
-        deviceName:(NSString*)deviceName
-      save_password:(BOOL)save_password;
+         password:(std::string)password
+       deviceName:(NSString*)deviceName
+    save_password:(BOOL)save_password;
 
 - (void)updateDeviceName:(NSString*)deviceName;
 
 - (BOOL)setEncryptionPassword:(std::string)password;
 - (void)importEncryptionPassword:(NSURL*)file
-          completionHandler:(void (^)(NSString* errorMessage))completionHandler;
+               completionHandler:
+                   (void (^)(NSString* errorMessage))completionHandler;
 
-- (void)storeUsername:(NSString*)username
-                email:(NSString*)recoveryEmailAddress;
+- (void)storeUsername:(NSString*)username email:(NSString*)recoveryEmailAddress;
 
 - (void)createAccount:(NSString*)password
            deviceName:(NSString*)deviceName

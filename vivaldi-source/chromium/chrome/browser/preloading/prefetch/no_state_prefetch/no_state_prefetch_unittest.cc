@@ -37,7 +37,6 @@
 #include "components/content_settings/core/browser/cookie_settings.h"
 #include "components/content_settings/core/common/pref_names.h"
 #include "components/no_state_prefetch/browser/no_state_prefetch_contents.h"
-#include "components/no_state_prefetch/browser/no_state_prefetch_field_trial.h"
 #include "components/no_state_prefetch/browser/no_state_prefetch_handle.h"
 #include "components/no_state_prefetch/browser/no_state_prefetch_link_manager.h"
 #include "components/no_state_prefetch/browser/no_state_prefetch_manager.h"
@@ -287,75 +286,6 @@ TEST_F(NoStatePrefetchTest, RespectsThirdPartyCookiesPref) {
       "Prerender.FinalStatus", FINAL_STATUS_BLOCK_THIRD_PARTY_COOKIES, 1);
 }
 
-class NoStatePrefetchGWSPrefetchHoldbackTest : public NoStatePrefetchTest {
- public:
-  NoStatePrefetchGWSPrefetchHoldbackTest() {
-    feature_list_.InitAndEnableFeature(kGWSPrefetchHoldback);
-  }
-};
-
-TEST_F(NoStatePrefetchGWSPrefetchHoldbackTest,
-       GWSPrefetchHoldbackNonGWSSReferrer) {
-  GURL url("http://www.notgoogle.com/");
-  no_state_prefetch_manager()->CreateNextNoStatePrefetchContents(
-      url, FINAL_STATUS_PROFILE_DESTROYED);
-
-  EXPECT_TRUE(AddSimpleLinkTrigger(url));
-}
-
-TEST_F(NoStatePrefetchGWSPrefetchHoldbackTest, GWSPrefetchHoldbackGWSReferrer) {
-  GURL url("http://www.notgoogle.com/");
-  no_state_prefetch_manager()->CreateNextNoStatePrefetchContents(
-      url, url::Origin::Create(GURL("www.google.com")), ORIGIN_GWS_PRERENDER,
-      FINAL_STATUS_PROFILE_DESTROYED);
-
-  EXPECT_FALSE(AddSimpleGWSLinkTrigger(url));
-}
-
-class NoStatePrefetchGWSPrefetchHoldbackOffTest : public NoStatePrefetchTest {
- public:
-  NoStatePrefetchGWSPrefetchHoldbackOffTest() {
-    feature_list_.InitAndDisableFeature(kGWSPrefetchHoldback);
-  }
-};
-
-TEST_F(NoStatePrefetchGWSPrefetchHoldbackOffTest,
-       GWSPrefetchHoldbackOffNonGWSReferrer) {
-  GURL url("http://www.notgoogle.com/");
-  no_state_prefetch_manager()->CreateNextNoStatePrefetchContents(
-      url, FINAL_STATUS_PROFILE_DESTROYED);
-
-  EXPECT_TRUE(AddSimpleLinkTrigger(url));
-}
-
-TEST_F(NoStatePrefetchGWSPrefetchHoldbackOffTest,
-       GWSPrefetchHoldbackOffGWSReferrer) {
-  GURL url("http://www.notgoogle.com/");
-  no_state_prefetch_manager()->CreateNextNoStatePrefetchContents(
-      url, url::Origin::Create(GURL("www.google.com")), ORIGIN_GWS_PRERENDER,
-      FINAL_STATUS_PROFILE_DESTROYED);
-
-  EXPECT_TRUE(AddSimpleGWSLinkTrigger(url));
-}
-
-class PrerendererNavigationPredictorPrefetchHoldbackTest
-    : public NoStatePrefetchTest {
- public:
-  PrerendererNavigationPredictorPrefetchHoldbackTest() {
-    feature_list_.InitAndEnableFeature(kNavigationPredictorPrefetchHoldback);
-  }
-};
-
-TEST_F(PrerendererNavigationPredictorPrefetchHoldbackTest,
-       PredictorPrefetchHoldbackNonPredictorReferrer) {
-  GURL url("http://www.notgoogle.com/");
-  no_state_prefetch_manager()->CreateNextNoStatePrefetchContents(
-      url, url::Origin::Create(GURL("www.notgoogle.com")),
-      ORIGIN_LINK_REL_PRERENDER_CROSSDOMAIN, FINAL_STATUS_PROFILE_DESTROYED);
-
-  EXPECT_TRUE(AddSimpleLinkTrigger(url));
-}
-
 // Verify that link-rel:next URLs are not prefetched.
 TEST_F(NoStatePrefetchTest, LinkRelNextWithNSPDisabled) {
   GURL url("http://www.notgoogle.com/");
@@ -368,24 +298,6 @@ TEST_F(NoStatePrefetchTest, LinkRelNextWithNSPDisabled) {
                              url::Origin::Create(GURL("www.notgoogle.com"))));
   histogram_tester().ExpectUniqueSample(
       "Prerender.FinalStatus", FINAL_STATUS_LINK_REL_NEXT_NOT_ALLOWED, 1);
-}
-
-class PrerendererNavigationPredictorPrefetchHoldbackDisabledTest
-    : public NoStatePrefetchTest {
- public:
-  PrerendererNavigationPredictorPrefetchHoldbackDisabledTest() {
-    feature_list_.InitAndDisableFeature(kNavigationPredictorPrefetchHoldback);
-  }
-};
-
-TEST_F(PrerendererNavigationPredictorPrefetchHoldbackDisabledTest,
-       PredictorPrefetchHoldbackOffNonPredictorReferrer) {
-  GURL url("http://www.notgoogle.com/");
-  no_state_prefetch_manager()->CreateNextNoStatePrefetchContents(
-      url, url::Origin::Create(GURL("www.notgoogle.com")),
-      ORIGIN_LINK_REL_PRERENDER_CROSSDOMAIN, FINAL_STATUS_PROFILE_DESTROYED);
-
-  EXPECT_TRUE(AddSimpleLinkTrigger(url));
 }
 
 // Flaky on Android and Mac, crbug.com/1087876.
@@ -614,27 +526,35 @@ TEST_F(NoStatePrefetchTest, NoStatePrefetchDuplicate) {
 
   // Prefetch the url once.
   no_state_prefetch_manager()->CreateNextNoStatePrefetchContents(
-      kUrl, kOrigin, ORIGIN_SAME_ORIGIN_SPECULATION, FINAL_STATUS_CANCELLED);
-  EXPECT_TRUE(no_state_prefetch_manager()->AddSameOriginSpeculation(
-      kUrl, nullptr, gfx::Size(), kOrigin));
+      kUrl, kOrigin, ORIGIN_LINK_REL_PRERENDER_CROSSDOMAIN,
+      FINAL_STATUS_CANCELLED);
+  EXPECT_TRUE(no_state_prefetch_manager()->StartPrefetchingFromLinkRelPrerender(
+      /*process_id=*/-1, /*route_id=*/-1, kUrl,
+      blink::mojom::PrerenderTriggerType::kLinkRelPrerender,
+      content::Referrer(), kOrigin, gfx::Size()));
   // Cancel the prefetch so that it is not reused.
   no_state_prefetch_manager()->CancelAllPrerenders();
 
   no_state_prefetch_manager()->CreateNextNoStatePrefetchContents(
-      kUrl, kOrigin, ORIGIN_SAME_ORIGIN_SPECULATION,
+      kUrl, kOrigin, ORIGIN_LINK_REL_PRERENDER_CROSSDOMAIN,
       FINAL_STATUS_PROFILE_DESTROYED);
 
   // Prefetch again before time_to_live aborts, because it is a duplicate.
   tick_clock()->Advance(base::Seconds(1));
-  EXPECT_FALSE(no_state_prefetch_manager()->AddSameOriginSpeculation(
-      kUrl, nullptr, gfx::Size(), kOrigin));
+  EXPECT_FALSE(
+      no_state_prefetch_manager()->StartPrefetchingFromLinkRelPrerender(
+          /*process_id=*/-1, /*route_id=*/-1, kUrl,
+          blink::mojom::PrerenderTriggerType::kLinkRelPrerender,
+          content::Referrer(), kOrigin, gfx::Size()));
   histogram_tester().ExpectBucketCount("Prerender.FinalStatus",
                                        FINAL_STATUS_DUPLICATE, 1);
 
   // Prefetch after time_to_live succeeds.
   tick_clock()->Advance(base::Minutes(net::HttpCache::kPrefetchReuseMins));
-  EXPECT_TRUE(no_state_prefetch_manager()->AddSameOriginSpeculation(
-      kUrl, nullptr, gfx::Size(), kOrigin));
+  EXPECT_TRUE(no_state_prefetch_manager()->StartPrefetchingFromLinkRelPrerender(
+      /*process_id=*/-1, /*route_id=*/-1, kUrl,
+      blink::mojom::PrerenderTriggerType::kLinkRelPrerender,
+      content::Referrer(), kOrigin, gfx::Size()));
 }
 
 // Make sure that if we prerender more requests than we support, that we launch

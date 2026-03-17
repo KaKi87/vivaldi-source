@@ -1,4 +1,4 @@
-// Copyright 2025 The Chromium Authors
+// Copyright 2026 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,29 @@
 
 #include <algorithm>
 
+#include "base/memory/raw_ref.h"
+#include "base/no_destructor.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/global_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_collection_observer.h"
+
+GlobalBrowserCollection::GlobalBrowserCollection()
+    : platform_delegate_(GlobalBrowserCollectionPlatformDelegate(*this)) {}
+
+GlobalBrowserCollection::~GlobalBrowserCollection() = default;
 
 // static
 GlobalBrowserCollection* GlobalBrowserCollection::GetInstance() {
   return g_browser_process->GetFeatures()->global_browser_collection();
 }
 
-GlobalBrowserCollection::GlobalBrowserCollection() = default;
+bool GlobalBrowserCollection::IsEmpty() const {
+  return browsers_creation_order_.empty();
+}
 
-GlobalBrowserCollection::~GlobalBrowserCollection() = default;
+size_t GlobalBrowserCollection::GetSize() const {
+  return browsers_creation_order_.size();
+}
 
 BrowserCollection::BrowserVector GlobalBrowserCollection::GetBrowsers(
     Order order) {
@@ -40,11 +52,11 @@ void GlobalBrowserCollection::OnBrowserCreated(
 }
 
 void GlobalBrowserCollection::OnBrowserClosed(BrowserWindowInterface* browser) {
+  std::erase(browsers_activation_order_, browser);
+  std::erase(browsers_creation_order_, browser);
   for (BrowserCollectionObserver& observer : observers()) {
     observer.OnBrowserClosed(browser);
   }
-  std::erase(browsers_activation_order_, browser);
-  std::erase(browsers_creation_order_, browser);
 }
 
 void GlobalBrowserCollection::OnBrowserActivated(
@@ -64,4 +76,9 @@ void GlobalBrowserCollection::OnBrowserDeactivated(
   for (BrowserCollectionObserver& observer : observers()) {
     observer.OnBrowserDeactivated(browser);
   }
+}
+
+GlobalBrowserCollectionPlatformDelegate*
+GlobalBrowserCollection::GetPlatformDelegate() {
+  return &platform_delegate_;
 }

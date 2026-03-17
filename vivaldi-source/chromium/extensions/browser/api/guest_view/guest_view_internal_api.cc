@@ -88,8 +88,7 @@ ExtensionFunction::ResponseAction GuestViewInternalCreateGuestFunction::Run() {
 
   // Add flag to |create_params| to indicate that the element size is specified
   // in logical units.
-  base::Value::Dict& create_params =
-      params->create_params.additional_properties;
+  base::DictValue& create_params = params->create_params.additional_properties;
   create_params.Set(guest_view::kElementSizeIsLogical, true);
 
   if (GetExternalWebContents(create_params)) {

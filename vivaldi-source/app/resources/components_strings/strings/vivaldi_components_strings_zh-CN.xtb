@@ -14,7 +14,7 @@
 <translation id="1555191101192706055">您尝试访问的网站上的攻击者可能会诱骗您安装影响您浏览方式的有害软件，例如更改您的主页或在您访问的网站上向您展示额外的广告。</translation>
 <translation id="1559528461873125649">该文件或目录不存在</translation>
 <translation id="1640244768702815859">请尝试<ph name="BEGIN_LINK" />访问该网站的首页<ph name="END_LINK" />。</translation>
-<translation id="1644574205037202324">h</translation>
+<translation id="1644574205037202324">历史</translation>
 <translation id="1645368109819982629">协议不受支持</translation>
 <translation id="1662550410081243962">保存并填写支付方式</translation>
 <translation id="1710259589646384581">操作系统</translation>
@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">您与此网站之间建立的连接并非完全安全</translation>
 <translation id="4265872034478892965">您的管理员允许</translation>
 <translation id="4305666528087210886">无法访问您的文件</translation>
-<translation id="4408413947728134509"><ph name="NUM_COOKIES" /> 个Cookie</translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> 不接受您的登录证书，或者您可能没有提供登录证书。</translation>
 <translation id="4506599922270137252">联系系统管理员</translation>
 <translation id="4522570452068850558">详细信息</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">无结果</translation>
 <translation id="5017554619425969104">您复制的文字</translation>
 <translation id="5023310440958281426">请查看管理员制定的政策</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1{（使用了 1 个）}other{（使用了 # 个）}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />检查代理服务器地址<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">（64 位）</translation>
 <translation id="5216942107514965959">今天最新访问</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">请勿在此网站上输入敏感信息（例如密码或信用卡信息），因为攻击者可能会盗取这些信息。</translation>
 <translation id="5863515189965725638">编辑 IBAN</translation>
 <translation id="5869405914158311789">无法访问此网站</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{正在使用 1 个} other {正在使用 # 个}}</translation>
 <translation id="5932224571077948991">网站展示侵扰性或误导性广告</translation>
 <translation id="6051221802930200923">您目前无法访问 <ph name="SITE" />，因为此网站使用了证书锁定。网络错误和攻击通常是暂时的，因此，此网页稍后可能会恢复正常。</translation>
 <translation id="6146055958333702838">请检查所有网线连接状况，然后重启所有您可能正在使用的路由器、调制解调器

@@ -63,7 +63,8 @@ class StubGpuService : public mojom::GpuService {
           receiver) override;
   void BindWebNNContextProvider(
       mojo::PendingReceiver<webnn::mojom::WebNNContextProvider> receiver,
-      int32_t client_id) override;
+      int32_t client_id,
+      bool is_incognito) override;
   void GetVideoMemoryUsageStats(
       GetVideoMemoryUsageStatsCallback callback) override;
 #if BUILDFLAG(IS_WIN)
@@ -81,9 +82,6 @@ class StubGpuService : public mojom::GpuService {
   void OnBackgroundCleanup() override;
   void OnBackgrounded() override;
   void OnForegrounded() override;
-#if !BUILDFLAG(IS_ANDROID)
-  void OnMemoryPressure(base::MemoryPressureLevel level) override;
-#endif
 #if BUILDFLAG(IS_APPLE)
   void BeginCATransaction() override;
   void CommitCATransaction(CommitCATransactionCallback callback) override;

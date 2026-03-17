@@ -4,8 +4,9 @@
 
 package org.chromium.components.webxr;
 
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.components.webxr.XrSessionCoordinator.SessionType;
 
@@ -20,11 +21,12 @@ import org.chromium.components.webxr.XrSessionCoordinator.SessionType;
 public class XrDelegateImpl implements XrDelegate {
     private @SessionType int mActiveSession = SessionType.NONE;
 
-    private final ObservableSupplierImpl<Boolean> mHasActiveSessionSupplier =
-            new ObservableSupplierImpl<>();
+    private final SettableNonNullObservableSupplier<Boolean> mHasActiveSessionSupplier =
+            ObservableSuppliers.createNonNull(false);
 
     public XrDelegateImpl() {
-        XrSessionCoordinator.getActiveSessionTypeSupplier().addObserver(this::setActiveSessionType);
+        XrSessionCoordinator.getActiveSessionTypeSupplier()
+                .addSyncObserverAndPostIfNonNull(this::setActiveSessionType);
     }
 
     private void setActiveSessionType(@SessionType int sessionType) {
@@ -47,7 +49,7 @@ public class XrDelegateImpl implements XrDelegate {
     }
 
     @Override
-    public ObservableSupplier<Boolean> getHandleBackPressChangedSupplier() {
+    public NonNullObservableSupplier<Boolean> getHandleBackPressChangedSupplier() {
         return mHasActiveSessionSupplier;
     }
 

@@ -4,6 +4,7 @@
 
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/json/json_string_value_serializer.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/sequenced_task_runner.h"
@@ -11,6 +12,7 @@
 #include "components/ad_blocker/ios/adblock_content_injection_handler.h"
 #include "components/ad_blocker/ios/adblock_content_rule_list_provider.h"
 #include "components/ad_blocker/ios/adblock_rules_organizer.h"
+#include "components/ad_blocker/ios/ios_rule_utils.h"
 #include "components/ad_blocker/ios/ios_rules_compiler.h"
 #include "components/ad_blocker/ios/utils.h"
 #include "components/ad_blocker/public/ios/adblock_rule_service.h"
@@ -36,7 +38,7 @@ std::unique_ptr<base::Value> GetJsonFromFile(
 
   DCHECK(result->is_dict());
   auto& result_dict = result->GetDict();
-  std::optional<int> version = result_dict.FindInt(rules_json::kVersion);
+  std::optional<int> version = result_dict.FindInt(ios_rule_utils::kVersion);
   if (version.value_or(0) != expected_version) {
     return nullptr;
   }
@@ -247,8 +249,8 @@ void OrganizedRulesManager::ReorganizeRules() {
   }
 
   organized_rules_ready_callback_.Reset(
-    base::BindOnce(&OrganizedRulesManager::OnOrganizedRulesReady,
-                   weak_factory_.GetWeakPtr()));
+      base::BindOnce(&OrganizedRulesManager::OnOrganizedRulesReady,
+                     weak_factory_.GetWeakPtr()));
 
   on_start_applying_rules_.Run();
 
@@ -280,17 +282,17 @@ void OrganizedRulesManager::OnOrganizedRulesLoaded(
       CheckOrganizedRules(non_ios_rules_and_metadata.get());
 
   if (organized_rules_ok) {
-    base::Value::Dict* scriptlet_rules =
+    base::DictValue* scriptlet_rules =
         non_ios_rules_and_metadata->GetDict().FindDict(
-            rules_json::kScriptletRules);
+            ios_rule_utils::kScriptletRules);
     if (scriptlet_rules)
       content_injection_handler_->SetScriptletInjectionRules(
           group_, std::move(*scriptlet_rules));
 
     content_rule_list_provider_->ApplyLoadedRules();
-    base::Value::List* partner_list_allowed_documents =
+    base::ListValue* partner_list_allowed_documents =
         std::move(non_ios_rules_and_metadata->GetDict().FindList(
-            rules_json::kPartnerListAllowedDocuments));
+            ios_rule_utils::kPartnerListAllowedDocuments));
     CHECK(partner_list_allowed_documents);
     partner_list_allowed_documents_ =
         std::move(*partner_list_allowed_documents);
@@ -318,18 +320,18 @@ bool OrganizedRulesManager::CheckOrganizedRules(
   // can't assume that the rules stored on the webkit side are sound. Try
   // starting fresh instead.
   if (non_ios_rules_and_metadata->GetDict().contains("organized-rules")) {
-    content_rule_list_provider_->InstallContentRuleLists(base::Value::List());
+    content_rule_list_provider_->InstallContentRuleLists(base::ListValue());
     return false;
   }
 
-  base::Value::Dict* metadata =
-      non_ios_rules_and_metadata->GetDict().FindDict(rules_json::kMetadata);
+  base::DictValue* metadata =
+      non_ios_rules_and_metadata->GetDict().FindDict(ios_rule_utils::kMetadata);
   if (!metadata) {
     return false;
   }
 
-  base::Value::Dict* list_checksums =
-      metadata->FindDict(rules_json::kListChecksums);
+  base::DictValue* list_checksums =
+      metadata->FindDict(ios_rule_utils::kListChecksums);
 
   if (!list_checksums) {
     return false;
@@ -353,7 +355,7 @@ bool OrganizedRulesManager::CheckOrganizedRules(
   }
 
   std::string* exceptions_checksum =
-      metadata->FindString(rules_json::kExceptionRule);
+      metadata->FindString(ios_rule_utils::kExceptionRule);
   if ((exceptions_checksum == nullptr) != exception_rule_.is_none()) {
     return false;
   }
@@ -384,7 +386,7 @@ void OrganizedRulesManager::OnAllRulesLoaded(bool should_reorganize_rules) {
 
 void OrganizedRulesManager::Disable() {
   organized_rules_ready_callback_.Cancel();
-  content_rule_list_provider_->InstallContentRuleLists(base::Value::List());
+  content_rule_list_provider_->InstallContentRuleLists(base::ListValue());
   build_result_ = RuleService::kBuildSuccess;
   organized_rules_checksum_.clear();
   organized_rules_changed_callback_.Run(build_result_);
@@ -399,14 +401,14 @@ void OrganizedRulesManager::OnOrganizedRulesReady(base::Value rules) {
   }
 
   DCHECK(rules.is_dict());
-  base::Value::List* ios_content_blocker_rules_rules =
-      rules.GetDict().FindList(rules_json::kIosContentBlockerRules);
+  base::ListValue* ios_content_blocker_rules_rules =
+      rules.GetDict().FindList(ios_rule_utils::kIosContentBlockerRules);
   DCHECK(ios_content_blocker_rules_rules);
   content_rule_list_provider_->InstallContentRuleLists(
       *ios_content_blocker_rules_rules);
 
-  base::Value::Dict* non_ios_rules_and_metadata =
-      rules.GetDict().FindDict(rules_json::kNonIosRulesAndMetadata);
+  base::DictValue* non_ios_rules_and_metadata =
+      rules.GetDict().FindDict(ios_rule_utils::kNonIosRulesAndMetadata);
   DCHECK(non_ios_rules_and_metadata);
 
   file_task_runner_->PostTaskAndReplyWithResult(
@@ -419,8 +421,8 @@ void OrganizedRulesManager::OnOrganizedRulesReady(base::Value rules) {
              RuleService::IndexBuildResult build_result,
              std::pair<std::string, base::Value> checksum_and_rules) {
             auto& [checksum, non_ios_rules] = checksum_and_rules;
-            base::Value::Dict* scriptlet_rules =
-                non_ios_rules.GetDict().FindDict(rules_json::kScriptletRules);
+            base::DictValue* scriptlet_rules = non_ios_rules.GetDict().FindDict(
+                ios_rule_utils::kScriptletRules);
             if (scriptlet_rules) {
               self->content_injection_handler_->SetScriptletInjectionRules(
                   self->group_, std::move(*scriptlet_rules));
@@ -428,9 +430,9 @@ void OrganizedRulesManager::OnOrganizedRulesReady(base::Value rules) {
             if (self && !checksum.empty()) {
               self->organized_rules_checksum_ = checksum;
               self->organized_rules_changed_callback_.Run(build_result);
-              base::Value::List* partner_list_allowed_documents =
+              base::ListValue* partner_list_allowed_documents =
                   std::move(non_ios_rules.GetDict().FindList(
-                      rules_json::kPartnerListAllowedDocuments));
+                      ios_rule_utils::kPartnerListAllowedDocuments));
               CHECK(partner_list_allowed_documents);
               self->partner_list_allowed_documents_ =
                   std::move(*partner_list_allowed_documents);

@@ -105,7 +105,6 @@
 <translation id="5575473780076478375">Estensione incognita: <ph name="EXTENSION_NAME" /></translation>
 <translation id="5623842676595125836">Log</translation>
 <translation id="5677928146339483299">No dones s'òrdine</translation>
-<translation id="5707185214361380026">B'at istadu una faddina carrigande s'estensione dae:</translation>
 <translation id="5746169159649715125">Ammenta-lu che a PDF</translation>
 <translation id="5759728514498647443">Sos documentos chi nc'as mandadu a imprentare dae <ph name="APP_NAME" /> podent èssere ligidos ebbia dae <ph name="APP_NAME" />.</translation>
 <translation id="5804241973901381774">Ordines</translation>
@@ -162,7 +161,7 @@ Mantene su file cun sa crae in d-unu zassu siguru. Podet dare puru chi as a depe
 <translation id="8071432093239591881">Imprenta che a un'immàgine</translation>
 <translation id="8135557862853121765"><ph name="NUM_KILOBYTES" />K</translation>
 <translation id="8212008074015601248">{NUM_DOWNLOAD, plural,
-        =1 {iscarrigamentu est andande adenanti} àteros {iscarrrigamentos sunt andande adenanti}}</translation>
+        =1 {iscarrigamentu est andande adenanti} other {iscarrrigamentos sunt andande adenanti}}</translation>
 <translation id="8261378640211443080">Cust'estensione no est elencada in <ph name="IDS_EXTENSION_WEB_STORE_TITLE" /> e podet dare chi siet bisada agiunta chentza s'òrdine tou.</translation>
 <translation id="8569682776816196752">No apo aciapadu sas destinatziones</translation>
 <translation id="8615618338313291042">Aplicu incognito: <ph name="APP_NAME" /></translation>

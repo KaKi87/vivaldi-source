@@ -10,7 +10,8 @@ class TemplateURL;
 
 // Creates an editor item from the provided TemplateURL. Returns nil if the
 // TemplateURL is invalid.
-VivaldiSearchEngineEditorItem* VivaldiCreateSearchEngineEditorItemFromTemplateURL(
+VivaldiSearchEngineEditorItem*
+VivaldiCreateSearchEngineEditorItemFromTemplateURL(
     const TemplateURL* templateURL);
 
 #endif  // IOS_UI_SETTINGS_SEARCH_ENGINE_EDITOR_VIVALDI_SEARCH_ENGINE_EDITOR_UTILS_H_

@@ -9,15 +9,12 @@
 #include <array>
 #include <utility>
 
-#include "base/strings/string_util.h"
-#include "base/metrics/field_trial.h"
 #include "base/compiler_specific.h"
 #include "base/metrics/field_trial.h"
+#include "base/strings/string_util.h"
 #include "chrome/browser/performance_manager/public/background_tab_loading_policy.h"
 #include "chrome/browser/sessions/session_restore_stats_collector.h"
-#include "chrome/browser/sessions/tab_loader.h"
 #include "chrome/common/url_constants.h"
-#include "components/performance_manager/public/features.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tab_groups/tab_group_visual_data.h"
 #include "content/public/browser/web_contents.h"
@@ -101,30 +98,22 @@ void SessionRestoreDelegate::RestoreTabs(
           SessionRestoreStatsCollector::UmaStatsReportingDelegate>())
       ->TrackTabs(tabs);
 
-  // Don't start a TabLoader here if background tab loading is done by
-  // PerformanceManager.
-  if (!base::FeatureList::IsEnabled(
-          performance_manager::features::
-              kBackgroundTabLoadingFromPerformanceManager)) {
-    TabLoader::DeprecatedRestoreTabs(tabs, restore_started);
-  } else {
-    std::vector<content::WebContents*> web_contents_vector;
-    web_contents_vector.reserve(tabs.size());
-    for (const auto& tab : tabs) {
-      CHECK(tab.contents());
+  std::vector<content::WebContents*> web_contents_vector;
+  web_contents_vector.reserve(tabs.size());
+  for (const auto& tab : tabs) {
+    CHECK(tab.contents());
 
-      // Make sure we don't hand over the tab to the backgroundtabloader if it
-      // is a restored tab and lazy loading of restored are enabled.
-      if (vivaldi::IsVivaldiRunning() &&
-          tab.contents()->GetUserData(
-              &vivaldi::LazyLoadService::kLazyLoadIsSafe)) {
-        continue;
-      }
-      // End Vivaldi
-
-      web_contents_vector.push_back(tab.contents());
+    // Make sure we don't hand over the tab to the backgroundtabloader if it
+    // is a restored tab and lazy loading of restored are enabled.
+    if (vivaldi::IsVivaldiRunning() &&
+        tab.contents()->GetUserData(
+            &vivaldi::LazyLoadService::kLazyLoadIsSafe)) {
+      continue;
     }
-    performance_manager::policies::ScheduleLoadForRestoredTabs(
-        std::move(web_contents_vector));
+    // End Vivaldi
+
+    web_contents_vector.push_back(tab.contents());
   }
+  performance_manager::policies::ScheduleLoadForRestoredTabs(
+      std::move(web_contents_vector));
 }

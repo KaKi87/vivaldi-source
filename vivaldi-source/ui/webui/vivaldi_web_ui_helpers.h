@@ -8,7 +8,7 @@
 #include "content/public/browser/web_ui_data_source.h"
 
 namespace content {
-  class WebUIConfigMap;
+class WebUIConfigMap;
 }
 
 namespace vivaldi {
@@ -17,8 +17,7 @@ extern const char* kResourceWebUIBaseDir;
 void SetVivaldiPathRequestFilter(::content::WebUIDataSource* source,
                                  const std::string& subdir_name);
 
-void RegisterVivaldiWebIU(::content::WebUIConfigMap &);
-} // namespace vivaldi
+void RegisterVivaldiWebIU(::content::WebUIConfigMap&);
+}  // namespace vivaldi
 
-
-#endif // UI_WEB_UI_VIVALDI_WEB_UI_HELPERS_H_
+#endif  // UI_WEB_UI_VIVALDI_WEB_UI_HELPERS_H_

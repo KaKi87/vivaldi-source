@@ -2,6 +2,7 @@
 
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
 
+#import "ios/ui/settings/start_page/vivaldi_start_page_dailymix_helper.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs.h"
 
 @implementation VivaldiStartPagePrefsHelper
@@ -60,6 +61,14 @@
   return [VivaldiStartPagePrefs getLandscapeWallpaper];
 }
 
++ (NSString*)getDailyMixLastFetchDate {
+  return [VivaldiStartPagePrefs getDailyMixLastFetchDate];
+}
+
++ (UIImage*)getDailyMixWallpaper {
+  return [VivaldiStartPagePrefs getDailyMixWallpaper];
+}
+
 #pragma mark - Setters
 
 + (void)setSDSortingMode:(const SpeedDialSortingMode)mode {
@@ -113,6 +122,28 @@
 
 + (void)setLandscapeWallpaper:(UIImage*)image {
   [VivaldiStartPagePrefs setLandscapeWallpaper:image];
+}
+
++ (void)setDailyMixLastFetchDate:(NSString*)date {
+  [VivaldiStartPagePrefs setDailyMixLastFetchDate:date];
+}
+
++ (void)setDailyMixWallpaper:(UIImage*)image {
+  [VivaldiStartPagePrefs setDailyMixWallpaper:image];
+}
+
++ (NSString*)getDailyMixMetadata {
+  return [VivaldiStartPagePrefs getDailyMixMetadata];
+}
+
++ (void)setDailyMixMetadata:(NSString*)jsonString {
+  [VivaldiStartPagePrefs setDailyMixMetadata:jsonString];
+}
+
+#pragma mark - Other Methods
+
++ (void)refreshDailyMixWallpaperIfNeeded {
+  [VivaldiStartPageDailyMixHelper refreshIfNeeded];
 }
 
 @end

@@ -18,14 +18,14 @@
 #import "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/bubble/ui_bundled/gesture_iph/gesture_in_product_help_view.h"
 #import "ios/chrome/browser/bubble/ui_bundled/gesture_iph/gesture_in_product_help_view_delegate.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/bwg_constants.h"
 #import "ios/chrome/browser/keyboard/ui_bundled/UIKeyCommand+Chrome.h"
 #import "ios/chrome/browser/menu/ui_bundled/action_factory.h"
 #import "ios/chrome/browser/shared/model/web_state_list/tab_utils.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
+#import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/tab_grid_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
-#import "ios/chrome/browser/shared/public/prototypes/diamond/chrome_app_bar_prototype.h"
-#import "ios/chrome/browser/shared/public/prototypes/diamond/utils.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/table_view/legacy_chrome_table_view_styler.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
@@ -67,14 +67,28 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
+#import "ios/chrome/browser/recent_tabs/ui_bundled/recent_tabs_table_view_controller_ui_delegate.h"
 #import "ios/chrome/browser/recent_tabs/ui/recent_tabs_consumer.h"
 #import "ios/chrome/browser/recent_tabs/ui/recent_tabs_table_view_controller.h"
-#import "ios/chrome/browser/recent_tabs/ui_bundled/recent_tabs_table_view_controller_ui_delegate.h"
+#import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
+#import "ios/chrome/browser/shared/model/utils/observable_boolean.h"
+#import "ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_constants.h"
 #import "ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_inactive_tabs_pinned_helper.h"
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
+#import "ios/ui/ntp/vivaldi_ntp_constants.h"
+#import "ios/ui/settings/tabs/vivaldi_tab_setting_prefs.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using vivaldi::IsVivaldiRunning;
+
+@interface TabGridTopToolbar (Vivaldi)
+- (void)vivaldiSetDeferPageUpdates:(BOOL)defer;
+@end
+
+@interface TabGridBottomToolbar (Vivaldi)
+- (void)vivaldiSetDeferPageUpdates:(BOOL)defer;
+@end
 // End Vivaldi
 
 @interface UIScrollEdgeElementContainerInteraction (Compatibility)
@@ -146,6 +160,7 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
                                      GridViewControllerDelegate,
                                      PinnedTabsViewControllerDelegate,
                                      // Vivaldi
+                                     BooleanObserver,
                                      RecentTabsTableViewControllerUIDelegate,
                                      // End Vivaldi
                                      TabGroupsPanelViewControllerUIDelegate,
@@ -223,8 +238,11 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   BOOL _backgroundedSinceEntering;
   // Current mode of the TabGrid.
   TabGridMode _mode;
-  // The app bar, for diamond prototype.
-  ChromeAppBarPrototype* _appBar;
+
+  // Vivaldi
+  PrefBackedBoolean* _swipeToCloseTabEnabled;
+  // End Vivaldi
+
   // Top and bottom toolbar edge effects.
   UIScrollEdgeElementContainerInteraction* _topToolbarEdgeEffect
       API_AVAILABLE(ios(26.0));
@@ -274,13 +292,12 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
       [self setupRemoteTabsViewController];
       [self setupClosedTabsViewController];
     }
+    [self startObservingSwipeToCloseTabPref];
+    [self vivaldiUpdateTabGridBackgroundForCurrentPageAnimated:NO];
   } // End Vivaldi
 
   [self setupSearchUI];
   [self setupTopToolbar];
-  if (IsDiamondPrototypeEnabled()) {
-    [self setupAppBar];
-  }
   [self setupBottomToolbar];
 
   [self updateToolbarEdgeEffects];
@@ -346,6 +363,18 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   return UIStatusBarStyleLightContent;
 }
 
+- (void)dismissViewControllerAnimated:(BOOL)flag
+                           completion:(void (^)())completion {
+  __weak TabGridViewController* weakSelf = self;
+  [super dismissViewControllerAnimated:flag
+                            completion:^() {
+                              if (completion) {
+                                completion();
+                              }
+                              [weakSelf showGeminiFloatyIfInvoked];
+                            }];
+}
+
 #pragma mark - UIScrollViewDelegate
 
 - (void)scrollViewDidScroll:(UIScrollView*)scrollView {
@@ -359,10 +388,22 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
       offset = 1.0 - offset;
     }
     self.topToolbar.pageControl.sliderPosition = offset;
+
+    if (IsVivaldiRunning()) {
+      // Do not update the background content offset for iOS 18 and below while
+      // scrolling. We do it at the end of scrolling.
+      if (@available(iOS 26, *)) {
+        [self.topToolbar setBackgroundContentOffset:scrollView.contentOffset
+                                           animated:NO];
+        [self.bottomToolbar setBackgroundContentOffset:scrollView.contentOffset
+                                              animated:NO];
+      }
+    } else {
     [self.topToolbar setBackgroundContentOffset:scrollView.contentOffset
                                        animated:NO];
     [self.bottomToolbar setBackgroundContentOffset:scrollView.contentOffset
                                           animated:NO];
+    } // End Vivaldi
 
     TabGridPage page = GetPageFromScrollView(scrollView);
     if (page != self.currentPage) {
@@ -382,6 +423,7 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   self.topToolbar.pageControl.userInteractionEnabled = NO;
 
   if (IsVivaldiRunning()) {
+    [self vivaldiSetDeferToolbarPageUpdates:YES];
     [VivaldiTabGridInactiveTabsPinnedHelper
         setFadeEnabled:NO
       forGridViewController:self.regularTabsViewController];
@@ -394,7 +436,7 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   self.topToolbar.pageControl.userInteractionEnabled = YES;
 
   if (IsVivaldiRunning() && !decelerate) {
-    [self updateInactiveTabsFadeVisibility];
+    [self vivaldiHandleScrollCompletionForScrollView:scrollView];
   } // End Vivaldi
 }
 
@@ -413,7 +455,7 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   }
 
   if (IsVivaldiRunning()) {
-    [self updateInactiveTabsFadeVisibility];
+    [self vivaldiHandleScrollCompletionForScrollView:scrollView];
   } // End Vivaldi
 }
 
@@ -434,7 +476,7 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   }
 
   if (IsVivaldiRunning()) {
-    [self updateInactiveTabsFadeVisibility];
+    [self vivaldiHandleScrollCompletionForScrollView:scrollView];
   } // End Vivaldi
 }
 
@@ -510,6 +552,8 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   self.tabGridEnterTime = base::TimeTicks::Now();
 
   // Vivaldi
+  [self updateScrollViewPagingEnabled];
+
   self.remoteTabsViewController.session = self.view.window.windowScene.session;
   self.remoteTabsViewController.preventUpdates = NO;
 
@@ -601,11 +645,6 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   [self.mutator pageChanged:newActivePage
                 interaction:TabSwitcherPageChangeInteraction::kNone];
   self.activePage = newActivePage;
-}
-
-- (void)setAppBar:(ChromeAppBarPrototype*)appBar {
-  CHECK(IsDiamondPrototypeEnabled());
-  _appBar = appBar;
 }
 
 #pragma mark - Public Properties
@@ -757,10 +796,6 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
 }
 
 - (void)setCurrentPage:(TabGridPage)currentPage {
-  if (IsDiamondPrototypeEnabled()) {
-    _appBar.currentPage =
-        (currentPage == TabGridPageTabGroups) ? self.activePage : currentPage;
-  }
   // Record the idle metric if the previous page was the tab groups page.
   if (_currentPage != currentPage) {
     [self tabGridDidPerformAction:TabGridActionType::kChangePage];
@@ -816,6 +851,9 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
 
   if (IsVivaldiRunning()) {
     [self updateInactiveTabsFadeVisibility];
+    if (!self.scrollView.dragging && !self.scrollView.decelerating) {
+      [self vivaldiUpdateTabGridBackgroundForCurrentPageAnimated:YES];
+    }
   } // End Vivaldi
 }
 
@@ -848,12 +886,28 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   BOOL scrolled =
       !CGPointEqualToPoint(self.scrollView.contentOffset, targetOffset);
 
+  // Vivaldi
+  BOOL shouldDeferToolbarUpdates = IsVivaldiRunning() && animated;
+  if (shouldDeferToolbarUpdates) {
+    [self vivaldiSetDeferToolbarPageUpdates:YES];
+  }
+  // End Vivaldi
+
   // If the view is visible and `animated` is YES, animate the change.
   // Otherwise don't.
   if (!self.viewVisible || !animated) {
     [self.scrollView setContentOffset:targetOffset animated:NO];
+    if (!IsVivaldiRunning()) {
     [self.topToolbar setBackgroundContentOffset:targetOffset animated:NO];
     [self.bottomToolbar setBackgroundContentOffset:targetOffset animated:NO];
+    } else if (@available(iOS 26, *)) {
+      [self.topToolbar setBackgroundContentOffset:targetOffset animated:NO];
+      [self.bottomToolbar setBackgroundContentOffset:targetOffset animated:NO];
+    } else {
+      [self vivaldiSyncToolbarBackgroundToScrollView:self.scrollView
+                                            animated:NO];
+    } // End Vivaldi
+
     self.currentPage = targetPage;
     // Important updates (e.g., button configurations, incognito visibility) are
     // made at the end of scrolling animations after `self.currentPage` is set.
@@ -866,8 +920,12 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
     if (scrolled) {
       self.scrollViewAnimatingContentOffset = YES;
       [self.scrollView setContentOffset:targetOffset animated:YES];
+
+      if (@available(iOS 26, *)) { // Vivaldi
       [self.topToolbar setBackgroundContentOffset:targetOffset animated:YES];
       [self.bottomToolbar setBackgroundContentOffset:targetOffset animated:YES];
+      } // End Vivaldi
+
       // `self.currentPage` is set in scrollViewDidEndScrollingAnimation:
     } else {
       self.currentPage = targetPage;
@@ -878,6 +936,11 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
         // groups), but also possible with middle position (normal).
         [self broadcastIncognitoContentVisibility];
       }
+
+      if (IsVivaldiRunning() && shouldDeferToolbarUpdates) {
+        [self vivaldiSetDeferToolbarPageUpdates:NO];
+      } // End Vivaldi
+
     }
   }
 
@@ -966,13 +1029,16 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   [self.tabGroupsGridContainerViewController
       didMoveToParentViewController:self];
 
-  // Vivaldi
-  [self.remoteGridContainerViewController didMoveToParentViewController:self];
-  [self.closedGridContainerViewController didMoveToParentViewController:self];
-  // End Vivaldi
-
   self.scrollView = scrollView;
+
+  if (IsVivaldiRunning()) {
+    [self.remoteGridContainerViewController didMoveToParentViewController:self];
+    [self.closedGridContainerViewController didMoveToParentViewController:self];
+    [self updateScrollViewPagingEnabled];
+  } else {
   self.scrollView.scrollEnabled = YES;
+  } // End Vivaldi
+
   self.scrollView.accessibilityIdentifier = kTabGridScrollViewIdentifier;
   NSArray* constraints = @[
     [self.incognitoGridContainerViewController.view.widthAnchor
@@ -1037,32 +1103,23 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   }
 }
 
-// Adds the app bar.
-- (void)setupAppBar {
-  CHECK(IsDiamondPrototypeEnabled());
-  _appBar.translatesAutoresizingMaskIntoConstraints = NO;
-  [self.view addSubview:_appBar];
-  [NSLayoutConstraint activateConstraints:@[
-    [self.view.leadingAnchor constraintEqualToAnchor:_appBar.leadingAnchor],
-    [self.view.trailingAnchor constraintEqualToAnchor:_appBar.trailingAnchor],
-    [self.view.bottomAnchor constraintEqualToAnchor:_appBar.bottomAnchor],
-  ]];
-}
-
 // Adds the bottom toolbar and sets constraints.
 - (void)setupBottomToolbar {
   UIView* bottomToolbar = self.bottomToolbar;
   CHECK(bottomToolbar);
 
-  if (IsDiamondPrototypeEnabled()) {
-    [self.view insertSubview:bottomToolbar belowSubview:_appBar];
+  if (IsChromeNextIaEnabled()) {
+    [self.view addSubview:bottomToolbar];
+    // TODO(crbug.com/472279443): Make sure the bottom toolbar is taking into
+    // account the AppBar.
 
     [NSLayoutConstraint activateConstraints:@[
       [bottomToolbar.leadingAnchor
           constraintEqualToAnchor:self.view.leadingAnchor],
       [bottomToolbar.trailingAnchor
           constraintEqualToAnchor:self.view.trailingAnchor],
-      [bottomToolbar.topAnchor constraintEqualToAnchor:_appBar.topAnchor],
+      [bottomToolbar.bottomAnchor
+          constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
   } else {
     [self.view addSubview:bottomToolbar];
@@ -1597,6 +1654,22 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   }
 }
 
+// Helper method for dismissal block when attempting to show the Gemini floaty
+// if invoked.
+- (void)showGeminiFloatyIfInvoked {
+  // Sheet swipe gesture triggers [dismissViewControllerAnimated:completion:].
+  // Check if the presented view was truly dismissed which can be implied by
+  // `presentedViewController` == nil.
+  if (self.presentedViewController) {
+    return;
+  }
+
+  [self.geminiHandler
+      updateFloatyVisibilityIfEligibleAnimated:NO
+                                    fromSource:gemini::FloatyUpdateSource::
+                                                   ViewTransition];
+}
+
 #pragma mark - UIGestureRecognizerDelegate
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer*)gestureRecognizer
@@ -1694,13 +1767,13 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
 // Calculates the proper insets for a Tab Grid panel to accommodate for the safe
 // area and toolbar.
 - (UIEdgeInsets)calculateInsetsForGridView {
-  // The content inset of the tab grids must be modified so that the toolbars
-  // do not obscure the tabs. This may change depending on orientation.
-  CGFloat bottomInset = self.configuration == TabGridConfigurationBottomToolbar
-                            ? self.bottomToolbar.intrinsicContentSize.height
-                            : 0;
-  if (IsDiamondPrototypeEnabled()) {
-    bottomInset = kChromeAppBarPrototypeHeight;
+  CGFloat bottomInset = 0;
+  if (!IsChromeNextIaEnabled()) {
+    // The content inset of the tab grids must be modified so that the toolbars
+    // do not obscure the tabs. This may change depending on orientation.
+    bottomInset = self.configuration == TabGridConfigurationBottomToolbar
+                      ? self.bottomToolbar.intrinsicContentSize.height
+                      : 0;
   }
 
   CGFloat topInset = self.topToolbar.intrinsicContentSize.height;
@@ -2045,6 +2118,11 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
 #pragma mark - TabGridToolbarsMainTabGridDelegate
 
 - (void)pageControlChangedValue:(id)sender {
+
+  if (IsVivaldiRunning()) {
+    [self vivaldiSetDeferToolbarPageUpdates:YES];
+  } // End Vivaldi
+
   // Map the page control slider position (in the range 0.0-1.0) to an
   // x-offset for the scroll view.
   CGFloat offset = self.topToolbar.pageControl.sliderPosition;
@@ -2061,12 +2139,20 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   // scroll width.
   contentOffset.x = offsetWidth * offset;
   self.scrollView.contentOffset = contentOffset;
+
+  if (@available(iOS 26, *)) { // Vivaldi
   [self.topToolbar setBackgroundContentOffset:contentOffset animated:NO];
   [self.bottomToolbar setBackgroundContentOffset:contentOffset animated:NO];
+  } // End Vivaldi
+
 }
 
 - (void)pageControlChangedPageByDrag:(id)sender {
   TabGridPage newPage = self.topToolbar.pageControl.selectedPage;
+
+  if (IsVivaldiRunning()) {
+    [self vivaldiSetDeferToolbarPageUpdates:YES];
+  } // End Vivaldi
 
   // Records when the user uses the pageControl to switch pages.
   if (self.currentPage != newPage) {
@@ -2078,6 +2164,10 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
 
 - (void)pageControlChangedPageByTap:(id)sender {
   TabGridPage newPage = self.topToolbar.pageControl.selectedPage;
+
+  if (IsVivaldiRunning()) {
+    [self vivaldiSetDeferToolbarPageUpdates:YES];
+  } // End Vivaldi
 
   // Records when the user uses the pageControl to switch pages.
   if (self.currentPage != newPage) {
@@ -2152,7 +2242,13 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
   }
 
   [self setInsetForGridViews];
+
+  if (IsVivaldiRunning()) {
+    [self updateScrollViewPagingEnabled];
+  } else {
   self.scrollView.scrollEnabled = (_mode == TabGridMode::kNormal);
+  } // End Vivaldi
+
 }
 
 #pragma mark - UIResponder
@@ -2431,6 +2527,121 @@ NSUInteger GetPageIndexFromPage(TabGridPage page) {
 }
 
 #pragma mark - Vivaldi
+
+- (void)startObservingSwipeToCloseTabPref {
+  if (_swipeToCloseTabEnabled) {
+    [_swipeToCloseTabEnabled stop];
+    [_swipeToCloseTabEnabled setObserver:nil];
+  }
+  PrefService* prefService = [VivaldiTabSettingPrefs prefService];
+  if (!prefService) {
+    return;
+  }
+  _swipeToCloseTabEnabled =
+      [[PrefBackedBoolean alloc]
+          initWithPrefService:prefService
+                     prefName:vivaldiprefs::kVivaldiSwipeToCloseTabEnabled];
+  [_swipeToCloseTabEnabled setObserver:self];
+  [self booleanDidChange:_swipeToCloseTabEnabled];
+}
+
+- (void)stopObservingSwipeToCloseTabPref {
+  if (!_swipeToCloseTabEnabled) {
+    return;
+  }
+  [_swipeToCloseTabEnabled stop];
+  [_swipeToCloseTabEnabled setObserver:nil];
+  _swipeToCloseTabEnabled = nil;
+}
+
+- (void)dealloc {
+  [self stopObservingSwipeToCloseTabPref];
+}
+
+#pragma mark - BooleanObserver
+
+- (void)booleanDidChange:(id<ObservableBoolean>)observableBoolean {
+  if (observableBoolean == _swipeToCloseTabEnabled) {
+    [self updateScrollViewPagingEnabled];
+  }
+}
+
+- (void)updateScrollViewPagingEnabled {
+  if (!self.scrollView) {
+    return;
+  }
+  BOOL enabled = (_mode == TabGridMode::kNormal);
+  // When swipe to close tab is enabled disable the horizontal paging for the
+  // tabs since both does not work simultaneously due to gesture conflicts.
+  if ([VivaldiTabSettingPrefs swipeToCloseTabEnabled]) {
+    enabled = NO;
+  }
+  self.scrollView.scrollEnabled = enabled;
+}
+
+- (UIColor*)vivaldiBackgroundColorForPage:(TabGridPage)page {
+  if (page == TabGridPageIncognitoTabs) {
+    return [UIColor colorNamed:vPrivateNTPBackgroundColor];
+  }
+  return [UIColor colorNamed:kGridBackgroundColor];
+}
+
+- (void)vivaldiSyncToolbarBackgroundToScrollView:(UIScrollView*)scrollView
+                                        animated:(BOOL)animated {
+  [self.topToolbar setBackgroundContentOffset:scrollView.contentOffset
+                                     animated:animated];
+  [self.bottomToolbar setBackgroundContentOffset:scrollView.contentOffset
+                                        animated:animated];
+}
+
+- (void)vivaldiHandleScrollCompletionForScrollView:(UIScrollView*)scrollView {
+  [self updateInactiveTabsFadeVisibility];
+  // iOS 26 has no toolbar background.
+  if (@available(iOS 26, *)) {
+    [self vivaldiUpdateTabGridBackgroundForCurrentPageAnimated:YES];
+    return;
+  }
+  [self vivaldiSetDeferToolbarPageUpdates:NO];
+  [self vivaldiUpdateTabGridBackgroundForCurrentPageAnimated:YES];
+  [self vivaldiSyncToolbarBackgroundToScrollView:scrollView animated:NO];
+}
+
+- (void)vivaldiUpdateTabGridBackgroundForCurrentPageAnimated:(BOOL)animated {
+  if (!self.viewLoaded) {
+    return;
+  }
+  UIColor* targetColor =
+      [self vivaldiBackgroundColorForPage:self.currentPage];
+  if (!animated) {
+    self.view.backgroundColor = targetColor;
+    return;
+  }
+  if ([self.view.backgroundColor isEqual:targetColor]) {
+    return;
+  }
+  [UIView transitionWithView:self.view
+                    duration:vTabGridBGChangeAnimationDuration
+                     options:UIViewAnimationOptionTransitionCrossDissolve
+                  animations:^{
+                    self.view.backgroundColor = targetColor;
+                  }
+                  completion:nil];
+}
+
+- (void)updateTabGridBackgroundForCurrentPage {
+  [self vivaldiUpdateTabGridBackgroundForCurrentPageAnimated:NO];
+}
+
+- (void)vivaldiSetDeferToolbarPageUpdates:(BOOL)defer {
+  if (!IsVivaldiRunning()) {
+    return;
+  }
+  if (@available(iOS 26, *)) {
+    return;
+  }
+  [self.topToolbar vivaldiSetDeferPageUpdates:defer];
+  [self.bottomToolbar vivaldiSetDeferPageUpdates:defer];
+}
 
 - (id<RecentTabsConsumer>)closedTabsConsumer {
   return self.closedTabsViewController;

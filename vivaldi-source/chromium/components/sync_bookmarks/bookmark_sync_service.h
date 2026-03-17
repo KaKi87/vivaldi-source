@@ -81,7 +81,7 @@ class BookmarkSyncService : public KeyedService {
 
   // For integration tests.
   void SetIsTrackingMetadataForTesting();
-  void SetBookmarksLimitForTesting(size_t limit);
+  void SetLocalBookmarksLimitForTesting(size_t limit);
 
   void SetVivaldiSyncedFileStore(file_sync::SyncedFileStore* synced_file_store);
 

@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="tr">
+<translation id="3110967157686007724">Özel sekme</translation>
 <translation id="4165986682804962316">Site ayarları</translation>
 <translation id="5216942107514965959">Bugün son ziyaret</translation>
+<translation id="5802121420922181398">Adres alanında "Okuyucu Görünümü" düğmesi mevcut olduğunda göster.</translation>
 <translation id="5860033963881614850">Kapalı</translation>
 <translation id="5939518447894949180">Sıfırla</translation>
+<translation id="6877535416649928189">Web sayfaları için Okuyucu Görünümü</translation>
 </translationbundle>

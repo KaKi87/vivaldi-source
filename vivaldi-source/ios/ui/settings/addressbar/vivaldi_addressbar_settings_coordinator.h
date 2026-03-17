@@ -6,6 +6,15 @@
 #import "ios/chrome/browser/shared/coordinator/chrome_coordinator/chrome_coordinator.h"
 
 class Browser;
+@class VivaldiAddressBarSettingsCoordinator;
+
+@protocol VivaldiAddressBarSettingsCoordinatorDelegate <NSObject>
+
+// Called when the coordinator's root view controller is removed.
+- (void)vivaldiAddressBarSettingsCoordinatorWasRemoved:
+    (VivaldiAddressBarSettingsCoordinator*)coordinator;
+
+@end
 
 // This class is the coordinator for the addressbar settings.
 @interface VivaldiAddressBarSettingsCoordinator : ChromeCoordinator
@@ -18,6 +27,9 @@ class Browser;
 
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                                    browser:(Browser*)browser NS_UNAVAILABLE;
+
+@property(nonatomic, weak) id<VivaldiAddressBarSettingsCoordinatorDelegate>
+    delegate;
 
 @end
 

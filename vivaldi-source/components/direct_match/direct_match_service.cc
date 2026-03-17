@@ -32,8 +32,8 @@
 #include "components/datasource/vivaldi_image_store.h"
 #include "content/public/browser/storage_partition.h"
 #else
-#include "ios/chrome/browser/shared/model/paths/paths.h"
 #include "components/datasource/vivaldi_image_store_constants.h"
+#include "ios/chrome/browser/shared/model/paths/paths.h"
 #endif
 
 #if BUILDFLAG(IS_ANDROID)
@@ -84,10 +84,10 @@ constexpr net::BackoffEntry::Policy kBackoffPolicy = {
 };
 
 void WriteIconFileThread(base::FilePath image_path,
-                         std::unique_ptr<std::string> response_body) {
-  if (!base::WriteFile(image_path, *response_body)) {
+                         std::optional<std::string> response_body) {
+  if (!response_body || !base::WriteFile(image_path, *response_body)) {
     LOG(ERROR) << "Failed to write to " << image_path.value() << " "
-               << response_body->size() << " bytes";
+               << (response_body ? response_body->size() : 0) << " bytes";
   }
 }
 
@@ -225,7 +225,7 @@ void DirectMatchService::LoadHiddenProviders() {
 
 void DirectMatchService::OnDirectMatchDownloadDone(
     const size_t loader_idx,
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   if (!response_body || response_body->empty()) {
     report_backoff_.InformOfRequest(false);
     base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
@@ -266,11 +266,11 @@ void DirectMatchService::OnDirectMatchDownloadDone(
       "country": string containing which country is served,
     }
   */
-  base::Value::Dict* dict = json->GetIfDict();
+  base::DictValue* dict = json->GetIfDict();
   if (!dict || dict->empty()) {
     return;
   }
-  base::Value::List* block_list = dict->FindList("blocks");
+  base::ListValue* block_list = dict->FindList("blocks");
   if (!block_list || block_list->empty()) {
     return;
   }
@@ -280,7 +280,7 @@ void DirectMatchService::OnDirectMatchDownloadDone(
     if (!block.is_dict()) {
       continue;
     }
-    base::Value::Dict* unit = block.GetDict().FindDict("unit");
+    base::DictValue* unit = block.GetDict().FindDict("unit");
     if (!unit || unit->empty()) {
       return;
     }
@@ -383,7 +383,7 @@ void DirectMatchService::OnIconDownloadDone(
     base::FilePath image_path,
     size_t loader_idx,
     base::OnceCallback<void(base::FilePath)> callback,
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   std::move(callback).Run(image_path);
   if (!response_body || response_body->empty()) {
     LOG(WARNING) << "Downloading Direct Match icon from server "
@@ -533,7 +533,7 @@ DirectMatchService::GetDirectMatch(std::string query) {
 }
 
 void DirectMatchService::ResetHiddenDirectMatch() {
-  base::Value::List hidden_dm;
+  base::ListValue hidden_dm;
   prefs_->SetList(vivaldiprefs::kAddressBarSearchHiddenDirectMatchProviders,
                   std::move(hidden_dm));
   hidden_direct_matches_.clear();
@@ -546,7 +546,7 @@ bool DirectMatchService::HideDirectMatchFromOmnibox(std::string url) {
     GURL redirect_url(unit.redirect_url);
     if (redirect_url == hide_url) {
       hidden_direct_matches_.insert(unit.id);
-      base::Value::List hidden_dm;
+      base::ListValue hidden_dm;
       for (auto id : hidden_direct_matches_)
         hidden_dm.Append(id);
 
@@ -616,7 +616,7 @@ float DirectMatchService::GetAcceptableDirectMatchDistance(
  * DirectMatch Unit
  */
 
-DirectMatchService::DirectMatchUnit::DirectMatchUnit(base::Value::Dict* unit) {
+DirectMatchService::DirectMatchUnit::DirectMatchUnit(base::DictValue* unit) {
   for (auto [key, value] : *unit) {
     if (key == "name") {
       name = std::move(value.GetString());

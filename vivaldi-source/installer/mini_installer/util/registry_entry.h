@@ -109,11 +109,11 @@ class RegistryEntry {
     SAME_VALUE,
   };
 
-  std::wstring key_path_;    // key path for the registry entry
-  std::wstring name_;        // name of the registry entry
-  bool is_string_;           // true if current registry entry is of type REG_SZ
-  std::wstring value_;       // string value (useful if is_string_ = true)
-  DWORD int_value_;          // integer value (useful if is_string_ = false)
+  std::wstring key_path_;  // key path for the registry entry
+  std::wstring name_;      // name of the registry entry
+  bool is_string_;         // true if current registry entry is of type REG_SZ
+  std::wstring value_;     // string value (useful if is_string_ = true)
+  DWORD int_value_;        // integer value (useful if is_string_ = false)
 
   // Identifies whether this RegistryEntry is flagged for removal (i.e. no
   // longer relevant on the configuration it was created under).

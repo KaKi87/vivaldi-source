@@ -16,6 +16,7 @@
 #import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/mailto_handler/model/mailto_handler_service.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
+#import "ios/chrome/browser/reader_mode/model/features.h"
 #import "ios/chrome/browser/settings/ui_bundled/content_settings/block_popups_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/settings_navigation_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/settings_table_view_controller_constants.h"
@@ -42,7 +43,7 @@
 #import "ios/ui/settings/pagezoom/vivaldi_pagezoom_settings_prefs.h"
 #import "ios/ui/settings/reader_mode/vivaldi_reader_mode_prefs.h"
 #import "ios/ui/settings/vivaldi_settings_constants.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using vivaldi::IsVivaldiRunning;
@@ -63,10 +64,10 @@ typedef NS_ENUM(NSInteger, SectionIdentifier) {
   // Vivaldi
   SectionIdentifierTranslateSettings,
   SectionIdentifierPageZoom,
-  SectionIdentifierReaderMode,
   // End Vivaldi
 
   SectionIdentifierDeveloperTools,
+  SectionIdentifierReaderMode,
 };
 
 typedef NS_ENUM(NSInteger, ItemType) {
@@ -77,13 +78,14 @@ typedef NS_ENUM(NSInteger, ItemType) {
   ItemTypeSettingsDetectAddresses,
   ItemTypeSettingsMiniMapShowNative,
   ItemTypeSettingsDetectUnits,
+  ItemTypeSettingsShowReadingModeAvailable,
+  ItemTypeSettingsReaderMode,
   ItemTypeSettingsWebInspector,
 
   // Vivaldi
   ItemTypeSettingsPreferTranslatePanel,
   ItemTypeSettingsPreferTranslatePanelFooter,
   ItemTypeSettingsPageZoom,
-  ItemTypeSettingsReaderMode,
   // End Vivaldi
 
 };
@@ -106,12 +108,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
   TableViewMultiDetailTextItem* _openedInAnotherWindowItem;
   TableViewDetailIconItem* _defaultSiteMode;
   TableViewDetailIconItem* _webInspectorStateItem;
-
-  // PrefBackedBoolean for Mini Map show native setting state.
-  PrefBackedBoolean* _miniMapShowNativeEnabled;
-
-  // The item related to the switch for the "MiniMap native" setting.
-  TableViewSwitchItem* _miniMapShowNativeViewItem;
+  TableViewDetailIconItem* _readerModeSectionItem;
 
   // Vivaldi: Add pref observer bridge
   std::unique_ptr<PrefObserverBridge> _prefObserverBridge;
@@ -133,6 +130,10 @@ typedef NS_ENUM(NSInteger, ItemType) {
 // PrefBackedBoolean for "Detect units" setting state.
 @property(nonatomic, strong, readonly) PrefBackedBoolean* detectUnitsEnabled;
 
+// PrefBackedBoolean for "Show when Reading mode is available" setting state.
+@property(nonatomic, strong, readonly)
+    PrefBackedBoolean* showReadingModeAvailableEnabled;
+
 // The item related to the switch for the "Show Link Preview" setting.
 @property(nonatomic, strong) TableViewSwitchItem* linkPreviewItem;
 
@@ -142,11 +143,18 @@ typedef NS_ENUM(NSInteger, ItemType) {
 // The item related to the switch for the "Detect units" setting.
 @property(nonatomic, strong) TableViewSwitchItem* detectUnitsItem;
 
+// The item related to the switch for the "Show when Reading mode is available"
+// setting.
+@property(nonatomic, strong) TableViewSwitchItem* showReadingModeAvailableItem;
+
 // The item related to the default mode used to load the pages.
 @property(nonatomic, strong) TableViewDetailIconItem* defaultModeItem;
 
 // The item related to the switch for the "Web Inspector" setting.
 @property(nonatomic, strong) TableViewDetailIconItem* webInspectorItem;
+
+// The item related to the switch for the "Reading Mode" setting.
+@property(nonatomic, strong) TableViewDetailIconItem* readerModeItem;
 
 // The setting used to store the default mode.
 @property(nonatomic, strong) ContentSettingBackedBoolean* requestDesktopSetting;
@@ -171,7 +179,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
 @property(nonatomic, strong) TableViewSwitchItem* preferTranslatePanelItem;
 
 // The item related to the switch for the "Reader Mode" setting.
-@property(nonatomic, strong) TableViewSwitchItem* readerModeItem;
+@property(nonatomic, strong) TableViewSwitchItem* vivaldiReaderModeItem;
 
 // The coordinator showing the view for page zoom setting
 @property(nonatomic, strong)
@@ -216,15 +224,18 @@ typedef NS_ENUM(NSInteger, ItemType) {
                    prefName:prefs::kDetectAddressesEnabled];
     [_detectAddressesEnabled setObserver:self];
 
-    _miniMapShowNativeEnabled = [[PrefBackedBoolean alloc]
-        initWithPrefService:prefService
-                   prefName:prefs::kIosMiniMapShowNativeMap];
-    [_miniMapShowNativeEnabled setObserver:self];
-
     _detectUnitsEnabled = [[PrefBackedBoolean alloc]
         initWithPrefService:prefService
                    prefName:prefs::kDetectUnitsEnabled];
     [_detectUnitsEnabled setObserver:self];
+
+    if (IsReaderModeAvailable() && IsReaderModeOmniboxEntryPointEnabled() &&
+        !IsReaderModeContentSettingsForLinkEnabled()) {
+      _showReadingModeAvailableEnabled = [[PrefBackedBoolean alloc]
+          initWithPrefService:prefService
+                     prefName:prefs::kIosReaderModeShowAvailability];
+      [_showReadingModeAvailableEnabled setObserver:self];
+    }
 
     _requestDesktopSetting = [[ContentSettingBackedBoolean alloc]
         initWithHostContentSettingsMap:settingsMap
@@ -311,12 +322,12 @@ typedef NS_ENUM(NSInteger, ItemType) {
   [_detectAddressesEnabled stop];
   _detectAddressesEnabled.observer = nil;
   _detectAddressesEnabled = nil;
-  [_miniMapShowNativeEnabled stop];
-  _miniMapShowNativeEnabled.observer = nil;
-  _miniMapShowNativeEnabled = nil;
   [_detectUnitsEnabled stop];
   _detectUnitsEnabled.observer = nil;
   _detectUnitsEnabled = nil;
+  [_showReadingModeAvailableEnabled stop];
+  _showReadingModeAvailableEnabled.observer = nil;
+  _showReadingModeAvailableEnabled = nil;
   [_webInspectorEnabled stop];
   _webInspectorEnabled.observer = nil;
   _webInspectorEnabled = nil;
@@ -373,15 +384,10 @@ typedef NS_ENUM(NSInteger, ItemType) {
   [model addItem:self.defaultModeItem
       toSectionWithIdentifier:SectionIdentifierSettings];
 
-  if (IsAddressDetectionEnabled()) {
-    [model addItem:[self detectAddressItem]
-        toSectionWithIdentifier:SectionIdentifierSettings];
-  }
-
-  if (base::FeatureList::IsEnabled(kIOSMiniMapUniversalLink)) {
-    [model addItem:[self miniMapShowNativeViewItem]
-        toSectionWithIdentifier:SectionIdentifierSettings];
-  }
+  if (!IsVivaldiRunning()) {
+  [model addItem:[self detectAddressItem]
+      toSectionWithIdentifier:SectionIdentifierSettings];
+  } // End Vivaldi
 
   if (base::FeatureList::IsEnabled(web::features::kEnableMeasurements)) {
     [model addItem:[self detectUnitItem]
@@ -405,8 +411,14 @@ typedef NS_ENUM(NSInteger, ItemType) {
     [model addItem:[self vivaldiPageZoomSettingItem]
         toSectionWithIdentifier:SectionIdentifierPageZoom];
     [model addSectionWithIdentifier:SectionIdentifierReaderMode];
-    [model addItem:[self readerModeItem]
+    [model addItem:[self vivaldiReaderModeItem]
         toSectionWithIdentifier:SectionIdentifierReaderMode];
+  } else {
+  if (!IsReaderModeContentSettingsForLinkEnabled() &&
+      self.showReadingModeAvailableEnabled) {
+    [model addItem:[self showReadingModeAvailableItem]
+        toSectionWithIdentifier:SectionIdentifierSettings];
+  }
   } // End Vivaldi
 
   if (web::features::IsWebInspectorSupportEnabled()) {
@@ -415,6 +427,20 @@ typedef NS_ENUM(NSInteger, ItemType) {
     [model addItem:self.webInspectorItem
         toSectionWithIdentifier:SectionIdentifierDeveloperTools];
   }
+
+  if (!IsVivaldiRunning()) {
+  if (IsReaderModeContentSettingsForLinkEnabled()) {
+    // Add a new content setting section for Reading Mode that holds multiple
+    // feature options.
+    if (IsReaderModeAvailable()) {
+      self.readerModeItem = [self readerModeSectionItem];
+      [model addSectionWithIdentifier:SectionIdentifierReaderMode];
+      [model addItem:self.readerModeItem
+          toSectionWithIdentifier:SectionIdentifierReaderMode];
+    }
+  }
+  } // End Vivaldi
+
 }
 
 #pragma mark - SettingsControllerProtocol
@@ -512,6 +538,26 @@ typedef NS_ENUM(NSInteger, ItemType) {
   return _linkPreviewItem;
 }
 
+- (TableViewSwitchItem*)showReadingModeAvailableItem {
+  if (!_showReadingModeAvailableItem) {
+    _showReadingModeAvailableItem = [[TableViewSwitchItem alloc]
+        initWithType:ItemTypeSettingsShowReadingModeAvailable];
+
+    _showReadingModeAvailableItem.text =
+        l10n_util::GetNSString(IDS_IOS_READING_MODE_SETTING_TITLE);
+    _showReadingModeAvailableItem.detailText =
+        l10n_util::GetNSString(IDS_IOS_READING_MODE_SETTING_DESCRIPTION);
+    _showReadingModeAvailableItem.on =
+        [self.showReadingModeAvailableEnabled value];
+    _showReadingModeAvailableItem.target = self;
+    _showReadingModeAvailableItem.selector =
+        @selector(showReadingModeAvailableSwitchToggled:);
+    _showReadingModeAvailableItem.accessibilityIdentifier =
+        kSettingsShowReadingModeAvailableCellId;
+  }
+  return _showReadingModeAvailableItem;
+}
+
 - (TableViewSwitchItem*)detectAddressItem {
   if (!_detectAddressesItem) {
     _detectAddressesItem = [[TableViewSwitchItem alloc]
@@ -528,23 +574,6 @@ typedef NS_ENUM(NSInteger, ItemType) {
         kSettingsDetectAddressesCellId;
   }
   return _detectAddressesItem;
-}
-
-- (TableViewSwitchItem*)miniMapShowNativeViewItem {
-  if (!_miniMapShowNativeViewItem) {
-    _miniMapShowNativeViewItem = [[TableViewSwitchItem alloc]
-        initWithType:ItemTypeSettingsMiniMapShowNative];
-
-    _miniMapShowNativeViewItem.text =
-        l10n_util::GetNSString(IDS_IOS_MAPS_PREVIEWS_SETTING_TITLE);
-    _miniMapShowNativeViewItem.on = [_miniMapShowNativeEnabled value];
-    _miniMapShowNativeViewItem.target = self;
-    _miniMapShowNativeViewItem.selector =
-        @selector(detectMiniMapSwitchToggled:);
-    _miniMapShowNativeViewItem.accessibilityIdentifier =
-        kSettingsMimiMapNativeCellId;
-  }
-  return _miniMapShowNativeViewItem;
 }
 
 - (TableViewSwitchItem*)detectUnitItem {
@@ -574,6 +603,17 @@ typedef NS_ENUM(NSInteger, ItemType) {
       UITableViewCellAccessoryDisclosureIndicator;
   _webInspectorStateItem.accessibilityIdentifier = kSettingsWebInspectorCellId;
   return _webInspectorStateItem;
+}
+
+- (TableViewDetailIconItem*)readerModeSectionItem {
+  _readerModeSectionItem =
+      [[TableViewDetailIconItem alloc] initWithType:ItemTypeSettingsReaderMode];
+  _readerModeSectionItem.text =
+      l10n_util::GetNSString(IDS_IOS_READER_MODE_CONTENT_SETTINGS_TITLE);
+  _readerModeSectionItem.accessoryType =
+      UITableViewCellAccessoryDisclosureIndicator;
+  _readerModeSectionItem.accessibilityIdentifier = kSettingsReaderModeCellId;
+  return _readerModeSectionItem;
 }
 
 #pragma mark - UITableViewDelegate
@@ -622,6 +662,11 @@ typedef NS_ENUM(NSInteger, ItemType) {
           contentSettingsTableViewControllerSelectedWebInspector:self];
       break;
     }
+    case ItemTypeSettingsReaderMode: {
+      [self.presentationDelegate
+          contentSettingsTableViewControllerSelectedReaderMode:self];
+      break;
+    }
 
     // Vivaldi
     case ItemTypeSettingsPageZoom: {
@@ -649,6 +694,10 @@ typedef NS_ENUM(NSInteger, ItemType) {
   } else if (observableBoolean == self.linkPreviewEnabled) {
     self.linkPreviewItem.on = [self.linkPreviewEnabled value];
     [self reconfigureCellsForItems:@[ self.linkPreviewItem ]];
+  } else if (observableBoolean == self.showReadingModeAvailableEnabled) {
+    self.showReadingModeAvailableItem.on =
+        [self.showReadingModeAvailableEnabled value];
+    [self reconfigureCellsForItems:@[ self.showReadingModeAvailableItem ]];
   } else if (observableBoolean == self.requestDesktopSetting &&
              self.defaultModeItem) {
     self.defaultModeItem.detailText = [self defaultModeDescription];
@@ -660,9 +709,6 @@ typedef NS_ENUM(NSInteger, ItemType) {
   } else if (observableBoolean == self.detectAddressesEnabled) {
     self.detectAddressItem.on = [self.detectAddressesEnabled value];
     [self reconfigureCellsForItems:@[ self.detectAddressItem ]];
-  } else if (observableBoolean == _miniMapShowNativeEnabled) {
-    _miniMapShowNativeViewItem.on = [_miniMapShowNativeEnabled value];
-    [self reconfigureCellsForItems:@[ _miniMapShowNativeViewItem ]];
   } else if (observableBoolean == self.detectUnitsEnabled) {
     self.detectUnitsItem.on = [self.detectUnitsEnabled value];
     [self reconfigureCellsForItems:@[ self.detectUnitsItem ]];
@@ -672,8 +718,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
     [self reconfigureCellsForItems:@[ self.preferTranslatePanelItem ]];
   } else if (IsVivaldiRunning() &&
              observableBoolean == self.readerModeEnabled) {
-    self.readerModeItem.on = [self.readerModeEnabled value];
-    [self reconfigureCellsForItems:@[ self.readerModeItem ]];
+    self.vivaldiReaderModeItem.on = [self.readerModeEnabled value];
+    [self reconfigureCellsForItems:@[ self.vivaldiReaderModeItem ]];
     // End Vivaldi
   } else {
     NOTREACHED();
@@ -688,16 +734,16 @@ typedef NS_ENUM(NSInteger, ItemType) {
   [self.linkPreviewEnabled setValue:newSwitchValue];
 }
 
+- (void)showReadingModeAvailableSwitchToggled:(UISwitch*)sender {
+  BOOL newSwitchValue = sender.isOn;
+  self.showReadingModeAvailableItem.on = newSwitchValue;
+  [self.showReadingModeAvailableEnabled setValue:newSwitchValue];
+}
+
 - (void)detectAddressesSwitchToggled:(UISwitch*)sender {
   BOOL newSwitchValue = sender.isOn;
   self.detectAddressesItem.on = newSwitchValue;
   [self.detectAddressesEnabled setValue:newSwitchValue];
-}
-
-- (void)detectMiniMapSwitchToggled:(UISwitch*)sender {
-  BOOL newSwitchValue = sender.isOn;
-  _miniMapShowNativeViewItem.on = newSwitchValue;
-  [_miniMapShowNativeEnabled setValue:newSwitchValue];
 }
 
 - (void)detectUnitsSwitchToggled:(UISwitch*)sender {
@@ -801,22 +847,23 @@ typedef NS_ENUM(NSInteger, ItemType) {
   return [NSString stringWithFormat:@"%ld%%", zoomLevel];
 }
 
-- (TableViewSwitchItem*)readerModeItem {
-  if (!_readerModeItem) {
-    _readerModeItem = [[TableViewSwitchItem alloc]
+- (TableViewSwitchItem*)vivaldiReaderModeItem {
+  if (!_vivaldiReaderModeItem) {
+    _vivaldiReaderModeItem = [[TableViewSwitchItem alloc]
       initWithType:ItemTypeSettingsReaderMode];
-    _readerModeItem.text = l10n_util::GetNSString(IDS_IOS_READER_MODE_TITLE);
-    _readerModeItem.on = [self.readerModeEnabled value];
-    _readerModeItem.accessibilityIdentifier = kSettingsReaderModeCellId;
-    _readerModeItem.target = self;
-    _readerModeItem.selector = @selector(readerModeSwitchToggled:);
+    _vivaldiReaderModeItem.text =
+        l10n_util::GetNSString(IDS_IOS_READER_MODE_TITLE);
+    _vivaldiReaderModeItem.on = [self.readerModeEnabled value];
+    _vivaldiReaderModeItem.accessibilityIdentifier = kSettingsReaderModeCellId;
+    _vivaldiReaderModeItem.target = self;
+    _vivaldiReaderModeItem.selector = @selector(readerModeSwitchToggled:);
   }
-  return _readerModeItem;
+  return _vivaldiReaderModeItem;
 }
 
 - (void)readerModeSwitchToggled:(UISwitch*)sender {
   BOOL newSwitchValue = sender.isOn;
-  self.readerModeItem.on = newSwitchValue;
+  self.vivaldiReaderModeItem.on = newSwitchValue;
   [self.readerModeEnabled setValue:newSwitchValue];
 
   if (!newSwitchValue) {

@@ -9,7 +9,6 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/content_settings/cookie_settings_factory.h"
 #include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -30,18 +29,14 @@
 #include "chrome/browser/ui/views/side_panel/side_panel_entry_id.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/views/tab_search_bubble_host.h"
-#include "chrome/browser/ui/webui/commerce/product_specifications_disclosure_dialog.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "components/commerce/core/mojom/product_specifications.mojom.h"
 #include "components/commerce/core/pref_names.h"
-#include "components/content_settings/core/browser/cookie_settings.h"
 #include "components/content_settings/core/common/pref_names.h"
 #include "components/prefs/pref_service.h"
+#include "components/split_tabs/split_tab_id.h"
 #include "components/tab_groups/tab_group_id.h"
-#include "components/tabs/public/split_tab_id.h"
 #include "components/tabs/public/tab_group.h"
-#include "components/ukm/test_ukm_recorder.h"
 #include "content/public/common/content_paths.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/browser_test_utils.h"
@@ -59,11 +54,8 @@ class BrowserCommandsTest : public InProcessBrowserTest {
             features::kTabstripDeclutter,
             toast_features::kReadingListToast,
             toast_features::kLinkCopiedToast,
-            features::kSideBySide,
         },
-        {
-            features::kReloadSelectionModel,
-        });
+        {});
   }
 
   base::test::ScopedFeatureList feature_list_;
@@ -88,40 +80,6 @@ class BrowserCommandsTest : public InProcessBrowserTest {
   }
 
   void AddTabs(int num_tabs) { AddTabs(browser(), num_tabs); }
-
-  void AddAndReloadTabs(int tab_count) {
-    AddTabs(tab_count);
-
-    // Add tabs to the selection (the last one created remains selected) and
-    // trigger a reload command on all of them.
-    for (int i = 0; i < tab_count - 1; ++i) {
-      browser()->tab_strip_model()->SelectTabAt(i + 1);
-    }
-    EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_RELOAD));
-    browser()->tab_strip_model()->CloseSelectedTabs();
-  }
-
-  void SetThirdPartyCookieBlocking(bool enabled) {
-    browser()->profile()->GetPrefs()->SetInteger(
-        prefs::kCookieControlsMode,
-        static_cast<int>(
-            enabled ? content_settings::CookieControlsMode::kBlockThirdParty
-                    : content_settings::CookieControlsMode::kOff));
-  }
-
-  void CheckReloadBreakageMetrics(ukm::TestAutoSetUkmRecorder& ukm_recorder,
-                                  size_t size,
-                                  size_t index,
-                                  bool blocked,
-                                  bool settings_blocked) {
-    auto entries = ukm_recorder.GetEntries(
-        "ThirdPartyCookies.BreakageIndicator.UserReload",
-        {"TPCBlocked", "TPCBlockedInSettings"});
-    EXPECT_EQ(entries.size(), size);
-    EXPECT_EQ(entries.at(index).metrics.at("TPCBlocked"), blocked);
-    EXPECT_EQ(entries.at(index).metrics.at("TPCBlockedInSettings"),
-              settings_blocked);
-  }
 
   void CheckBrowserContainsTabGroupWithSize(
       const BrowserWindowInterface* browser,
@@ -191,21 +149,7 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, ReloadSelectedTabs) {
   EXPECT_EQ(kTabCount, load_sum);
 }
 
-class BrowserCommandsWithReloadSelectionModelTest : public BrowserCommandsTest {
- public:
-  BrowserCommandsWithReloadSelectionModelTest() {
-    feature_list_.InitWithFeatures(
-        {
-            features::kReloadSelectionModel,
-        },
-        {});
-  }
-
-  base::test::ScopedFeatureList feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(BrowserCommandsWithReloadSelectionModelTest,
-                       ReloadSelectedTabs) {
+IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, ReloadSelectedTabsWithinSplitView) {
   // Add 5 tabs.
   constexpr int kTabCount = 5;
   for (int i = 0; i < kTabCount; i++) {
@@ -246,9 +190,12 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsWithReloadSelectionModelTest,
   };
 
   // The split tab should be active.
-  EXPECT_THAT(
-      browser()->tab_strip_model()->selection_model().selected_indices(),
-      testing::ElementsAre(4, 5));
+  EXPECT_THAT(browser()
+                  ->tab_strip_model()
+                  ->selection_model()
+                  .GetListSelectionModel()
+                  .selected_indices(),
+              testing::ElementsAre(4, 5));
   EXPECT_EQ(browser()->tab_strip_model()->active_index(), 5);
   EXPECT_THAT(get_reloads(), testing::ElementsAre(0, 0, 0, 0, 0));
 
@@ -260,9 +207,12 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsWithReloadSelectionModelTest,
 
   // Select 1st tab.
   browser()->tab_strip_model()->SelectTabAt(1);
-  EXPECT_THAT(
-      browser()->tab_strip_model()->selection_model().selected_indices(),
-      testing::ElementsAre(1, 4, 5));
+  EXPECT_THAT(browser()
+                  ->tab_strip_model()
+                  ->selection_model()
+                  .GetListSelectionModel()
+                  .selected_indices(),
+              testing::ElementsAre(1, 4, 5));
   EXPECT_EQ(browser()->tab_strip_model()->active_index(), 1);
 
   // Reload with the split tab selected but not active. All selected tabs should
@@ -273,9 +223,12 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsWithReloadSelectionModelTest,
 
   // Activate the split tab.
   browser()->tab_strip_model()->SelectTabAt(5);
-  EXPECT_THAT(
-      browser()->tab_strip_model()->selection_model().selected_indices(),
-      testing::ElementsAre(1, 4, 5));
+  EXPECT_THAT(browser()
+                  ->tab_strip_model()
+                  ->selection_model()
+                  .GetListSelectionModel()
+                  .selected_indices(),
+              testing::ElementsAre(1, 4, 5));
   EXPECT_EQ(browser()->tab_strip_model()->active_index(), 5);
 
   // Reload with the split 4|5 tab selected and active. All selected tabs should
@@ -285,29 +238,9 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsWithReloadSelectionModelTest,
   stop_all_tabs();
 }
 
-class BrowserCommandsWithCloseHotkeySplitViewTest : public BrowserCommandsTest {
- public:
-  BrowserCommandsWithCloseHotkeySplitViewTest() {
-    feature_list_.InitWithFeatures(
-        {
-            features::kCloseActiveTabInSplitViewViaHotkey,
-            features::kSideBySide,
-        },
-        {});
-  }
-
- protected:
-  TabStripModel* GetTabStripModel(Browser* browser) {
-    return browser->tab_strip_model();
-  }
-
-  base::test::ScopedFeatureList feature_list_;
-};
-
 // With kCloseHotkeySplitView enabled, only the active tab in the split view is
 // closed.
-IN_PROC_BROWSER_TEST_F(BrowserCommandsWithCloseHotkeySplitViewTest,
-                       OnlyCloseActiveTabInSplitView) {
+IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, OnlyCloseActiveTabInSplitView) {
   // Add 2 tabs.
   constexpr int kTabCount = 3;
   for (int i = 1; i < kTabCount; i++) {
@@ -315,26 +248,25 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsWithCloseHotkeySplitViewTest,
                                        ui::PAGE_TRANSITION_LINK, false));
   }
 
-  EXPECT_EQ(kTabCount, GetTabStripModel(browser())->GetTabCount());
+  EXPECT_EQ(kTabCount, browser()->tab_strip_model()->count());
 
   // Add second last tab to split view with the last tab.
-  GetTabStripModel(browser())->AddToNewSplit(
+  browser()->tab_strip_model()->AddToNewSplit(
       {kTabCount - 2},
       split_tabs::SplitTabVisualData(split_tabs::SplitTabLayout::kVertical,
                                      1.0f),
       split_tabs::SplitTabCreatedSource::kToolbarButton);
 
-  EXPECT_TRUE(GetTabStripModel(browser())->IsActiveTabSplit());
+  EXPECT_TRUE(browser()->tab_strip_model()->IsActiveTabSplit());
 
   EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_CLOSE_TAB));
 
-  EXPECT_FALSE(GetTabStripModel(browser())->IsActiveTabSplit());
-  EXPECT_EQ(2, GetTabStripModel(browser())->GetTabCount());
+  EXPECT_FALSE(browser()->tab_strip_model()->IsActiveTabSplit());
+  EXPECT_EQ(2, browser()->tab_strip_model()->count());
 }
 
 // All tabs in the selection model get closed.
-IN_PROC_BROWSER_TEST_F(BrowserCommandsWithCloseHotkeySplitViewTest,
-                       CloseAllTabsInSelectionModel) {
+IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, CloseAllTabsInSelectionModel) {
   // Add 4 tabs.
   constexpr int kTabCount = 4;
   for (int i = 1; i < kTabCount; i++) {
@@ -342,83 +274,25 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsWithCloseHotkeySplitViewTest,
                                        ui::PAGE_TRANSITION_LINK, false));
   }
 
-  EXPECT_EQ(kTabCount, GetTabStripModel(browser())->GetTabCount());
+  EXPECT_EQ(kTabCount, browser()->tab_strip_model()->count());
 
   // Add second last tab to split view with the last tab.
-  GetTabStripModel(browser())->AddToNewSplit(
+  browser()->tab_strip_model()->AddToNewSplit(
       {kTabCount - 2},
       split_tabs::SplitTabVisualData(split_tabs::SplitTabLayout::kVertical,
                                      1.0f),
       split_tabs::SplitTabCreatedSource::kToolbarButton);
 
-  EXPECT_TRUE(GetTabStripModel(browser())->IsActiveTabSplit());
+  EXPECT_TRUE(browser()->tab_strip_model()->IsActiveTabSplit());
 
   // Add a non-split tab to the selection model.
-  GetTabStripModel(browser())->SelectTabAt(kTabCount - 3);
+  browser()->tab_strip_model()->SelectTabAt(kTabCount - 3);
 
   EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_CLOSE_TAB));
 
   // Only one, non-split tab should remain.
-  EXPECT_FALSE(GetTabStripModel(browser())->IsActiveTabSplit());
-  EXPECT_EQ(1, GetTabStripModel(browser())->GetTabCount());
-}
-
-// Check that the ThirdPartyCookieBreakageIndicator UKM is sent on Reload.
-// Disabled because of crbug.com/1468528
-IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, DISABLED_ReloadBreakageUKM) {
-  ukm::TestAutoSetUkmRecorder ukm_recorder;
-  content_settings::CookieSettings* settings =
-      CookieSettingsFactory::GetForProfile(browser()->profile()).get();
-
-  // Test simple reload measurements without 3PCB.
-  SetThirdPartyCookieBlocking(false);
-  EXPECT_FALSE(settings->ShouldBlockThirdPartyCookies());
-
-  AddAndReloadTabs(1);
-  CheckReloadBreakageMetrics(ukm_recorder, 1, 0, false, false);
-
-  AddAndReloadTabs(1);
-  CheckReloadBreakageMetrics(ukm_recorder, 2, 1, false, false);
-
-  // Test that enabled 3PCB is correctly reflected in the metrics.
-  SetThirdPartyCookieBlocking(true);
-  EXPECT_TRUE(settings->ShouldBlockThirdPartyCookies());
-
-  AddAndReloadTabs(1);
-  CheckReloadBreakageMetrics(ukm_recorder, 3, 2, false, true);
-
-  // Test that allow-listing is correctly reflected in the metrics.
-  GURL origin(kUrl);
-  settings->SetThirdPartyCookieSetting(origin,
-                                       ContentSetting::CONTENT_SETTING_ALLOW);
-  EXPECT_TRUE(settings->IsThirdPartyAccessAllowed(origin, nullptr));
-
-  AddAndReloadTabs(1);
-  CheckReloadBreakageMetrics(ukm_recorder, 4, 3, false, false);
-
-  // Reload multiple tabs, all reloads are counted.
-  AddAndReloadTabs(3);
-  CheckReloadBreakageMetrics(ukm_recorder, 7, 4, false, false);
-  CheckReloadBreakageMetrics(ukm_recorder, 7, 5, false, false);
-  CheckReloadBreakageMetrics(ukm_recorder, 7, 6, false, false);
-
-  // Load a page with an iframe and try to set a cross-site cookie inside of
-  // that iframe.
-  constexpr char host_a[] = "a.test";
-  constexpr char host_b[] = "b.test";
-  GURL main_url(https_server_.GetURL(host_a, "/iframe.html"));
-  EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), main_url));
-  GURL page = https_server_.GetURL(
-      host_b, "/set-cookie?thirdparty=1;SameSite=None;Secure");
-  content::WebContents* web_contents =
-      browser()->tab_strip_model()->GetActiveWebContents();
-  EXPECT_TRUE(NavigateIframeToURL(web_contents, "test", page));
-
-  // Reload the page with the cross-site iframe.
-  EXPECT_TRUE(chrome::ExecuteCommand(browser(), IDC_RELOAD));
-
-  // We should now observe a 3P cookie *actually* blocked.
-  CheckReloadBreakageMetrics(ukm_recorder, 8, 7, true, true);
+  EXPECT_FALSE(browser()->tab_strip_model()->IsActiveTabSplit());
+  EXPECT_EQ(1, browser()->tab_strip_model()->count());
 }
 
 IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, MoveTabsToNewWindow) {
@@ -828,11 +702,6 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, StartsOrganizationRequest) {
 
   EXPECT_EQ(TabOrganizationRequest::State::NOT_STARTED,
             session->request()->state());
-
-  histogram_tester.ExpectUniqueSample("Tab.Organization.AllEntrypoints.Clicked",
-                                      true, 1);
-  histogram_tester.ExpectUniqueSample("Tab.Organization.ThreeDotMenu.Clicked",
-                                      true, 1);
 }
 
 IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, ShowsDeclutter) {
@@ -857,39 +726,6 @@ IN_PROC_BROWSER_TEST_F(BrowserCommandsTest,
   browser()->tab_strip_model()->CloseAllTabs();
   ConvertPopupToTabbedBrowser(popup_browser);
   EXPECT_EQ(false, browser_shutdown::HasShutdownStarted());
-}
-
-IN_PROC_BROWSER_TEST_F(BrowserCommandsTest,
-                       OpenProductSpecifications_ShowNewTab) {
-  // Mock that the disclosure dialog has shown.
-  browser()->profile()->GetPrefs()->SetInteger(
-      commerce::kProductSpecificationsAcceptedDisclosureVersion,
-      static_cast<int>(
-          commerce::product_specifications::mojom::DisclosureVersion::kV1));
-
-  int tab_count = browser()->tab_strip_model()->count();
-  chrome::OpenCommerceProductSpecificationsTab(
-      browser(), {GURL("foo.com"), GURL("bar.com")}, 0);
-
-  auto* dialog = commerce::ProductSpecificationsDisclosureDialog::
-      current_instance_for_testing();
-  ASSERT_FALSE(dialog);
-  // No new tab is created since the dialog will block creating new product
-  // specifications tab.
-  ASSERT_EQ(tab_count + 1, browser()->tab_strip_model()->count());
-}
-
-IN_PROC_BROWSER_TEST_F(BrowserCommandsTest,
-                       OpenProductSpecifications_ShowDialog) {
-  int tab_count = browser()->tab_strip_model()->count();
-  chrome::OpenCommerceProductSpecificationsTab(
-      browser(), {GURL("foo.com"), GURL("bar.com")}, 0);
-
-  auto* dialog = commerce::ProductSpecificationsDisclosureDialog::
-      current_instance_for_testing();
-  ASSERT_TRUE(dialog);
-  // No new tab is created.
-  ASSERT_EQ(tab_count, browser()->tab_strip_model()->count());
 }
 
 IN_PROC_BROWSER_TEST_F(BrowserCommandsTest, AddingToReadingListOpensToast) {

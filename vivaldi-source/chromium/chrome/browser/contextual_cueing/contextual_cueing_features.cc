@@ -9,10 +9,10 @@
 #include "chrome/common/chrome_features.h"
 #include "components/variations/service/variations_service.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/host/glic_features.mojom.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
 namespace contextual_cueing {
 
@@ -20,8 +20,12 @@ BASE_FEATURE(kContextualCueing, base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kGlicZeroStateSuggestions, base::FEATURE_DISABLED_BY_DEFAULT);
 
+BASE_FEATURE(kZeroStateSuggestionsUseLegion, base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kEnableAutoOpenGlicSidePanel, base::FEATURE_DISABLED_BY_DEFAULT);
+
 bool IsContextualCueingEnabled() {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   // If the feature is overridden (e.g. via server-side config or command-line),
   // use that state.
   auto* feature_list = base::FeatureList::GetInstance();
@@ -34,14 +38,14 @@ bool IsContextualCueingEnabled() {
     return base::FeatureList::IsEnabled(kContextualCueing);
   }
 
-  return glic::GlicEnabling::IsInRolloutLocation();
+  return glic::GlicEnabling::IsEnabledByFlags();
 #else
   return base::FeatureList::IsEnabled(kContextualCueing);
 #endif
 }
 
 bool IsZeroStateSuggestionsEnabled() {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   // If the feature is overridden (e.g. via server-side config or command-line),
   // use that state.
   auto* feature_list = base::FeatureList::GetInstance();
@@ -54,7 +58,7 @@ bool IsZeroStateSuggestionsEnabled() {
     return base::FeatureList::IsEnabled(kGlicZeroStateSuggestions);
   }
 
-  return glic::GlicEnabling::IsInRolloutLocation();
+  return glic::GlicEnabling::IsEnabledByFlags();
 #else
   return false;
 #endif
@@ -145,11 +149,11 @@ const base::FeatureParam<base::TimeDelta> kZSSPageContextTimeout(
     "ZSSPageContextTimeout",
     base::Seconds(5));
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 const base::FeatureParam<int> kMaxPinnedPagesForTriggeringSuggestions(
     &glic::mojom::features::kZeroStateSuggestionsV2,
     "ZSSMaxPinnedPagesForTriggeringSuggestions",
     10);
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
 }  // namespace contextual_cueing

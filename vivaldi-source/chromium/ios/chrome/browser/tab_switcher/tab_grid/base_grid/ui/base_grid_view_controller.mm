@@ -61,6 +61,8 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
+#import "ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_swipe_helper.h"
+#import "ios/ui/ntp/vivaldi_ntp_constants.h"
 using vivaldi::IsVivaldiRunning;
 // End Vivaldi
 
@@ -314,17 +316,15 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
   [coordinator
       animateAlongsideTransition:^(
           id<UIViewControllerTransitionCoordinatorContext> context) {
-        if (IsTabGridEmptyThumbnailUIEnabled()) {
-          for (UICollectionViewCell* cell in self.collectionView.visibleCells) {
-            if ([cell isKindOfClass:[GridCell class]]) {
-              GridCell* gridCell = ObjCCastStrict<GridCell>(cell);
-              gridCell.layoutType = [self layoutTypeForContainerSize:size
-                                                          isGridCell:YES];
-            } else if ([cell isKindOfClass:[GroupGridCell class]]) {
-              GroupGridCell* gridCell = ObjCCastStrict<GroupGridCell>(cell);
-              gridCell.layoutType = [self layoutTypeForContainerSize:size
-                                                          isGridCell:NO];
-            }
+        for (UICollectionViewCell* cell in self.collectionView.visibleCells) {
+          if ([cell isKindOfClass:[GridCell class]]) {
+            GridCell* gridCell = ObjCCastStrict<GridCell>(cell);
+            gridCell.layoutType = [self layoutTypeForContainerSize:size
+                                                        isGridCell:YES];
+          } else if ([cell isKindOfClass:[GroupGridCell class]]) {
+            GroupGridCell* gridCell = ObjCCastStrict<GroupGridCell>(cell);
+            gridCell.layoutType = [self layoutTypeForContainerSize:size
+                                                        isGridCell:NO];
           }
         }
         [self.collectionView.collectionViewLayout invalidateLayout];
@@ -630,6 +630,16 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
 // Configures the grid header for the given section.
 - (void)configureGridHeader:(GridHeader*)gridHeader
        forSectionIdentifier:(NSString*)sectionIdentifier {
+
+  if (IsVivaldiRunning()) {
+    NSString* backgroundColorName =
+        self.isIncognito ? vPrivateNTPBackgroundColor : kGridBackgroundColor;
+    gridHeader.backgroundColor = [UIColor colorNamed:backgroundColorName];
+    gridHeader.overrideUserInterfaceStyle =
+        self.isIncognito ? UIUserInterfaceStyleDark
+                         : UIUserInterfaceStyleUnspecified;
+  } // End Vivaldi
+
   if ([sectionIdentifier isEqualToString:kGridOpenTabsSectionIdentifier]) {
     gridHeader.title = l10n_util::GetNSString(
         IDS_IOS_TABS_SEARCH_OPEN_TABS_SECTION_HEADER_TITLE);
@@ -954,9 +964,15 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
         static_cast<TabGroupInfo*>(dragItem.localObject);
     isSharedGroup = [self.dragDropHandler isGroupShared:tabGroupInfo];
   }
+  // This is how the explicit forbidden icon or (+) copy icon is shown. Move
+  // has no explicit icon.
+  UIDropOperation dropOperation = [self.dragDropHandler
+      dropOperationForDropSession:session
+                          toIndex:destinationIndexPath.item];
   if (IsTabGridDragAndDropEnabled() && !isSharedGroup &&
       destinationItemIndexPath &&
-      draggedItemIndexPath != destinationItemIndexPath) {
+      draggedItemIndexPath != destinationItemIndexPath &&
+      dropOperation != UIDropOperationForbidden) {
     // If the drag goes into a different cell's frame, either highlight or allow
     // for reorder depending on location.
     DragEntrySide entryDirection = DragEntrySideNone;
@@ -989,11 +1005,6 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
       [self clearCurrentlyHighlightedCell];
     }
 
-    // This is how the explicit forbidden icon or (+) copy icon is shown. Move
-    // has no explicit icon.
-    UIDropOperation dropOperation = [self.dragDropHandler
-        dropOperationForDropSession:session
-                            toIndex:destinationIndexPath.item];
     return [[UICollectionViewDropProposal alloc]
         initWithDropOperation:dropOperation
                        intent:
@@ -1003,12 +1014,16 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
 - (void)collectionView:(UICollectionView*)collectionView
     performDropWithCoordinator:
         (id<UICollectionViewDropCoordinator>)coordinator {
+  id<UICollectionViewDropItem> dropItem = coordinator.items.firstObject;
+  NSIndexPath* sourceIndexPath = dropItem.sourceIndexPath;
+  // Check for a valid sourceIndexPath so that a URL that has not yet been
+  // created as a tab isn't dropped into another tab/group.
+  // [self.dragDropHandler dropItemFromProvider:toIndex:placeholderContext:]
+  // will handle this case further down in the method and load the URL.
   if (IsTabGridDragAndDropEnabled() &&
       coordinator.proposal.intent ==
           UICollectionViewDropIntentInsertIntoDestinationIndexPath &&
-      coordinator.items.count == 1) {
-    id<UICollectionViewDropItem> dropItem = coordinator.items.firstObject;
-    NSIndexPath* sourceIndexPath = dropItem.sourceIndexPath;
+      coordinator.items.count == 1 && sourceIndexPath) {
     NSIndexPath* destinationIndexPath = coordinator.destinationIndexPath;
 
     self.dragEndAtNewIndex = YES;
@@ -1569,14 +1584,17 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
     [snapshot moveItemWithIdentifier:item
             beforeItemWithIdentifier:nextItemIdentifier];
   } else {
-    NSInteger section = [self.diffableDataSource
-        indexForSectionIdentifier:kGridOpenTabsSectionIdentifier];
-    NSIndexPath* lastIndexPath =
-        [NSIndexPath indexPathForItem:[self numberOfTabs] - 1
-                            inSection:section];
-    GridItemIdentifier* lastItem =
-        [self.diffableDataSource itemIdentifierForIndexPath:lastIndexPath];
-    if (lastItem == item) {
+    NSArray<GridItemIdentifier*>* items = [snapshot
+        itemIdentifiersInSectionWithIdentifier:kGridOpenTabsSectionIdentifier];
+    GridItemIdentifier* lastItem = items.lastObject;
+    if ([lastItem isEqual:item]) {
+      return;
+    }
+
+    // If there is no last item (empty section), append the item.
+    if (!lastItem) {
+      [snapshot appendItemsWithIdentifiers:@[ item ]
+                 intoSectionWithIdentifier:kGridOpenTabsSectionIdentifier];
       return;
     }
 
@@ -1623,6 +1641,11 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
   auto configureGridCell =
       ^(GridCell* cell, NSIndexPath* indexPath, TabSwitcherItem* item) {
         [weakSelf configureCell:cell withItem:item atIndex:indexPath.item];
+
+        if (IsVivaldiRunning()) {
+          [VivaldiTabGridSwipeHelper attachToCell:cell];
+        } // End Vivaldi
+
       };
   _gridCellRegistration = [UICollectionViewCellRegistration
       registrationWithCellClass:GridCell.class
@@ -1632,6 +1655,11 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
   auto configureGroupGridCell =
       ^(GroupGridCell* cell, NSIndexPath* indexPath, TabGroupItem* item) {
         [weakSelf configureGroupCell:cell withItem:item atIndex:indexPath.item];
+
+        if (IsVivaldiRunning()) {
+          [VivaldiTabGridSwipeHelper attachToCell:cell];
+        } // End Vivaldi
+
       };
   _groupGridCellRegistration = [UICollectionViewCellRegistration
       registrationWithCellClass:GroupGridCell.class
@@ -1819,16 +1847,19 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
   cell.delegate = self;
   cell.theme = self.theme;
   cell.itemIdentifier = groupItemIdentifier;
-  cell.groupColor = item.groupColor;
+  // TODO(crbug.com/481997646): Cleanup this groupColor flow once feature hits
+  // stable.
+  if (!IsTabGroupColorOnSurfaceEnabled()) {
+    cell.groupColor = item.groupColor;
+  } else {
+    cell.tabGroupColorPalette = item.tabGroupColorPalette;
+  }
   cell.tabsCount = item.numberOfTabsInGroup;
   cell.title = item.title;
   cell.accessibilityIdentifier = GroupGridCellAccessibilityIdentifier(index);
-  if (IsTabGridEmptyThumbnailUIEnabled()) {
-    cell.layoutType =
-        [self layoutTypeForContainerSize:self.collectionView.bounds.size
-                              isGridCell:NO];
-  }
-
+  cell.layoutType =
+      [self layoutTypeForContainerSize:self.collectionView.bounds.size
+                            isGridCell:NO];
   cell.facePileProvider =
       [self.gridProvider facePileProviderForItem:groupItemIdentifier];
 
@@ -1845,7 +1876,7 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
   cell.activityLabelData =
       [self.gridProvider activityLabelDataForItem:groupItemIdentifier];
 
-  if (IsTabGridDragAndDropEnabled()) {
+  if (IsTabGridDragAndDropEnabled() && _highlightedGroupIndexPath) {
     NSUInteger newGroupIndexPath = _highlightedGroupIndexPath.item;
     if (_isNewGroupShiftingToDifferentFinalIndexPath &&
         _isGroupBeingCreatedFromDragAndDrop) {
@@ -1878,6 +1909,11 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
   };
   [self.gridProvider fetchTabGroupItemSnapshotsAndFavicons:item
                                                 completion:completionBlock];
+
+  if (IsVivaldiRunning()) {
+    [cell configureForIncognito:self.isIncognito];
+  } // End Vivaldi
+
 }
 
 // Configures `cell`'s identifier and title synchronously, and favicon and
@@ -1895,13 +1931,10 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
   cell.theme = self.theme;
   cell.itemIdentifier = itemIdentifier;
   cell.title = item.title;
-  cell.titleHidden = item.hidesTitle;
   [cell setAccessibilityIdentifiersWithIndex:index];
-  if (IsTabGridEmptyThumbnailUIEnabled()) {
-    cell.layoutType =
-        [self layoutTypeForContainerSize:self.collectionView.bounds.size
-                              isGridCell:YES];
-  }
+  cell.layoutType =
+      [self layoutTypeForContainerSize:self.collectionView.bounds.size
+                            isGridCell:YES];
   if (self.mode == TabGridMode::kSelection) {
     if ([self.gridProvider isItemSelected:itemIdentifier]) {
       cell.state = GridCellStateEditingSelected;
@@ -2262,7 +2295,7 @@ typedef NS_ENUM(NSInteger, DragEntrySide) {
       }
       break;
     case DragEntrySideNone:
-      NOTREACHED();
+      return NO;
   }
   return YES;
 }

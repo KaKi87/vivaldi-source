@@ -72,8 +72,8 @@
 #include "extensions/api/guest_view/vivaldi_web_view_constants.h"
 #include "extensions/api/tabs/tabs_private_api.h"
 #include "extensions/helper/vivaldi_init_helpers.h"
-#include "extensions/vivaldi_browser_component_wrapper.h"
 #include "extensions/tools/vivaldi_tools.h"
+#include "extensions/vivaldi_browser_component_wrapper.h"
 #include "prefs/vivaldi_gen_prefs.h"
 #include "ui/content/vivaldi_tab_check.h"
 #include "ui/devtools/devtools_connector.h"
@@ -106,21 +106,21 @@ namespace {
 // This class was just made to access GetCommandForKeyEvent which is a protected
 // member of Textfield.
 class TextfieldInputChecker : public views::Textfield {
-  public:
-   ui::TextEditCommand GetCommandForKeyEvent(const ui::KeyEvent& event) {
-     return Textfield::GetCommandForKeyEvent(event);
-   }
+ public:
+  ui::TextEditCommand GetCommandForKeyEvent(const ui::KeyEvent& event) {
+    return Textfield::GetCommandForKeyEvent(event);
+  }
 };
 
 // Couldn't find this anywhere else. This function currently only translates the
 // key events we need to use for GetFixedAcceleratorForCommandId and is used
 // for keyboard handling in VivaldiWebViewGuest.
 bool KeyEventIsEditMenuCommand(blink::WebKeyboardEvent event) {
-  #if !BUILDFLAG(IS_MAC)
+#if !BUILDFLAG(IS_MAC)
   const bool control = event.GetModifiers() & blink::WebInputEvent::kControlKey;
-  #elif BUILDFLAG(IS_MAC)
+#elif BUILDFLAG(IS_MAC)
   const bool control = event.GetModifiers() & blink::WebInputEvent::kMetaKey;
-  #endif //BUILDFLAG(IS_MAC)
+#endif  // BUILDFLAG(IS_MAC)
   const bool alt = event.GetModifiers() & (blink::WebInputEvent::kAltKey);
   switch (event.windows_key_code) {
     case ui::VKEY_Z:
@@ -155,7 +155,7 @@ std::string GetStoragePartitionIdFromPartitionConfig(
   return (persist_storage ? webview::kPersistPrefix : "") + partition_id;
 }*/
 
-void ParsePartitionParam(const base::Value::Dict& create_params,
+void ParsePartitionParam(const base::DictValue& create_params,
                          std::string* storage_partition_id,
                          bool* persist_storage) {
   const std::string* partition_str =
@@ -206,7 +206,7 @@ std::string WindowOpenDispositionToString(
       return "off_the_record";
     default:
       NOTREACHED() << "Unknown Window Open Disposition";
-      //return "ignore";
+      // return "ignore";
   }
 }
 
@@ -231,7 +231,7 @@ static std::string SSLStateToString(SecurityStateTabHelper* helper) {
       break;
   }
   NOTREACHED() << "Unknown SecurityLevel";
-  //return "unknown";
+  // return "unknown";
 }
 
 static std::string ContentSettingsTypeToString(
@@ -281,13 +281,13 @@ static std::string ContentSettingsTypeToString(
 
 void SendEventToView(WebViewGuest& guest,
                      const std::string& event_name,
-                     base::Value::Dict args) {
-  base::Value::Dict args_value(std::move(args));
+                     base::DictValue args) {
+  base::DictValue args_value(std::move(args));
   guest.DispatchEventToView(
       std::make_unique<GuestViewEvent>(event_name, std::move(args_value)));
 }
 
-bool IsPanelId(const std::string &name) {
+bool IsPanelId(const std::string& name) {
   if (name.rfind("WEBPANEL_", 0) == 0) {
     return true;
   }
@@ -300,12 +300,11 @@ bool IsPanelId(const std::string &name) {
 }
 
 void AttachWebContentsObservers(content::WebContents* contents) {
-  VivaldiBrowserComponentWrapper::GetInstance()
-      ->CreateWebNavigationTabObserver(contents);
+  VivaldiBrowserComponentWrapper::GetInstance()->CreateWebNavigationTabObserver(
+      contents);
   ::vivaldi::InitHelpers(contents);
 }
 }  // namespace
-
 
 #if defined(USE_AURA)
 std::unique_ptr<WebViewGuest::CursorHider> WebViewGuest::CursorHider::Create(
@@ -337,7 +336,7 @@ Browser* WebViewGuest::GetBrowser(content::WebContents* web_contents) {
 }
 
 void WebViewGuest::VivaldiSetLoadProgressEventExtraArgs(
-    base::Value::Dict& dictionary) {
+    base::DictValue& dictionary) {
   if (!IsVivaldiRunning())
     return;
   const content::PageImpl& page =
@@ -372,7 +371,7 @@ void WebViewGuest::ToggleFullscreenModeForTab(
   // Proactive resize the element to fill the screen.
   if (enter_fullscreen) {
     display::Display display = display::Screen::Get()->GetDisplayNearestWindow(
-            web_contents->GetNativeView());
+        web_contents->GetNativeView());
     const gfx::Size display_size_in_pixel = display.GetSizeInPixel();
     content::RenderWidgetHostView* rwhv = GetGuestMainFrame()->GetView();
     rwhv->SetSize(display_size_in_pixel);
@@ -380,7 +379,7 @@ void WebViewGuest::ToggleFullscreenModeForTab(
 #endif  // USE_AURA
 
   Browser* browser = GetBrowser(web_contents);
-  base::Value::Dict args;
+  base::DictValue args;
   args.Set("windowId", browser ? browser->session_id().id() : -1);
   args.Set("enterFullscreen", enter_fullscreen);
   SendEventToView(*this, webview::kEventOnFullscreen, std::move(args));
@@ -409,13 +408,17 @@ void WebViewGuest::SetContentsBounds(content::WebContents* source,
 }
 
 bool WebViewGuest::IsVivaldiRegularTab() {
-  if (IsVivaldiWebPanel()) return false;
-  if (IsVivaldiWebPageWidget()) return false;
-  if (IsVivaldiEditorView()) return false;
+  if (IsVivaldiWebPanel())
+    return false;
+  if (IsVivaldiWebPageWidget())
+    return false;
+  if (IsVivaldiEditorView())
+    return false;
 
   // Try getting web contents, and tab id out of that...
-  content::WebContents *contents = web_contents();
-  if (!contents) return false;
+  content::WebContents* contents = web_contents();
+  if (!contents)
+    return false;
 
   // See if we can get a tab ID out of this.
   return sessions::SessionTabHelper::IdForTab(contents).id() != -1;
@@ -463,7 +466,7 @@ void WebViewGuest::ShowPageInfo(gfx::Point pos) {
   if (!browser) {
     // Happens for WebContents not in a tabstrip.
     browser = VivaldiBrowserComponentWrapper::GetInstance()
-        ->FindLastActiveBrowserWithProfile(profile);
+                  ->FindLastActiveBrowserWithProfile(profile);
   }
 
   if (browser->window()) {
@@ -486,8 +489,8 @@ void WebViewGuest::NavigationStateChanged(
     VivaldiBrowserWindow* browser_window =
         VivaldiBrowserComponentWrapper::GetInstance()
             ->VivaldiBrowserWindowFromBrowser(browser);
-    VivaldiBrowserComponentWrapper::GetInstance()
-        ->NavigationStateChanged(browser_window, web_contents(), changed_flags);
+    VivaldiBrowserComponentWrapper::GetInstance()->NavigationStateChanged(
+        browser_window, web_contents(), changed_flags);
   }
 }
 
@@ -497,7 +500,7 @@ void WebViewGuest::SetIsFullscreen(bool is_fullscreen) {
 }
 
 void WebViewGuest::VisibleSecurityStateChanged(WebContents* source) {
-  base::Value::Dict args;
+  base::DictValue args;
   SecurityStateTabHelper* helper =
       SecurityStateTabHelper::FromWebContents(web_contents());
   if (!helper) {
@@ -537,12 +540,12 @@ bool WebViewGuest::IsMouseGesturesEnabled() const {
 
 void WebViewGuest::UpdateTargetURL(content::WebContents* source,
                                    const GURL& url) {
-  base::Value::Dict args;
+  base::DictValue args;
   args.Set(webview::kNewURL, url.spec());
   SendEventToView(*this, webview::kEventTargetURLChanged, std::move(args));
 }
 
-void WebViewGuest::CreateSearch(const base::Value::List& search) {
+void WebViewGuest::CreateSearch(const base::ListValue& search) {
   if (search.size() < 2)
     return;
   const std::string* keyword = search[0].GetIfString();
@@ -550,13 +553,13 @@ void WebViewGuest::CreateSearch(const base::Value::List& search) {
   if (!keyword || !url)
     return;
 
-  base::Value::Dict args;
+  base::DictValue args;
   args.Set(webview::kNewSearchName, *keyword);
   args.Set(webview::kNewSearchUrl, *url);
   SendEventToView(*this, webview::kEventCreateSearch, std::move(args));
 }
 
-void WebViewGuest::PasteAndGo(const base::Value::List& search) {
+void WebViewGuest::PasteAndGo(const base::ListValue& search) {
   if (search.size() < 3)
     return;
   const std::string* clipBoardText = search[0].GetIfString();
@@ -565,7 +568,7 @@ void WebViewGuest::PasteAndGo(const base::Value::List& search) {
   if (!clipBoardText || !pasteTarget || !modifiers)
     return;
 
-  base::Value::Dict args;
+  base::DictValue args;
   args.Set(webview::kClipBoardText, *clipBoardText);
   args.Set(webview::kPasteTarget, *pasteTarget);
   args.Set(webview::kModifiers, *modifiers);
@@ -610,13 +613,13 @@ void WebViewGuest::AddGuestToTabStripModel(WebViewGuest* guest,
 }
 
 void WebViewGuest::OnContentAllowed(ContentSettingsType settings_type) {
-  base::Value::Dict args;
+  base::DictValue args;
   args.Set("allowedType", ContentSettingsTypeToString(settings_type));
   SendEventToView(*this, webview::kEventContentAllowed, std::move(args));
 }
 
 void WebViewGuest::OnContentBlocked(ContentSettingsType settings_type) {
-  base::Value::Dict args;
+  base::DictValue args;
   args.Set("blockedType", ContentSettingsTypeToString(settings_type));
   SendEventToView(*this, webview::kEventContentBlocked, std::move(args));
 }
@@ -626,7 +629,7 @@ void WebViewGuest::OnWindowBlocked(
     const std::string& frame_name,
     WindowOpenDisposition disposition,
     const blink::mojom::WindowFeatures& features) {
-  base::Value::Dict args;
+  base::DictValue args;
   args.Set(webview::kTargetURL, window_target_url.spec());
   if (features.has_height) {
     args.Set(webview::kInitialHeight, features.bounds.height());
@@ -690,8 +693,8 @@ void WebViewGuest::ShowRepostFormWarningDialog(WebContents* source) {
 
 content::PictureInPictureResult WebViewGuest::EnterPictureInPicture(
     WebContents* web_contents) {
-  return VivaldiBrowserComponentWrapper::GetInstance()
-      ->EnterPictureInPicture(web_contents);
+  return VivaldiBrowserComponentWrapper::GetInstance()->EnterPictureInPicture(
+      web_contents);
 }
 
 void WebViewGuest::ExitPictureInPicture() {
@@ -702,8 +705,7 @@ std::unique_ptr<content::EyeDropper> WebViewGuest::OpenEyeDropper(
     content::RenderFrameHost* frame,
     content::EyeDropperListener* listener) {
   return VivaldiBrowserComponentWrapper::GetInstance()->OpenEyeDropper(
-      frame,
-      listener);
+      frame, listener);
 }
 
 void WebViewGuest::CapturePaintPreviewOfSubframe(
@@ -745,10 +747,10 @@ bool WebViewGuest::ShortcutFoundInPrefs(std::string shortcut_text) {
   const PrefService::Preference* actions =
       prefs->FindPreference(vivaldiprefs::kActions);
 
-  const base::Value::List& action_list = actions->GetValue()->GetList();
+  const base::ListValue& action_list = actions->GetValue()->GetList();
   auto* shortcut_dict = &(action_list[0].GetDict());
   for (auto dict_entry = shortcut_dict->begin();
-     dict_entry != shortcut_dict->end(); ++dict_entry) {
+       dict_entry != shortcut_dict->end(); ++dict_entry) {
     auto* shortcuts = dict_entry->second.GetDict().Find("shortcuts");
     if (shortcuts) {
       const auto* shortcut_list = &(shortcuts[0].GetList());
@@ -775,8 +777,9 @@ bool WebViewGuest::IsTextfieldEditCommand(
   ui::KeyEvent ui_event(
       ui::EventType::kKeyPressed,
       static_cast<ui::KeyboardCode>(web_keyboard_event.windows_key_code),
-      ::vivaldi::WebEventModifiersToEventFlags(web_keyboard_event.GetModifiers()),
-      //ui::WebEventModifiersToEventFlags(web_keyboard_event.GetModifiers()),
+      ::vivaldi::WebEventModifiersToEventFlags(
+          web_keyboard_event.GetModifiers()),
+      // ui::WebEventModifiersToEventFlags(web_keyboard_event.GetModifiers()),
       web_keyboard_event.TimeStamp());
 
   if (textfield.GetCommandForKeyEvent(ui_event) ==
@@ -814,12 +817,12 @@ bool WebViewGuest::ShouldForwardShortcutToBrowser(
     const PrefService::Preference* single_key_pref =
         prefs->FindPreference(vivaldiprefs::kKeyboardShortcutsEnableSingleKey);
     if (single_key_pref) {
-       if (!single_key_pref->GetValue()->GetBool()) {
-         return false;
-       }
-       if (web_contents()->IsFocusedElementEditable()) {
-         return false;
-       }
+      if (!single_key_pref->GetValue()->GetBool()) {
+        return false;
+      }
+      if (web_contents()->IsFocusedElementEditable()) {
+        return false;
+      }
     }
   }
 
@@ -832,10 +835,9 @@ bool WebViewGuest::ShouldForwardShortcutToBrowser(
     return false;
   }
 
-  const PrefService::Preference* browser_priority_keys =
-      prefs->FindPreference(
-          vivaldiprefs::kKeyboardShortcutsBrowserPriorityList);
-  const base::Value::List& browser_priority_list =
+  const PrefService::Preference* browser_priority_keys = prefs->FindPreference(
+      vivaldiprefs::kKeyboardShortcutsBrowserPriorityList);
+  const base::ListValue& browser_priority_list =
       browser_priority_keys->GetValue()->GetList();
   for (auto entry = browser_priority_list.begin();
        entry != browser_priority_list.end(); ++entry) {
@@ -845,8 +847,9 @@ bool WebViewGuest::ShouldForwardShortcutToBrowser(
   }
   Profile* profile =
       Profile::FromBrowserContext(browser_context())->GetOriginalProfile();
-  bool browser_priority = VivaldiBrowserComponentWrapper::GetInstance()
-      ->HasBrowserShortcutPriority(profile, web_contents()->GetURL());
+  bool browser_priority =
+      VivaldiBrowserComponentWrapper::GetInstance()->HasBrowserShortcutPriority(
+          profile, web_contents()->GetURL());
   return browser_priority && ShortcutFoundInPrefs(shortcut_text);
 }
 
@@ -908,9 +911,8 @@ void WebViewGuest::SetIsNavigatingAwayFromVivaldiUI(bool away) {
 
 bool WebViewGuest::VivaldiCreateWebContents(
     std::unique_ptr<GuestViewBase> owned_this,
-    const base::Value::Dict& create_params,
+    const base::DictValue& create_params,
     GuestPageCreatedCallback guestpage_created_callback) {
-
   Profile* profile = Profile::FromBrowserContext(browser_context());
   content::BrowserContext* context = browser_context();
   std::unique_ptr<WebContents> new_contents;
@@ -940,7 +942,7 @@ bool WebViewGuest::VivaldiCreateWebContents(
             ->RemoveObserver(web_view_guest);
 
         static_cast<content::WebContentsImpl*>(tabstrip_contents)
-          ->CancelActiveAndPendingDialogs();
+            ->CancelActiveAndPendingDialogs();
 
         // VB-118692 - possibly a crashfix
         std::unique_ptr<GuestViewBase> owned_guest =
@@ -965,7 +967,7 @@ bool WebViewGuest::VivaldiCreateWebContents(
       // Fire a WebContentsCreated event informing the client that script-
       // injection can be done.
       SendEventToView(*this, webview::kEventWebContentsCreated,
-                      base::Value::Dict());
+                      base::DictValue());
 
       AttachWebContentsObservers(new_contents.get());
 
@@ -973,7 +975,6 @@ bool WebViewGuest::VivaldiCreateWebContents(
           .Run(std::move(owned_this), std::move(new_contents));
 
       return true;
-
     }
     // Should not happen that a tab-id lookup should fail.
     // Investigate any reports as soon as possible. The tabstrip
@@ -981,7 +982,8 @@ bool WebViewGuest::VivaldiCreateWebContents(
     LOG(ERROR)
         << "WebViewGuest::VivaldiCreateWebContents lookup failed for tab_id: "
         << *tab_id;
-    new_contents.reset(); // Just to be on the safe side, to make sure it is nullptr
+    new_contents
+        .reset();  // Just to be on the safe side, to make sure it is nullptr
     std::move(guestpage_created_callback)
         .Run(std::move(owned_this), std::move(new_contents));
     return false;
@@ -1093,7 +1095,7 @@ bool WebViewGuest::VivaldiCreateWebContents(
             devtools_contents =
                 VivaldiBrowserComponentWrapper::GetInstance()
                     ->DevToolsWindowGetDevtoolsWebContentsForInspectedWebContents(
-                    inspected_contents);
+                        inspected_contents);
           }
         }
         DCHECK(devtools_contents);
@@ -1107,9 +1109,10 @@ bool WebViewGuest::VivaldiCreateWebContents(
         content::WebContentsImpl* contents =
             static_cast<content::WebContentsImpl*>(devtools_contents);
 
-        connector_item_ = VivaldiBrowserComponentWrapper::GetInstance()
-            ->ConnectDevToolsWindow(browser_context(), *tab_id,
-                                    inspected_contents, this);
+        connector_item_ =
+            VivaldiBrowserComponentWrapper::GetInstance()
+                ->ConnectDevToolsWindow(browser_context(), *tab_id,
+                                        inspected_contents, this);
 
         VivaldiTabCheck::MarkAsDevToolContents(devtools_contents);
 
@@ -1132,14 +1135,15 @@ bool WebViewGuest::VivaldiCreateWebContents(
     // This is for opening content for webviews used in various parts in our ui.
     // Devtools and extension popups.
     if (auto* window_id = create_params.FindString(webview::kWindowID)) {
-      Browser* browser = VivaldiBrowserComponentWrapper::GetInstance()
-          ->FindBrowserWithWindowId(atoi(window_id->c_str()));
+      BrowserWindowInterface* const browser =
+          VivaldiBrowserComponentWrapper::GetInstance()
+              ->FindBrowserWindowInterfaceByWindowId(atoi(window_id->c_str()));
       if (browser) {
-        context = browser->profile();
+        context = browser->GetProfile();
         if (auto* src_string = create_params.FindString("src")) {
           guest_site = GURL(*src_string);
           guest_site_instance =
-            content::SiteInstance::CreateForURL(context, guest_site);
+              content::SiteInstance::CreateForURL(context, guest_site);
         }
       }
     }
@@ -1196,10 +1200,11 @@ bool WebViewGuest::VivaldiCreateWebContents(
         // TabHelpers::AttachTabHelpers.
         VivaldiBrowserComponentWrapper::GetInstance()
             ->PageSpecificContentSettingsCreateForTabContents(
-                  new_contents.get());
+                new_contents.get());
         // TODO: Is this used for panels now that it is owned by the tabstrip?
         if (view_name && IsPanelId(*view_name)) {
-          VivaldiPanelHelper::CreateForWebContents(new_contents.get(), *view_name);
+          VivaldiPanelHelper::CreateForWebContents(new_contents.get(),
+                                                   *view_name);
         }
       } else {
         WebContents::CreateParams params(context,
@@ -1227,9 +1232,9 @@ bool WebViewGuest::VivaldiCreateWebContents(
     // NOTE(pettern@vivaldi.com): If the owner is muted it means the webcontents
     // of the AppWindow has been muted due to thumbnail capturing, so we also
     // mute the webview webcontents.
-    VivaldiBrowserComponentWrapper::GetInstance()
-        ->SetTabAudioMuted(new_contents.get(), true, TabMutedReason::kExtension,
-              ::vivaldi::kVivaldiAppId);
+    VivaldiBrowserComponentWrapper::GetInstance()->SetTabAudioMuted(
+        new_contents.get(), true, TabMutedReason::kExtension,
+        ::vivaldi::kVivaldiAppId);
   }
   // Grant access to the origin of the embedder to the guest process. This
   // allows blob: and filesystem: URLs with the embedder origin to be created

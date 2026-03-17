@@ -17,8 +17,8 @@
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/tabs/inactive_window_mouse_event_controller.h"
 #include "chrome/browser/ui/tabs/public/tab_features.h"
-#include "chrome/browser/ui/webui/top_chrome/webui_url_utils.h"
 #include "chrome/common/url_constants.h"
+#include "chrome/common/webui_url_utils.h"
 #include "components/prefs/pref_service.h"
 #include "components/spellcheck/browser/pref_names.h"
 #include "components/spellcheck/browser/spellcheck_platform.h"
@@ -36,7 +36,7 @@
 #include "mojo/public/cpp/bindings/remote.h"
 #include "services/service_manager/public/cpp/interface_provider.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 #include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #endif
@@ -98,6 +98,16 @@
   }
 
   return content::WebContents::FromRenderViewHost(renderViewHost);
+}
+
+- (BOOL)shouldRefuseBecomingKeyView {
+  content::WebContents* webContents = self.webContents;
+  if (webContents && ShouldRefuseBecomingKeyViewForTopChromeWebUI(
+                         webContents->GetLastCommittedURL())) {
+    return YES;
+  }
+
+  return NO;
 }
 
 - (NSView*)nsView {
@@ -472,7 +482,7 @@
     return AcceptMouseEvents::kWhenInActiveApp;
   }
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
   // WebContents managed by glic should be allowed to accept mouse events while
   // inactive, aligning with the expected behavior of native chrome dialogs.
   // TODO(crbug.com/399119513): Consider making this a single WebContents

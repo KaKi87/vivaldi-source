@@ -11,6 +11,7 @@
 #include "base/android/scoped_java_ref.h"
 #include "base/containers/span.h"
 #include "base/functional/callback_forward.h"
+#include "base/gtest_prod_util.h"
 #include "chrome/browser/facilitated_payments/ui/android/facilitated_payments_bottom_sheet_bridge.h"
 #include "components/autofill/core/browser/data_model/payments/bank_account.h"
 #include "components/autofill/core/browser/data_model/payments/ewallet.h"
@@ -69,16 +70,16 @@ class FacilitatedPaymentsController {
           ui_event_listener);
 
   // Called by the Java view to communicate `payments::facilitated::UiEvent`.
-  void OnUiEvent(JNIEnv* env, jint event);
+  void OnUiEvent(JNIEnv* env, int32_t event);
 
-  void OnBankAccountSelected(JNIEnv* env, jlong instrument_id);
+  void OnBankAccountSelected(JNIEnv* env, int64_t instrument_id);
 
-  void OnEwalletSelected(JNIEnv* env, jlong instrument_id);
+  void OnEwalletSelected(JNIEnv* env, int64_t instrument_id);
 
   void OnPaymentAppSelected(
       JNIEnv* env,
-      const base::android::JavaParamRef<jstring>& package_name,
-      const base::android::JavaParamRef<jstring>& activity_name);
+      const base::android::JavaRef<jstring>& package_name,
+      const base::android::JavaRef<jstring>& activity_name);
 
   // Asks the `view_` to show the PIX account linking prompt. Virtual for
   // overriding in tests.

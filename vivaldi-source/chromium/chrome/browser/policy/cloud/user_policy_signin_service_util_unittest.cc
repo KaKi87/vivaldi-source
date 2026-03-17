@@ -46,11 +46,14 @@ class UserPolicySigninServiceUtilTest : public ::testing::Test {
     auto store = std::make_unique<MachineLevelUserCloudPolicyStore>(
         DMToken::CreateValidToken(kDMToken), std::string(), base::FilePath(),
         base::FilePath(), base::FilePath(), base::FilePath(),
+        dm_protocol::kChromeMachineLevelUserCloudPolicyType,
         scoped_refptr<base::SequencedTaskRunner>());
     store->set_policy_data_for_testing(std::move(policy_data));
 
     manager_ = std::make_unique<MachineLevelUserCloudPolicyManager>(
-        std::move(store), /*external_data_manager=*/nullptr,
+        std::move(store),
+        /*extension_install_store=*/nullptr,
+        /*external_data_manager=*/nullptr,
         /*policy_dir=*/base::FilePath(),
         scoped_refptr<base::SequencedTaskRunner>(),
         network::TestNetworkConnectionTracker::CreateGetter());

@@ -40,11 +40,11 @@ ui::Accelerator VivaldiShortcut2Accelerator(const std::string& shortcut);
 std::string GetMacOSEmailLinkShortcut(Profile* profile);
 
 void BroadcastEvent(const std::string& eventname,
-                    base::Value::List args,
+                    base::ListValue args,
                     content::BrowserContext* context);
 
 void BroadcastEventToAllProfiles(const std::string& eventname,
-                                 base::Value::List args = {});
+                                 base::ListValue args = {});
 
 // Return time from milliseconds
 base::Time GetTime(double ms_from_epoch);

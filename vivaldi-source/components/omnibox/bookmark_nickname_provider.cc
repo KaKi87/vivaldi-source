@@ -104,10 +104,9 @@ void BookmarkNicknameProvider::DoAutocomplete(const AutocompleteInput& input) {
     // alternative could be to implement VB-109302 Partial matches
     // score too high.
     const size_t max_results = 3;
-    auto it = std::lower_bound(
-        matches_.begin(), matches_.end(), relevance, [](auto& a, int rel) {
-      return a.relevance > rel;
-    });
+    auto it =
+        std::lower_bound(matches_.begin(), matches_.end(), relevance,
+                         [](auto& a, int rel) { return a.relevance > rel; });
     if (matches_.size() < max_results || it != matches_.end()) {
       AutocompleteMatch match = NicknameMatchToAutocompleteMatch(
           bookmark_match, AutocompleteMatchType::BOOKMARK_NICKNAME, relevance,
@@ -148,7 +147,7 @@ std::pair<int, int> BookmarkNicknameProvider::CalculateBookmarkMatchRelevance(
 
   PrefService* prefs = client_->GetPrefs();
   bool bookmark_boost =
-    prefs->GetBoolean(vivaldiprefs::kAddressBarOmniboxBookmarksBoosted);
+      prefs->GetBoolean(vivaldiprefs::kAddressBarOmniboxBookmarksBoosted);
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
   const int no_autocomplete_boost =
       nickname == input.text() &&

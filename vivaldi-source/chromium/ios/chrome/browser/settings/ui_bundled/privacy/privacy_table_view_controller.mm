@@ -38,7 +38,6 @@
 #import "ios/chrome/browser/settings/ui_bundled/elements/info_popover_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/elements/supervised_user_info_popover_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/privacy/privacy_constants.h"
-#import "ios/chrome/browser/settings/ui_bundled/privacy/privacy_guide/features.h"
 #import "ios/chrome/browser/settings/ui_bundled/privacy/privacy_navigation_commands.h"
 #import "ios/chrome/browser/settings/ui_bundled/privacy/safe_browsing/safe_browsing_constants.h"
 #import "ios/chrome/browser/settings/ui_bundled/settings_navigation_controller.h"
@@ -77,7 +76,7 @@
 #import "app/vivaldi_apptools.h"
 #import "ios/chrome/browser/settings/ui_bundled/bandwidth/dataplan_usage_table_view_controller.h"
 #import "ios/ui/common/vivaldi_url_constants.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using vivaldi::IsVivaldiRunning;
@@ -94,7 +93,6 @@ typedef NS_ENUM(NSInteger, SectionIdentifier) {
   SectionIdentifierIncognitoAuth,
   SectionIdentifierIncognitoInterstitial,
   SectionIdentifierLockdownMode,
-  SectionIdentifierPrivacyGuide,
 
   // Vivaldi
   SectionIdentifierPreloadWebpage,
@@ -118,7 +116,6 @@ typedef NS_ENUM(NSInteger, ItemType) {
   ItemTypeIncognitoInterstitial,
   ItemTypeIncognitoInterstitialDisabled,
   ItemTypeLockdownMode,
-  ItemTypePrivacyGuide,
 
   // Vivaldi
   ItemTypePreloadWebpage,
@@ -370,9 +367,6 @@ const char kSyncSettingsURL[] = "settings://open_sync";
 
   TableViewModel* model = self.tableViewModel;
   [model addSectionWithIdentifier:SectionIdentifierPrivacyContent];
-  if (IsPrivacyGuideIosEnabled()) {
-    [model addSectionWithIdentifier:SectionIdentifierPrivacyGuide];
-  }
   [model addSectionWithIdentifier:SectionIdentifierSafeBrowsing];
 
   [model addSectionWithIdentifier:SectionIdentifierHTTPSOnlyMode];
@@ -392,12 +386,6 @@ const char kSyncSettingsURL[] = "settings://open_sync";
   // Clear Browsing item.
   [model addItem:[self clearBrowsingDetailItem]
       toSectionWithIdentifier:SectionIdentifierPrivacyContent];
-
-  // Privacy Guide item.
-  if (IsPrivacyGuideIosEnabled()) {
-    [model addItem:[self privacyGuideDetailItem]
-        toSectionWithIdentifier:SectionIdentifierPrivacyGuide];
-  }
 
   // Privacy Safe Browsing item.
   [model addItem:[self safeBrowsingDetailItem]
@@ -652,13 +640,6 @@ const char kSyncSettingsURL[] = "settings://open_sync";
   return _lockdownModeDetailItem;
 }
 
-- (TableViewItem*)privacyGuideDetailItem {
-  return [self detailItemWithType:ItemTypePrivacyGuide
-                          titleId:IDS_IOS_PRIVACY_GUIDE_TITLE
-                       detailText:nil
-          accessibilityIdentifier:kSettingsPrivacyGuideCellId];
-}
-
 - (TableViewSwitchItem*)incognitoReauthItem {
   if (_incognitoReauthItem) {
     return _incognitoReauthItem;
@@ -756,9 +737,6 @@ const char kSyncSettingsURL[] = "settings://open_sync";
       break;
     case ItemTypeIncognitoLock:
       [self.handler showIncognitoLock];
-      break;
-    case ItemTypePrivacyGuide:
-      [self.handler showPrivacyGuide];
       break;
 
     // Vivaldi

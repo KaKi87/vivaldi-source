@@ -8,7 +8,6 @@
 #include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/ad_blocker/content/adblock_rule_service_impl.h"
-#include "components/ad_blocker/content/index/flat_rules_compiler.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/language/core/browser/pref_names.h"
 #include "components/prefs/pref_service.h"
@@ -59,7 +58,7 @@ RuleServiceFactory::BuildServiceInstanceForBrowserContext(
   std::unique_ptr<RuleServiceImpl> rule_service =
       std::make_unique<RuleServiceImpl>(
           std::make_unique<vivaldi::AdblockRuleServiceClient>(), context,
-          base::BindRepeating(&CompileFlatRules), locale);
+          locale);
   // Avoid actually loading the service during unit tests.
   if (vivaldi::IsVivaldiRunning())
     rule_service->Load(

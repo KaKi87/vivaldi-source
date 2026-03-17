@@ -5,11 +5,11 @@
 #include "chrome/browser/ash/lobster/lobster_service.h"
 
 #include <memory>
+#include <utility>
 
 #include "ash/constants/ash_pref_names.h"
 #include "ash/public/cpp/lobster/lobster_system_state.h"
 #include "base/test/task_environment.h"
-#include "base/types/cxx23_to_underlying.h"
 #include "chrome/browser/ash/lobster/mock/mock_snapper_provider.h"
 #include "chrome/browser/ash/lobster/mock_lobster_system_state_provider.h"
 #include "chrome/browser/ash/login/users/fake_chrome_user_manager.h"
@@ -41,7 +41,10 @@ class LobsterServiceTest : public ChromeAshTestBase {
     testing_profile_ = profile_manager_.CreateTestingProfile("profile");
     ash::AnnotatedAccountId::Set(testing_profile_.get(), user->GetAccountId());
     lobster_service_ = std::make_unique<LobsterService>(
-        std::make_unique<MockSnapperProvider>(), testing_profile_.get());
+        std::make_unique<MockSnapperProvider>(), testing_profile_.get(),
+        base::BindRepeating([]() {
+          return TestingBrowserProcess::GetGlobal()->variations_service();
+        }));
   }
 
   void TearDown() override {
@@ -78,7 +81,7 @@ TEST_F(LobsterServiceTest,
   ToggleLobsterSettings(false);
   profile()->GetPrefs()->SetInteger(
       ash::prefs::kOrcaConsentStatus,
-      base::to_underlying(
+      std::to_underlying(
           chromeos::editor_menu::EditorConsentStatus::kDeclined));
 
   // Turn on the Lobster Settings
@@ -93,7 +96,7 @@ TEST_F(LobsterServiceTest,
   ToggleLobsterSettings(true);
   profile()->GetPrefs()->SetInteger(
       ash::prefs::kOrcaConsentStatus,
-      base::to_underlying(
+      std::to_underlying(
           chromeos::editor_menu::EditorConsentStatus::kApproved));
 
   // Turn off the Lobster Settings

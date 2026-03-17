@@ -72,12 +72,11 @@ class AutofillKeyboardAccessoryControllerImpl
   const std::vector<Suggestion>& GetSuggestions() const override;
   const Suggestion& GetSuggestionAt(int row) const override;
   FillingProduct GetMainFillingProduct() const override;
-  std::optional<AutofillClient::PopupScreenLocation> GetPopupScreenLocation()
-      const override;
   void Show(UiSessionId ui_session_id,
             std::vector<Suggestion> suggestions,
             AutofillSuggestionTriggerSource trigger_source,
-            AutoselectFirstSuggestion autoselect_first_suggestion) override;
+            AutoselectFirstSuggestion autoselect_first_suggestion,
+            AutofillSuggestionsIgnoreFocusLoss ignore_focus_loss) override;
   std::optional<UiSessionId> GetUiSessionId() const override;
   void SetKeepPopupOpenForTesting(bool keep_popup_open_for_testing) override;
   void UpdateDataListValues(base::span<const SelectOption> options) override;

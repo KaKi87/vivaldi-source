@@ -77,7 +77,6 @@ class VivaldiProgressDialog::ProgressThread : public vivaldi::DetachedThread {
  public:
   ProgressThread(HINSTANCE hInstance) : hInstance_(hInstance) {}
   void Run() override {
-
     INITCOMMONCONTROLSEX info;
     info.dwSize = sizeof(info);
     info.dwICC = ICC_STANDARD_CLASSES;
@@ -85,7 +84,8 @@ class VivaldiProgressDialog::ProgressThread : public vivaldi::DetachedThread {
 
     // make sure we have a UI thread with a message loop.
     ::IsGUIThread(TRUE);
-    ::DialogBox(hInstance_, MAKEINTRESOURCE(IDD_PROGRESS_DIALOG), NULL, DlgProc);
+    ::DialogBox(hInstance_, MAKEINTRESOURCE(IDD_PROGRESS_DIALOG), NULL,
+                DlgProc);
   }
   HINSTANCE hInstance_ = nullptr;
 };

@@ -6,10 +6,10 @@
 
 #include <stddef.h>
 
+#include <algorithm>
 #include <string>
 
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/debug/debugging_buildflags.h"
 #include "base/debug/profiler.h"
 #include "base/feature_list.h"
@@ -21,12 +21,14 @@
 #include "build/branding_buildflags.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/actor/ui/actor_overlay_web_view.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/commerce/browser_utils.h"
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/devtools/features.h"
 #include "chrome/browser/feedback/public/feedback_source.h"
+#include "chrome/browser/feedback/show_feedback_page.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/profiles/profile.h"
@@ -43,9 +45,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_actions.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_dialogs.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_navigator.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
@@ -53,6 +53,7 @@
 #include "chrome/browser/ui/bubble_anchor_util.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/customize_chrome/side_panel_controller.h"
+#include "chrome/browser/ui/dialogs/browser_dialogs.h"
 #include "chrome/browser/ui/lens/lens_overlay_controller.h"
 #include "chrome/browser/ui/managed_ui.h"
 #include "chrome/browser/ui/page_info/page_info_dialog.h"
@@ -72,6 +73,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_user_gesture_details.h"
 #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_utils.h"
 #include "chrome/browser/ui/ui_features.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_entry_id.h"
 #include "chrome/browser/ui/views/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
@@ -117,6 +119,10 @@
 #include "ui/base/window_open_disposition.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 
+#if !BUILDFLAG(IS_ANDROID)
+#include "chrome/browser/devtools/devtools_policy_dialog.h"
+#endif
+
 #if BUILDFLAG(IS_MAC)
 #include "chrome/browser/ui/browser_commands_mac.h"
 #endif
@@ -127,6 +133,7 @@
 #endif
 
 #if BUILDFLAG(IS_CHROMEOS)
+#include "chrome/browser/ash/boca/on_task/on_task_locked_controller.h"
 #include "chrome/browser/platform_util.h"
 #include "chrome/browser/ui/ash/multi_user/multi_user_context_menu.h"
 #include "chrome/browser/ui/browser_commands_chromeos.h"
@@ -148,7 +155,7 @@
 #include "chrome/browser/ui/shortcuts/desktop_shortcuts_utils.h"
 #endif  // BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_WIN)
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/fre/glic_fre_controller.h"
 #include "chrome/browser/glic/glic_enums.h"
 #include "chrome/browser/glic/glic_pref_names.h"
@@ -292,7 +299,7 @@ BrowserCommandController::BrowserCommandController(BrowserWindowInterface* bwi)
           base::Unretained(this)));
 #endif  //! BUILDFLAG(IS_MAC)
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (glic::GlicEnabling::IsEnabledByFlags()) {
     auto* glic_service =
         glic::GlicKeyedServiceFactory::GetGlicKeyedService(profile());
@@ -305,9 +312,9 @@ BrowserCommandController::BrowserCommandController(BrowserWindowInterface* bwi)
               base::Unretained(this))));
     }
   }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (glic::GlicEnabling::IsEnabledByFlags()) {
     auto* service =
         glic::GlicKeyedServiceFactory::GetGlicKeyedService(profile());
@@ -447,7 +454,7 @@ void BrowserCommandController::LoadingStateChanged(bool is_loading,
   UpdateReloadStopState(is_loading, force);
 }
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 void BrowserCommandController::GlicWindowActivationChanged(bool active) {
   UpdateGlicState();
 }
@@ -465,7 +472,8 @@ void BrowserCommandController::FindBarVisibilityChanged() {
   // with OnTask.
   bool should_block_command_update = is_locked_fullscreen_;
 #if BUILDFLAG(IS_CHROMEOS)
-  if (browser_->IsLockedForOnTask()) {
+  if (ash::boca::OnTaskLockedController::From(browser_)
+          ->is_locked_for_on_task()) {
     should_block_command_update = false;
   }
 #endif
@@ -541,7 +549,7 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
 
   if (vivaldi::IsVivaldiRunning()) {
     VivaldiBrowserWindow* window = VivaldiBrowserWindow::FromBrowser(browser_);
-    if (window && window->type() == VivaldiBrowserWindow::SETTINGS) {
+    if (window && window->window_type() == VivaldiBrowserWindow::SETTINGS) {
       if (vivaldi::GetIsSupportedInSettings(id)) {
         vivaldi::ExecuteVivaldiCommands(browser_, id);
         return true;
@@ -600,7 +608,13 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
     case IDC_TOGGLE_VERTICAL_TABS:
       ToggleVerticalTabs(browser_);
       break;
-
+    case IDC_VERTICAL_TABS_SEND_FEEDBACK:
+      chrome::ShowFeedbackPage(browser_, feedback::kFeedbackSourceVerticalTabs,
+                               /*description_template=*/"",
+                               /*description_placeholder_text=*/"",
+                               /*category_tag=*/"vertical_tabs",
+                               /*extra_diagnostics=*/"");
+      break;
     // Window management commands
     case IDC_NEW_WINDOW:
       NewWindow(browser_);
@@ -750,12 +764,19 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
     case IDC_BOOKMARK_ALL_TABS:
       BookmarkAllTabs(browser_);
       break;
-    case IDC_VIEW_SOURCE:
-      browser_->tab_strip_model()
-          ->GetActiveWebContents()
-          ->GetPrimaryMainFrame()
-          ->ViewSource();
+    case IDC_VIEW_SOURCE: {
+      content::WebContents* web_contents =
+          browser_->tab_strip_model()->GetActiveWebContents();
+      if (base::FeatureList::IsEnabled(features::kDevToolsShowPolicyDialog) &&
+          !DevToolsWindow::AllowDevToolsFor(profile(), web_contents)) {
+#if !BUILDFLAG(IS_ANDROID)
+        DevToolsPolicyDialog::Show(web_contents);
+#endif
+      } else {
+        web_contents->GetPrimaryMainFrame()->ViewSource();
+      }
       break;
+    }
     case IDC_PRINT:
       Print(browser_);
       break;
@@ -998,6 +1019,9 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
     case IDC_FEEDBACK:
       OpenFeedbackDialog(browser_, feedback::kFeedbackSourceBrowserCommand);
       break;
+    case IDC_REPORT_UNSAFE_SITE:
+      OpenReportUnsafeSiteDialog(browser_);
+      break;
 #endif
     case IDC_SHOW_CHROME_LABS:
       window()->ShowChromeLabs();
@@ -1107,7 +1131,9 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
       ShowAboutChrome(browser_->GetBrowserForOpeningWebUi());
       break;
     case IDC_UPGRADE_DIALOG:
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
       OpenUpdateChromeDialog(browser_);
+#endif
       break;
     case IDC_OPEN_SAFETY_HUB:
       ShowSettingsSubPage(browser_->GetBrowserForOpeningWebUi(),
@@ -1195,6 +1221,9 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
       break;
     case IDC_ADD_NEW_TAB_RECENT_GROUP:
       AddNewTabToRecentGroup(browser_);
+      break;
+    case IDC_UNFOCUS_TAB_GROUP:
+      UnfocusTabGroup(browser_);
       break;
     case IDC_WINDOW_CLOSE_TABS_TO_RIGHT:
       CloseTabsToRight(browser_);
@@ -1299,8 +1328,7 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
       break;
     case IDC_CLOSE_PROFILE: {
       if (browser_->profile()->IsIncognitoProfile()) {
-        BrowserList::CloseAllBrowsersWithIncognitoProfile(
-            browser_->profile(), base::DoNothing(), base::DoNothing(), true);
+        chrome::CloseAllBrowsersWithIncognitoProfile(browser_->profile());
       } else {
         profiles::CloseProfileWindows(browser_->profile());
       }
@@ -1330,7 +1358,7 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
           ProfilePicker::EntryPoint::kAppMenuProfileSubMenuManageProfiles));
       break;
 #endif  // BUILDFLAG(IS_CHROMEOS)
-#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
+#if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS) && !defined(VIVALDI_BUILD)
     case IDC_SET_BROWSER_AS_DEFAULT:
       base::MakeRefCounted<shell_integration::DefaultBrowserWorker>()
           ->StartSetAsDefault(base::DoNothing());
@@ -1342,7 +1370,7 @@ bool BrowserCommandController::ExecuteCommandWithDisposition(
           DefaultBrowserPromptManager::CloseReason::kAccept);
       break;
 #endif
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
     case IDC_GLIC_TOGGLE_PIN: {
       PrefService* profile_prefs = profile()->GetPrefs();
       profile_prefs->SetBoolean(
@@ -1396,7 +1424,8 @@ bool BrowserCommandController::UpdateCommandEnabled(int id, bool state) {
   // with OnTask.
   bool should_block_command_update = is_locked_fullscreen_;
 #if BUILDFLAG(IS_CHROMEOS)
-  if (browser_->IsLockedForOnTask()) {
+  if (ash::boca::OnTaskLockedController::From(browser_)
+          ->is_locked_for_on_task()) {
     should_block_command_update = false;
   }
 #endif
@@ -1416,9 +1445,8 @@ void BrowserCommandController::OnTabStripModelChanged(
   UpdateCommandsForTabStripStateChanged();
 }
 
-void BrowserCommandController::TabBlockedStateChanged(
-    content::WebContents* contents,
-    int index) {
+void BrowserCommandController::OnTabBlockedStateChanged(tabs::TabInterface* tab,
+                                                        int index) {
   PrintingStateChanged();
   FullscreenStateChanged();
   UpdateCommandsForFind();
@@ -1481,6 +1509,7 @@ void BrowserCommandController::InitCommandState() {
   command_updater_.UpdateCommandEnabled(IDC_CREATE_NEW_TAB_GROUP_TOP_LEVEL,
                                         true);
   command_updater_.UpdateCommandEnabled(IDC_ADD_NEW_TAB_RECENT_GROUP, true);
+  command_updater_.UpdateCommandEnabled(IDC_UNFOCUS_TAB_GROUP, true);
 
   // Omnibox commands
   command_updater_.UpdateCommandEnabled(IDC_SHOW_FULL_URLS, true);
@@ -1502,6 +1531,7 @@ void BrowserCommandController::InitCommandState() {
   command_updater_.UpdateCommandEnabled(IDC_ORGANIZE_TABS, true);
   command_updater_.UpdateCommandEnabled(IDC_DECLUTTER_TABS, true);
   command_updater_.UpdateCommandEnabled(IDC_TOGGLE_VERTICAL_TABS, true);
+  command_updater_.UpdateCommandEnabled(IDC_VERTICAL_TABS_SEND_FEEDBACK, true);
 #if BUILDFLAG(IS_CHROMEOS)
   command_updater_.UpdateCommandEnabled(IDC_TOGGLE_MULTITASK_MENU, true);
   command_updater_.UpdateCommandEnabled(IDC_MINIMIZE_WINDOW, true);
@@ -1748,7 +1778,7 @@ void BrowserCommandController::InitCommandState() {
   command_updater_.UpdateCommandEnabled(
       IDC_CREATE_NEW_COMPARISON_TABLE_WITH_TAB, true);
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   // Glic commands.
   command_updater_.UpdateCommandEnabled(
       IDC_GLIC_TOGGLE_PIN, glic::GlicEnabling::IsProfileEligible(profile()));
@@ -1855,7 +1885,8 @@ void BrowserCommandController::UpdateCommandsForTabState() {
   // OnTask.
   bool skip_all_command_updates = is_locked_fullscreen_;
 #if BUILDFLAG(IS_CHROMEOS)
-  if (browser_->IsLockedForOnTask()) {
+  if (ash::boca::OnTaskLockedController::From(browser_)
+          ->is_locked_for_on_task()) {
     skip_all_command_updates = false;
   }
 #endif  // BUILDFLAG(IS_CHROMEOS)
@@ -1957,6 +1988,12 @@ void BrowserCommandController::UpdateCommandsForTabState() {
   UpdateCommandsForTabKeyboardFocus(GetKeyboardFocusedTabIndex(browser_));
   if (!base::FeatureList::IsEnabled(features::kDevToolsShowPolicyDialog)) {
     UpdateCommandsForDevTools();
+  } else {
+    // Block the View Source command if DevTools are disabled.
+    command_updater_.UpdateCommandEnabled(
+        IDC_VIEW_SOURCE,
+        DevToolsWindow::AllowDevToolsFor(
+            profile(), browser_->tab_strip_model()->GetActiveWebContents()));
   }
 
   // Disable the add to comparison table menu when the page is not a standard
@@ -2092,6 +2129,7 @@ void BrowserCommandController::UpdateCommandsForFullscreenMode() {
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
   command_updater_.UpdateCommandEnabled(
       IDC_FEEDBACK, show_main_ui || browser_->is_type_devtools());
+  command_updater_.UpdateCommandEnabled(IDC_REPORT_UNSAFE_SITE, show_main_ui);
 #endif
 
   command_updater_.UpdateCommandEnabled(IDC_EDIT_SEARCH_ENGINES, show_main_ui);
@@ -2154,7 +2192,7 @@ void NonAllowlistedCommandsAreDisabled(CommandUpdaterImpl* command_updater) {
 
   // Go through all the command ids, skip the allowlisted ones.
   for (int id : command_updater->GetAllIds()) {
-    if (base::Contains(kAllowlistedIds, id)) {
+    if (std::ranges::contains(kAllowlistedIds, id)) {
       continue;
     }
     DCHECK(!command_updater->IsCommandEnabled(id));
@@ -2188,7 +2226,8 @@ void BrowserCommandController::UpdateCommandsForLockedFullscreenMode() {
     // Enable commands that allow users to switch between tabs and find content
     // within a webpage if the webapp is locked for OnTask
     // (only relevant for non-web browser scenarios).
-    if (browser_->IsLockedForOnTask()) {
+    if (ash::boca::OnTaskLockedController::From(browser_)
+            ->is_locked_for_on_task()) {
       bool supports_tabs = browser_->SupportsWindowFeature(
           Browser::WindowFeature::kFeatureTabStrip);
       command_updater_.UpdateCommandEnabled(IDC_SELECT_NEXT_TAB, supports_tabs);
@@ -2216,7 +2255,7 @@ void BrowserCommandController::UpdatePrintingState() {
 #endif
 }
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 void BrowserCommandController::UpdateGlicState() {
   if (glic::GlicEnabling::IsEnabledByFlags()) {
     auto* service =
@@ -2246,7 +2285,8 @@ void BrowserCommandController::UpdateReloadStopState(bool is_loading,
   // with OnTask.
   bool should_skip_command_updates = is_locked_fullscreen_;
 #if BUILDFLAG(IS_CHROMEOS)
-  if (browser_->IsLockedForOnTask()) {
+  if (ash::boca::OnTaskLockedController::From(browser_)
+          ->is_locked_for_on_task()) {
     should_skip_command_updates = false;
   }
 #endif
@@ -2277,10 +2317,28 @@ void BrowserCommandController::UpdateTabRestoreCommandState() {
 void BrowserCommandController::UpdateCommandsForFind() {
   TabStripModel* model = browser_->tab_strip_model();
   int active_index = model->active_index();
+  bool is_actor_overlay_visible = false;
+
+  // If the actor overlay is visible, we disable find and close it if it's open.
+  if (base::FeatureList::IsEnabled(features::kGlicActorUi) &&
+      features::kGlicActorUiOverlay.Get()) {
+    if (BrowserView* browser_view =
+            BrowserView::GetBrowserViewForBrowser(browser_)) {
+      if (auto* active_container =
+              browser_view->GetActiveContentsContainerView()) {
+        if (active_container->actor_overlay_web_view()->GetVisible()) {
+          is_actor_overlay_visible = true;
+          if (CanCloseFind(browser_)) {
+            CloseFind(browser_);
+          }
+        }
+      }
+    }
+  }
 
   bool enabled = active_index != TabStripModel::kNoTab &&
                  !model->IsTabBlocked(active_index) &&
-                 !browser_->is_type_devtools();
+                 !browser_->is_type_devtools() && !is_actor_overlay_visible;
 
   command_updater_.UpdateCommandEnabled(IDC_FIND, enabled);
   command_updater_.UpdateCommandEnabled(IDC_FIND_NEXT, enabled);
@@ -2377,10 +2435,10 @@ void BrowserCommandController::UpdateCommandAndActionEnabled(
 }
 
 void BrowserCommandController::UpdateCommandsForEnableGlicChanged() {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   command_updater_.UpdateCommandEnabled(
       IDC_OPEN_GLIC, glic::GlicEnabling::IsEnabledForProfile(profile()));
-#endif  //  BUILDFLAG(ENABLE_GLIC)
+#endif  //  BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 }
 
 BrowserWindow* BrowserCommandController::window() {

@@ -13,7 +13,6 @@
 #include "base/metrics/statistics_recorder.h"
 #include "base/run_loop.h"
 #include "base/test/bind.h"
-#include "base/test/scoped_feature_list.h"
 #include "chrome/browser/ash/accessibility/accessibility_feature_browsertest.h"
 #include "chrome/browser/ash/accessibility/accessibility_manager.h"
 #include "chrome/browser/ash/accessibility/accessibility_test_utils.h"
@@ -126,11 +125,6 @@ class FaceGazeIntegrationTest : public AccessibilityFeatureBrowserTest {
 
  protected:
   // InProcessBrowserTest:
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    scoped_feature_list_.InitWithFeatureStates(
-        {{::features::kAccessibilityManifestV3AccessibilityCommon, true}});
-    AccessibilityFeatureBrowserTest::SetUpCommandLine(command_line);
-  }
 
   void SetUpOnMainThread() override {
     InProcessBrowserTest::SetUpOnMainThread();
@@ -162,7 +156,6 @@ class FaceGazeIntegrationTest : public AccessibilityFeatureBrowserTest {
   std::unique_ptr<FaceGazeTestUtils> utils_;
   std::unique_ptr<FaceGazeBubbleTestHelper> bubble_helper_;
   MockEventHandler event_handler_;
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(FaceGazeIntegrationTest, UpdateCursorLocation) {
@@ -442,8 +435,15 @@ IN_PROC_BROWSER_TEST_F(FaceGazeIntegrationTest, MouseLongClick) {
   ASSERT_FALSE(drag_event_rewriter->IsEnabled());
 }
 
-// TODO(crbug.com/367758998): Re-enable this test.
-IN_PROC_BROWSER_TEST_F(FaceGazeIntegrationTest, DISABLED_PerformanceHistogram) {
+// TODO(crbug.com/367758998): Performance histograms are unreliable on MSan
+// due to overhead. Furthermore, the test consistently crashes on MSan
+// builders during GPU initialization due to uninstrumented Vulkan drivers.
+#if defined(MEMORY_SANITIZER)
+#define MAYBE_PerformanceHistogram DISABLED_PerformanceHistogram
+#else
+#define MAYBE_PerformanceHistogram PerformanceHistogram
+#endif
+IN_PROC_BROWSER_TEST_F(FaceGazeIntegrationTest, MAYBE_PerformanceHistogram) {
   const base::flat_map<FaceGazeGesture, MacroName> gestures_to_macros = {
       {FaceGazeGesture::MOUTH_PUCKER, MacroName::MOUSE_CLICK_LEFT}};
   const base::flat_map<FaceGazeGesture, int> gestures_to_confidences = {

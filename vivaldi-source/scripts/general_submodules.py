@@ -11,6 +11,7 @@ SRC = os.path.dirname(os.path.dirname(__file__))
 cipd_pick_list = [
   "tools/clang/dsymutil",
   "third_party/esbuild", # in third_party/devtools-frontend/src/
+  "third_party/rollup_libs", # in third_party/devtools-frontend/src/
   "buildtools/reclient",
   "third_party/lzma_sdk/bin/host_platform",
   "third_party/lzma_sdk/bin/win64",
@@ -67,6 +68,8 @@ excluded_modules = [
   "third_party/crossbench",
   "third_party/crossbench-web-tests",
   "third_party/oak/src",
+  "third_party/nlohmann_json/src",
+  "third_party/litert/src",
   ]
 
 include_recursive_deps = [

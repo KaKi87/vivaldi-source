@@ -13,6 +13,7 @@
 #include "components/ad_blocker/content/adblock_request_filter.h"
 #include "components/ad_blocker/content/index/adblock_rules_index.h"
 #include "components/ad_blocker/content/index/adblock_rules_index_manager.h"
+#include "components/ad_blocker/content/index/flat_rules_compiler.h"
 #include "components/ad_blocker/core/adblock_rule_manager_impl.h"
 #include "components/ad_blocker/core/adblock_rule_source_handler.h"
 #include "components/ad_blocker/core/adblock_stats_store_impl.h"
@@ -28,14 +29,11 @@
 #include "content/public/browser/web_contents.h"
 
 namespace adblock_filter {
-RuleServiceImpl::RuleServiceImpl(
-    std::unique_ptr<Client> client,
-    content::BrowserContext* context,
-    RuleSourceHandler::RulesCompiler rules_compiler,
-    std::string locale)
+RuleServiceImpl::RuleServiceImpl(std::unique_ptr<Client> client,
+                                 content::BrowserContext* context,
+                                 std::string locale)
     : client_(std::move(client)),
       context_(context),
-      rules_compiler_(std::move(rules_compiler)),
       locale_(std::move(locale)) {}
 
 RuleServiceImpl::~RuleServiceImpl() {}
@@ -90,7 +88,8 @@ Resources& RuleServiceImpl::GetResources() {
   return *resources_;
 }
 
-const std::optional<std::string_view> RuleServiceImpl::GetBrowserOwnedFrameUrlPrefix() {
+const std::optional<std::string_view>
+RuleServiceImpl::GetBrowserOwnedFrameUrlPrefix() {
   return client_->GetBrowserOwnedFrameUrlPrefix();
 }
 
@@ -132,7 +131,7 @@ void RuleServiceImpl::OnStorageDoneLoading(
       std::move(load_result.exceptions),
       base::BindRepeating(&RuleServiceStorage::ScheduleSave,
                           base::Unretained(&state_store_.value())),
-      rules_compiler_,
+      base::BindRepeating(&CompileFlatRules),
       base::BindRepeating(&StateAndLogsImpl::OnTrackerInfosUpdated,
                           base::Unretained(&state_and_logs_.value())));
   rule_manager_->AddObserver(this);

@@ -3,15 +3,15 @@
 #import "ios/ui/settings/start_page/quick_settings/vivaldi_start_page_quick_settings_coordinator.h"
 
 #import "ios/chrome/browser/shared/model/browser/browser.h"
-#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
+#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/ui/settings/start_page/quick_settings/quick_settings_swift.h"
 #import "ios/ui/settings/start_page/quick_settings/vivaldi_start_page_quick_settings_mediator.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-@interface VivaldiStartPageQuickSettingsCoordinator ()<
-  UIAdaptivePresentationControllerDelegate> {
+@interface VivaldiStartPageQuickSettingsCoordinator () <
+    UIAdaptivePresentationControllerDelegate> {
   // The browser where the settings are being displayed.
   Browser* _browser;
 }
@@ -28,7 +28,7 @@
 @synthesize baseNavigationController = _baseNavigationController;
 
 - (instancetype)initWithBaseNavigationController:
-(UINavigationController*)navigationController
+                    (UINavigationController*)navigationController
                                          browser:(Browser*)browser {
   self = [super initWithBaseViewController:navigationController
                                    browser:browser];
@@ -47,7 +47,7 @@
   VivaldiStartPageQuickSettingsViewProvider* viewProvider =
       [VivaldiStartPageQuickSettingsViewProvider new];
   self.viewProvider = viewProvider;
-  UIViewController *controller = [self.viewProvider makeViewController];
+  UIViewController* controller = [self.viewProvider makeViewController];
   controller.title = l10n_util::GetNSString(IDS_IOS_START_PAGE_CUSTOMIZE_TITLE);
   controller.navigationItem.largeTitleDisplayMode =
       UINavigationItemLargeTitleDisplayModeNever;
@@ -58,11 +58,10 @@
   navController.presentationController.delegate = self;
 
   // Add Done button
-  UIBarButtonItem* doneItem =
-    [[UIBarButtonItem alloc]
-        initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                             target:self
-                             action:@selector(handleDoneButtonTap)];
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
   controller.navigationItem.rightBarButtonItem = doneItem;
 
   UISheetPresentationController* sheetPc =
@@ -71,10 +70,12 @@
   // When iPad full screen or 2/3 SplitView support only large detent because
   // medium detent cuts the contents makes the dialog small and off centered.
   if (IsSplitToolbarMode(self.baseViewController)) {
-    sheetPc.detents = @[UISheetPresentationControllerDetent.mediumDetent,
-                        UISheetPresentationControllerDetent.largeDetent];
+    sheetPc.detents = @[
+      UISheetPresentationControllerDetent.mediumDetent,
+      UISheetPresentationControllerDetent.largeDetent
+    ];
   } else {
-    sheetPc.detents = @[UISheetPresentationControllerDetent.largeDetent];
+    sheetPc.detents = @[ UISheetPresentationControllerDetent.largeDetent ];
   }
 
   sheetPc.prefersScrollingExpandsWhenScrolledToEdge = NO;
@@ -83,10 +84,10 @@
                                         animated:YES
                                       completion:nil];
 
-  self.mediator =
-      [[VivaldiStartPageQuickSettingsMediator alloc]
-          initWithOriginalPrefService:self.browser->GetProfile()
-              ->GetOriginalProfile()->GetPrefs()];
+  self.mediator = [[VivaldiStartPageQuickSettingsMediator alloc]
+      initWithOriginalPrefService:self.browser->GetProfile()
+                                      ->GetOriginalProfile()
+                                      ->GetPrefs()];
   self.mediator.consumer = self.viewProvider;
 
   self.viewProvider.settingsStateConsumer = self.mediator;
@@ -111,6 +112,5 @@
     (UIPresentationController*)presentationController {
   [self stop];
 }
-
 
 @end

@@ -48,6 +48,8 @@
 #pragma mark - ChromeCoordinator
 
 - (void)start {
+  raw_ptr<BwgService> BWGService =
+      BwgServiceFactory::GetForProfile(self.profile);
   web::WebState* activeWebState =
       self.browser->GetWebStateList()->GetActiveWebState();
 
@@ -65,7 +67,7 @@
           profilePrefService:self.profile->GetPrefs()
           templateURLService:ios::TemplateURLServiceFactory::GetForProfile(
                                  self.profile)
-                  BWGService:BwgServiceFactory::GetForProfile(self.profile)
+                  BWGService:BWGService
          readerModeTabHelper:readerModeTabHelper
       hostContentSettingsMap:hostContentSettingsMap];
 
@@ -80,8 +82,7 @@
     DistillerService* distillerService =
         DistillerServiceFactory::GetForProfile(self.profile);
     _readerModeOptionsMediator = [[ReaderModeOptionsMediator alloc]
-        initWithDistilledPagePrefs:distillerService->GetDistilledPagePrefs()
-                      webStateList:self.browser->GetWebStateList()];
+        initWithDistilledPagePrefs:distillerService->GetDistilledPagePrefs()];
   }
 
   _viewController.delegate = self;

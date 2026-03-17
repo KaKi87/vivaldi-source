@@ -19,8 +19,8 @@ class GURL;
 #ifdef __OBJC__
 // In Objective-C++ context: use proper Objective-C block syntax
 @class FaviconAttributes;
-using FaviconAttributesCompletionBlock =
-    void (^)(FaviconAttributes*, bool cached);
+using FaviconAttributesCompletionBlock = void (^)(FaviconAttributes*,
+                                                  bool cached);
 #else
 // In pure C++ context: use forward declaration and base::OnceCallback
 class FaviconAttributes;

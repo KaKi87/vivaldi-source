@@ -65,8 +65,8 @@ void CheckForGitIgnoreOnIO(SetPrefCallback callback) {
     base::FilePath git_file = dir.Append(FILE_PATH_LITERAL(".git"));
     if (base::PathExists(git_file)) {
       LOG(INFO) << "The profile folders in " << user_data_dir.AsUTF8Unsafe()
-                 << " is inside a Git Repo found at " << dir.AsUTF8Unsafe()
-                 << " . This may leak sensitive information.";
+                << " is inside a Git Repo found at " << dir.AsUTF8Unsafe()
+                << " . This may leak sensitive information.";
 
       content::GetUIThreadTaskRunner({})->PostTask(
           FROM_HERE, base::BindOnce(std::move(callback), dir));

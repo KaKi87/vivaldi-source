@@ -10,7 +10,6 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 import android.app.Activity;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
@@ -27,13 +26,11 @@ import android.widget.TextView;
 import androidx.annotation.ColorInt;
 import androidx.annotation.IntDef;
 import androidx.annotation.StringRes;
-import androidx.core.content.res.ResourcesCompat;
 
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.native_page.ContextMenuManager;
 import org.chromium.chrome.browser.recent_tabs.ForeignSessionHelper.ForeignSession;
 import org.chromium.chrome.browser.recent_tabs.ForeignSessionHelper.ForeignSessionTab;
@@ -45,9 +42,13 @@ import org.chromium.chrome.browser.ui.favicon.FaviconUtils;
 import org.chromium.components.browser_ui.styles.SemanticColorUtils;
 import org.chromium.components.browser_ui.widget.HoverHighlightViewListener;
 import org.chromium.components.browser_ui.widget.RoundedIconGenerator;
+import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.embedder_support.util.UrlUtilities;
 import org.chromium.components.tab_groups.TabGroupColorId;
 import org.chromium.components.tab_groups.TabGroupColorPickerUtils;
+import org.chromium.components.url_formatter.UrlFormatter;
+import org.chromium.content_public.common.ContentUrlConstants;
+import org.chromium.ui.UiUtils;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.mojom.WindowOpenDisposition;
 import org.chromium.url.GURL;
@@ -320,7 +321,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
             String url = sessionTab.url.getSpec();
             String text = TextUtils.isEmpty(sessionTab.title) ? url : sessionTab.title;
             viewHolder.textView.setText(text);
-            String domain = UrlUtilities.getDomainAndRegistry(url, false);
+            String domain = formatUrlForDisplay(sessionTab.url);
             if (!TextUtils.isEmpty(domain)) {
                 viewHolder.domainView.setText(domain);
                 viewHolder.domainView.setVisibility(View.VISIBLE);
@@ -475,29 +476,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
         }
     }
 
-    /** A group containing the personalized sync promo. */
-    class PersonalizedSigninPromoGroup extends PromoGroup {
-        @Override
-        @ChildType
-        int getChildType() {
-            return ChildType.SIGNIN_PROMO;
-        }
-
-        @Override
-        View getChildView(
-                int childPosition, boolean isLastChild, View convertView, ViewGroup parent) {
-            if (convertView == null) {
-                LayoutInflater layoutInflater = LayoutInflater.from(parent.getContext());
-                convertView =
-                        layoutInflater.inflate(R.layout.sync_promo_view_recent_tabs, parent, false);
-            }
-            mRecentTabsManager.setUpSyncPromoView(
-                    convertView.findViewById(R.id.signin_promo_view_container));
-            return convertView;
-        }
-    }
-
-    /** A group containing the personalized sync promo. */
+    /** A group containing the signin promo. */
     class SigninPromoGroup extends PromoGroup {
         @Override
         public @ChildType int getChildType() {
@@ -631,7 +610,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
                 List<RecentlyClosedTab> tabList) {
             List<String> domainList = new ArrayList<>();
             for (RecentlyClosedTab tab : tabList) {
-                String domain = UrlUtilities.getDomainAndRegistry(tab.getUrl().getSpec(), false);
+                String domain = formatUrlForDisplay(tab.getUrl());
                 domainList.add(domain);
             }
             String domainText =
@@ -665,12 +644,11 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
             Resources res = mActivity.getResources();
             if (isHistoryLink(childPosition)) {
                 viewHolder.textView.setText(R.string.show_full_history);
-                Bitmap historyIcon =
-                        BitmapFactory.decodeResource(res, R.drawable.ic_watch_later_24dp);
-                int size = res.getDimensionPixelSize(R.dimen.tile_view_icon_size_modern);
                 Drawable drawable =
-                        FaviconUtils.createRoundedBitmapDrawable(
-                                res, Bitmap.createScaledBitmap(historyIcon, size, size, true));
+                        UiUtils.getTintedDrawable(
+                                mActivity,
+                                R.drawable.ic_schedule_fill_24dp,
+                                R.color.default_icon_color_tint_list);
                 drawable.setColorFilter(
                         SemanticColorUtils.getDefaultIconColor(mActivity), PorterDuff.Mode.SRC_IN);
                 viewHolder.imageView.setImageDrawable(drawable);
@@ -682,51 +660,66 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
                     res.getDimensionPixelSize(
                             R.dimen.recent_tabs_foreign_session_group_item_height));
             RecentlyClosedEntry entry = assumeNonNull(getChild(childPosition));
-            if (!(entry instanceof RecentlyClosedTab)) {
-                int tabCount = 0;
-                if (entry instanceof RecentlyClosedGroup) {
-                    RecentlyClosedGroup recentlyClosedGroup = (RecentlyClosedGroup) entry;
-                    List<RecentlyClosedTab> tabList = recentlyClosedGroup.getTabs();
-                    tabCount = tabList.size();
-
-                    String groupTitle = recentlyClosedGroup.getTitle();
-                    @TabGroupColorId int colorId = recentlyClosedGroup.getColor();
-                    if (TextUtils.isEmpty(groupTitle)) {
-                        viewHolder.textView.setText(
-                                res.getQuantityString(
-                                        R.plurals.recent_tabs_group_closure_without_title,
-                                        tabCount,
-                                        tabCount));
-                    } else {
-                        viewHolder.textView.setText(
-                                res.getString(
-                                        R.string.recent_tabs_group_closure_with_title, groupTitle));
-                    }
-                    setDomainText(res, viewHolder, tabCount, tabList);
-                    setContentDescription(res, viewHolder, groupTitle, colorId, tabCount);
-                    setIconView(viewHolder, colorId);
-                    loadGroupIcon(viewHolder);
+            if (entry instanceof RecentlyClosedWindow recentlyClosedWindow) {
+                viewHolder.textView.setText(recentlyClosedWindow.getTitle());
+                String activeTabDomain = formatUrlForDisplay(recentlyClosedWindow.getUrl());
+                String activeTabInfo =
+                        TextUtils.isEmpty(activeTabDomain)
+                                ? recentlyClosedWindow.getActiveTabTitle()
+                                : activeTabDomain;
+                int inactiveTabCount = recentlyClosedWindow.getTabCount() - 1;
+                final String description;
+                if (inactiveTabCount > 0) {
+                    description =
+                            res.getQuantityString(
+                                    R.plurals.recent_tabs_window_closure_domain_text,
+                                    inactiveTabCount,
+                                    activeTabInfo,
+                                    inactiveTabCount);
+                } else {
+                    description = activeTabInfo;
                 }
-                if (entry instanceof RecentlyClosedBulkEvent) {
-                    RecentlyClosedBulkEvent recentlyClosedBulkEvent =
-                            (RecentlyClosedBulkEvent) entry;
-                    List<RecentlyClosedTab> tabList = recentlyClosedBulkEvent.getTabs();
-                    tabCount = tabList.size();
+                viewHolder.domainView.setText(description);
+                viewHolder.domainView.setVisibility(View.VISIBLE);
+                loadWindowIcon(viewHolder);
+            } else if (entry instanceof RecentlyClosedGroup recentlyClosedGroup) {
+                List<RecentlyClosedTab> tabList = recentlyClosedGroup.getTabs();
+                int tabCount = tabList.size();
 
+                String groupTitle = recentlyClosedGroup.getTitle();
+                @TabGroupColorId int colorId = recentlyClosedGroup.getColor();
+                if (TextUtils.isEmpty(groupTitle)) {
                     viewHolder.textView.setText(
-                            res.getString(R.string.recent_tabs_bulk_closure, tabCount));
-                    viewHolder.textView.setContentDescription(
+                            res.getQuantityString(
+                                    R.plurals.recent_tabs_group_closure_without_title,
+                                    tabCount,
+                                    tabCount));
+                } else {
+                    viewHolder.textView.setText(
                             res.getString(
-                                    R.string.recent_tabs_bulk_closure_accessibility, tabCount));
-                    setDomainText(res, viewHolder, tabCount, tabList);
-                    loadTabCount(viewHolder, tabCount);
+                                    R.string.recent_tabs_group_closure_with_title, groupTitle));
                 }
+                setDomainText(res, viewHolder, tabCount, tabList);
+                setContentDescription(res, viewHolder, groupTitle, colorId, tabCount);
+                setIconView(viewHolder, colorId);
+                loadGroupIcon(viewHolder);
+            } else if (entry instanceof RecentlyClosedBulkEvent recentlyClosedBulkEvent) {
+                List<RecentlyClosedTab> tabList = recentlyClosedBulkEvent.getTabs();
+                int tabCount = tabList.size();
+
+                viewHolder.textView.setText(
+                        res.getString(R.string.recent_tabs_bulk_closure, tabCount));
+                viewHolder.textView.setContentDescription(
+                        res.getString(R.string.recent_tabs_bulk_closure_accessibility, tabCount));
+                setDomainText(res, viewHolder, tabCount, tabList);
+                loadTabCount(viewHolder, tabCount);
             } else {
+                assert entry instanceof RecentlyClosedTab : "Unexpected entry type.";
                 RecentlyClosedTab tab = (RecentlyClosedTab) entry;
                 String title = TitleUtil.getTitleForDisplay(tab.getTitle(), tab.getUrl());
                 viewHolder.textView.setText(title);
 
-                String domain = UrlUtilities.getDomainAndRegistry(tab.getUrl().getSpec(), false);
+                String domain = formatUrlForDisplay(tab.getUrl());
                 if (!TextUtils.isEmpty(domain)) {
                     viewHolder.domainView.setText(domain);
                     viewHolder.domainView.setVisibility(View.VISIBLE);
@@ -898,6 +891,29 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
     }
 
     /**
+     * Formats a URL for display. For most URLs, this is just the domain and registry. For about and
+     * chrome scheme URLs, the entire URL is returned.
+     *
+     * @param gurl The URL to format.
+     * @return The formatted URL or null if the domain could not be extracted.
+     */
+    private @Nullable String formatUrlForDisplay(GURL gurl) {
+        String urlSpec = gurl.getSpec();
+        String scheme = gurl.getScheme();
+        if (ContentUrlConstants.ABOUT_SCHEME.equals(scheme)
+                || UrlConstants.CHROME_SCHEME.equals(scheme)
+                || UrlConstants.CHROME_NATIVE_SCHEME.equals(scheme)) {
+            return UrlFormatter.formatUrlForDisplayOmitHTTPScheme(urlSpec);
+        }
+        // This should perhaps use UrlFormatter as well, but it has used domain for a long time.
+        return UrlUtilities.getDomainAndRegistry(urlSpec, false);
+    }
+
+    private @Nullable String formatUrlForDisplay(String urlSpec) {
+        return formatUrlForDisplay(new GURL(urlSpec));
+    }
+
+    /**
      * ViewHolder class optimizes looking up table row fields. findViewById is only called once per
      * row view initialization, and the references are cached here. Also stores a reference to the
      * favicon image callback; so that we can make sure we load the correct favicon.
@@ -927,10 +943,19 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
 
     private void loadGroupIcon(final ViewHolder viewHolder) {
         Drawable image =
-                ResourcesCompat.getDrawable(
-                        mActivity.getResources(),
+                UiUtils.getTintedDrawable(
+                        mActivity,
                         R.drawable.ic_features_24dp,
-                        mActivity.getTheme());
+                        R.color.default_icon_color_tint_list);
+        viewHolder.imageView.setImageDrawable(image);
+    }
+
+    private void loadWindowIcon(final ViewHolder viewHolder) {
+        Drawable image =
+                UiUtils.getTintedDrawable(
+                        mActivity,
+                        R.drawable.ic_folder_outline_24dp,
+                        R.color.default_icon_color_tint_list);
         viewHolder.imageView.setImageDrawable(image);
     }
 
@@ -1083,11 +1108,7 @@ public class RecentTabsRowAdapter extends BaseExpandableListAdapter {
         }
 
         if (mRecentTabsManager.shouldShowPromo()) {
-            if (ChromeFeatureList.isEnabled(ChromeFeatureList.UNO_PHASE_2_FOLLOW_UP)) {
-                addGroup(new SigninPromoGroup());
-            } else {
-                addGroup(new PersonalizedSigninPromoGroup());
-            }
+            addGroup(new SigninPromoGroup());
         } else {
             boolean recentlyClosedGroupIsOnlyHeader =
                     mRecentlyClosedTabsGroup.getChildrenCount() == 1;

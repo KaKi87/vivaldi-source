@@ -13,8 +13,9 @@
 
 namespace update {
 
-// The VivaldiUpdateBackendNotifier forwards notifications from the VivaldiUpdateBackend's
-// client to all the interested observers (in both update and main thread).
+// The VivaldiUpdateBackendNotifier forwards notifications from the
+// VivaldiUpdateBackend's client to all the interested observers (in both update
+// and main thread).
 class VivaldiUpdateBackendNotifier {
  public:
   virtual ~VivaldiUpdateBackendNotifier() = default;

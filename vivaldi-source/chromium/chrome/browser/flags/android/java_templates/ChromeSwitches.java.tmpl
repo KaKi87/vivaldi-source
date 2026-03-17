@@ -39,6 +39,9 @@ public abstract class ChromeSwitches {{
     /** Disable promos shown on startup. */
     public static final String DISABLE_STARTUP_PROMOS = "disable-startup-promos-for-testing";
 
+    /** Sets the test type (e.g. "browser" or "ui"). Used to enable appropriate testing features. */
+    public static final String TEST_TYPE = "test-type";
+
     /** Force the crash dump to be uploaded regardless of preferences. */
     public static final String FORCE_CRASH_DUMP_UPLOAD = "force-dump-upload";
 
@@ -79,6 +82,11 @@ public abstract class ChromeSwitches {{
      * Disable native initialization for testing.
      */
     public static final String DISABLE_NATIVE_INITIALIZATION = "disable-native-initialization";
+
+    /**
+     * Force the feature list to be initialized early for testing.
+     */
+    public static final String FORCE_INIT_FEATURE_LIST_EARLY = "force-init-feature-list-early";
 
     /**
      * Force the app to turn off windowOptOutEdgeToEdgeEnforcement.

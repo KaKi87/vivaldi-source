@@ -5,11 +5,11 @@
 #ifndef CHROME_BROWSER_WEB_APPLICATIONS_WEB_CONTENTS_WEB_APP_DATA_RETRIEVER_H_
 #define CHROME_BROWSER_WEB_APPLICATIONS_WEB_CONTENTS_WEB_APP_DATA_RETRIEVER_H_
 
-#include <map>
 #include <memory>
 #include <optional>
 #include <vector>
 
+#include "base/auto_reset.h"
 #include "base/callback_list.h"
 #include "base/functional/callback.h"
 #include "base/memory/weak_ptr.h"
@@ -21,6 +21,7 @@
 #include "components/webapps/browser/installable/installable_params.h"
 #include "components/webapps/common/web_page_metadata.mojom-forward.h"
 #include "components/webapps/common/web_page_metadata_agent.mojom-forward.h"
+#include "content/public/browser/page_manifest_manager.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "third_party/blink/public/mojom/manifest/manifest.mojom-forward.h"
@@ -43,6 +44,9 @@ struct WebAppInstallInfo;
 // Class used by the WebApp system to retrieve the necessary information to
 // install an app. Should only be called from the UI thread. This should not be
 // used for multiple fetches at the same time.
+//
+// Generally the purpose of this class is to add some extra functionality
+// (like timeouts) to `WebContents`-related functionality.
 class WebAppDataRetriever : content::WebContentsObserver {
  public:
   // Returns nullptr for WebAppInstallInfo if error.
@@ -60,10 +64,6 @@ class WebAppDataRetriever : content::WebContentsObserver {
       base::OnceCallback<void(blink::mojom::ManifestPtr opt_manifest,
                               bool valid_manifest_for_web_app,
                               webapps::InstallableStatusCode)>;
-  using GetManifestOnceCallbackList = base::OnceCallbackList<void(
-      const base::expected<blink::mojom::ManifestPtr,
-                           blink::mojom::RequestManifestErrorPtr>&
-          manifest_result)>;
 
   using GetIconsCallback = WebAppIconDownloader::WebAppIconDownloaderCallback;
 
@@ -90,6 +90,10 @@ class WebAppDataRetriever : content::WebContentsObserver {
       CheckInstallabilityCallback callback,
       std::optional<webapps::InstallableParams> params = std::nullopt);
 
+  using ManifestResult = content::PageManifestManager::ManifestResult;
+  using ManifestCallbackList =
+      content::PageManifestManager::ManifestCallbackList;
+
   // Gets the first manifest specified by the developer on the primary page of
   // this web contents. This will continue to execute even if the page becomes
   // not primary, so the caller must handle any edge cases with primary page
@@ -98,7 +102,7 @@ class WebAppDataRetriever : content::WebContentsObserver {
   // kSpecifiedManifestWaitTimeout is reached.
   virtual void GetPrimaryPageFirstSpecifiedManifest(
       content::WebContents& web_contents,
-      GetManifestOnceCallbackList::CallbackType callback);
+      ManifestCallbackList::CallbackType callback);
 
   // Downloads icons specified in `icon_urls` and, if `download_page_favicons`
   // is true, the page's favicons. Runs `callback` with the icon data,
@@ -115,7 +119,10 @@ class WebAppDataRetriever : content::WebContentsObserver {
   void PrimaryMainFrameRenderProcessGone(
       base::TerminationStatus status) override;
 
-  void SetManifestWaitTimeoutForTesting(base::TimeDelta timeout);
+  [[nodiscard]] static base::AutoReset<int> SetManifestWaitTimeoutForTesting(
+      int timeout);
+
+  base::WeakPtr<WebAppDataRetriever> GetWeakPtr();
 
  private:
   bool HasPendingCall() const;
@@ -141,12 +148,9 @@ class WebAppDataRetriever : content::WebContentsObserver {
 
   CheckInstallabilityCallback check_installability_callback_;
 
-  static constexpr base::TimeDelta kSpecifiedManifestWaitTimeout =
-      base::Seconds(30);
-  base::TimeDelta manifest_wait_timeout_ = kSpecifiedManifestWaitTimeout;
   base::OneShotTimer get_specified_manifest_timeout_timer_;
   base::CallbackListSubscription get_specified_manifest_subscription_;
-  GetManifestOnceCallbackList::CallbackType get_specified_manifest_callback_;
+  ManifestCallbackList::CallbackType get_specified_manifest_callback_;
 
   GetIconsCallback get_icons_callback_;
 

@@ -9,9 +9,10 @@
 #import "base/time/time.h"
 #import "build/branding_buildflags.h"
 #import "components/strings/grit/components_strings.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/content_suggestions_constants.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/tab_resumption/public/tab_resumption_constants.h"
+#import "ios/chrome/browser/content_suggestions/public/content_suggestions_constants.h"
+#import "ios/chrome/browser/content_suggestions/tab_resumption/public/tab_resumption_constants.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
+#import "ios/chrome/browser/start_surface/ui_bundled/home_surface_egtest_utils.h"
 #import "ios/chrome/browser/start_surface/ui_bundled/start_surface_features.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_groups/tab_groups_constants.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_groups/tab_groups_eg_utils.h"
@@ -56,7 +57,6 @@ void WaitUntilTabResumptionTileVisibleOrTimeout(bool should_show) {
 
 NSString* const kGroupName = @"1group";
 const char kZeroSecondsThreshold[] = "0";
-const char kThreeSecondsThreshold[] = "3";
 
 }  // namespace
 
@@ -71,35 +71,30 @@ const char kThreeSecondsThreshold[] = "3";
   config.relaunch_policy = ForceRelaunchByCleanShutdown;
 
   config.additional_args.push_back("--test-ios-module-ranker=tab_resumption");
-  config.additional_args.push_back("--mock-shopping-service=is-eligible,"
-                                   "has-empty-price-tracked-bookmarks-results");
 
-  if ([self isRunningTest:@selector(FLAKY_testShowTabGroupInGridOnStart)] ||
+  if ([self isRunningTest:@selector(testShowTabGroupInGridOnStart)] ||
       [self isRunningTest:@selector
             (testDoNotShowTabGroupInGridOnStartInIncognitoMode)]) {
     config.features_enabled_and_params.push_back(
         {kShowTabGroupInGridOnStart,
          {{{kShowTabGroupInGridInactiveDurationInSeconds,
             kZeroSecondsThreshold}}}});
-    config.features_enabled_and_params.push_back(
-        {kStartSurface,
-         {{{kReturnToStartSurfaceInactiveDurationInSeconds,
-            kThreeSecondsThreshold}}}});
     return config;
   }
-
-  config.features_enabled_and_params.push_back(
-      {kStartSurface,
-       {{{kReturnToStartSurfaceInactiveDurationInSeconds,
-          kZeroSecondsThreshold}}}});
 
   return config;
 }
 
 - (void)setUp {
   [super setUp];
+  MakeHomeSurfaceOpenImmediately();
   [[self class] closeAllTabs];
   [ChromeEarlGrey openNewTab];
+}
+
+- (void)tearDownHelper {
+  ResetMakeHomeSurfaceOpenImmediately();
+  [super tearDownHelper];
 }
 
 // Loads the first tab with an URL.
@@ -113,20 +108,7 @@ const char kThreeSecondsThreshold[] = "3";
 
 // Tests that navigating to a page and restarting upon cold start, an NTP page
 // is opened with the Return to Recent Tab tile.
-// TODO(crbug.com/443695878): Test disabled on simulator.
-#if TARGET_OS_SIMULATOR
-#define MAYBE_testColdStartOpenStartSurface \
-  DISABLED_testColdStartOpenStartSurface
-#else
-#define MAYBE_testColdStartOpenStartSurface testColdStartOpenStartSurface
-#endif
-- (void)MAYBE_testColdStartOpenStartSurface {
-// TODO(crbug.com/40262902): Test is flaky on iPad device. Re-enable the test.
-#if !TARGET_OS_SIMULATOR
-  if ([ChromeEarlGrey isIPadIdiom]) {
-    EARL_GREY_TEST_DISABLED(@"This test is flaky on iPad device.");
-  }
-#endif
+- (void)testColdStartOpenStartSurface {
   [self loadFirstTabURL];
 
   [[AppLaunchManager sharedManager]
@@ -142,14 +124,7 @@ const char kThreeSecondsThreshold[] = "3";
 
 // Tests that navigating to a page and then backgrounding and foregrounding, an
 // NTP page is opened.
-// TODO(crbug.com/443695878): Test disabled on simulator.
-#if TARGET_OS_SIMULATOR
-#define MAYBE_testWarmStartOpenStartSurface \
-  DISABLED_testWarmStartOpenStartSurface
-#else
-#define MAYBE_testWarmStartOpenStartSurface testWarmStartOpenStartSurface
-#endif
-- (void)MAYBE_testWarmStartOpenStartSurface {
+- (void)testWarmStartOpenStartSurface {
   [self loadFirstTabURL];
 
   [ChromeEarlGrey
@@ -168,8 +143,7 @@ const char kThreeSecondsThreshold[] = "3";
 // Tests that navigating to a page and restarting upon cold start, an NTP page
 // is opened with the Return to Recent Tab tile. Then, removing that last tab
 // also removes the tile while that NTP is still being shown.
-// TODO(crbug.com/441260657): Re-enable when fixed.
-- (void)DISABLED_testRemoveRecentTabRemovesReturnToRecentTabTile {
+- (void)testRemoveRecentTabRemovesReturnToRecentTabTile {
   [self loadFirstTabURL];
 
   int non_start_tab_index = [ChromeEarlGrey indexOfActiveNormalTab];
@@ -225,11 +199,16 @@ const char kThreeSecondsThreshold[] = "3";
 
 // Tests that the tab group in grid view is opened if Chrome is activated in the
 // right time interval.
-// TODO(crbug.com/462071614): Re-enable flaky test. This test is flaky due
-// to devices possibly running under Stage Manager, hence the app never goes
-// in the background. These tests expect the app to be backgrounding, and
-// fail.
-- (void)FLAKY_testShowTabGroupInGridOnStart {
+- (void)testShowTabGroupInGridOnStart {
+  if ([ChromeEarlGrey isIPadIdiom]) {
+    // Disabled on iPad, due to stage manager the app is not backgrounded
+    // properly.
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iPad.");
+  }
+  // This test needs to be in the interval between the
+  // ShowTabGroupInGridInactiveDurationInSeconds and the HomeSurfaceDuration.
+  ResetMakeHomeSurfaceOpenImmediately();
+
   [ChromeEarlGreyUI openTabGrid];
 
   // Create a tab group with an item at 0.
@@ -254,6 +233,11 @@ const char kThreeSecondsThreshold[] = "3";
 // Tests that the tab group in grid view is not opened if Chrome is not
 // activated in the right time interval.
 - (void)testDoNotShowTabGroupInGridOnStart {
+  if ([ChromeEarlGrey isIPadIdiom]) {
+    // Disabled on iPad, due to stage manager the app is not backgrounded
+    // properly.
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iPad.");
+  }
   [ChromeEarlGreyUI openTabGrid];
 
   // Create a tab group with an item at 0.
@@ -278,6 +262,15 @@ const char kThreeSecondsThreshold[] = "3";
 // Tests that the tab group in grid view is not opened if Chrome is activated in
 // the right time interval but in Incognito mode.
 - (void)testDoNotShowTabGroupInGridOnStartInIncognitoMode {
+  if ([ChromeEarlGrey isIPadIdiom]) {
+    // Disabled on iPad, due to stage manager the app is not backgrounded
+    // properly.
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iPad.");
+  }
+  // This test needs to be in the interval between the
+  // ShowTabGroupInGridInactiveDurationInSeconds and the HomeSurfaceDuration.
+  ResetMakeHomeSurfaceOpenImmediately();
+
   [ChromeEarlGrey openNewIncognitoTab];
 
   [ChromeEarlGreyUI openTabGrid];
@@ -304,6 +297,11 @@ const char kThreeSecondsThreshold[] = "3";
 // Tests that the created NTP is ungrouped, even if a group was active when
 // backgrounded.
 - (void)testOpenNTPOutsideTheActiveGroupAfterFourHoursInBackground {
+  if ([ChromeEarlGrey isIPadIdiom]) {
+    // Disabled on iPad, due to stage manager the app is not backgrounded
+    // properly.
+    EARL_GREY_TEST_DISABLED(@"Test disabled on iPad.");
+  }
   [self loadFirstTabURL];
 
   [ChromeEarlGreyUI openTabGrid];

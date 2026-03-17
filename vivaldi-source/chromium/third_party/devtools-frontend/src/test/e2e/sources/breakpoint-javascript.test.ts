@@ -4,7 +4,6 @@
 
 import {assert} from 'chai';
 
-import {getBrowserAndPagesWrappers} from '../../shared/non_hosted_wrappers.js';
 import {getMenuItemAtPosition, getMenuItemTitleAtPosition, openFileQuickOpen} from '../helpers/quick_open-helpers.js';
 import {
   addBreakpointForLine,
@@ -21,8 +20,7 @@ import {
 import type {DevToolsPage} from '../shared/frontend-helper.js';
 import type {InspectedPage} from '../shared/target-helper.js';
 
-async function assertScriptLocation(
-    expectedLocation: string, devToolsPage = getBrowserAndPagesWrappers().devToolsPage) {
+async function assertScriptLocation(expectedLocation: string, devToolsPage: DevToolsPage) {
   const scriptLocation = await retrieveTopCallFrameWithoutResuming(devToolsPage);
   assert.isOk(scriptLocation, 'Unable to retrieve script location for call frame');
   assert.isTrue(isEqualOrAbbreviation(scriptLocation, expectedLocation));
@@ -215,10 +213,14 @@ describe('The Sources Tab', function() {
     it('shows up on Ctrl/Meta + click if no breakpoint was set', async ({devToolsPage, inspectedPage}) => {
       await openSourceCodeEditorForFile(CLICK_BREAKPOINT_SCRIPT, CLICK_BREAKPOINT_HTML, devToolsPage, inspectedPage);
       const lineNumberColumn = await devToolsPage.waitFor(CODE_LINE_COLUMN_SELECTOR);
-      const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
-      await devToolsPage.page.keyboard.down(modifier);
-      await devToolsPage.click('text/4', {root: lineNumberColumn});
-      await devToolsPage.page.keyboard.up(modifier);
+
+      await devToolsPage.click('text/4', {
+        root: lineNumberColumn,
+        modifiers: {
+          control: true,
+        }
+      });
+
       await devToolsPage.waitFor('.sources-edit-breakpoint-dialog');
     });
 
@@ -227,10 +229,13 @@ describe('The Sources Tab', function() {
       await addBreakpointForLine(4, devToolsPage);
 
       const lineNumberColumn = await devToolsPage.waitFor(CODE_LINE_COLUMN_SELECTOR);
-      const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
-      await devToolsPage.page.keyboard.down(modifier);
-      await devToolsPage.click('text/4', {root: lineNumberColumn});
-      await devToolsPage.page.keyboard.up(modifier);
+
+      await devToolsPage.click('text/4', {
+        root: lineNumberColumn,
+        modifiers: {
+          control: true,
+        }
+      });
       await devToolsPage.waitFor('.sources-edit-breakpoint-dialog');
     });
   });

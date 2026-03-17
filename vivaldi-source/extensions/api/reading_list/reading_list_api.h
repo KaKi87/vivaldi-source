@@ -5,10 +5,10 @@
 
 #include "base/scoped_observation.h"
 #include "chrome/browser/reading_list/reading_list_model_factory.h"
-#include "content/public/browser/browser_context.h"
 #include "components/reading_list/core/reading_list_entry.h"
 #include "components/reading_list/core/reading_list_model.h"
 #include "components/reading_list/core/reading_list_model_observer.h"
+#include "content/public/browser/browser_context.h"
 #include "extensions/browser/browser_context_keyed_api_factory.h"
 #include "extensions/browser/extension_function.h"
 
@@ -28,7 +28,7 @@ class ReadingListPrivateAPI : public BrowserContextKeyedAPI,
   static const bool kServiceIsNULLWhileTesting = true;
   static const bool kServiceRedirectedInIncognito = true;
 
-public:
+ public:
   explicit ReadingListPrivateAPI(content::BrowserContext* context);
   ~ReadingListPrivateAPI() override;
   ReadingListPrivateAPI(const ReadingListPrivateAPI&) = delete;
@@ -37,7 +37,7 @@ public:
   static void Init();
 
   static ReadingListPrivateAPI* FromBrowserContext(
-    content::BrowserContext* browser_context);
+      content::BrowserContext* browser_context);
 
   // BrowserContextKeyedAPI implementation.
   static BrowserContextKeyedAPIFactory<ReadingListPrivateAPI>*
@@ -54,8 +54,7 @@ public:
 
 class ReadingListPrivateAddFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("readingListPrivate.add",
-                             READINGLIST_ADD)
+  DECLARE_EXTENSION_FUNCTION("readingListPrivate.add", READINGLIST_ADD)
 
   ReadingListPrivateAddFunction() = default;
 
@@ -68,8 +67,7 @@ class ReadingListPrivateAddFunction : public ExtensionFunction {
 
 class ReadingListPrivateRemoveFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("readingListPrivate.remove",
-                             READINGLIST_REMOVE)
+  DECLARE_EXTENSION_FUNCTION("readingListPrivate.remove", READINGLIST_REMOVE)
 
   ReadingListPrivateRemoveFunction() = default;
 
@@ -82,8 +80,7 @@ class ReadingListPrivateRemoveFunction : public ExtensionFunction {
 
 class ReadingListPrivateGetAllFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("readingListPrivate.getAll",
-                             READINGLIST_GETALL)
+  DECLARE_EXTENSION_FUNCTION("readingListPrivate.getAll", READINGLIST_GETALL)
 
   ReadingListPrivateGetAllFunction() = default;
 
@@ -108,7 +105,6 @@ class ReadingListPrivateSetReadStatusFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
-
-}  // namespace extension
+}  // namespace extensions
 
 #endif  // EXTENSIONS_API_READING_LIST_API_H_

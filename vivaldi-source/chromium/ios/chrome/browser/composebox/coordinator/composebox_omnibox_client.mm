@@ -155,17 +155,16 @@ GURL ComposeboxOmniboxClient::GetNavigationEntryURL() const {
 
 metrics::OmniboxEventProto::PageClassification
 ComposeboxOmniboxClient::GetPageClassification(bool is_prefetch) const {
-  BOOL is_in_ai_mode =
-      ([delegate_ composeboxMode] == ComposeboxMode::kAIM) ||
-      ([delegate_ composeboxMode] == ComposeboxMode::kImageGeneration);
+  BOOL is_in_regular_search =
+      [delegate_ composeboxMode] == ComposeboxMode::kRegularSearch;
 
-  if (is_in_ai_mode) {
-    return location_bar_->GetLocationBarModel()
-        ->GetOmniboxComposeboxPageClassification();
+  if (is_in_regular_search) {
+    return location_bar_->GetLocationBarModel()->GetPageClassification(
+        is_prefetch);
   }
 
-  return location_bar_->GetLocationBarModel()->GetPageClassification(
-      is_prefetch);
+  return location_bar_->GetLocationBarModel()
+      ->GetOmniboxComposeboxPageClassification();
 }
 
 std::optional<lens::proto::LensOverlaySuggestInputs>
@@ -196,7 +195,7 @@ void ComposeboxOmniboxClient::ProcessExtensionMatch(
 
 void ComposeboxOmniboxClient::OnFocusChanged(OmniboxFocusState state,
                                              OmniboxFocusChangeReason reason) {
-  // TODO(crbug.com/40534385): OnFocusChanged is not the correct place to be
+  // TODO(crbug.com/467566659): OnFocusChanged is not the correct place to be
   // canceling prerenders, but this is the closest match to the original
   // location of this code, which was in OmniboxViewIOS::OnDidEndEditing().  The
   // goal of this code is to cancel prerenders when the omnibox loses focus.
@@ -354,6 +353,6 @@ base::WeakPtr<OmniboxClient> ComposeboxOmniboxClient::AsWeakPtr() {
   return weak_factory_.GetWeakPtr();
 }
 
-omnibox::ChromeAimToolsAndModels ComposeboxOmniboxClient::AimToolMode() const {
-  return [delegate_ composeboxToolMode];
+omnibox::InputState ComposeboxOmniboxClient::GetInputState() const {
+  return [delegate_ inputState];
 }

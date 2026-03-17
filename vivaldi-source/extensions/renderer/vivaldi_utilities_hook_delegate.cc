@@ -43,7 +43,7 @@ RequestResult VivaldiUtilitiesHookDelegate::HandleRequest(
     v8::LocalVector<v8::Value>* arguments,
     const APITypeReferenceMap& refs) {
   using Handler = RequestResult (VivaldiUtilitiesHookDelegate::*)(
-      v8::Local<v8::Context>, v8::LocalVector<v8::Value> &);
+      v8::Local<v8::Context>, v8::LocalVector<v8::Value>&);
   static struct {
     Handler handler;
     std::string_view method;
@@ -112,8 +112,7 @@ RequestResult VivaldiUtilitiesHookDelegate::HandleGetUrlFragments(
               gin::StringToV8(isolate, value))
         .ToChecked();
   };
-  auto set_fragment16 = [&](std::string_view key,
-                            const std::u16string& value) {
+  auto set_fragment16 = [&](std::string_view key, const std::u16string& value) {
     fragments
         ->Set(context, gin::StringToV8(isolate, key),
               gin::StringToSymbol(isolate, value))
@@ -209,7 +208,7 @@ RequestResult VivaldiUtilitiesHookDelegate::HandleGetUrlFragments(
 
 RequestResult VivaldiUtilitiesHookDelegate::HandleUrlToThumbnailText(
     v8::Local<v8::Context> context,
-    v8::LocalVector<v8::Value> &arguments) {
+    v8::LocalVector<v8::Value>& arguments) {
   constexpr char kChrome[] = "chrome";
   DCHECK_EQ(1u, arguments.size());
   DCHECK(arguments[0]->IsString());
@@ -242,7 +241,7 @@ RequestResult VivaldiUtilitiesHookDelegate::HandleUrlToThumbnailText(
 
 RequestResult VivaldiUtilitiesHookDelegate::HandleGetVersion(
     v8::Local<v8::Context> context,
-    v8::LocalVector<v8::Value> &arguments) {
+    v8::LocalVector<v8::Value>& arguments) {
   v8::Isolate* isolate = v8::Isolate::GetCurrent();
   v8::Local<v8::Object> version_object = v8::Object::New(isolate);
   version_object
@@ -281,7 +280,7 @@ bool DoesBrowserHandleUrl(const GURL& url) {
 }  // namespace
 RequestResult VivaldiUtilitiesHookDelegate::HandleIsUrlValid(
     v8::Local<v8::Context> context,
-    v8::LocalVector<v8::Value> &arguments) {
+    v8::LocalVector<v8::Value>& arguments) {
   DCHECK_EQ(1u, arguments.size());
   DCHECK(arguments[0]->IsString());
   v8::Isolate* isolate = v8::Isolate::GetCurrent();

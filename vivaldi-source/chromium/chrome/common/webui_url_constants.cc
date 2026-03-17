@@ -124,10 +124,11 @@ base::span<const base::cstring_view> ChromeURLHosts() {
       kChromeUIProfileInternalsHost,
       content::kChromeUIQuotaInternalsHost,
 #if !BUILDFLAG(IS_ANDROID)
-      kChromeUIReloadButtonHost,
+      kChromeUIWebUIToolbarHost,
 #endif
       kChromeUISignInInternalsHost,
       kChromeUISiteEngagementHost,
+      kChromeUISkillsHost,
 #if !BUILDFLAG(IS_ANDROID)
       kChromeUISuggestInternalsHost,
 #endif
@@ -139,7 +140,7 @@ base::span<const base::cstring_view> ChromeURLHosts() {
       kChromeUITermsHost,
 #endif
       kChromeUITranslateInternalsHost,
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
       kChromeUIUpdaterHost,
 #endif
       kChromeUIUsbInternalsHost,

@@ -29,7 +29,6 @@ class TabTestCase(browser_test_case.BrowserTestCase):
     self._tab.WaitForDocumentReadyStateToBeInteractiveOrBetter()
     self._tab.Navigate('about:blank')
 
-
   def Navigate(self,
                filename,
                script_to_evaluate_on_commit=None,

@@ -11,7 +11,7 @@
 #include "crypto/unexportable_key.h"
 #include "crypto/user_verifying_key.h"
 #include "device/fido/enclave/constants.h"
-#include "device/fido/features.h"
+#include "device/fido/public/features.h"
 
 #if BUILDFLAG(IS_MAC)
 #include "chrome/browser/webauthn/enclave_manager.h"
@@ -60,10 +60,8 @@ GetWebAuthnUnexportableKeyProvider() {
 #endif  // BUILDFLAG(IS_MAC)
   std::unique_ptr<crypto::UnexportableKeyProvider> provider =
       crypto::GetUnexportableKeyProvider(std::move(config));
-  if ((!provider || provider->SelectAlgorithm(
-                        device::enclave::kSigningAlgorithms) == std::nullopt) &&
-      base::FeatureList::IsEnabled(
-          device::kWebAuthnMicrosoftSoftwareUnexportableKeyProvider)) {
+  if (!provider || provider->SelectAlgorithm(
+                       device::enclave::kSigningAlgorithms) == std::nullopt) {
     // On Windows, if there is no TPM support, use the Microsoft Software Key
     // Storage Provider instead.
     provider = crypto::GetMicrosoftSoftwareUnexportableKeyProvider();

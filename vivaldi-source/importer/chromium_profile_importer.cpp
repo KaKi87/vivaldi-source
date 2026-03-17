@@ -132,8 +132,7 @@ void ChromiumProfileImporter::DetectChromiumProfiles(
               ImporterType::TYPE_OPERA_OPIUM_BETA ||
           chromeProfiles[i].importer_type ==
               ImporterType::TYPE_OPERA_OPIUM_DEV ||
-          chromeProfiles[i].importer_type ==
-              ImporterType::TYPE_OPERA_GX) {
+          chromeProfiles[i].importer_type == ImporterType::TYPE_OPERA_GX) {
         ChromeProfileInfo operaprof;
 
         operaprof.profileDisplayName = u"Default";
@@ -176,18 +175,18 @@ void ChromiumProfileImporter::ReadProfiles(std::vector<ChromeProfileInfo>* cp,
   if (!root_value || !root_value->is_dict())
     return;
 
-  const base::Value::Dict* profile_dict =
+  const base::DictValue* profile_dict =
       root_value->GetDict().FindDict("profile");
   if (!profile_dict)
     return;
 
-  const base::Value::Dict* info_cache = profile_dict->FindDict("info_cache");
+  const base::DictValue* info_cache = profile_dict->FindDict("info_cache");
   if (!info_cache)
     return;
 
   for (auto i : *info_cache) {
     const std::string& profile_name = i.first;
-    const base::Value::Dict* entry = i.second.GetIfDict();
+    const base::DictValue* entry = i.second.GetIfDict();
     if (!entry)
       continue;
     const std::string* display_name = entry->FindString("name");

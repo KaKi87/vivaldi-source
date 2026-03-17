@@ -13,8 +13,8 @@
 #include "base/files/file_util.h"
 #include "base/mac/mac_util.h"
 #include "browser/vivaldi_app_observer.h"
-#include "chrome/common/chrome_switches.h"
 #include "chrome/common/chrome_features.h"
+#include "chrome/common/chrome_switches.h"
 #include "extraparts/vivaldi_keychain_util.h"
 
 VivaldiBrowserMainExtraPartsMac::VivaldiBrowserMainExtraPartsMac() {}
@@ -31,18 +31,18 @@ void VivaldiBrowserMainExtraPartsMac::PostEarlyInitialization() {
 
   // Set option to automatically install updates in the background to true.
   NSString* key =
-    [NSString stringWithUTF8String:vivaldi::kSparkleAutoInstallSettingName];
+      [NSString stringWithUTF8String:vivaldi::kSparkleAutoInstallSettingName];
   NSUserDefaults* defaults = [NSUserDefaults standardUserDefaults];
   bool keyDoesNotExist = [defaults objectForKey:key] == nil;
   if (keyDoesNotExist) {
     [defaults setBool:true forKey:key];
   }
- }
+}
 
 void VivaldiBrowserMainExtraPartsMac::PreProfileInit() {
   VivaldiBrowserMainExtraParts::PreProfileInit();
   vivaldi::VivaldiAppObserver::GetFactoryInstance();
 
-  #pragma clang diagnostic ignored "-Wunguarded-availability"
-  [NSWindow setAllowsAutomaticWindowTabbing: NO];
+#pragma clang diagnostic ignored "-Wunguarded-availability"
+  [NSWindow setAllowsAutomaticWindowTabbing:NO];
 }

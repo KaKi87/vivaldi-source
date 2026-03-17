@@ -33,7 +33,7 @@
 #include "content/public/browser/web_contents.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #endif
@@ -122,14 +122,14 @@ void WhatsNewHandler::RecordModuleImpression(
     interaction_data->add_module_shown(module_name, position);
   }
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (module_name == "GlicIntro") {
     if (auto* glic_service =
             glic::GlicKeyedServiceFactory::GetGlicKeyedService(profile_)) {
       glic_service->TryPreloadFre(glic::GlicPrewarmingFreSource::kWhatsNew);
     }
   }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 }
 
 void WhatsNewHandler::RecordExploreMoreToggled(bool expanded) {
@@ -148,8 +148,11 @@ void WhatsNewHandler::RecordScrollDepth(whats_new::mojom::ScrollDepth depth) {
   }
 }
 
-void WhatsNewHandler::RecordTimeOnPage(base::TimeDelta time) {
+void WhatsNewHandler::RecordTimeOnPage(base::TimeDelta time,
+                                       bool is_heartbeat) {
   base::UmaHistogramMediumTimes("UserEducation.WhatsNew.TimeOnPage", time);
+  base::UmaHistogramBoolean("UserEducation.WhatsNew.TimeOnPageHeartbeat",
+                            is_heartbeat);
 }
 
 void WhatsNewHandler::RecordModuleLinkClicked(

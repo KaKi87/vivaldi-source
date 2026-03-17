@@ -28,7 +28,8 @@ import androidx.recyclerview.widget.DefaultItemAnimator;
 import androidx.recyclerview.widget.RecyclerView;
 
 import org.chromium.base.Callback;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.bookmarks.BookmarkManagerOpener;
@@ -142,13 +143,13 @@ public class BookmarkBarCoordinator
             ResourceManager resourceManager,
             BrowserControlsStateProvider browserControlsStateProvider,
             Callback<@Nullable Void> heightChangeCallback,
-            ObservableSupplier<Profile> profileSupplier,
+            MonotonicObservableSupplier<Profile> profileSupplier,
             ViewStub viewStub,
             @Nullable Tab currentTab,
             BookmarkOpener bookmarkOpener,
-            ObservableSupplier<BookmarkManagerOpener> bookmarkManagerOpenerSupplier,
+            MonotonicObservableSupplier<BookmarkManagerOpener> bookmarkManagerOpenerSupplier,
             TopControlsStacker topControlsStacker,
-            ObservableSupplier<@Nullable Tab> currentTabSupplier,
+            NullableObservableSupplier<Tab> currentTabSupplier,
             TopUiThemeColorProvider topUiThemeColorProvider) {
         mContext = activity;
         mRequestUpdate = requestUpdate;
@@ -665,7 +666,7 @@ public class BookmarkBarCoordinator
         @ColorInt
         int hairlineColor =
                 isIncognito
-                        ? ContextCompat.getColor(mContext, R.color.divider_line_bg_color_light)
+                        ? ContextCompat.getColor(mContext, R.color.divider_color_light)
                         : ThemeUtils.getToolbarHairlineColor(mContext, color, false);
 
         mBookmarkBarSceneLayerModel.set(

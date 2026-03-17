@@ -10,11 +10,11 @@
 namespace {
 // Increment this whenever an incompatible change is made to
 // adblock_rules_list.fbs or to the parser
-constexpr int kRulesListFormatVersion = 15;
+constexpr int kRulesListFormatVersion = 16;
 
 // Increment this whenever an incompatible change is made to
 // adblock_rules_index.fbs
-constexpr int kIndexFormatVersion = 6;
+constexpr int kIndexFormatVersion = 7;
 
 enum RulePriorities {
   kModifyPriority = 0,
@@ -78,6 +78,10 @@ bool IsFullModifierPassRule(const flat::RequestFilterRule& rule) {
          !rule.modifier_values();
 }
 
+bool IsGeneric(const flat::DomainConstraintsTree& tree) {
+  return tree.type() != flat::DomainConstraintNodeType_NONE;
+}
+
 bool ContentInjectionRuleBodyCompare::operator()(
     const flat::CosmeticRule* lhs,
     const flat::CosmeticRule* rhs) const {
@@ -94,22 +98,34 @@ bool ContentInjectionRuleBodyCompare::operator()(
     const flat::ScriptletInjectionRule* rhs) const {
   CHECK(lhs);
   CHECK(rhs);
-  auto args_ordering =
-      FastCompareFlatStringVector(lhs->arguments(), rhs->arguments());
 
-  if (args_ordering < 0) {
-    return true;
+  auto* lhs_scriptlets = lhs->scriptlets();
+  auto* rhs_scriptlets = rhs->scriptlets();
+
+  if (lhs_scriptlets->size() != rhs_scriptlets->size()) {
+    return lhs_scriptlets->size() < rhs_scriptlets->size();
   }
 
-  if (args_ordering > 0) {
-    return false;
+  for (auto lhs_it = lhs_scriptlets->begin(), rhs_it = rhs_scriptlets->begin();
+       lhs_it != lhs_scriptlets->end(); lhs_it++, rhs_it++) {
+    auto args_ordering =
+        FastCompareFlatStringVector(lhs_it->arguments(), rhs_it->arguments());
+
+    if (args_ordering != 0) {
+      return args_ordering < 0;
+    }
+
+    // If we get this far, all arguments match.
+    // We compare the scriptlet name last, since rules will use only a few
+    // different scriptlets, so we are guaranteed to have many matches.
+    auto name_ordering = FastCompareFlatString(lhs_it->name(), rhs_it->name());
+
+    if (name_ordering != 0) {
+      return name_ordering < 0;
+    }
   }
 
-  // If we get this far, all arguments match.
-  // We compare the scriptlet name last, since rules will use only a few
-  // different scriptlets, so we are guaranteed to have many matches.
-  return FastCompareFlatString(lhs->scriptlet_name(), rhs->scriptlet_name()) <
-         0;
+  return false;
 }
 
 std::weak_ordering FastCompareFlatString(const flatbuffers::String* lhs,

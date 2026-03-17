@@ -46,13 +46,11 @@ bool IsYouTubeInterstitialDisplayedInIframe(Browser& browser,
                                             std::string_view iframe_name) {
   content::WebContents* web_contents = nullptr;
   TabStripModel* const tab_strip_model = browser.tab_strip_model();
-  for (int i = 0; i < tab_strip_model->GetTabCount(); ++i) {
-    const std::u16string wc_title = tab_strip_model->GetTabAtIndex(i)
-                                        ->GetTabFeatures()
-                                        ->tab_ui_helper()
-                                        ->GetTitle();
+  for (int i = 0; i < tab_strip_model->count(); ++i) {
+    tabs::TabInterface* tab = tab_strip_model->GetTabAtIndex(i);
+    const std::u16string wc_title = TabUIHelper::From(tab)->GetTitle();
     if (wc_title == tab_title) {
-      web_contents = browser.GetTabStripModel()->GetWebContentsAt(i);
+      web_contents = tab->GetContents();
       break;
     }
   }
@@ -106,7 +104,7 @@ IN_PROC_BROWSER_TEST_P(KidsProfileUiTest, DisplayInterstitialInPendingState) {
   DEFINE_LOCAL_STATE_IDENTIFIER_VALUE(ui::test::PollingStateObserver<bool>,
                                       kInterstitialDisplayed);
 
-  TurnOnSync();
+  SigninToBrowser();
   child().SignOutFromWeb();
 
   GURL url_with_youtube_iframes =

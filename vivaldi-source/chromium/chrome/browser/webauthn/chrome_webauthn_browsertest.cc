@@ -25,8 +25,10 @@
 #include "build/build_config.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
 #include "chrome/browser/actor/actor_task.h"
+#include "chrome/browser/actor/actor_task_metadata.h"
+#include "chrome/browser/actor/actor_test_util.h"
 #include "chrome/browser/actor/execution_engine.h"
-#include "chrome/browser/actor/ui/mocks/mock_event_dispatcher.h"
+#include "chrome/browser/actor/ui/test_support/mock_event_dispatcher.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/extensions/test_extension_system.h"
 #include "chrome/browser/password_manager/chrome_webauthn_credentials_delegate.h"
@@ -39,6 +41,7 @@
 #include "chrome/browser/webauthn/chrome_authenticator_request_delegate.h"
 #include "chrome/browser/webauthn/passkey_model_factory.h"
 #include "chrome/browser/webauthn/test_util.h"
+#include "chrome/common/chrome_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
@@ -55,14 +58,13 @@
 #include "content/public/test/browser_test_utils.h"
 #include "device/bluetooth/bluetooth_adapter_factory.h"
 #include "device/bluetooth/test/mock_bluetooth_adapter.h"
-#include "device/fido/cable/cable_discovery_data.h"
 #include "device/fido/discoverable_credential_metadata.h"
-#include "device/fido/features.h"
 #include "device/fido/fido_parsing_utils.h"
 #include "device/fido/fido_request_handler_base.h"
-#include "device/fido/fido_transport_protocol.h"
-#include "device/fido/fido_types.h"
-#include "device/fido/public_key_credential_user_entity.h"
+#include "device/fido/public/features.h"
+#include "device/fido/public/fido_transport_protocol.h"
+#include "device/fido/public/fido_types.h"
+#include "device/fido/public/public_key_credential_user_entity.h"
 #include "device/fido/virtual_ctap2_device.h"
 #include "device/fido/virtual_fido_device.h"
 #include "device/fido/virtual_fido_device_factory.h"
@@ -82,6 +84,8 @@
 #endif  // BUILDFLAG(IS_WIN)
 
 namespace {
+
+using ShadowedCredentials = ::webauthn::PasskeyModel::ShadowedCredentials;
 
 static constexpr uint8_t kCredentialID[] = {1, 2,  3,  4,  5,  6,  7,  8,
                                             9, 10, 11, 12, 13, 14, 15, 16};
@@ -398,7 +402,6 @@ class WinWebAuthnBrowserTest
   WinWebAuthnBrowserTest() {
     scoped_feature_list_.InitWithFeatures(
         {device::kWebAuthnHelloSignal,
-         device::kWebAuthenticationFixWindowsHelloRdp,
          device::kWebAuthenticationWindowsHints,
          device::kWebAuthnSignalApiHidePasskeys},
         /*disabled_features=*/{});
@@ -678,9 +681,10 @@ IN_PROC_BROWSER_TEST_F(WebAuthnBrowserTest,
 
   // After reporting the passkey, it should be marked as hidden.
   std::optional<sync_pb::WebauthnCredentialSpecifics> credential =
-      (passkey_model->GetPasskeyByCredentialId(
+      (passkey_model->GetPasskey(
           "www.example.com",
-          std::string(reinterpret_cast<const char*>(kCredentialID), 16)));
+          std::string(reinterpret_cast<const char*>(kCredentialID), 16),
+          ShadowedCredentials::kExclude));
   ASSERT_TRUE(credential);
   EXPECT_TRUE(credential->hidden());
 }
@@ -704,9 +708,10 @@ IN_PROC_BROWSER_TEST_F(WebAuthnBrowserTest,
 
   // Check that the passkey with kCredentialID was not hidden.
   std::optional<sync_pb::WebauthnCredentialSpecifics> credential =
-      (passkey_model->GetPasskeyByCredentialId(
+      (passkey_model->GetPasskey(
           "www.example.com",
-          std::string(reinterpret_cast<const char*>(kCredentialID), 16)));
+          std::string(reinterpret_cast<const char*>(kCredentialID), 16),
+          ShadowedCredentials::kExclude));
   ASSERT_TRUE(credential);
   EXPECT_FALSE(credential->hidden());
 
@@ -745,9 +750,10 @@ IN_PROC_BROWSER_TEST_F(WebAuthnBrowserTest,
 
   // Check that the passkey with kCredentialID2 was hidden.
   std::optional<sync_pb::WebauthnCredentialSpecifics> credential =
-      (passkey_model->GetPasskeyByCredentialId(
+      (passkey_model->GetPasskey(
           "www.example.com",
-          std::string(reinterpret_cast<const char*>(kCredentialID2), 16)));
+          std::string(reinterpret_cast<const char*>(kCredentialID2), 16),
+          ShadowedCredentials::kExclude));
   ASSERT_TRUE(credential);
   EXPECT_TRUE(credential->hidden());
 
@@ -842,9 +848,10 @@ IN_PROC_BROWSER_TEST_F(WebAuthnBrowserTest,
   }).then(c => 'webauthn: OK', e => 'error ' + e);
   )"));
 
-  auto passkey = passkey_model->GetPasskeyByCredentialId(
+  auto passkey = passkey_model->GetPasskey(
       "www.example.com",
-      std::string(reinterpret_cast<const char*>(kCredentialID), 16));
+      std::string(reinterpret_cast<const char*>(kCredentialID), 16),
+      ShadowedCredentials::kExclude);
 
   // Check if the name and displayName of the passkey reported was updated.
   EXPECT_EQ(passkey->user_name(), "Pepito");
@@ -896,9 +903,10 @@ IN_PROC_BROWSER_TEST_F(WebAuthnBrowserTest, SignalCurrentUserDetailsQuota) {
           base::ReplaceStringPlaceholders(kRequest, {kUsername1}, nullptr)));
 
   // Check that the name hasn't been updated.
-  auto passkey = passkey_model->GetPasskeyByCredentialId(
+  auto passkey = passkey_model->GetPasskey(
       "www.example.com",
-      std::string(reinterpret_cast<const char*>(kCredentialID), 16));
+      std::string(reinterpret_cast<const char*>(kCredentialID), 16),
+      ShadowedCredentials::kExclude);
   EXPECT_NE(passkey->user_name(), kUsername1);
 }
 
@@ -927,9 +935,10 @@ IN_PROC_BROWSER_TEST_F(WebAuthnBrowserTest,
   }).then(c => 'webauthn: OK', e => 'error ' + e);
   )"));
 
-  auto passkey = passkey_model->GetPasskeyByCredentialId(
+  auto passkey = passkey_model->GetPasskey(
       "www.example.com",
-      std::string(reinterpret_cast<const char*>(kCredentialID), 16));
+      std::string(reinterpret_cast<const char*>(kCredentialID), 16),
+      ShadowedCredentials::kExclude);
 
   // Check if the name and displayName of the passkey reported did not change.
   EXPECT_EQ(passkey->user_name(), kUsername1);
@@ -1537,7 +1546,7 @@ class WebAuthnImmediateGetTest : public WebAuthnBrowserTest {
  protected:
   static constexpr std::string_view kRequestWithPasswordTemplate = R"(
     navigator.credentials.get({
-    mediation: 'immediate',
+    uiMode: 'immediate',
     password: $1,
     publicKey: {
       challenge: new Uint8Array([1,3,2,7,1,3,2,7]),
@@ -1548,7 +1557,7 @@ class WebAuthnImmediateGetTest : public WebAuthnBrowserTest {
 
   static constexpr std::string_view kRequestWithAllowlistTemplate = R"(
     navigator.credentials.get({
-    mediation: 'immediate',
+    uiMode: 'immediate',
     publicKey: {
       challenge: new Uint8Array([1,3,2,7,1,3,2,7]),
       allowCredentials: [$1],
@@ -1623,9 +1632,13 @@ class WebAuthnActorBrowserTest : public WebAuthnBrowserTest {
 
  public:
   WebAuthnActorBrowserTest() {
-    scoped_feature_list_.InitWithFeatures(
-        {device::kWebAuthnActorCheck, password_manager::features::kActorLogin},
-        {});
+    scoped_feature_list_.InitWithFeaturesAndParameters(
+        /*enabled_features=*/
+        {
+            {device::kWebAuthnActorCheck, {}},
+            {password_manager::features::kActorLogin, {}},
+        },
+        /*disabled_features=*/{});
   }
 
   void SetUpOnMainThread() override {
@@ -1648,26 +1661,19 @@ class WebAuthnActorBrowserTest : public WebAuthnBrowserTest {
 
   void CreateActingTask() {
     auto* actor_service = actor::ActorKeyedService::Get(browser()->profile());
-    std::unique_ptr<actor::ExecutionEngine> execution_engine =
-        std::make_unique<actor::ExecutionEngine>(browser()->profile());
+    actor::TaskId task_id =
+        actor_service->CreateTask(actor::NoEnterprisePolicyChecker());
 
-    std::unique_ptr<actor::ActorTask> actor_task =
-        std::make_unique<actor::ActorTask>(
-            browser()->profile(), std::move(execution_engine),
-            actor::ui::NewUiEventDispatcher(
-                actor_service->GetActorUiStateManager()));
-    actor_task->SetState(actor::ActorTask::State::kActing);
-
-    base::RunLoop loop;
-    actor_task->AddTab(
-        browser()->GetActiveTabInterface()->GetHandle(),
-        base::BindLambdaForTesting([&](actor::mojom::ActionResultPtr result) {
-          EXPECT_TRUE(actor::IsOk(*result));
-          loop.Quit();
-        }));
-    loop.Run();
-
-    actor_service->AddActiveTask(std::move(actor_task));
+    // Perform an arbitrary action in a tab to put the task into
+    // UnderActorControl state and add the tab to the task.
+    tabs::TabInterface* tab = browser()->GetActiveTabInterface();
+    CHECK(tab);
+    auto click = actor::MakeClickRequest(*tab, gfx::Point(1, 1));
+    actor::PerformActionsFuture future;
+    actor_service->PerformActions(task_id, ToRequestList(std::move(click)),
+                                  actor::ActorTaskMetadata(),
+                                  future.GetCallback());
+    EXPECT_TRUE(future.Wait());
   }
 
   void PostRunTestOnMainThread() override {
@@ -1687,9 +1693,9 @@ class WebAuthnActorBrowserTest : public WebAuthnBrowserTest {
 };
 
 IN_PROC_BROWSER_TEST_F(WebAuthnActorBrowserTest, MakeCredentialsActorIsActive) {
-  CreateActingTask();
   ASSERT_TRUE(ui_test_utils::NavigateToURL(
       browser(), https_server_.GetURL("www.example.com", "/title1.html")));
+  CreateActingTask();
 
   content::EvalJsResult result =
       content::EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
@@ -1698,11 +1704,11 @@ IN_PROC_BROWSER_TEST_F(WebAuthnActorBrowserTest, MakeCredentialsActorIsActive) {
 }
 
 IN_PROC_BROWSER_TEST_F(WebAuthnActorBrowserTest, GetCredentialsActorIsActive) {
+  ASSERT_TRUE(ui_test_utils::NavigateToURL(
+      browser(), https_server_.GetURL("www.example.com", "/title1.html")));
   CreateActingTask();
   virtual_device_factory_->mutable_state()->InjectRegistration(
       kCredentialID, "www.example.com");
-  ASSERT_TRUE(ui_test_utils::NavigateToURL(
-      browser(), https_server_.GetURL("www.example.com", "/title1.html")));
   content::EvalJsResult result =
       content::EvalJs(browser()->tab_strip_model()->GetActiveWebContents(),
                       kGetAssertionCredID1234);

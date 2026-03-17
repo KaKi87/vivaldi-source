@@ -42,7 +42,8 @@ ImportResult ImportFileOperations::ParseJsonFile(
     int read_failed_error_id,
     int parse_error_id) {
   std::string content;
-  auto read_result = ReadFileToString(file_path, not_found_error_id, read_failed_error_id);
+  auto read_result =
+      ReadFileToString(file_path, not_found_error_id, read_failed_error_id);
   if (!read_result.has_value()) {
     return import_result::Error(read_result.error());
   }

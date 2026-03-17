@@ -11,6 +11,7 @@
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/files/file_path.h"
+#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/sequence_bound.h"
@@ -282,7 +283,7 @@ class ExtensionTelemetryService : public KeyedService {
   // saved to Prefs and the next extension file data collection is initiated.
   void OnOffstoreFileDataCollected(
       base::flat_set<OffstoreExtensionFileDataContext>::iterator context,
-      base::Value::Dict file_data);
+      base::DictValue file_data);
 
   // Stops and clears any offstore file data collection objects/contexts.
   void StopOffstoreFileDataCollection();

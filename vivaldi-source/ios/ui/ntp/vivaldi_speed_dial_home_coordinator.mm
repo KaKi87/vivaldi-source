@@ -33,8 +33,7 @@ using bookmarks::BookmarkModel;
 
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                                    browser:(Browser*)browser {
-  self = [super initWithBaseViewController:viewController
-                                   browser:browser];
+  self = [super initWithBaseViewController:viewController browser:browser];
 
   if (self) {
     _browser = browser;
@@ -53,15 +52,14 @@ using bookmarks::BookmarkModel;
                                                 bookmarkModel:_bookmarkModel];
   self.viewController = controller;
 
-  UINavigationController *navigationController =
-      [[UINavigationController alloc]
-          initWithRootViewController:controller];
+  UINavigationController* navigationController =
+      [[UINavigationController alloc] initWithRootViewController:controller];
   self.navigationController = navigationController;
   [navigationController.view layoutIfNeeded];
 
-  self.mediator = [[VivaldiSpeedDialHomeMediator alloc]
-                      initWithProfile:_profile
-                        bookmarkModel:_bookmarkModel];
+  self.mediator =
+      [[VivaldiSpeedDialHomeMediator alloc] initWithProfile:_profile
+                                              bookmarkModel:_bookmarkModel];
   self.mediator.consumer = controller;
   [self.mediator startMediating];
 

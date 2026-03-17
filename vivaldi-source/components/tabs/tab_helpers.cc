@@ -3,8 +3,8 @@
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 
-#include "content/public/browser/web_contents.h"
 #include "components/tabs/tab_helpers.h"
+#include "content/public/browser/web_contents.h"
 
 using content::WebContents;
 
@@ -42,7 +42,7 @@ std::optional<double> GetTabWorkspaceId(const std::string& viv_extdata) {
 }
 
 bool SetTabWorkspaceId(content::WebContents* contents, double workspace_id) {
-  base::Value::Dict dict;
+  base::DictValue dict;
   if (GetTabWorkspaceId(contents->GetVivExtData()) == workspace_id) {
     // There is nothing to change.
     return false;

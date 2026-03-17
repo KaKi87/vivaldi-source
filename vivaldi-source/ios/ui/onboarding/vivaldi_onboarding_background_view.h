@@ -7,7 +7,7 @@
 
 // View that holds a video player to play the aurora videos in the onboarding
 // background.
-@interface VivaldiOnboardingBackgroundView: UIView
+@interface VivaldiOnboardingBackgroundView : UIView
 
 - (instancetype)init NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithFrame:(CGRect)frame NS_UNAVAILABLE;

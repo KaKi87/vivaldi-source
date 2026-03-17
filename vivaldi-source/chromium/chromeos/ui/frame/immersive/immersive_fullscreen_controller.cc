@@ -6,8 +6,11 @@
 
 #include <set>
 
+#include "base/check_is_test.h"
 #include "base/functional/bind.h"
+#include "chromeos/ui/base/chromeos_ui_constants.h"
 #include "chromeos/ui/base/window_properties.h"
+#include "chromeos/ui/frame/caption_buttons/frame_caption_button_container_view.h"
 #include "chromeos/ui/frame/immersive/immersive_context.h"
 #include "chromeos/ui/frame/immersive/immersive_focus_watcher.h"
 #include "chromeos/ui/frame/immersive/immersive_fullscreen_controller_delegate.h"
@@ -25,8 +28,11 @@
 #include "ui/gfx/scoped_animation_duration_scale_mode.h"
 #include "ui/views/animation/animation_delegate_views.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
+#include "ui/views/interaction/element_tracker_views.h"
 #include "ui/views/view.h"
 #include "ui/views/widget/widget.h"
+#include "ui/views/window/frame_view.h"
+#include "ui/views/window/non_client_view.h"
 
 DEFINE_UI_CLASS_PROPERTY_TYPE(chromeos::ImmersiveFullscreenController*)
 
@@ -281,6 +287,37 @@ void ImmersiveFullscreenController::UnlockRevealedState() {
 ////////////////////////////////////////////////////////////////////////////////
 // public:
 
+bool ImmersiveFullscreenController::ShouldRevealTopChrome(views::View* view) {
+  if (top_container_->Contains(view)) {
+    return true;
+  }
+
+  // Ensure that the window actually has a frame.
+  auto* non_client_view = widget_->non_client_view();
+  if (!non_client_view || !non_client_view->frame_view()) {
+    return false;
+  }
+
+  // Find the caption button container for this window and check that too.
+  const auto views =
+      views::ElementTrackerViews::GetInstance()->GetAllMatchingViews(
+          chromeos::FrameCaptionButtonContainerView::kElementId,
+          views::ElementTrackerViews::GetContextForWidget(widget_));
+
+  // This can happen in an InteractiveAshTest where all contexts are collapsed
+  // for convenience. It should never happen in production code.
+  if (views.size() > 1) {
+    CHECK_IS_TEST();
+    LOG(WARNING) << R"(
+Note that due to use of InteractiveAshTest, it is not possible to differentiate
+between caption buttons in different windows. Unpredictable behavior may result.
+    ")";
+  }
+
+  // If a container was found, see if the view is there.
+  return !views.empty() && views.front()->Contains(view);
+}
+
 // static
 void ImmersiveFullscreenController::EnableForWidget(views::Widget* widget,
                                                     bool enabled) {
@@ -476,7 +513,6 @@ void ImmersiveFullscreenController::UpdateLocatedEventRevealedLock(
       hit_bounds_in_screen[i].Inset(
           gfx::Insets::TLBR(0, 0, -kBoundsOffsetY, 0));
     }
-
     if (hit_bounds_in_screen[i].Contains(location_in_screen)) {
       keep_revealed = true;
       break;

@@ -8,10 +8,10 @@
 #import "ios/chrome/browser/authentication/test/signin_earl_grey.h"
 #import "ios/chrome/browser/authentication/test/signin_matchers.h"
 #import "ios/chrome/browser/authentication/ui_bundled/signin/signin_constants.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/new_tab_page_app_interface.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/set_up_list/public/set_up_list_constants.h"
-#import "ios/chrome/browser/first_run/ui_bundled/first_run_constants.h"
-#import "ios/chrome/browser/push_notification/ui_bundled/scoped_notification_auth_swizzler.h"
+#import "ios/chrome/browser/content_suggestions/set_up_list/public/set_up_list_constants.h"
+#import "ios/chrome/browser/content_suggestions/test/new_tab_page_app_interface.h"
+#import "ios/chrome/browser/first_run/public/first_run_constants.h"
+#import "ios/chrome/browser/push_notification/test/scoped_notification_auth_swizzler.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/signin/model/fake_system_identity.h"
@@ -100,10 +100,6 @@ void MaybeDismissNotification() {
     config.features_enabled.push_back(kIOSReactivationNotifications);
   } else {
     config.features_disabled.push_back(kIOSReactivationNotifications);
-  }
-
-  if ([self isRunningTest:@selector(testNotificationMIM)]) {
-    config.features_enabled.push_back(kSeparateProfilesForManagedAccounts);
   }
 
   config.features_disabled.push_back(kIOSOneTimeDefaultBrowserNotification);
@@ -429,9 +425,9 @@ void MaybeDismissNotification() {
       waitForUIElementToAppearWithMatcher:
           grey_accessibilityID(@"kCredentialProviderPromoAccessibilityId")];
   // Close the promo.
-  id<GREYMatcher> noThanksButton =
-      chrome_test_util::ButtonStackSecondaryButton();
-  [ChromeEarlGrey waitForAndTapButton:noThanksButton];
+  [[EarlGrey
+      selectElementWithMatcher:chrome_test_util::NavigationBarDoneButton()]
+      performAction:grey_tap()];
 }
 
 @end

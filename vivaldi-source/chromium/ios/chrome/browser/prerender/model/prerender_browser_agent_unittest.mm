@@ -4,10 +4,12 @@
 
 #import "ios/chrome/browser/prerender/model/prerender_browser_agent.h"
 
+#import <utility>
+
 #import "base/check_deref.h"
 #import "base/memory/raw_ptr.h"
-#import "base/types/cxx23_to_underlying.h"
 #import "components/prefs/pref_service.h"
+#import "components/signin/ios/browser/fake_signin_enabled_datasource.h"
 #import "components/signin/public/base/consent_level.h"
 #import "components/signin/public/identity_manager/account_info.h"
 #import "components/signin/public/identity_manager/identity_test_utils.h"
@@ -150,7 +152,8 @@ class PrerenderBrowserAgentTest : public PlatformTest {
     profile_ = std::move(builder).Build();
 
     browser_ = std::make_unique<TestBrowser>(profile_.get());
-    PrerenderBrowserAgent::CreateForBrowser(browser_.get());
+    PrerenderBrowserAgent::CreateForBrowser(browser_.get(),
+                                            &signin_enabled_data_source);
 
     // Prerendering clones the active WebState from the Browser's WebStateList
     // or fail if there is none. Insert a WebState to avoid this failure state.
@@ -189,7 +192,7 @@ class PrerenderBrowserAgentTest : public PlatformTest {
   void SetNetworkPredictionSetting(
       prerender_prefs::NetworkPredictionSetting value) {
     profile_->GetPrefs()->SetInteger(prefs::kNetworkPredictionSetting,
-                                     base::to_underlying(value));
+                                     std::to_underlying(value));
   }
 
   // Set "NetworkPredictionSetting" to "Enabled on WiFi & Cellular"
@@ -246,6 +249,7 @@ class PrerenderBrowserAgentTest : public PlatformTest {
   IOSChromeScopedTestingLocalState scoped_testing_local_state_;
   std::unique_ptr<net::test::MockNetworkChangeNotifier>
       network_change_notifier_;
+  signin::FakeSigninEnabledDataSource signin_enabled_data_source;
 
   std::unique_ptr<TestProfileIOS> profile_;
   std::unique_ptr<TestBrowser> browser_;

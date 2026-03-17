@@ -78,6 +78,7 @@
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/box_layout_view.h"
 #include "ui/views/layout/flex_layout_types.h"
+#include "ui/views/metadata/view_factory.h"
 #include "ui/views/style/platform_style.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
@@ -134,12 +135,12 @@ void OpenLanguageSettings(TranslateBubbleModel* model_,
 }  // namespace
 
 TranslateBubbleView::TranslateBubbleView(
-    views::View* anchor_view,
+    views::BubbleAnchor anchor,
     std::unique_ptr<TranslateBubbleModel> model,
     translate::TranslateErrors error_type,
     content::WebContents* web_contents,
     base::OnceClosure on_closing)
-    : LocationBarBubbleDelegateView(anchor_view,
+    : LocationBarBubbleDelegateView(anchor,
                                     web_contents,
                                     /*autosize=*/true),
       model_(std::move(model)),

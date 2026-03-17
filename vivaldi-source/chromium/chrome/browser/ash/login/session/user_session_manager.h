@@ -61,7 +61,6 @@ class AuthenticatorBuilder;
 class LegacyTokenHandleFetcher;
 class EolNotification;
 class InputEventsBlocker;
-class U2FNotification;
 class TokenHandleService;
 
 namespace test {
@@ -78,16 +77,16 @@ class UserSessionManagerDelegate {
   virtual base::WeakPtr<UserSessionManagerDelegate> AsWeakPtr() = 0;
 
  protected:
-  virtual ~UserSessionManagerDelegate();
+  virtual ~UserSessionManagerDelegate() = default;
 };
 
-class UserSessionStateObserver {
+class UserSessionStateObserver : public base::CheckedObserver {
  public:
   // Called when UserManager finishes restoring user sessions after crash.
-  virtual void PendingUserSessionsRestoreFinished();
+  virtual void PendingUserSessionsRestoreFinished() {}
 
  protected:
-  virtual ~UserSessionStateObserver();
+  ~UserSessionStateObserver() override = default;
 };
 
 class UserAuthenticatorObserver : public base::CheckedObserver {
@@ -193,6 +192,11 @@ class UserSessionManager
 
   // Restores authentication session after crash.
   void RestoreAuthenticationSession(Profile* profile);
+
+  // Initializes classes which are responsible for enforcing online sign-in
+  // based on various policies.
+  void EnsureTrackingOfOnlineSignInConditions(Profile* profile,
+                                              UserContext::AuthFlow auth_flow);
 
   // Usually is called when Chrome is restarted after a crash and there's an
   // active session. First user (one that is passed with --login-user) Chrome
@@ -319,9 +323,6 @@ class UserSessionManager
     return token_handle_backfill_tried_for_testing_;
   }
 
-  // Shows U2F notification if necessary.
-  void MaybeShowU2FNotification();
-
   // Shows Help App release notes notification, if a notification for the help
   // app has not yet been shown in the current milestone.
   void MaybeShowHelpAppReleaseNotesNotification(Profile* profile);
@@ -356,7 +357,8 @@ class UserSessionManager
       OAuth2LoginManager::SessionRestoreState state) override;
 
   // network::NetworkConnectionTracker::NetworkConnectionObserver overrides:
-  void OnConnectionChanged(network::mojom::ConnectionType type) override;
+  void OnConnectionChanged(
+      net::NetworkChangeNotifier::ConnectionType type) override;
 
   // UserSessionManagerDelegate overrides:
   // Used when restoring user sessions after crash.
@@ -391,9 +393,6 @@ class UserSessionManager
 
   void StartCrosSession();
   void PrepareProfile(const base::FilePath& profile_path);
-
-  // Check if the ARCVM DLC image was installed on the device.
-  void CheckArcVmDlcImageExist();
 
   // Callback for Profile::CREATE_STATUS_CREATED profile state.
   // Initializes basic preferences for newly created profile. Any other
@@ -557,7 +556,7 @@ class UserSessionManager
 
   PendingUserSessions pending_user_sessions_;
 
-  base::ObserverList<ash::UserSessionStateObserver>::Unchecked
+  base::ObserverList<ash::UserSessionStateObserver>
       session_state_observer_list_;
 
   base::ObserverList<UserAuthenticatorObserver> authenticator_observer_list_;
@@ -620,8 +619,6 @@ class UserSessionManager
   std::unique_ptr<XdrManager> xdr_manager_;
 
   std::unique_ptr<ChildPolicyObserver> child_policy_observer_;
-
-  std::unique_ptr<U2FNotification> u2f_notification_;
 
   std::unique_ptr<HelpAppNotificationController>
       help_app_notification_controller_;

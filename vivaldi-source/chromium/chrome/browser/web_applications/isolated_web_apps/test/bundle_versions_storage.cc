@@ -5,7 +5,6 @@
 #include "chrome/browser/web_applications/isolated_web_apps/test/bundle_versions_storage.h"
 
 #include "base/check_deref.h"
-#include "base/containers/contains.h"
 #include "base/containers/map_util.h"
 #include "base/containers/to_value_list.h"
 #include "base/json/json_writer.h"
@@ -61,21 +60,35 @@ GURL BundleVersionsStorage::GetUpdateManifestUrl(
   return base_url.Resolve(GetRelativeUpdateManifestUrl(web_bundle_id));
 }
 
+// static
+GURL BundleVersionsStorage::GetBundleUrl(
+    const GURL& base_url,
+    const web_package::SignedWebBundleId& web_bundle_id,
+    const IwaVersion& version) {
+  return base_url.Resolve(GetRelativeWebBundleUrl(web_bundle_id, version));
+}
+
 GURL BundleVersionsStorage::GetUpdateManifestUrl(
     const web_package::SignedWebBundleId& web_bundle_id) const {
   return GetUpdateManifestUrl(*base_url_, web_bundle_id);
 }
 
-base::Value::Dict BundleVersionsStorage::GetUpdateManifest(
+GURL BundleVersionsStorage::GetBundleUrl(
+    const web_package::SignedWebBundleId& web_bundle_id,
+    const IwaVersion& version) const {
+  return GetBundleUrl(*base_url_, web_bundle_id, version);
+}
+
+base::DictValue BundleVersionsStorage::GetUpdateManifest(
     const web_package::SignedWebBundleId& web_bundle_id) const {
   const auto& bundle_versions =
       CHECK_DEREF(base::FindOrNull(bundle_versions_per_id_, web_bundle_id));
-  return base::Value::Dict().Set(
+  return base::DictValue().Set(
       "versions",
       base::ToValueList(bundle_versions, [&](const auto& bundle_meta) {
         const auto& [version, bundle_info] = bundle_meta;
 
-        auto dict = base::Value::Dict()
+        auto dict = base::DictValue()
                         .Set("version", version.GetString())
                         .Set("src", base_url_
                                         ->Resolve(GetRelativeWebBundleUrl(
@@ -111,20 +124,22 @@ GURL BundleVersionsStorage::AddBundle(
 void BundleVersionsStorage::RemoveBundle(
     const web_package::SignedWebBundleId& web_bundle_id,
     const IwaVersion& version) {
-  CHECK(base::Contains(bundle_versions_per_id_, web_bundle_id));
-  auto& bundle_versions = bundle_versions_per_id_[web_bundle_id];
-  CHECK(base::Contains(bundle_versions, version));
-  bundle_versions.erase(version);
+  auto bundle_versions_per_id_it = bundle_versions_per_id_.find(web_bundle_id);
+  CHECK(bundle_versions_per_id_it != bundle_versions_per_id_.end());
+  auto& bundle_versions = bundle_versions_per_id_it->second;
+  auto bundle_versions_it = bundle_versions.find(version);
+  CHECK(bundle_versions_it != bundle_versions.end());
+  bundle_versions.erase(bundle_versions_it);
   if (bundle_versions.empty()) {
-    bundle_versions_per_id_.erase(web_bundle_id);
+    bundle_versions_per_id_.erase(bundle_versions_per_id_it);
   }
 }
 
 std::optional<BundleVersionsStorage::BundleOrUpdateManifest>
 BundleVersionsStorage::GetResource(const std::string& route) {
   // Parses /<web_bundle_id>/<file_name> into { <web_bundle_id>, <file_name> }.
-  auto pieces = base::SplitString(route, "/", base::TRIM_WHITESPACE,
-                                  base::SPLIT_WANT_NONEMPTY);
+  const std::vector<std::string_view> pieces = base::SplitStringPiece(
+      route, "/", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
   if (pieces.size() != 2) {
     return std::nullopt;
   }
@@ -140,7 +155,7 @@ BundleVersionsStorage::GetResource(const std::string& route) {
     return std::nullopt;
   }
 
-  const auto& path = pieces[1];
+  const std::string_view path = pieces[1];
   if (path == kUpdateManifestFileName) {
     return GetUpdateManifest(web_bundle_id);
   } else if (path.ends_with(".swbn")) {

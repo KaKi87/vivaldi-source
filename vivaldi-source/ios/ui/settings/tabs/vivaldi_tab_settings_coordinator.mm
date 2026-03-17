@@ -13,7 +13,7 @@
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-@interface VivaldiTabSettingsCoordinator ()<
+@interface VivaldiTabSettingsCoordinator () <
     VivaldiHostingControllerPresentationDelegate> {
   // Coordinator for the inactive tabs settings.
   InactiveTabsSettingsCoordinator* _inactiveTabsSettingsCoordinator;
@@ -49,11 +49,10 @@
   self.viewProvider = [[VivaldiTabsSettingsViewProvider alloc] init];
 
   self.viewController =
-      [self.viewProvider
-          makeViewControllerWithPresentationDelegate:self
-          onInactiveTabsSelectionTap:^{
-      [self showInactiveTabsSettings];
-  }];
+      [self.viewProvider makeViewControllerWithPresentationDelegate:self
+                                         onInactiveTabsSelectionTap:^{
+                                           [self showInactiveTabsSettings];
+                                         }];
 
   self.viewController.title =
       l10n_util::GetNSString(IDS_IOS_PREFS_VIVALDI_TABS);
@@ -62,18 +61,17 @@
 
   self.mediator = [[VivaldiTabSettingsMediator alloc]
       initWithOriginalPrefService:self.browser->GetProfile()
-                                 ->GetOriginalProfile()
-                                 ->GetPrefs()
+                                      ->GetOriginalProfile()
+                                      ->GetPrefs()
                  localPrefService:GetApplicationContext()->GetLocalState()];
   self.mediator.consumer = self.viewProvider;
   self.viewProvider.settingsStateConsumer = self.mediator;
 
   // Add Done button
-  UIBarButtonItem* doneItem =
-    [[UIBarButtonItem alloc]
-        initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                             target:self
-                             action:@selector(handleDoneButtonTap)];
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
   self.viewController.navigationItem.rightBarButtonItem = doneItem;
 
   [self.baseNavigationController pushViewController:self.viewController

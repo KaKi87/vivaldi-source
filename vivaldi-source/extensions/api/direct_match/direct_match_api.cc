@@ -29,8 +29,8 @@ DirectMatchAPI::DirectMatchAPI(content::BrowserContext* context)
   if (service) {
     service->AddObserver(this);
   }
-  favicon_installer_ = base::WrapUnique(
-      new direct_match::DirectMatchFaviconInstaller(
+  favicon_installer_ =
+      base::WrapUnique(new direct_match::DirectMatchFaviconInstaller(
           Profile::FromBrowserContext(browser_context_)));
 }
 
@@ -59,8 +59,7 @@ void DirectMatchAPI::OnFinishedDownloadingDirectMatchUnitsIcon() {
   favicon_installer_->Start();
   ::vivaldi::BroadcastEvent(
       vivaldi::direct_match::OnPopularSitesReady::kEventName,
-      vivaldi::direct_match::OnPopularSitesReady::Create(),
-      browser_context_);
+      vivaldi::direct_match::OnPopularSitesReady::Create(), browser_context_);
 }
 
 void DirectMatchAPI::OnExtensionUnloaded(

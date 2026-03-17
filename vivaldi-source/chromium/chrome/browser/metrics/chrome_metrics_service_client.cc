@@ -20,7 +20,6 @@
 #include "base/functional/callback.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
-#include "base/memory/scoped_refptr.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/persistent_histogram_allocator.h"
@@ -54,11 +53,11 @@
 #include "chrome/browser/metrics/network_quality_estimator_provider_impl.h"
 #include "chrome/browser/metrics/usertype_by_devicetype_metrics_provider.h"
 #include "chrome/browser/performance_manager/metrics/metrics_provider_common.h"
-#include "chrome/browser/privacy_budget/privacy_budget_prefs.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profiles_state.h"
 #include "chrome/browser/regional_capabilities/regional_capabilities_metrics_provider.h"
 #include "chrome/browser/regional_capabilities/regional_capabilities_service_factory.h"
+#include "chrome/browser/safe_browsing/metrics/bundled_settings_metrics_provider.h"
 #include "chrome/browser/safe_browsing/metrics/safe_browsing_metrics_provider.h"
 #include "chrome/browser/subscription_eligibility/subscription_eligibility_metrics_provider.h"
 #include "chrome/browser/sync/device_info_sync_service_factory.h"
@@ -118,6 +117,7 @@
 #include "components/regional_capabilities/regional_capabilities_service.h"
 #include "components/regional_capabilities/regional_capabilities_switches.h"
 #include "components/safe_browsing/buildflags.h"
+#include "components/safe_browsing/core/common/features.h"
 #include "components/sync/service/passphrase_type_metrics_provider.h"
 #include "components/sync/service/sync_service.h"
 #include "components/sync_device_info/device_count_metrics_provider.h"
@@ -154,7 +154,7 @@
 #include "extensions/common/extension.h"
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/glic_metrics_provider.h"
 #endif
 
@@ -197,6 +197,7 @@
 #include "chrome/browser/metrics/antivirus_metrics_provider_win.h"
 #include "chrome/browser/metrics/google_update_metrics_provider_win.h"
 #include "chrome/browser/metrics/system_memory_list_metrics_provider_win.h"
+#include "chrome/browser/metrics/system_pdh_metrics_provider_win.h"
 #include "chrome/browser/metrics/tpm_metrics_provider_win.h"
 #include "chrome/install_static/install_util.h"
 #include "chrome/installer/util/util_constants.h"
@@ -545,7 +546,6 @@ void ChromeMetricsServiceClient::RegisterPrefs(PrefRegistrySimple* registry) {
   metrics::dwa::DwaService::RegisterPrefs(registry);
   metrics::private_metrics::PumaService::RegisterPrefs(registry);
   metrics::StabilityMetricsHelper::RegisterPrefs(registry);
-  prefs::RegisterPrivacyBudgetPrefs(registry);
 
   RegisterFileMetricsPreferences(registry);
 
@@ -864,6 +864,10 @@ void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
   // TODO(crbug.com/40765618): Add metrics registration for WebView and iOS.
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<safe_browsing::SafeBrowsingMetricsProvider>());
+  if (base::FeatureList::IsEnabled(safe_browsing::kBundledSecuritySettings)) {
+    metrics_service_->RegisterMetricsProvider(
+        std::make_unique<safe_browsing::BundledSettingsMetricsProvider>());
+  }
 
 #if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
   metrics_service_->RegisterMetricsProvider(
@@ -896,6 +900,8 @@ void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
       std::make_unique<TPMMetricsProvider>());
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<SystemMemoryListMetricsProvider>());
+  metrics_service_->RegisterMetricsProvider(
+      std::make_unique<SystemPdhMetricsProvider>());
 #endif  // BUILDFLAG(IS_WIN)
 
 #if BUILDFLAG(IS_MAC)
@@ -1019,7 +1025,7 @@ void ChromeMetricsServiceClient::RegisterMetricsServiceProviders() {
       metrics::CreateDesktopSessionMetricsProvider());
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || (BUILDFLAG(IS_LINUX)
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   metrics_service_->RegisterMetricsProvider(
       std::make_unique<glic::GlicMetricsProvider>());
 #endif
@@ -1563,13 +1569,13 @@ void ChromeMetricsServiceClient::ResetClientStateWhenMsbbOrAppConsentIsRevoked(
 
 void ChromeMetricsServiceClient::CreateStructuredMetricsService() {
   PrefService* local_state = g_browser_process->local_state();
-  scoped_refptr<metrics::structured::StructuredMetricsRecorder> recorder;
+  std::unique_ptr<metrics::structured::StructuredMetricsRecorder> recorder;
 #if BUILDFLAG(IS_CHROMEOS)
   cros_system_profile_provider_ =
       std::make_unique<ChromeOSSystemProfileProvider>();
 
   recorder =
-      base::MakeRefCounted<metrics::structured::AshStructuredMetricsRecorder>(
+      std::make_unique<metrics::structured::AshStructuredMetricsRecorder>(
           cros_system_profile_provider_.get());
 #elif BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_MAC)
 
@@ -1578,8 +1584,9 @@ void ChromeMetricsServiceClient::CreateStructuredMetricsService() {
   // but isn't needed for the other platforms. So here is fine.
   metrics::structured::ChromeStructuredMetricsDelegate::Get()->Initialize();
   if (base::FeatureList::IsEnabled(::features::kChromeStructuredMetrics)) {
-    recorder = base::MakeRefCounted<
-        metrics::structured::ChromeStructuredMetricsRecorder>(local_state);
+    recorder =
+        std::make_unique<metrics::structured::ChromeStructuredMetricsRecorder>(
+            local_state);
   }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 

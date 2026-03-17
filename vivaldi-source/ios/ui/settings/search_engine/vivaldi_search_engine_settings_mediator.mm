@@ -4,8 +4,8 @@
 
 #import "base/strings/sys_string_conversions.h"
 #import "components/prefs/pref_service.h"
-#import "components/search_engines/template_url_service_observer.h"
 #import "components/search_engines/template_url_service.h"
+#import "components/search_engines/template_url_service_observer.h"
 #import "components/search_engines/util.h"
 #import "ios/chrome/browser/search_engines/model/search_engine_observer_bridge.h"
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
@@ -13,11 +13,11 @@
 #import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/utils/observable_boolean.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 @interface VivaldiSearchEngineSettingsMediator () <BooleanObserver,
-                                                  SearchEngineObserving> {
-  ProfileIOS* _profile;  // weak
+                                                   SearchEngineObserving> {
+  ProfileIOS* _profile;                     // weak
   TemplateURLService* _templateURLService;  // weak
   // Bridge for TemplateURLServiceObserver.
   std::unique_ptr<SearchEngineObserverBridge> _observer;
@@ -40,10 +40,9 @@
     _templateURLService->Load();
 
     PrefService* localPrefs = GetApplicationContext()->GetLocalState();
-    _searchEngineNicknameEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:localPrefs
-                prefName:vivaldiprefs::kVivaldiEnableSearchEngineNickname];
+    _searchEngineNicknameEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:localPrefs
+                   prefName:vivaldiprefs::kVivaldiEnableSearchEngineNickname];
     [_searchEngineNicknameEnabled setObserver:self];
     [self booleanDidChange:_searchEngineNicknameEnabled];
   }
@@ -89,17 +88,15 @@
 
 - (void)setConsumer:(id<VivaldiSearchEngineSettingsConsumer>)consumer {
   _consumer = consumer;
-  [self.consumer
-      setPreferenceForEnableSearchEngineNickname:
-          [self searchEngineNicknameEnabled]];
+  [self.consumer setPreferenceForEnableSearchEngineNickname:
+                     [self searchEngineNicknameEnabled]];
   [self.consumer
       setSearchEngineForRegularTabs:
-          [self searchEngineNameForType:
-                  TemplateURLService::kDefaultSearchMain]];
-  [self.consumer
-      setSearchEngineForPrivateTabs:
-         [self searchEngineNameForType:
-                  TemplateURLService::kDefaultSearchPrivate]];
+          [self
+              searchEngineNameForType:TemplateURLService::kDefaultSearchMain]];
+  [self.consumer setSearchEngineForPrivateTabs:
+                     [self searchEngineNameForType:TemplateURLService::
+                                                       kDefaultSearchPrivate]];
 }
 
 #pragma mark - VivaldiSearchEngineSettingsViewControllerDelegate
@@ -113,9 +110,8 @@
 
 - (void)booleanDidChange:(id<ObservableBoolean>)observableBoolean {
   if (observableBoolean == _searchEngineNicknameEnabled) {
-    [self.consumer
-         setPreferenceForEnableSearchEngineNickname:
-            [self searchEngineNicknameEnabled]];
+    [self.consumer setPreferenceForEnableSearchEngineNickname:
+                       [self searchEngineNicknameEnabled]];
   }
 }
 
@@ -123,13 +119,12 @@
 
 - (void)searchEngineChanged {
   [self.consumer
-       setSearchEngineForRegularTabs:
-            [self searchEngineNameForType:
-                    TemplateURLService::kDefaultSearchMain]];
-  [self.consumer
-       setSearchEngineForPrivateTabs:
-            [self searchEngineNameForType:
-                    TemplateURLService::kDefaultSearchPrivate]];
+      setSearchEngineForRegularTabs:
+          [self
+              searchEngineNameForType:TemplateURLService::kDefaultSearchMain]];
+  [self.consumer setSearchEngineForPrivateTabs:
+                     [self searchEngineNameForType:TemplateURLService::
+                                                       kDefaultSearchPrivate]];
 }
 
 @end

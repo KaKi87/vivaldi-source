@@ -644,6 +644,9 @@ TEST_P(DepthStencilSamplingTest, CheckDepthTextureRange) {
     // TODO(crbug.com/444741058): Fails on Intel-based brya devices running Android Desktop.
     DAWN_SUPPRESS_TEST_IF(IsOpenGLES() && IsIntel() && IsAndroid());
 
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
+
     constexpr uint32_t kWidth = 16;
     wgpu::ShaderModule module = utils::CreateShaderModule(device, R"(
         const kWidth = 16.0;
@@ -778,6 +781,10 @@ TEST_P(DepthStencilSamplingTest, CheckDepthTextureRange) {
 TEST_P(DepthStencilSamplingTest, SampleExtraComponents) {
     // TODO(crbug.com/dawn/2295): diagnose this failure on Pixel 6 OpenGLES
     DAWN_SUPPRESS_TEST_IF(IsOpenGLES() && IsAndroid() && IsARM());
+
+    // TODO(crbug.com/473870505): [Capture] support depth/stencil and multi-planar textures.
+    DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
+
     DAWN_TEST_UNSUPPORTED_IF(GetSupportedLimits().maxStorageBuffersInFragmentStage < 1);
 
     wgpu::TextureFormat format = GetParam().mTextureFormat;
@@ -793,6 +800,9 @@ TEST_P(DepthStencilSamplingTest, SampleExtraComponents) {
 TEST_P(DepthStencilSamplingTest, SampleDepthAndStencilRender) {
     // In compat, you can't have different views of the same texture in the same draw command.
     DAWN_TEST_UNSUPPORTED_IF(IsCompatibilityMode());
+
+    // TODO(crbug.com/473870505): [Capture] support depth/stencil and multi-planar textures.
+    DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
 
     wgpu::TextureFormat format = GetParam().mTextureFormat;
 
@@ -928,6 +938,9 @@ TEST_P(DepthSamplingTest, SampleDepthOnly) {
     // TODO(crbug.com/dawn/2552): diagnose this flake on Pixel 6 OpenGLES
     DAWN_SUPPRESS_TEST_IF(IsOpenGLES() && IsAndroid() && IsARM());
 
+    // TODO(crbug.com/473870505): [Capture] support depth/stencil and multi-planar textures.
+    DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
+
     wgpu::TextureFormat format = GetParam().mTextureFormat;
 
     // ULP for Depth16Unorm is 1 / (2 ^ 16 - 1). Similarly Depth24PlusStencil8 could be mapped to a
@@ -958,10 +971,12 @@ TEST_P(DepthSamplingTest, SampleDepthOnly) {
 TEST_P(DepthSamplingTest, CompareFunctionsRender) {
     // Initialization via renderPass loadOp doesn't work on Mac Intel.
     DAWN_SUPPRESS_TEST_IF(IsMetal() && IsIntel());
-    DAWN_SUPPRESS_TEST_IF(IsWebGPUOn(wgpu::BackendType::Metal) && IsIntel());
 
     // TODO(dawn:1549) Fails on Qualcomm-based Android devices.
     DAWN_SUPPRESS_TEST_IF(IsAndroid() && IsQualcomm());
+
+    // TODO(crbug.com/473870505): [Capture] support depth/stencil and multi-planar textures.
+    DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
 
     wgpu::TextureFormat format = GetParam().mTextureFormat;
     wgpu::RenderPipeline pipeline = CreateComparisonRenderPipeline();
@@ -989,6 +1004,9 @@ TEST_P(StencilSamplingTest, SampleStencilOnly) {
     // TODO(crbug.com/dawn/2295): diagnose this failure on Pixel 6 OpenGLES
     DAWN_SUPPRESS_TEST_IF(IsOpenGLES() && IsAndroid() && IsARM());
     DAWN_TEST_UNSUPPORTED_IF(GetSupportedLimits().maxStorageBuffersInFragmentStage < 1);
+
+    // TODO(crbug.com/473870505): [Capture] support depth/stencil and multi-planar textures.
+    DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
 
     wgpu::TextureFormat format = GetParam().mTextureFormat;
 

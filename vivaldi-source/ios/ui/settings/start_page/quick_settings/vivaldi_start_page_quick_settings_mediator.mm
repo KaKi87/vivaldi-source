@@ -11,12 +11,14 @@
 #import "ios/chrome/browser/shared/model/utils/observable_boolean.h"
 #import "ios/ui/settings/start_page/layout_settings/vivaldi_start_page_layout_column.h"
 #import "ios/ui/settings/start_page/layout_settings/vivaldi_start_page_layout_style.h"
-#import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
+#import "ios/ui/settings/start_page/vivaldi_start_page_constants.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
+#import "ios/ui/settings/start_page/wallpaper_settings/vivaldi_wallpaper_notification_constants.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
-@interface VivaldiStartPageQuickSettingsMediator ()<BooleanObserver,
-                                                    PrefObserverDelegate>
+@interface VivaldiStartPageQuickSettingsMediator () <BooleanObserver,
+                                                     PrefObserverDelegate>
 @end
 
 @implementation VivaldiStartPageQuickSettingsMediator {
@@ -44,43 +46,46 @@
     _prefObserverBridge.reset(new PrefObserverBridge(self));
 
     _prefObserverBridge->ObserveChangesForPreference(
-          vivaldiprefs::kVivaldiStartPageLayoutStyle, &_prefChangeRegistrar);
+        vivaldiprefs::kVivaldiStartPageLayoutStyle, &_prefChangeRegistrar);
     _prefObserverBridge->ObserveChangesForPreference(
-          vivaldiprefs::kVivaldiStartPageSDMaximumColumns,
-              &_prefChangeRegistrar);
+        vivaldiprefs::kVivaldiStartPageSDMaximumColumns, &_prefChangeRegistrar);
 
-    _showFrequentlyVisited =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                prefName:vivaldiprefs::kVivaldiStartPageShowFrequentlyVisited];
+    _showFrequentlyVisited = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::
+                                kVivaldiStartPageShowFrequentlyVisited];
     [_showFrequentlyVisited setObserver:self];
 
-    _showSpeedDials =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                prefName:vivaldiprefs::kVivaldiStartPageShowSpeedDials];
+    _showSpeedDials = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kVivaldiStartPageShowSpeedDials];
     [_showSpeedDials setObserver:self];
 
-    _showCustomizeStartPageButton =
-        [[PrefBackedBoolean alloc]
-             initWithPrefService:_prefs
-                prefName:vivaldiprefs::kVivaldiStartPageShowCustomizeButton];
+    _showCustomizeStartPageButton = [[PrefBackedBoolean alloc]
+        initWithPrefService:_prefs
+                   prefName:vivaldiprefs::kVivaldiStartPageShowCustomizeButton];
     [_showCustomizeStartPageButton setObserver:self];
     [self booleanDidChange:_showCustomizeStartPageButton];
 
-    _showAddButton =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:GetApplicationContext()->GetLocalState()
-                 prefName:vivaldiprefs::kVivaldiStartPageShowAddButton];
+    _showAddButton = [[PrefBackedBoolean alloc]
+        initWithPrefService:GetApplicationContext()->GetLocalState()
+                   prefName:vivaldiprefs::kVivaldiStartPageShowAddButton];
     [_showAddButton setObserver:self];
     [self booleanDidChange:_showAddButton];
 
     [VivaldiStartPagePrefs setPrefService:_prefs];
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(wallpaperDidChange)
+               name:vWallpaperUpdateNotificationName
+             object:nil];
   }
   return self;
 }
 
 - (void)disconnect {
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
   _prefChangeRegistrar.RemoveAll();
   _prefObserverBridge.reset();
   _prefs = nil;
@@ -107,15 +112,16 @@
 - (void)setConsumer:(id<VivaldiStartPageSettingsConsumer>)consumer {
   _consumer = consumer;
 
-  [self.consumer setPreferenceSpeedDialLayout: [self currentLayoutStyle]];
+  [self.consumer setPreferenceSpeedDialLayout:[self currentLayoutStyle]];
   [self.consumer setPreferenceSpeedDialColumn:[self currentLayoutColumn]];
   [self.consumer
       setPreferenceShowFrequentlyVisitedPages:[_showFrequentlyVisited value]];
   [self.consumer setPreferenceShowSpeedDials:[_showSpeedDials value]];
   [self.consumer
-      setPreferenceShowCustomizeStartPageButton:
-          [_showCustomizeStartPageButton value]];
-  [self.consumer setPreferenceShowAddButton: [_showAddButton value]];
+      setPreferenceShowCustomizeStartPageButton:[_showCustomizeStartPageButton
+                                                    value]];
+  [self.consumer setPreferenceShowAddButton:[_showAddButton value]];
+  [self.consumer setPreferenceDailyMixEnabled:[self isDailyMixEnabled]];
 }
 
 #pragma mark - VivaldiStartPageSettingsConsumer
@@ -153,6 +159,26 @@
   // No op.
 }
 
+- (void)setPreferenceDailyMixEnabled:(BOOL)enabled {
+  BOOL currentlyEnabled = [self isDailyMixEnabled];
+  if (enabled == currentlyEnabled)
+    return;
+
+  if (enabled) {
+    [VivaldiStartPagePrefsHelper setWallpaperName:vDailyMixWallpaperName];
+    [VivaldiStartPagePrefsHelper refreshDailyMixWallpaperIfNeeded];
+  } else {
+    [VivaldiStartPagePrefsHelper setWallpaperName:@""];
+  }
+
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:vWallpaperUpdateNotificationName
+                    object:nil];
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:vWallpaperViewUpdateNotificationName
+                    object:nil];
+}
+
 #pragma mark - BooleanObserver
 
 - (void)booleanDidChange:(id<ObservableBoolean>)observableBoolean {
@@ -182,12 +208,22 @@
 
 #pragma mark - Private
 
+- (void)wallpaperDidChange {
+  [self.consumer setPreferenceDailyMixEnabled:[self isDailyMixEnabled]];
+}
+
 - (VivaldiStartPageLayoutStyle)currentLayoutStyle {
   return [VivaldiStartPagePrefsHelper getStartPageLayoutStyle];
 }
 
 - (VivaldiStartPageLayoutColumn)currentLayoutColumn {
   return [VivaldiStartPagePrefsHelper getStartPageSpeedDialMaximumColumns];
+}
+
+- (BOOL)isDailyMixEnabled {
+  NSString* wallpaperName =
+      [VivaldiStartPagePrefsHelper getWallpaperName] ?: @"";
+  return [wallpaperName isEqualToString:vDailyMixWallpaperName];
 }
 
 @end

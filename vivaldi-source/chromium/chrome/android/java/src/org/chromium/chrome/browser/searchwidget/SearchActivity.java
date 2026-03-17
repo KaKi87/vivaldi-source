@@ -8,7 +8,6 @@ import static org.chromium.build.NullUtil.assertNonNull;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.app.Activity;
-import android.app.SearchManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.res.ColorStateList;
@@ -35,10 +34,11 @@ import org.chromium.base.ResettersForTesting;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneShotCallback;
 import org.chromium.base.supplier.OneshotSupplier;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -73,6 +73,7 @@ import org.chromium.chrome.browser.tab.TabFavicon;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tabwindow.TabWindowInfo;
 import org.chromium.chrome.browser.toolbar.VoiceToolbarButtonController;
+import org.chromium.chrome.browser.ui.edge_to_edge.NoOpTopInsetProvider;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager.SnackbarManageable;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
@@ -92,21 +93,19 @@ import org.chromium.url.GURL;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.ref.WeakReference;
+import java.util.function.Supplier;
+
+// Vivaldi
+import android.app.SearchManager;
+import androidx.core.content.ContextCompat;
+
 import java.util.Objects;
 
 import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.vivaldi.browser.common.VivaldiIntentHandler;
 import org.vivaldi.browser.omnibox.status.SearchEngineIconHandler;
 import org.vivaldi.browser.qrcode.VivaldiQrCodeScanDialog;
-
-// Vivaldi
-import androidx.appcompat.content.res.AppCompatResources;
-
-import org.chromium.chrome.browser.search_engines.TemplateUrlServiceFactory;
-import org.chromium.chrome.browser.omnibox.suggestions.AutocompleteDelegate;
-import org.chromium.chrome.browser.profiles.ProfileManager;
-import org.chromium.components.search_engines.TemplateUrlService;
-import org.chromium.ui.base.PageTransition;
 
 /** Queries the user's default search engine and shows autocomplete suggestions. */
 @NullMarked
@@ -258,9 +257,10 @@ public class SearchActivity extends AsyncInitializationActivity
     private View mAnchorView;
 
     private SnackbarManager mSnackbarManager;
-    private final ObservableSupplierImpl<Profile> mProfileSupplier = new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<TabModelSelector> mTabModelSelectorSupplier =
-            new ObservableSupplierImpl<>();
+    private final SettableMonotonicObservableSupplier<Profile> mProfileSupplier =
+            ObservableSuppliers.createMonotonic();
+    private final SettableMonotonicObservableSupplier<TabModelSelector> mTabModelSelectorSupplier =
+            ObservableSuppliers.createMonotonic();
 
     // SearchBoxDataProvider and LocationBarEmbedderUiOverrides are passed to several child
     // components upon construction. Ensure we don't accidentally introduce disconnection by
@@ -271,7 +271,7 @@ public class SearchActivity extends AsyncInitializationActivity
     private UmaActivityObserver mUmaActivityObserver;
 
     public SearchActivity() {
-        mStartupMetricsTracker = new StartupMetricsTracker(mTabModelSelectorSupplier);
+        mStartupMetricsTracker = new StartupMetricsTracker(mTabModelSelectorSupplier, () -> false);
         mLocationBarUiOverrides.setForcedPhoneStyleOmnibox();
     }
 
@@ -317,7 +317,8 @@ public class SearchActivity extends AsyncInitializationActivity
         var contentView = createContentView();
         setContentView(contentView);
         mStartupMetricsTracker.registerSearchActivityViewObserver(contentView);
-        mSnackbarManager = new SnackbarManager(this, contentView, null);
+        mSnackbarManager =
+                new SnackbarManager(this, contentView, null, null, getModalDialogManager());
 
         // Build the search box.
         mSearchBox = contentView.findViewById(R.id.search_location_bar);
@@ -337,8 +338,8 @@ public class SearchActivity extends AsyncInitializationActivity
                         mSearchBoxDataProvider,
                         null,
                         assertNonNull(getWindowAndroid()),
-                        /* activityTabSupplier= */ () -> null,
-                        getModalDialogManagerSupplier(),
+                        /* activityTabSupplier= */ ObservableSuppliers.alwaysNull(),
+                        (Supplier<@Nullable ModalDialogManager>) getModalDialogManagerSupplier(),
                         /* shareDelegateSupplier= */ null,
                         /* incognitoStateProvider= */ null,
                         getLifecycleDispatcher(),
@@ -379,7 +380,7 @@ public class SearchActivity extends AsyncInitializationActivity
                                                 assumeNonNull(getProfileProviderSupplier().get())
                                                         .getOriginalProfile(),
                                                 ManagePasswordsReferrer.CHROME_SETTINGS,
-                                                () -> getModalDialogManager(),
+                                                getModalDialogManagerSupplier().asNonNull(),
                                                 /* managePasskeys= */ false),
                                 // Open Quick Delete Dialog callback:
                                 null,
@@ -388,7 +389,8 @@ public class SearchActivity extends AsyncInitializationActivity
                         null,
                         backPressManager,
                         /* omniboxSuggestionsDropdownScrollListener= */ null,
-                        /* tabModelSelectorSupplier= */ new ObservableSupplierImpl<>(),
+                        /* tabModelSelectorSupplier= */ ObservableSuppliers.createMonotonic(),
+                        /* topInsetProvider= */ new NoOpTopInsetProvider(),
                         new LocationBarEmbedder() {},
                         mLocationBarUiOverrides,
                         findViewById(R.id.control_container),
@@ -400,7 +402,8 @@ public class SearchActivity extends AsyncInitializationActivity
                         TabFavicon::getBitmap,
                         /* multiInstanceManager= */ null,
                         mSnackbarManager,
-                        findViewById(R.id.bottom_container));
+                        findViewById(R.id.bottom_container),
+                        /* omniboxChipManager= */ null);
         mLocationBarCoordinator.setUrlBarFocusable(true);
         mLocationBarCoordinator.setShouldShowMicButtonWhenUnfocused(true);
         assumeNonNull(mLocationBarCoordinator.getOmniboxStub()).addUrlFocusChangeListener(this);
@@ -542,19 +545,7 @@ public class SearchActivity extends AsyncInitializationActivity
         if (ChromeApplicationImpl.isVivaldi()) {
             Profile profile = ProfileManager.getLastUsedRegularProfile();
             mProfileSupplier.set(profile);
-            /* TODO CHR 130: Still needed?
-            if (getIntent().getAction().equals(Intent.ACTION_WEB_SEARCH)) {
-                TemplateUrlService.PostParams postParams = new TemplateUrlService.PostParams();
-                String searchUrl =
-                        TemplateUrlServiceFactory.getForProfile(mProfileSupplier.get())
-                                .getUrlForSearchQuery(IntentUtils.safeGetStringExtra(
-                                                              getIntent(), SearchManager.QUERY),
-                                        null, postParams,
-                                        TemplateUrlService.DefaultSearchType.DEFAULT_SEARCH_MAIN);
-                loadUrlInChromeBrowser(searchUrl, PageTransition.FIRST, null, null);
-            }
-            */
-        }
+        } // End Vivaldi
 
         Profile profile = mProfileSupplier.get();
         if (profile != null) {
@@ -620,9 +611,19 @@ public class SearchActivity extends AsyncInitializationActivity
 
     @Override
     public void onPauseWithNative() {
-        umaSessionEnd();
+        if (!ChromeFeatureList.isEnabled(ChromeFeatureList.UMA_SESSION_CORRECTNESS_FIXES)) {
+            umaSessionEnd();
+        }
         RevenueStats.setCustomTabSearchClient(null);
         super.onPauseWithNative();
+    }
+
+    @Override
+    public void onStopWithNative() {
+        super.onStopWithNative();
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.UMA_SESSION_CORRECTNESS_FIXES)) {
+            umaSessionEnd();
+        }
     }
 
     @Override
@@ -695,6 +696,7 @@ public class SearchActivity extends AsyncInitializationActivity
             mLocationBarCoordinator.destroy();
             mLocationBarCoordinator = null;
         }
+        mSearchBoxDataProvider.destroy();
         mHandler.removeCallbacksAndMessages(null);
         super.onDestroy();
     }
@@ -773,7 +775,7 @@ public class SearchActivity extends AsyncInitializationActivity
     // defined on initialize in {@link SearchActivityLocationBarLayout}.
     private void setColorScheme(boolean isIncognito) {
         @ColorRes int anchorViewBackgroundColorRes = R.color.omnibox_suggestion_dropdown_bg;
-        @ColorRes int searchBoxColorRes = R.color.omnibox_suggestion_bg;
+        @ColorRes int searchBoxColorRes = R.color.search_suggestion_bg_color;
 
         var searchBoxBackground = mSearchBox.getBackground();
 
@@ -786,7 +788,7 @@ public class SearchActivity extends AsyncInitializationActivity
             searchBoxColorRes = R.color.toolbar_text_box_background_incognito;
 
             // Vivaldi: Ref.VAB-10502
-            searchBoxBackground.setTintList(AppCompatResources.getColorStateList(
+            searchBoxBackground.setTintList(ContextCompat.getColorStateList(
                     this, R.color.toolbar_background_primary_dark));
         }
 
@@ -917,7 +919,8 @@ public class SearchActivity extends AsyncInitializationActivity
 
     @VisibleForTesting
     void recordNavigationTargetType(GURL url) {
-        var templateSvc = TemplateUrlServiceFactory.getForProfile(mProfileSupplier.get());
+        var templateSvc =
+                TemplateUrlServiceFactory.getForProfile(assertNonNull(mProfileSupplier.get()));
         boolean isSearch =
                 templateSvc != null
                         && templateSvc.isSearchResultsPageFromDefaultSearchProvider(url);
@@ -989,7 +992,7 @@ public class SearchActivity extends AsyncInitializationActivity
         return mLocationBarUiOverrides;
     }
 
-    /* package */ ObservableSupplier<Profile> getProfileSupplierForTesting() {
+    /* package */ MonotonicObservableSupplier<Profile> getProfileSupplierForTesting() {
         return mProfileSupplier;
     }
 

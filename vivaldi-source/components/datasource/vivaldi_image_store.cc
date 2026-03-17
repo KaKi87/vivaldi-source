@@ -4,13 +4,13 @@
 
 #include <string_view>
 
-#include "base/containers/contains.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/containers/span.h"
 #include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/callback_helpers.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/lazy_instance.h"
@@ -25,6 +25,8 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/common/chrome_paths.h"
 #include "chromium/base/run_loop.h"
 #include "components/base32/base32.h"
@@ -381,14 +383,14 @@ void VivaldiImageStore::LoadMappingsOnFileThread() {
   }
 
   if (root.value().is_dict()) {
-    if (base::Value::Dict* mappings =
+    if (base::DictValue* mappings =
             root.value().GetDict().FindDict("mappings")) {
       InitMappingsOnFileThread(*mappings);
     }
   }
 }
 
-void VivaldiImageStore::InitMappingsOnFileThread(base::Value::Dict& mappings) {
+void VivaldiImageStore::InitMappingsOnFileThread(base::DictValue& mappings) {
   DCHECK(sequence_task_runner_->RunsTasksInCurrentSequence());
   DCHECK(path_id_map_.empty());
 
@@ -398,7 +400,7 @@ void VivaldiImageStore::InitMappingsOnFileThread(base::Value::Dict& mappings) {
       // Older mapping entry that we just skip as we know the path statically.
       continue;
     }
-    if (base::Value::Dict* dict = i.second.GetIfDict()) {
+    if (base::DictValue* dict = i.second.GetIfDict()) {
       std::string* path_string = dict->FindString("local_path");
       if (!path_string) {
         // Older format support.
@@ -427,15 +429,15 @@ std::string VivaldiImageStore::GetMappingJSONOnFileThread() {
   // bookmarks and a add a version field to the file. Then presence of the file
   // without the version string will indicate the need for converssion.
 
-  base::Value::Dict items;
+  base::DictValue items;
   for (const auto& it : path_id_map_) {
     const base::FilePath& path = it.second;
-    base::Value::Dict item;
+    base::DictValue item;
     item.Set("local_path", path.AsUTF16Unsafe());
     items.Set(it.first, std::move(item));
   }
 
-  base::Value::Dict root;
+  base::DictValue root;
   root.Set("mappings", std::move(items));
 
   std::string json;
@@ -471,8 +473,7 @@ void VivaldiImageStore::SaveMappingsOnFileThread() {
 
   if (!base::WriteFile(tmp_path, json)) {
     LOG(ERROR) << "Failed to write to " << tmp_path.value() << " "
-               << json.length()
-               << " bytes";
+               << json.length() << " bytes";
     return;
   }
   if (!base::ReplaceFile(tmp_path, path, nullptr)) {
@@ -649,7 +650,9 @@ void VivaldiImageStore::FindUsedUrlsOnUIThreadWithLoadedBookmarks(
     return;
 
 #if !BUILDFLAG(IS_ANDROID)
-  if (BrowserList::GetInstance()->size() == 0) {
+  std::vector<BrowserWindowInterface*> all_browsers =
+      GetAllBrowserWindowInterfaces();
+  if (all_browsers.size() == 0) {
     // VB-114966: No browser, most likely we are in the profile picker.
     return;
   }

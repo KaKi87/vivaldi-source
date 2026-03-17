@@ -48,7 +48,7 @@
 #include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/optimization_guide/proto/hints.pb.h"
 #include "components/optimization_guide/proto/model_quality_service.pb.h"
-#include "components/optimization_guide/public/mojom/model_broker.mojom-data-view.h"
+#include "components/optimization_guide/public/mojom/model_broker.mojom-shared.h"
 #include "components/policy/core/browser/browser_policy_connector.h"
 #include "components/policy/core/common/mock_configuration_policy_provider.h"
 #include "components/policy/policy_constants.h"
@@ -267,7 +267,8 @@ class OptimizationGuideKeyedServiceBrowserTest
     url_that_redirects_to_no_hints_ =
         https_server_->GetURL("/redirect?https://nohints.com/");
 
-    SetConnectionType(network::mojom::ConnectionType::CONNECTION_2G);
+    SetConnectionType(
+        net::NetworkChangeNotifier::ConnectionType::CONNECTION_2G);
 
     identity_test_env_adaptor_ =
         std::make_unique<IdentityTestEnvironmentProfileAdaptor>(
@@ -327,7 +328,8 @@ class OptimizationGuideKeyedServiceBrowserTest
   }
 
   // Sets the connection type that the Network Connection Tracker will report.
-  void SetConnectionType(network::mojom::ConnectionType connection_type) {
+  void SetConnectionType(
+      net::NetworkChangeNotifier::ConnectionType connection_type) {
     network_connection_tracker_->SetConnectionType(connection_type);
   }
 

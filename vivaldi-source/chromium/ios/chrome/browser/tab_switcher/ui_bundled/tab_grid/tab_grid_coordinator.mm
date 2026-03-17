@@ -24,6 +24,7 @@
 #import "components/strings/grit/components_strings.h"
 #import "components/supervised_user/core/browser/supervised_user_utils.h"
 #import "ios/chrome/app/profile/first_run_profile_agent.h"
+#import "ios/chrome/browser/assistant/coordinator/assistant_sheet_coordinator.h"
 #import "ios/chrome/browser/bookmarks/model/bookmark_model_factory.h"
 #import "ios/chrome/browser/bookmarks/ui_bundled/home/bookmarks_coordinator.h"
 #import "ios/chrome/browser/bring_android_tabs/model/bring_android_tabs_to_ios_service.h"
@@ -37,13 +38,16 @@
 #import "ios/chrome/browser/favicon/model/ios_chrome_favicon_loader_factory.h"
 #import "ios/chrome/browser/feature_engagement/model/tracker_factory.h"
 #import "ios/chrome/browser/find_in_page/model/find_tab_helper.h"
-#import "ios/chrome/browser/first_run/ui_bundled/guided_tour/guided_tour_coordinator.h"
-#import "ios/chrome/browser/history/ui_bundled/history_coordinator.h"
+#import "ios/chrome/browser/first_run/guided_tour/coordinator/guided_tour_coordinator.h"
 #import "ios/chrome/browser/history/ui_bundled/history_coordinator_delegate.h"
+#import "ios/chrome/browser/history/ui_bundled/history_coordinator_factory.h"
 #import "ios/chrome/browser/history/ui_bundled/public/history_presentation_delegate.h"
 #import "ios/chrome/browser/incognito_reauth/ui_bundled/features.h"
 #import "ios/chrome/browser/incognito_reauth/ui_bundled/incognito_reauth_scene_agent.h"
-#import "ios/chrome/browser/main/ui_bundled/bvc_container_view_controller.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/bwg_constants.h"
+#import "ios/chrome/browser/intelligence/features/features.h"
+#import "ios/chrome/browser/intelligence/page_action_menu/coordinator/page_action_menu_coordinator.h"
+#import "ios/chrome/browser/main/ui/browser_layout_view_controller.h"
 #import "ios/chrome/browser/menu/ui_bundled/tab_context_menu_delegate.h"
 #import "ios/chrome/browser/policy/model/policy_util.h"
 #import "ios/chrome/browser/reading_list/model/reading_list_browser_agent.h"
@@ -59,6 +63,7 @@
 #import "ios/chrome/browser/shared/coordinator/default_browser_promo/non_modal_default_browser_promo_scheduler_scene_agent.h"
 #import "ios/chrome/browser/shared/coordinator/layout_guide/layout_guide_util.h"
 #import "ios/chrome/browser/shared/coordinator/scene/scene_state.h"
+#import "ios/chrome/browser/shared/coordinator/scene/state/tab_grid_state.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/browser/browser_list_factory.h"
@@ -69,22 +74,20 @@
 #import "ios/chrome/browser/shared/model/utils/first_run_util.h"
 #import "ios/chrome/browser/shared/model/web_state_list/browser_util.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/bookmarks_commands.h"
 #import "ios/chrome/browser/shared/public/commands/bring_android_tabs_commands.h"
 #import "ios/chrome/browser/shared/public/commands/browser_commands.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
+#import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
+#import "ios/chrome/browser/shared/public/commands/page_action_menu_commands.h"
 #import "ios/chrome/browser/shared/public/commands/popup_menu_commands.h"
 #import "ios/chrome/browser/shared/public/commands/reading_list_add_command.h"
-#import "ios/chrome/browser/shared/public/commands/settings_commands.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/tab_grid_commands.h"
 #import "ios/chrome/browser/shared/public/commands/tab_groups_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
-#import "ios/chrome/browser/shared/public/prototypes/diamond/chrome_app_bar_prototype.h"
-#import "ios/chrome/browser/shared/public/prototypes/diamond/diamond_grid_button.h"
-#import "ios/chrome/browser/shared/public/prototypes/diamond/utils.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/shared/ui/util/util_swift.h"
@@ -96,7 +99,6 @@
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
 #import "ios/chrome/browser/synced_sessions/model/distant_session.h"
 #import "ios/chrome/browser/synced_sessions/model/synced_sessions_util.h"
-#import "ios/chrome/browser/tab_switcher/tab_grid/base_grid/coordinator/tab_grid_scene_agent.h"
 #import "ios/chrome/browser/tab_switcher/tab_grid/base_grid/ui/base_grid_view_controller.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid/grid_commands.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid/grid_constants.h"
@@ -133,14 +135,15 @@
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/transitions/tab_grid_transition_handler.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/transitions/tab_grid_transition_layout_providing.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_utils.h"
-#import "ios/chrome/browser/tabs/model/inactive_tabs/features.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_browser_agent.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_params.h"
+#import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ui/base/l10n/l10n_util.h"
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
+#import "ios/chrome/browser/shared/public/commands/settings_commands.h"
 #import "ios/chrome/browser/recent_tabs/coordinator/recent_tabs_mediator.h"
 #import "ios/chrome/browser/recent_tabs/coordinator/recent_tabs_menu_helper.h"
 #import "ios/chrome/browser/recent_tabs/coordinator/recent_tabs_menu_helper.h"
@@ -257,13 +260,12 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 // Browser that contain tabs from the main pane (i.e. non-incognito).
 // TODO(crbug.com/40893775): Make regular ivar as incognito and inactive.
 @property(nonatomic, assign, readonly) Browser* regularBrowser;
-// Superclass property specialized for the class that this coordinator uses.
-@property(nonatomic, weak) TabGridViewController* baseViewController;
 // Commad dispatcher used while this coordinator's view controller is active.
 @property(nonatomic, strong) CommandDispatcher* dispatcher;
 // Container view controller for the BVC to live in; this class's view
 // controller will present this.
-@property(nonatomic, strong) BVCContainerViewController* bvcContainer;
+@property(nonatomic, weak)
+    BrowserLayoutViewController* browserLayoutViewController;
 // Handler for the transitions between the TabGrid and the Browser.
 @property(nonatomic, strong)
     LegacyTabGridTransitionHandler* legacyTransitionHandler;
@@ -285,6 +287,9 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 @property(nonatomic, strong) SharingCoordinator* sharingCoordinator;
 // The action sheet coordinator, if one is currently being shown.
 @property(nonatomic, strong) ActionSheetCoordinator* actionSheetCoordinator;
+// The coordinator for the page action menu.
+@property(nonatomic, strong)
+    PageActionMenuCoordinator* pageActionMenuCoordinator;
 // Coordinator for snackbar presentation on `_regularBrowser`.
 @property(nonatomic, strong) SnackbarCoordinator* snackbarCoordinator;
 // Coordinator for snackbar presentation on `_incognitoBrowser`.
@@ -315,30 +320,29 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   GuidedTourCoordinator* _guidedTourCoordinator;
   // Completion block for when the `_guidedTourCoordinator` finishes.
   ProceduralBlock _guidedTourCompletionBlock;
-  // App bar for the prototype.
-  ChromeAppBarPrototype* _appBar;
+  // Coordinator for the Assistant Sheet.
+  AssistantSheetCoordinator* _assistantSheetCoordinator;
+  // The view controller for the Tab Grid, defined manually so that the type can
+  // be specified.
+  TabGridViewController* _viewController;
 }
-// Superclass property.
-@synthesize baseViewController = _baseViewController;
 // Ivars are not auto-synthesized when accessors are overridden.
 @synthesize regularBrowser = _regularBrowser;
 
-- (instancetype)initWithApplicationCommandEndpoint:
-                    (id<ApplicationCommands>)applicationCommandEndpoint
-                                    regularBrowser:(Browser*)regularBrowser
-                                   inactiveBrowser:(Browser*)inactiveBrowser
-                                  incognitoBrowser:(Browser*)incognitoBrowser {
+@dynamic baseViewController;
+@synthesize viewController = _viewController;
+
+- (instancetype)initWithSceneCommandsEndpoint:
+                    (id<SceneCommands>)sceneCommandsEndpoint
+                               regularBrowser:(Browser*)regularBrowser
+                              inactiveBrowser:(Browser*)inactiveBrowser
+                             incognitoBrowser:(Browser*)incognitoBrowser {
   if ((self = [super init])) {
     CHECK(inactiveBrowser->IsInactive());
     CHECK(!regularBrowser->IsInactive());
     _dispatcher = [[CommandDispatcher alloc] init];
-    [_dispatcher startDispatchingToTarget:applicationCommandEndpoint
-                              forProtocol:@protocol(ApplicationCommands)];
-    // -startDispatchingToTarget:forProtocol: doesn't pick up protocols the
-    // passed protocol conforms to, so SettingsCommands is explicitly dispatched
-    // to the endpoint as well.
-    [_dispatcher startDispatchingToTarget:applicationCommandEndpoint
-                              forProtocol:@protocol(SettingsCommands)];
+    [_dispatcher startDispatchingToTarget:sceneCommandsEndpoint
+                              forProtocol:@protocol(SceneCommands)];
 
     _regularBrowser = regularBrowser;
     _inactiveBrowser = inactiveBrowser;
@@ -391,19 +395,15 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   }
 
   if (incognitoBrowser) {
-    self.incognitoSnackbarCoordinator = [[SnackbarCoordinator alloc]
-        initWithBaseViewController:_baseViewController
-                           browser:incognitoBrowser
-                          delegate:self];
+    self.incognitoSnackbarCoordinator =
+        [[SnackbarCoordinator alloc] initWithBaseViewController:_viewController
+                                                        browser:incognitoBrowser
+                                                       delegate:self];
     [self.incognitoSnackbarCoordinator start];
 
     [incognitoBrowser->GetCommandDispatcher()
         startDispatchingToTarget:[self bookmarksCoordinator]
                      forProtocol:@protocol(BookmarksCommands)];
-  }
-
-  if (IsDiamondPrototypeEnabled()) {
-    _appBar.incognitoBrowser = incognitoBrowser;
   }
 }
 
@@ -413,6 +413,8 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   [_incognitoGridCoordinator stopChildCoordinators];
   [_regularGridCoordinator stopChildCoordinators];
   [_tabGroupsPanelCoordinator stopChildCoordinators];
+  [_assistantSheetCoordinator stop];
+  _assistantSheetCoordinator = nil;
 
   [self cancelCollaborationFlows];
 
@@ -420,13 +422,11 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 
   [self.inactiveTabsCoordinator hide];
 
-  if (_bookmarksCoordinator) {
-  [_bookmarksCoordinator dismissBookmarkModalControllerAnimated:YES];
-  }
+  [_bookmarksCoordinator dismissBookmarkModalControllerAnimated:NO];
 
   // Vivaldi
   // A modal may be presented on top of the Recent Tabs or tab grid.
-  [self.baseViewController dismissModals];
+  [_viewController dismissModals];
   // End Vivaldi
 
   // History may be presented on top of the tab grid.
@@ -442,14 +442,14 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 }
 
 - (UIViewController*)activeViewController {
-  if (self.bvcContainer) {
-    return self.bvcContainer.currentBVC;
+  if (self.browserLayoutViewController) {
+    return self.browserLayoutViewController.currentBVC;
   }
-  return self.baseViewController;
+  return _viewController;
 }
 
 - (BOOL)isTabGridActive {
-  return self.bvcContainer == nil && !self.firstPresentation;
+  return self.browserLayoutViewController == nil && !self.firstPresentation;
 }
 
 - (void)showTabGridPage:(TabGridPage)page {
@@ -457,13 +457,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   [_mediator setActivePage:page];
 
   SceneState* sceneState = self.regularBrowser->GetSceneState();
-  [[TabGridSceneAgent agentFromScene:sceneState] willEnterTabGrid];
-
-  if (IsDiamondPrototypeEnabled()) {
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName:kDiamondEnterTabGridNotification
-                      object:nil];
-  }
+  sceneState.tabGridState.tabGridVisible = YES;
 
   BOOL animated = !self.animationsDisabledForTesting;
 
@@ -475,7 +469,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   // to Tab Grid. That is because in some instances the active page might change
   // before the block gets executed, for example when closing the last tab in
   // incognito (crbug.com/1136882).
-  TabGridPage currentActivePage = self.baseViewController.activePage;
+  TabGridPage currentActivePage = _viewController.activePage;
 
   // We force the entire window into dark mode to ensure that we will have
   // the context menu on dark. However, this action causes an unintended switch
@@ -486,7 +480,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   if (window.screen.traitCollection.userInterfaceStyle ==
       UIUserInterfaceStyleLight) {
     UIViewController* presentedViewController =
-        self.baseViewController.presentedViewController;
+        _viewController.presentedViewController;
 
     while (presentedViewController) {
       presentedViewController.overrideUserInterfaceStyle =
@@ -541,51 +535,19 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
     }
   }
 
-  __weak __typeof(self) weakSelf = self;
-
-  ProceduralBlock transitionCompletionBlock = ^{
-    TabGridCoordinator* strongSelf = weakSelf;
-    if (strongSelf && IsBestOfAppGuidedTourEnabled()) {
-      Browser* browser = strongSelf.regularBrowser;
-      FirstRunProfileAgent* profileAgent = [FirstRunProfileAgent
-          agentFromProfile:browser->GetSceneState().profileState];
-      [profileAgent tabGridWasPresented];
-    }
-    [weakSelf transitionToGridCompleteForAndroidTabsPrompt:
-                  shouldDisplayBringAndroidTabsPrompt];
-  };
-
-  ProceduralBlock transitionBlock = ^{
-    __typeof(self) strongSelf = weakSelf;
-    if (!strongSelf) {
-      return;
-    }
-
-    strongSelf.baseViewController.childViewControllerForStatusBarStyle = nil;
-
-    if (IsNewTabGridTransitionsEnabled()) {
-      BOOL isIncognito = page == TabGridPageIncognitoTabs;
-
-      [strongSelf
-          performBrowserToTabGridTransitionWithAnimationEnabled:animated
-                                                    isIncognito:isIncognito
-                                                     completion:
-                                                         transitionCompletionBlock];
-    } else {
-      [strongSelf
-          performLegacyBrowserToTabGridTransitionWithActivePage:
-              currentActivePage
-                                               animationEnabled:animated
-                                                     toTabGroup:toTabGroup
-                                                     completion:
-                                                         transitionCompletionBlock];
-    }
-  };
-
   // If a BVC is currently being presented, dismiss it.  This will trigger any
   // necessary animations.
-  if (self.bvcContainer) {
-    [self.baseViewController contentWillAppearAnimated:animated];
+  if (self.browserLayoutViewController) {
+    [_viewController contentWillAppearAnimated:animated];
+    __weak __typeof(self) weakSelf = self;
+    ProceduralBlock transitionBlock = ^{
+      [weakSelf performTransitionToTabGridWithPage:page
+                                 currentActivePage:currentActivePage
+                                          animated:animated
+                                        toTabGroup:toTabGroup
+                    shouldDisplayAndroidTabsPrompt:
+                        shouldDisplayBringAndroidTabsPrompt];
+    };
     // This is done with a dispatch to make sure that the view isn't added to
     // the view hierarchy right away, as it is not the expectations of the
     // API.
@@ -611,35 +573,17 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   [self.priceCardMediator logMetrics:TAB_SWITCHER];
 }
 
-- (void)showTabViewController:(UIViewController*)viewController
-                    incognito:(BOOL)incognito
-                   completion:(ProceduralBlock)completion {
-  DCHECK(viewController || self.bvcContainer);
+- (void)showBrowserLayoutViewController:
+            (BrowserLayoutViewController*)viewController
+                              incognito:(BOOL)incognito
+                             completion:(ProceduralBlock)completion {
+  DCHECK(viewController || self.browserLayoutViewController);
 
   SceneState* sceneState = self.regularBrowser->GetSceneState();
-  [[TabGridSceneAgent agentFromScene:sceneState] willExitTabGrid];
+  BOOL wasTabGridVisible = sceneState.tabGridState.tabGridVisible;
+  sceneState.tabGridState.tabGridVisible = NO;
 
   __weak TabGridCoordinator* weakSelf = self;
-
-  if (IsDiamondPrototypeEnabled()) {
-    Browser* browser =
-        incognito ? _incognitoBrowser.get() : self.regularBrowser;
-    // Don't open the TabGrid if there is no web state. It can happen at
-    // startup.
-    if (browser && browser->GetWebStateList()->count() == 0) {
-      TabGridViewController* baseViewController = self.baseViewController;
-      [baseViewController contentWillAppearAnimated:NO];
-      [baseViewController contentDidAppear];
-      if (completion) {
-        completion();
-      }
-      return;
-    }
-
-    [[NSNotificationCenter defaultCenter]
-        postNotificationName:kDiamondLeaveTabGridNotification
-                      object:nil];
-  }
 
   completion = ^{
     if (self.tabGridEnterTime.is_null()) {
@@ -669,26 +613,34 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
       UIUserInterfaceStyleUnspecified;
   } // End Vivaldi
 
-  // If another BVC is already being presented, swap this one into the
-  // container.
-  if (self.bvcContainer) {
-    self.bvcContainer.currentBVC = viewController;
-    self.bvcContainer.incognito = incognito;
-    self.baseViewController.childViewControllerForStatusBarStyle =
-        viewController;
-    [self.baseViewController setNeedsStatusBarAppearanceUpdate];
+  // If another browserLayoutViewController is already being presented, swap
+  // this one into the container.
+  if (self.browserLayoutViewController && !wasTabGridVisible) {
+    if (self.browserLayoutViewController != viewController) {
+      // When swapping between browsers (e.g. Regular <-> Incognito)
+      // without going through the tab grid, we must manually swap the
+      // container views in the hierarchy.
+      CGRect frame = self.browserLayoutViewController.view.frame;
+      [self.browserLayoutViewController.view removeFromSuperview];
+      [self.browserLayoutViewController removeFromParentViewController];
+
+      self.browserLayoutViewController = viewController;
+
+      [_viewController addChildViewController:viewController];
+      viewController.view.frame = frame;
+      viewController.view.alpha = 1.0;
+      [_viewController.view addSubview:viewController.view];
+      [viewController didMoveToParentViewController:_viewController];
+    }
+    _viewController.childViewControllerForStatusBarStyle = viewController;
+    [_viewController setNeedsStatusBarAppearanceUpdate];
     if (completion) {
       completion();
     }
     return;
   }
 
-  self.bvcContainer = [[BVCContainerViewController alloc] init];
-  self.bvcContainer.currentBVC = viewController;
-  self.bvcContainer.incognito = incognito;
-  // Set fallback presenter, because currentBVC can be nil if the tab grid is
-  // up but no tabs exist in current page.
-  self.bvcContainer.fallbackPresenterViewController = self.baseViewController;
+  self.browserLayoutViewController = viewController;
 
   BOOL animated = !self.animationsDisabledForTesting;
   // Never animate the first time.
@@ -699,8 +651,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   if (IsIOSSoftLockEnabled()) {
     // Only check the lock state if animation is enabled and the current
     // interface is Incognito.
-    if (animated &&
-        self.baseViewController.activePage == TabGridPageIncognitoTabs) {
+    if (animated && _viewController.activePage == TabGridPageIncognitoTabs) {
       IncognitoReauthSceneAgent* incognitoReauthAgent =
           [IncognitoReauthSceneAgent
               agentFromScene:self.incognitoBrowser->GetSceneState()];
@@ -718,25 +669,27 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
     // the animation can start from the correct cell. Once the animation is
     // complete, reset the tab grid mode.
     [self setActiveMode:TabGridMode::kNormal];
-    Browser* browser = self.bvcContainer.incognito ? self.incognitoBrowser
-                                                   : self.regularBrowser;
+    Browser* browser = incognito ? self.incognitoBrowser : self.regularBrowser;
     if (!GetFirstResponderInWindowScene(
-            self.baseViewController.view.window.windowScene) &&
+            self.viewController.view.window.windowScene) &&
         !FindNavigatorShouldBePresentedInBrowser(browser)) {
       // It is possible to already have a first responder (for example the
-      // omnibox). In that case, we don't want to mark BVC as first responder.
-      [self.bvcContainer.currentBVC becomeFirstResponder];
+      [self.browserLayoutViewController.currentBVC becomeFirstResponder];
     }
     if (completion) {
       completion();
     }
     self.firstPresentation = NO;
+
+    if (IsNewTabGridTransitionsEnabled()) {
+      self.transitionHandler = nil;
+    }
   };
 
-  self.baseViewController.childViewControllerForStatusBarStyle =
-      self.bvcContainer.currentBVC;
+  _viewController.childViewControllerForStatusBarStyle =
+      self.browserLayoutViewController.currentBVC;
 
-  [self.baseViewController contentWillDisappearAnimated:animated];
+  [_viewController contentWillDisappearAnimated:animated];
 
   if (IsNewTabGridTransitionsEnabled()) {
     [self performTabGridToBrowserTransitionWithAnimationEnabled:animated
@@ -744,8 +697,8 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
                                                      completion:
                                                          extendedCompletion];
   } else {
-    [self performLegacyTabGridToBrowserTransitionWithActivePage:
-              self.baseViewController.activePage
+    [self performLegacyTabGridToBrowserTransitionWithActivePage:_viewController
+                                                                    .activePage
                                                animationEnabled:animated
                                                      completion:
                                                          extendedCompletion];
@@ -765,7 +718,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   if (!_bookmarksCoordinator) {
     _bookmarksCoordinator =
         [[BookmarksCoordinator alloc] initWithBrowser:self.regularBrowser];
-    _bookmarksCoordinator.baseViewController = self.baseViewController;
+    _bookmarksCoordinator.baseViewController = _viewController;
   }
   return _bookmarksCoordinator;
 }
@@ -774,12 +727,12 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   if (!_bringAndroidTabsPromptCoordinator) {
     _bringAndroidTabsPromptCoordinator =
         [[BringAndroidTabsPromptCoordinator alloc]
-            initWithBaseViewController:self.baseViewController
+            initWithBaseViewController:_viewController
                                browser:self.regularBrowser];
     _bringAndroidTabsPromptCoordinator.commandHandler = self;
   }
   [_bringAndroidTabsPromptCoordinator start];
-  [self.baseViewController
+  [_viewController
       presentViewController:_bringAndroidTabsPromptCoordinator.viewController
                    animated:YES
                  completion:nil];
@@ -792,8 +745,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
                          animationEnabled:(BOOL)animationEnabled
                               isIncognito:(BOOL)isIncognito
                                completion:(ProceduralBlock)completionHandler {
-  TabGridTransitionType transitionType = [self
-      determineTabGridTransitionTypeWithAnimationEnabled:animationEnabled];
+  TabGridTransitionType transitionType = [self determineTabGridTransitionType];
 
   Browser* browser = isIncognito ? self.incognitoBrowser : self.regularBrowser;
   if (!browser) {
@@ -808,19 +760,91 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
                              IsUrlNtp(activeWebState->GetVisibleURL());
 
   if (!activeWebState) {
-    transitionType = TabGridTransitionType::kAnimationDisabled;
+    animationEnabled = NO;
   }
 
-  self.transitionHandler = [[TabGridTransitionHandler alloc]
-               initWithTransitionType:transitionType
-                            direction:direction
-      tabGridTransitionLayoutProvider:self
-                tabGridViewController:self.baseViewController
-           bvcContainerViewController:self.bvcContainer
-                    layoutGuideCenter:LayoutGuideCenterForBrowser(browser)
-                  isRegularBrowserNTP:isRegularBrowserNTP
-                            incognito:isIncognito];
+  if (animationEnabled) {
+    self.transitionHandler = [[TabGridTransitionHandler alloc]
+                 initWithTransitionType:transitionType
+                              direction:direction
+        tabGridTransitionLayoutProvider:self
+                  tabGridViewController:_viewController
+            browserLayoutViewController:self.browserLayoutViewController
+                      layoutGuideCenter:LayoutGuideCenterForBrowser(browser)
+                    isRegularBrowserNTP:isRegularBrowserNTP
+                              incognito:isIncognito];
+
+  } else {
+    self.transitionHandler = [[TabGridTransitionHandler alloc]
+        initWithDisabledAnimationWithDirection:direction
+                   browserLayoutViewController:self.browserLayoutViewController
+                         tabGridViewController:_viewController];
+  }
   [self.transitionHandler performTransitionWithCompletion:completionHandler];
+}
+
+// Handles the completion of the transition to the tab grid, including
+// displaying the "Bring Android Tabs" prompt if needed and notifying the
+// guided tour.
+- (void)handleTransitionToTabGridCompletionWithBringAndroidTabsPrompt:
+    (BOOL)shouldDisplayBringAndroidTabsPrompt {
+  Browser* browser = self.regularBrowser;
+  if (!browser) {
+    return;
+  }
+
+  if (IsNewTabGridTransitionsEnabled()) {
+    self.transitionHandler = nil;
+  }
+
+  if (IsBestOfAppGuidedTourEnabled()) {
+    FirstRunProfileAgent* profileAgent = [FirstRunProfileAgent
+        agentFromProfile:browser->GetSceneState().profileState];
+    [profileAgent tabGridWasPresented];
+  }
+  [self transitionToGridCompleteForAndroidTabsPrompt:
+            shouldDisplayBringAndroidTabsPrompt];
+}
+
+// Performs the transition from browser to tab grid, handling UI updates and
+// selecting the appropriate transition method based on feature flags.
+- (void)performTransitionToTabGridWithPage:(TabGridPage)page
+                         currentActivePage:(TabGridPage)currentActivePage
+                                  animated:(BOOL)animated
+                                toTabGroup:(BOOL)toTabGroup
+            shouldDisplayAndroidTabsPrompt:
+                (BOOL)shouldDisplayBringAndroidTabsPrompt {
+  _viewController.childViewControllerForStatusBarStyle = nil;
+
+  if (IsGeminiCopresenceEnabled()) {
+    id<BWGCommands> geminiHandler = HandlerForProtocol(
+        self.regularBrowser->GetCommandDispatcher(), BWGCommands);
+    [geminiHandler
+        hideFloatyIfInvokedAnimated:NO
+                         fromSource:gemini::FloatyUpdateSource::TabGrid];
+  }
+
+  __weak __typeof(self) weakSelf = self;
+  ProceduralBlock transitionCompletionBlock = ^{
+    [weakSelf handleTransitionToTabGridCompletionWithBringAndroidTabsPrompt:
+                  shouldDisplayBringAndroidTabsPrompt];
+  };
+
+  if (IsNewTabGridTransitionsEnabled()) {
+    BOOL isIncognito = page == TabGridPageIncognitoTabs;
+    [self
+        performBrowserToTabGridTransitionWithAnimationEnabled:animated
+                                                  isIncognito:isIncognito
+                                                   completion:
+                                                       transitionCompletionBlock];
+  } else {
+    [self
+        performLegacyBrowserToTabGridTransitionWithActivePage:currentActivePage
+                                             animationEnabled:animated
+                                                   toTabGroup:toTabGroup
+                                                   completion:
+                                                       transitionCompletionBlock];
+  }
 }
 
 // Performs the new browser to tab grid transition.
@@ -859,20 +883,21 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
                                                toTabGroup:(BOOL)toTabGroup
                                                completion:
                                                    (ProceduralBlock)completion {
-  if (!self.bvcContainer) {
+  if (!self.browserLayoutViewController) {
     // It is possible that the Grid is presented twice in a row. Because the
     // detection of "the Browser is visible" is based on a null check of
-    // `self.bvcContainer` which is nullified at the end of the animation, so
-    // two animations could be started in a short sequence.
+    // `self.browserLayoutViewController` which is nullified at the end of the
+    // animation, so two animations could be started in a short sequence.
     return;
   }
   self.legacyTransitionHandler =
       [self createTransitionHanlderWithAnimationEnabled:animationEnabled];
-  [self.legacyTransitionHandler transitionFromBrowser:self.bvcContainer
-                                            toTabGrid:self.baseViewController
-                                           toTabGroup:toTabGroup
-                                           activePage:activePage
-                                       withCompletion:completion];
+  [self.legacyTransitionHandler
+      transitionFromBrowserLayout:self.browserLayoutViewController
+                        toTabGrid:_viewController
+                       toTabGroup:toTabGroup
+                       activePage:activePage
+                   withCompletion:completion];
 }
 
 // Performs the legacy Tab Grid to Browser transition.
@@ -884,19 +909,20 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
                                                    (ProceduralBlock)completion {
   self.legacyTransitionHandler =
       [self createTransitionHanlderWithAnimationEnabled:animationEnabled];
-  [self.legacyTransitionHandler transitionFromTabGrid:self.baseViewController
-                                            toBrowser:self.bvcContainer
-                                           activePage:activePage
-                                       withCompletion:completion];
+  [self.legacyTransitionHandler
+      transitionFromTabGrid:_viewController
+            toBrowserLayout:self.browserLayoutViewController
+                 activePage:activePage
+             withCompletion:completion];
 }
 
 // Called when the transition from Browser to Tab Grid is complete and whether
 // it `shouldDisplayBringAndroidTabsPrompt`.
 - (void)transitionToGridCompleteForAndroidTabsPrompt:
     (BOOL)shouldDisplayBringAndroidTabsPrompt {
-  self.bvcContainer = nil;
-  _frameWhenEntering = self.baseViewController.view.frame;
-  [self.baseViewController contentDidAppear];
+  self.browserLayoutViewController = nil;
+  _frameWhenEntering = _viewController.view.frame;
+  [_viewController contentDidAppear];
 
   if (shouldDisplayBringAndroidTabsPrompt) {
     [self displayBringAndroidTabsPrompt];
@@ -926,11 +952,8 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 }
 
 // Determines the transion type to be used in the transition.
-- (TabGridTransitionType)determineTabGridTransitionTypeWithAnimationEnabled:
-    (BOOL)animationEnabled {
-  if (!animationEnabled) {
-    return TabGridTransitionType::kAnimationDisabled;
-  } else if (UIAccessibilityIsReduceMotionEnabled()) {
+- (TabGridTransitionType)determineTabGridTransitionType {
+  if (UIAccessibilityIsReduceMotionEnabled()) {
     return TabGridTransitionType::kReducedMotion;
   }
 
@@ -974,43 +997,10 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   std::unique_ptr<IOSCollaborationControllerDelegate> delegate =
       std::make_unique<IOSCollaborationControllerDelegate>(
           browser, CreateControllerDelegateParamsFromProfile(
-                       browser->GetProfile(), self.baseViewController,
+                       browser->GetProfile(), _viewController,
                        FlowType::kShareOrManage));
   collaborationService->StartShareOrManageFlow(
       std::move(delegate), tabGroup->tab_group_id(), entryPoint);
-}
-
-- (void)prototypeGeminiCallback {
-  CHECK(IsDiamondPrototypeEnabled());
-  TabGridPage page = self.baseViewController.currentPage;
-  if (page == TabGridPageTabGroups) {
-    page = self.baseViewController.activePage;
-  }
-  DiamondPrototypeStartGemini(
-      !self.bvcContainer, page == TabGridPageIncognitoTabs, self.regularBrowser,
-      self.incognitoBrowser, self.baseViewController);
-}
-
-- (void)prototypeNewTabCallback {
-  CHECK(IsDiamondPrototypeEnabled());
-  TabGridPage page = self.baseViewController.currentPage;
-  if (page == TabGridPageTabGroups) {
-    page = self.baseViewController.activePage;
-  }
-  DiamondPrototypeStartNewTab(
-      !self.bvcContainer, page == TabGridPageIncognitoTabs, self.regularBrowser,
-      self.incognitoBrowser, self.baseViewController);
-}
-
-- (void)prototypeTabGridCallback {
-  CHECK(IsDiamondPrototypeEnabled());
-  if (self.bvcContainer) {
-    id<ApplicationCommands> applicationHandler =
-        HandlerForProtocol(self.dispatcher, ApplicationCommands);
-    [applicationHandler displayTabGridInMode:TabGridOpeningMode::kDefault];
-  } else {
-    [self exitTabGrid];
-  }
 }
 
 // Cancels all the currently active collaboration flows.
@@ -1043,69 +1033,56 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
                                    GetForProfile(profile)
                     modeHolder:_modeHolder];
 
-  id<ApplicationCommands> applicationCommandsHandler =
-      HandlerForProtocol(self.dispatcher, ApplicationCommands);
+  _mediator.tabGridState = _regularBrowser->GetSceneState().tabGridState;
 
-  TabGridViewController* baseViewController = [[TabGridViewController alloc]
+  id<SceneCommands> sceneHandler =
+      HandlerForProtocol(self.dispatcher, SceneCommands);
+  id<BWGCommands> geminiHandler =
+      HandlerForProtocol(_regularBrowser->GetCommandDispatcher(), BWGCommands);
+
+  _viewController = [[TabGridViewController alloc]
       initWithPageConfiguration:_pageConfiguration];
-  baseViewController.handler = applicationCommandsHandler;
-  baseViewController.tabPresentationDelegate = self;
-  baseViewController.layoutGuideCenter = LayoutGuideCenterForBrowser(nil);
-  baseViewController.delegate = self;
-  baseViewController.tabGridHandler = self;
-  baseViewController.mutator = _mediator;
-  _baseViewController = baseViewController;
+  _viewController.handler = sceneHandler;
+  _viewController.geminiHandler = geminiHandler;
+  _viewController.tabPresentationDelegate = self;
+  _viewController.layoutGuideCenter = LayoutGuideCenterForBrowser(nil);
+  _viewController.delegate = self;
+  _viewController.tabGridHandler = self;
+  _viewController.mutator = _mediator;
 
-  _mediator.consumer = _baseViewController;
+  _mediator.consumer = _viewController;
 
   _toolbarsCoordinator = [[TabGridToolbarsCoordinator alloc]
-      initWithBaseViewController:baseViewController
+      initWithBaseViewController:_viewController
                          browser:_regularBrowser];
-  _toolbarsCoordinator.searchDelegate = self.baseViewController;
-  _toolbarsCoordinator.toolbarTabGridDelegate = self.baseViewController;
+  _toolbarsCoordinator.searchDelegate = _viewController;
+  _toolbarsCoordinator.toolbarTabGridDelegate = _viewController;
   _toolbarsCoordinator.modeHolder = _modeHolder;
   [_toolbarsCoordinator start];
-  self.baseViewController.topToolbar = _toolbarsCoordinator.topToolbar;
-  self.baseViewController.bottomToolbar = _toolbarsCoordinator.bottomToolbar;
-
-  if (IsDiamondPrototypeEnabled()) {
-    _appBar = [[ChromeAppBarPrototype alloc] init];
-    _appBar.regularBrowser = _regularBrowser;
-    _appBar.incognitoBrowser = _incognitoBrowser;
-    [_appBar.askGeminiButton addTarget:self
-                                action:@selector(prototypeGeminiCallback)
-                      forControlEvents:UIControlEventTouchUpInside];
-    [_appBar.openNewTabButton addTarget:self
-                                 action:@selector(prototypeNewTabCallback)
-                       forControlEvents:UIControlEventTouchUpInside];
-    [_appBar.tabGridButton addTarget:self
-                              action:@selector(prototypeTabGridCallback)
-                    forControlEvents:UIControlEventTouchUpInside];
-    [self.baseViewController setAppBar:_appBar];
-  }
+  _viewController.topToolbar = _toolbarsCoordinator.topToolbar;
+  _viewController.bottomToolbar = _toolbarsCoordinator.bottomToolbar;
 
   _regularGridCoordinator = [[RegularGridCoordinator alloc]
-      initWithBaseViewController:self.baseViewController
+      initWithBaseViewController:_viewController
                          browser:_regularBrowser
                  toolbarsMutator:_toolbarsCoordinator.toolbarsMutator
             gridMediatorDelegate:self];
-  _regularGridCoordinator.disabledTabViewControllerDelegate =
-      self.baseViewController;
+  _regularGridCoordinator.disabledTabViewControllerDelegate = _viewController;
   _regularGridCoordinator.tabGroupPositioner = self;
   _regularGridCoordinator.tabContextMenuDelegate = self;
   _regularGridCoordinator.modeHolder = _modeHolder;
 
   [_regularGridCoordinator start];
 
-  baseViewController.regularTabsViewController =
+  _viewController.regularTabsViewController =
       _regularGridCoordinator.gridViewController;
-  baseViewController.regularDisabledGridViewController =
+  _viewController.regularDisabledGridViewController =
       _regularGridCoordinator.disabledViewController;
-  baseViewController.regularGridContainerViewController =
+  _viewController.regularGridContainerViewController =
       _regularGridCoordinator.gridContainerViewController;
-  baseViewController.pinnedTabsViewController =
+  _viewController.pinnedTabsViewController =
       _regularGridCoordinator.pinnedTabsViewController;
-  baseViewController.regularGridHandler = _regularGridCoordinator.gridHandler;
+  _viewController.regularGridHandler = _regularGridCoordinator.gridHandler;
   self.regularTabsMediator = _regularGridCoordinator.regularGridMediator;
 
   WebStateList* regularWebStateList =
@@ -1124,15 +1101,14 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
         profilePrefService:_inactiveBrowser->GetProfile()->GetPrefs()];
   }
 
-  baseViewController.priceCardDataSource = self.priceCardMediator;
+  _viewController.priceCardDataSource = self.priceCardMediator;
 
   _incognitoGridCoordinator = [[IncognitoGridCoordinator alloc]
-      initWithBaseViewController:self.baseViewController
+      initWithBaseViewController:_viewController
                          browser:_incognitoBrowser
                  toolbarsMutator:_toolbarsCoordinator.toolbarsMutator
             gridMediatorDelegate:self];
-  _incognitoGridCoordinator.disabledTabViewControllerDelegate =
-      self.baseViewController;
+  _incognitoGridCoordinator.disabledTabViewControllerDelegate = _viewController;
   _incognitoGridCoordinator.tabGroupPositioner = self;
   _incognitoGridCoordinator.audience = self;
   _incognitoGridCoordinator.tabContextMenuDelegate = self;
@@ -1145,38 +1121,37 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
       initializeFamilyLinkUserCapabilitiesObserver:IdentityManagerFactory::
                                                        GetForProfile(profile)];
 
-  baseViewController.incognitoGridHandler =
-      _incognitoGridCoordinator.gridHandler;
+  _viewController.incognitoGridHandler = _incognitoGridCoordinator.gridHandler;
 
-  baseViewController.incognitoTabsViewController =
+  _viewController.incognitoTabsViewController =
       _incognitoGridCoordinator.gridViewController;
-  baseViewController.incognitoDisabledGridViewController =
+  _viewController.incognitoDisabledGridViewController =
       _incognitoGridCoordinator.disabledViewController;
-  baseViewController.incognitoGridContainerViewController =
+  _viewController.incognitoGridContainerViewController =
       _incognitoGridCoordinator.gridContainerViewController;
 
   // Vivaldi
-  [self setupRemoteTabs:baseViewController regularProfile:profile];
-  [self setupRecentlyClosedTab:baseViewController regularProfile:profile];
+  [self setupRemoteTabs:_viewController regularProfile:profile];
+  [self setupRecentlyClosedTab:_viewController regularProfile:profile];
   // End Vivaldi
 
   _tabGroupsPanelCoordinator = [[TabGroupsPanelCoordinator alloc]
-          initWithBaseViewController:_baseViewController
+          initWithBaseViewController:_viewController
                       regularBrowser:_regularBrowser
                      toolbarsMutator:_toolbarsCoordinator.toolbarsMutator
-      disabledViewControllerDelegate:_baseViewController];
+      disabledViewControllerDelegate:_viewController];
 
   [_tabGroupsPanelCoordinator start];
 
-  baseViewController.tabGroupsPanelViewController =
+  _viewController.tabGroupsPanelViewController =
       _tabGroupsPanelCoordinator.gridViewController;
-  baseViewController.tabGroupsDisabledGridViewController =
+  _viewController.tabGroupsDisabledGridViewController =
       _tabGroupsPanelCoordinator.disabledViewController;
-  baseViewController.tabGroupsGridContainerViewController =
+  _viewController.tabGroupsGridContainerViewController =
       _tabGroupsPanelCoordinator.gridContainerViewController;
 
   self.inactiveTabsCoordinator = [[InactiveTabsCoordinator alloc]
-      initWithBaseViewController:self.baseViewController
+      initWithBaseViewController:_viewController
                          browser:_inactiveBrowser
                         delegate:self];
   self.inactiveTabsCoordinator.tabContextMenuDelegate = self;
@@ -1191,18 +1166,20 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   // Vivaldi
   _remoteGridContainerViewController =
       [[GridContainerViewController alloc] init];
-  self.baseViewController.remoteGridContainerViewController =
+  _viewController.remoteGridContainerViewController =
       _remoteGridContainerViewController;
   _closedGridContainerViewController =
       [[GridContainerViewController alloc] init];
-  self.baseViewController.closedGridContainerViewController =
+  _viewController.closedGridContainerViewController =
       _closedGridContainerViewController;
   // End Vivaldi
 
   self.firstPresentation = YES;
 
   SceneState* sceneState = self.regularBrowser->GetSceneState();
-  sceneState.window.rootViewController = self.baseViewController;
+  if (!IsUseSceneViewControllerEnabled()) {
+    sceneState.window.rootViewController = _viewController;
+  }
 
   _mediator.regularPageMutator = _regularGridCoordinator.regularGridMediator;
   _mediator.incognitoPageMutator = self.incognitoTabsMediator;
@@ -1213,35 +1190,35 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   _mediator.remotePageMutator = self.remoteTabsMediator;
   self.remoteTabsMediator.toolbarsMutator =
       _toolbarsCoordinator.toolbarsMutator;
-  self.remoteTabsMediator.gridConsumer = self.baseViewController;
+  self.remoteTabsMediator.gridConsumer = _viewController;
 
   _mediator.closedPageMutator = self.closedTabsMediator;
   self.closedTabsMediator.toolbarsMutator =
       _toolbarsCoordinator.toolbarsMutator;
-  self.closedTabsMediator.gridConsumer = self.baseViewController;
+  self.closedTabsMediator.gridConsumer = _viewController;
   // End Vivaldi
 
   self.incognitoTabsMediator.tabPresentationDelegate = self;
   self.regularTabsMediator.tabPresentationDelegate = self;
 
-  self.incognitoTabsMediator.gridConsumer = self.baseViewController;
-  self.regularTabsMediator.gridConsumer = self.baseViewController;
+  self.incognitoTabsMediator.gridConsumer = _viewController;
+  self.regularTabsMediator.gridConsumer = _viewController;
 
   // Set the `baseViewController` active and current page.
   TabGridPage page = profile->IsOffTheRecord() ? TabGridPageIncognitoTabs
                                                : TabGridPageRegularTabs;
   [_mediator setActivePage:page];
 
-  self.incognitoTabsMediator.tabGridIdleStatusHandler = self.baseViewController;
-  self.regularTabsMediator.tabGridIdleStatusHandler = self.baseViewController;
+  self.incognitoTabsMediator.tabGridIdleStatusHandler = _viewController;
+  self.regularTabsMediator.tabGridIdleStatusHandler = _viewController;
 
   self.snackbarCoordinator =
-      [[SnackbarCoordinator alloc] initWithBaseViewController:baseViewController
+      [[SnackbarCoordinator alloc] initWithBaseViewController:_viewController
                                                       browser:_regularBrowser
                                                      delegate:self];
   [self.snackbarCoordinator start];
   self.incognitoSnackbarCoordinator =
-      [[SnackbarCoordinator alloc] initWithBaseViewController:baseViewController
+      [[SnackbarCoordinator alloc] initWithBaseViewController:_viewController
                                                       browser:_incognitoBrowser
                                                      delegate:self];
   [self.incognitoSnackbarCoordinator start];
@@ -1259,22 +1236,28 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   // to initialize them.
   _regularBrowser = nil;
   _incognitoBrowser = nil;
+  _inactiveBrowser = nil;
 }
 
 - (void)stop {
   SceneState* sceneState = self.regularBrowser->GetSceneState();
   [sceneState removeObserver:self];
 
-  // The TabGridViewController may still message its application commands
+  // The TabGridViewController may still message its scene and gemini commands
   // handler after this coordinator has stopped; make this action a no-op by
   // setting the handler to nil.
-  self.baseViewController.handler = nil;
+  _viewController.handler = nil;
+  _viewController.geminiHandler = nil;
+  _viewController = nil;
   [self.sharingCoordinator stop];
   self.sharingCoordinator = nil;
   [self.incognitoBrowser->GetCommandDispatcher() stopDispatchingToTarget:self];
   [self.regularBrowser->GetCommandDispatcher() stopDispatchingToTarget:self];
-  [self.dispatcher stopDispatchingForProtocol:@protocol(ApplicationCommands)];
-  [self.dispatcher stopDispatchingForProtocol:@protocol(SettingsCommands)];
+  [self.dispatcher stopDispatchingForProtocol:@protocol(SceneCommands)];
+
+  if (IsNewTabGridTransitionsEnabled()) {
+    self.transitionHandler = nil;
+  }
 
   [_toolbarsCoordinator stop];
   _toolbarsCoordinator = nil;
@@ -1311,17 +1294,20 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   [_bookmarksCoordinator stop];
   _bookmarksCoordinator = nil;
 
+  [self.pageActionMenuCoordinator stop];
+  self.pageActionMenuCoordinator = nil;
+
   [_mediator disconnect];
 
   // Vivaldi
-  [self.baseViewController.remoteTabsViewController dismissModals];
-  self.baseViewController.remoteTabsViewController.browser = nil;
+  [_viewController.remoteTabsViewController dismissModals];
+  _viewController.remoteTabsViewController.browser = nil;
   [self.remoteTabsMediator disconnect];
   self.remoteTabsMediator = nil;
   self.recentTabsContextMenuHelper = nil;
 
-  [self.baseViewController.closedTabsViewController dismissModals];
-  self.baseViewController.closedTabsViewController.browser = nil;
+  [_viewController.closedTabsViewController dismissModals];
+  _viewController.closedTabsViewController.browser = nil;
   [self.closedTabsMediator disconnect];
   self.closedTabsMediator = nil;
   self.closedTabsContextMenuHelper = nil;
@@ -1387,13 +1373,13 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
                            groupIDs:
                                (const std::set<tab_groups::TabGroupId>&)groupIDs
                            tabCount:(int)tabCount
-                             anchor:(UIBarButtonItem*)buttonAnchor {
+                             anchor:(UIView*)buttonAnchor {
   if (baseGridMediator == self.regularTabsMediator) {
     base::RecordAction(base::UserMetricsAction(
         "MobileTabGridSelectionCloseRegularTabsConfirmationPresented"));
 
     self.actionSheetCoordinator = [[ActionSheetCoordinator alloc]
-        initWithBaseViewController:self.baseViewController
+        initWithBaseViewController:_viewController
                            browser:self.regularBrowser
                              title:nil
                            message:nil
@@ -1408,7 +1394,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
         "MobileTabGridSelectionCloseIncognitoTabsConfirmationPresented"));
 
     self.actionSheetCoordinator = [[ActionSheetCoordinator alloc]
-        initWithBaseViewController:self.baseViewController
+        initWithBaseViewController:_viewController
                            browser:self.incognitoBrowser
                              title:nil
                            message:nil
@@ -1451,16 +1437,16 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 
 - (void)baseGridMediator:(BaseGridMediator*)baseGridMediator
                shareURLs:(NSArray<URLWithTitle*>*)URLs
-                  anchor:(UIBarButtonItem*)buttonAnchor {
+                  anchor:(UIView*)buttonAnchor {
   SharingParams* params = [[SharingParams alloc]
       initWithURLs:URLs
           scenario:SharingScenario::TabGridSelectionMode];
 
-  self.sharingCoordinator = [[SharingCoordinator alloc]
-      initWithBaseViewController:self.baseViewController
-                         browser:self.regularBrowser
-                          params:params
-                          anchor:buttonAnchor];
+  self.sharingCoordinator =
+      [[SharingCoordinator alloc] initWithBaseViewController:_viewController
+                                                     browser:self.regularBrowser
+                                                      params:params
+                                                  sourceItem:buttonAnchor];
   [self.sharingCoordinator start];
 }
 
@@ -1478,21 +1464,19 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 #pragma mark - GridCoordinatorAudience
 
 - (void)incognitoGridDidChange {
-  self.baseViewController.incognitoTabsViewController =
+  _viewController.incognitoTabsViewController =
       _incognitoGridCoordinator.gridViewController;
 }
 
 #pragma mark - TabGridViewControllerDelegate
 
 - (void)openLinkWithURL:(const GURL&)URL {
-  id<ApplicationCommands> handler =
-      HandlerForProtocol(self.dispatcher, ApplicationCommands);
+  id<SceneCommands> handler =
+      HandlerForProtocol(self.dispatcher, SceneCommands);
   [handler openURLInNewTab:[OpenNewTabCommand commandWithURLFromChrome:URL]];
 }
 
 - (void)showInactiveTabs {
-  CHECK(!IsInactiveTabsExplicitlyDisabledByUser(
-      _inactiveBrowser->GetProfile()->GetPrefs()));
   [self.inactiveTabsCoordinator show];
 }
 
@@ -1531,7 +1515,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 
 - (void)closeCurrentTab {
   Browser* browser = nil;
-  switch (self.baseViewController.activePage) {
+  switch (_viewController.activePage) {
     case TabGridPageIncognitoTabs:
       browser = self.incognitoBrowser;
       break;
@@ -1593,6 +1577,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 
 - (void)closeHistoryWithCompletion:(ProceduralBlock)completion {
   __weak __typeof(self) weakSelf = self;
+  __weak __typeof(_viewController) weakViewController = _viewController;
   [self.historyCoordinator dismissWithCompletion:^{
     if (completion) {
       completion();
@@ -1609,18 +1594,18 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
       // When setting TabGridMode to kSearch, the string in the search bar
       // is initialized to an empty string, so we override with the previous
       // string
-      [weakSelf.baseViewController.topToolbar setSearchBarText:previousString];
+      [weakViewController.topToolbar setSearchBarText:previousString];
     } else {
     // Only if current page is TabGridPageRegularTabs, restore TabGridMode to
     // kSearch to keep the tab search filter is still active, as we set
     // TabGridMode to kNormal before opening history search. For other pages,
     // there is no need to restore kSearch mode.
-    if (weakSelf.baseViewController.currentPage == TabGridPageRegularTabs) {
+    if (weakViewController.currentPage == TabGridPageRegularTabs) {
       [weakSelf setActiveMode:TabGridMode::kSearch];
       // When setting TabGridMode to kSearch, the string in the search bar
       // is initialized to an empty string, so we override with the previous
       // string
-      [weakSelf.baseViewController.topToolbar setSearchBarText:previousString];
+      [weakViewController.topToolbar setSearchBarText:previousString];
     }
     } // End Vivaldi
 
@@ -1640,11 +1625,11 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   SharingParams* params = [[SharingParams alloc] initWithURL:URL
                                                        title:title
                                                     scenario:scenario];
-  self.sharingCoordinator = [[SharingCoordinator alloc]
-      initWithBaseViewController:self.baseViewController
-                         browser:self.regularBrowser
-                          params:params
-                      originView:view];
+  self.sharingCoordinator =
+      [[SharingCoordinator alloc] initWithBaseViewController:_viewController
+                                                     browser:self.regularBrowser
+                                                      params:params
+                                                  sourceItem:view];
   [self.sharingCoordinator start];
 }
 
@@ -1718,6 +1703,16 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   [self.regularTabsMediator closeItemWithID:identifier];
 }
 
+- (void)closeTabsExceptIdentifier:(web::WebStateID)identifier
+                        incognito:(BOOL)incognito {
+  CHECK(IsCloseOtherTabsEnabled());
+  if (incognito) {
+    [self.incognitoTabsMediator closeTabsExceptID:identifier];
+    return;
+  }
+  [self.regularTabsMediator closeTabsExceptID:identifier];
+}
+
 - (void)deleteTabGroup:(base::WeakPtr<const TabGroup>)group
             sourceView:(UIView*)sourceView {
   [self.regularTabsMediator deleteTabGroup:group sourceView:sourceView];
@@ -1780,7 +1775,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 
 - (void)removeSessionAtTableSectionWithIdentifier:(NSInteger)sectionIdentifier {
   if (vivaldi::IsVivaldiRunning()) {
-    [self.baseViewController.remoteTabsViewController
+    [_viewController.remoteTabsViewController
         removeSessionAtTableSectionWithIdentifier:sectionIdentifier];
   } else {
   NOTREACHED(base::NotFatalUntil::M142);
@@ -1790,7 +1785,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 - (synced_sessions::DistantSession const*)sessionForTableSectionWithIdentifier:
     (NSInteger)sectionIdentifier {
   if (vivaldi::IsVivaldiRunning()) {
-    return [self.baseViewController.remoteTabsViewController
+    return [_viewController.remoteTabsViewController
         sessionForTableSectionWithIdentifier:sectionIdentifier];
   } // End Vivaldi
   return nullptr;
@@ -1807,8 +1802,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   if (level < SceneActivationLevelForegroundActive) {
     // User has put the app into background, which constitutes of a meaningful
     // action.
-    [self.baseViewController
-        tabGridDidPerformAction:TabGridActionType::kBackground];
+    [_viewController tabGridDidPerformAction:TabGridActionType::kBackground];
   }
 }
 
@@ -1825,10 +1819,12 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 // Helper method to handle BringAndroidTabsCommands.
 - (void)onUserInteractionWithBringAndroidTabsPrompt:(BOOL)reviewTabs {
   DCHECK(_bringAndroidTabsPromptCoordinator);
-  [self.baseViewController dismissViewControllerAnimated:YES completion:nil];
+  if (_viewController.presentedViewController) {
+    [_viewController dismissViewControllerAnimated:YES completion:nil];
+  }
   if (reviewTabs) {
     _tabListFromAndroidCoordinator = [[TabListFromAndroidCoordinator alloc]
-        initWithBaseViewController:self.baseViewController
+        initWithBaseViewController:_viewController
                            browser:self.regularBrowser];
     [_tabListFromAndroidCoordinator start];
   } else {
@@ -1857,8 +1853,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
     // Tab group is not opened, return;
     return;
   }
-  [self.baseViewController setCurrentPageAndPageControl:pageToOpen
-                                               animated:YES];
+  [_viewController setCurrentPageAndPageControl:pageToOpen animated:YES];
 }
 
 - (void)showHistoryForText:(NSString*)text {
@@ -1875,9 +1870,8 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   // A history coordinator from main_controller won't work properly from the
   // tab grid. Using a local coordinator works better and we need to set
   // `loadStrategy` to YES to ALWAYS_NEW_FOREGROUND_TAB.
-  self.historyCoordinator = [[HistoryCoordinator alloc]
-      initWithBaseViewController:self.baseViewController
-                         browser:self.regularBrowser];
+  self.historyCoordinator =
+      CreateHistoryCoordinator(_viewController, self.regularBrowser);
   self.historyCoordinator.searchTerms = text;
   self.historyCoordinator.loadStrategy =
       UrlLoadStrategy::ALWAYS_NEW_FOREGROUND_TAB;
@@ -1915,12 +1909,17 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
     // Search.
     [self setActiveMode:TabGridMode::kNormal];
   }
-  [self.baseViewController setCurrentPageAndPageControl:page animated:animated];
+  [_viewController setCurrentPageAndPageControl:page animated:animated];
+}
+
+- (void)prepareToExitTabGrid {
+  [_viewController tabGridDidPerformAction:TabGridActionType::kInPageAction];
+  [_viewController prepareForDismissal];
 }
 
 - (void)exitTabGrid {
-  [self.baseViewController updateActivePageToCurrent];
-  TabGridPage targetPage = self.baseViewController.activePage;
+  [_viewController updateActivePageToCurrent];
+  TabGridPage targetPage = _viewController.activePage;
 
   // Holding the done button down when it is enabled could result in done tap
   // being triggered on release after tabs have been closed and the button
@@ -1935,11 +1934,22 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
     (ProceduralBlock)completion {
   _guidedTourCoordinator = [[GuidedTourCoordinator alloc]
             initWithStep:GuidedTourStep::kTabGridLongPress
-      baseViewController:self.baseViewController
+      baseViewController:_viewController
                  browser:self.regularBrowser
                 delegate:self];
   [_guidedTourCoordinator start];
   _guidedTourCompletionBlock = completion;
+}
+
+- (void)showPageActionMenuFromTabGrid {
+  // TODO(crbug.com/465505528) Propagate page action menu entry point source to
+  // page action menu coordinator.
+  self.pageActionMenuCoordinator = [[PageActionMenuCoordinator alloc]
+      initWithBaseViewController:_viewController
+                         browser:self.regularBrowser];
+  self.pageActionMenuCoordinator.pageActionMenuHandler = HandlerForProtocol(
+      self.regularBrowser->GetCommandDispatcher(), PageActionMenuCommands);
+  [self.pageActionMenuCoordinator start];
 }
 
 #pragma mark - GuidedTourCoordinatorDelegate
@@ -1959,7 +1969,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
                (SnackbarCoordinator*)snackbarCoordinator
                                                 forceBrowserToolbar:
                                                     (BOOL)forceBrowserToolbar {
-  if (!self.bvcContainer.currentBVC) {
+  if (!self.browserLayoutViewController.currentBVC) {
     // The tab grid is being show so use tab grid bottom bar.
     // kTabGridBottomToolbarGuide is stored in the shared layout guide center.
     UIView* tabGridBottomToolbarView = [LayoutGuideCenterForBrowser(nil)
@@ -1968,9 +1978,9 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   }
 
   if (!forceBrowserToolbar &&
-      self.bvcContainer.currentBVC.presentedViewController) {
+      self.browserLayoutViewController.currentBVC.presentedViewController) {
     UIViewController* presentedViewController =
-        self.bvcContainer.currentBVC.presentedViewController;
+        self.browserLayoutViewController.currentBVC.presentedViewController;
 
     // When the presented view is a navigation controller, return the navigation
     // controller's toolbar height.
@@ -2012,18 +2022,17 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 #pragma mark - TabGroupPositioner
 
 - (UIView*)viewAboveTabGroup {
-  return self.bvcContainer.view;
+  return self.browserLayoutViewController.view;
 }
 
 #pragma mark - LegacyGridTransitionAnimationLayoutProviding
 
 - (BOOL)isSelectedCellVisible {
-  if (self.baseViewController.activePage !=
-      self.baseViewController.currentPage) {
+  if (_viewController.activePage != _viewController.currentPage) {
     return NO;
   }
 
-  switch (self.baseViewController.activePage) {
+  switch (_viewController.activePage) {
     case TabGridPageIncognitoTabs:
       return [_incognitoGridCoordinator isSelectedCellVisible];
     case TabGridPageRegularTabs:
@@ -2057,20 +2066,20 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   if (!layout) {
     return nil;
   }
-  layout.frameChanged = !CGRectEqualToRect(self.baseViewController.view.frame,
-                                           _frameWhenEntering);
+  layout.frameChanged =
+      !CGRectEqualToRect(_viewController.view.frame, _frameWhenEntering);
   return layout;
 }
 
 - (UIView*)animationViewsContainer {
-  return self.baseViewController.view;
+  return _viewController.view;
 }
 
 - (UIView*)animationViewsContainerBottomView {
   // The animation should happen just above the direct subview of the TabGrid
   // containing the visible grid.
   UIView* potentialGridContainer;
-  switch (self.baseViewController.activePage) {
+  switch (_viewController.activePage) {
     case TabGridPageIncognitoTabs:
       potentialGridContainer = [_incognitoGridCoordinator gridView];
       break;
@@ -2086,7 +2095,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
     case TabGridPageTabGroups:
       NOTREACHED();
   }
-  UIView* baseView = self.baseViewController.view;
+  UIView* baseView = _viewController.view;
   while (potentialGridContainer.superview != baseView) {
     potentialGridContainer = potentialGridContainer.superview;
   }
@@ -2095,7 +2104,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 
 - (CGRect)gridContainerFrame {
   UIView* potentialAnimationContainer;
-  switch (self.baseViewController.activePage) {
+  switch (_viewController.activePage) {
     case TabGridPageIncognitoTabs:
       potentialAnimationContainer =
           [_incognitoGridCoordinator gridContainerForAnimation];
@@ -2116,13 +2125,13 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   if (potentialAnimationContainer) {
     return potentialAnimationContainer.frame;
   }
-  return self.baseViewController.view.bounds;
+  return _viewController.view.bounds;
 }
 
 // Returns whether there is a selected pinned cell.
 - (BOOL)isPinnedCellSelected {
   if (!IsPinnedTabsEnabled() ||
-      self.baseViewController.currentPage != TabGridPageRegularTabs) {
+      _viewController.currentPage != TabGridPageRegularTabs) {
     return NO;
   }
 
@@ -2157,7 +2166,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
       [[RecentTabsContextMenuHelper alloc] initWithBrowser:self.regularBrowser
                             recentTabsPresentationDelegate:self
                                     tabContextMenuDelegate:self];
-  self.baseViewController.remoteTabsViewController.menuProvider =
+  _viewController.remoteTabsViewController.menuProvider =
       self.recentTabsContextMenuHelper;
 
   baseViewController.remoteTabsViewController.browser = self.regularBrowser;
@@ -2191,8 +2200,11 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   self.remoteTabsMediator.tabGridHandler = self;
   baseViewController.remoteTabsViewController.imageDataSource =
       self.remoteTabsMediator;
-  baseViewController.remoteTabsViewController.applicationHandler =
-      HandlerForProtocol(self.dispatcher, ApplicationCommands);
+  baseViewController.remoteTabsViewController.sceneHandler =
+      HandlerForProtocol(self.dispatcher, SceneCommands);
+  baseViewController.remoteTabsViewController.settingsHandler =
+      HandlerForProtocol(self.regularBrowser->GetCommandDispatcher(),
+                         SettingsCommands);
   baseViewController.remoteTabsViewController.loadStrategy =
       UrlLoadStrategy::ALWAYS_NEW_FOREGROUND_TAB;
   baseViewController.remoteTabsViewController.presentationDelegate = self;
@@ -2214,7 +2226,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
       [[RecentTabsContextMenuHelper alloc] initWithBrowser:self.regularBrowser
                             recentTabsPresentationDelegate:self
                                     tabContextMenuDelegate:self];
-  self.baseViewController.closedTabsViewController.menuProvider =
+  _viewController.closedTabsViewController.menuProvider =
       self.closedTabsContextMenuHelper;
 
   // Recently closed tab setup
@@ -2250,8 +2262,11 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   self.closedTabsMediator.tabGridHandler = self;
   baseViewController.closedTabsViewController.imageDataSource =
       self.closedTabsMediator;
-  baseViewController.closedTabsViewController.applicationHandler =
-      HandlerForProtocol(self.dispatcher, ApplicationCommands);
+  baseViewController.closedTabsViewController.sceneHandler =
+      HandlerForProtocol(self.dispatcher, SceneCommands);
+  baseViewController.closedTabsViewController.settingsHandler =
+      HandlerForProtocol(self.regularBrowser->GetCommandDispatcher(),
+                         SettingsCommands);
   baseViewController.closedTabsViewController.loadStrategy =
       UrlLoadStrategy::ALWAYS_NEW_FOREGROUND_TAB;
   baseViewController.closedTabsViewController.presentationDelegate = self;
@@ -2283,9 +2298,9 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 
 #pragma mark - Public
 - (void)setTabGridHidden:(BOOL)hidden {
-  self.baseViewController.regularTabsViewController.view.hidden = hidden;
-  self.baseViewController.pinnedTabsViewController.view.hidden = hidden;
-  self.baseViewController.incognitoTabsViewController.view.hidden = hidden;
+  _viewController.regularTabsViewController.view.hidden = hidden;
+  _viewController.pinnedTabsViewController.view.hidden = hidden;
+  _viewController.incognitoTabsViewController.view.hidden = hidden;
 }
 
 #pragma mark - RecentTabsPresentationDelegate (VIVALDI)
@@ -2328,7 +2343,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
 }
 
 - (void)showRegularTabGridFromRecentTabs {
-  [self.baseViewController setCurrentPageAndPageControl:TabGridPageRegularTabs
+  [_viewController setCurrentPageAndPageControl:TabGridPageRegularTabs
                                                animated:YES];
 }
 
@@ -2341,7 +2356,7 @@ bool FindNavigatorShouldBePresentedInBrowser(Browser* browser) {
   OpenDistantSessionInBackground(
       session, inIncognito, GetDefaultNumberOfTabsToLoadSimultaneously(),
       UrlLoadingBrowserAgent::FromBrowser(self.regularBrowser),
-      self.baseViewController.remoteTabsViewController.loadStrategy);
+      _viewController.remoteTabsViewController.loadStrategy);
 
   [self showActiveRegularTabFromRecentTabs];
 }

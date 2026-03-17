@@ -65,10 +65,6 @@ class MockAutofillPopupController : public AutofillPopupController {
               PerformButtonActionForSuggestion,
               (int, const SuggestionButtonAction&),
               (override));
-  MOCK_METHOD(std::optional<AutofillClient::PopupScreenLocation>,
-              GetPopupScreenLocation,
-              (),
-              (const override));
   const std::vector<Suggestion>& GetSuggestions() const override {
     return suggestions_;
   }
@@ -106,7 +102,8 @@ class MockAutofillPopupController : public AutofillPopupController {
               (UiSessionId,
                std::vector<Suggestion>,
                AutofillSuggestionTriggerSource,
-               AutoselectFirstSuggestion),
+               AutoselectFirstSuggestion,
+               AutofillSuggestionsIgnoreFocusLoss),
               (override));
   MOCK_METHOD(std::optional<AutofillSuggestionController::UiSessionId>,
               GetUiSessionId,

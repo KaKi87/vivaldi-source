@@ -27,6 +27,10 @@ const char* FollowerTabThrottle ::GetNameForLogging() {
 
 ThrottleCheckResult FollowerTabThrottle::WillStartRequest() {
   ui::PageTransition transition = navigation_handle()->GetPageTransition();
+  if (transition & ui::PAGE_TRANSITION_CLIENT_REDIRECT) {
+    return PROCEED;
+  }
+
   if (ui::PageTransitionCoreTypeIs(transition,
                                    ui::PAGE_TRANSITION_FORM_SUBMIT) ||
       ui::PageTransitionCoreTypeIs(transition, ui::PAGE_TRANSITION_TYPED)) {

@@ -11,8 +11,8 @@
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-@interface VivaldiFeedbackViewCoordinator()<
-                                    UIAdaptivePresentationControllerDelegate> {
+@interface VivaldiFeedbackViewCoordinator () <
+    UIAdaptivePresentationControllerDelegate> {
   // The browser where the view is displayed.
   Browser* _browser;
   // The navigation controller that is being presented. The feedback view view
@@ -35,12 +35,12 @@
 
 @synthesize baseNavigationController = _baseNavigationController;
 
-- (instancetype)initWithBaseNavigationController:
-      (UINavigationController*)navigationController
-                                         browser:(Browser*)browser
-                                      entryPoint:
-                        (VivaldiFeedbackViewEntryPoint)entryPoint
-                                    allowsCancel:(BOOL)allowsCancel {
+- (instancetype)
+    initWithBaseNavigationController:
+        (UINavigationController*)navigationController
+                             browser:(Browser*)browser
+                          entryPoint:(VivaldiFeedbackViewEntryPoint)entryPoint
+                        allowsCancel:(BOOL)allowsCancel {
   self = [self initWithBaseViewController:navigationController
                                   browser:browser
                                entryPoint:entryPoint
@@ -55,9 +55,8 @@
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                                    browser:(Browser*)browser
                                 entryPoint:
-                        (VivaldiFeedbackViewEntryPoint)entryPoint
+                                    (VivaldiFeedbackViewEntryPoint)entryPoint
                               allowsCancel:(BOOL)allowsCancel {
-
   self = [super initWithBaseViewController:viewController browser:browser];
 
   if (self) {
@@ -96,9 +95,9 @@
   // Dismiss the view and open app store.
   [self dismiss];
 
-  NSString *appStoreUrlString =
+  NSString* appStoreUrlString =
       [NSString stringWithUTF8String:kVivaldiAppStoreUrl];
-  NSURL *appStoreUrl = [NSURL URLWithString:appStoreUrlString];
+  NSURL* appStoreUrl = [NSURL URLWithString:appStoreUrlString];
 
   if ([[UIApplication sharedApplication] canOpenURL:appStoreUrl]) {
     [[UIApplication sharedApplication] openURL:appStoreUrl
@@ -113,33 +112,30 @@
 }
 
 - (void)handleNavigateToIssueDetailWithIssue:(VivaldiFeedbackIssue*)issue {
-  UIViewController *controller =
+  UIViewController* controller =
       [self.viewProvider makeIssueDetailsViewControllerWith:issue];
   controller.title = issue.titleString;
 
   if (self.baseNavigationController && !self.allowsCancel) {
-    [self.baseNavigationController pushViewController:controller
-                                             animated:YES];
+    [self.baseNavigationController pushViewController:controller animated:YES];
   } else {
-    [_navigationController pushViewController:controller
-                                     animated:YES];
+    [_navigationController pushViewController:controller animated:YES];
   }
 }
 
 - (void)handleNavigateToEditorWithParentIssue:(VivaldiFeedbackIssue*)parentIssue
-                                  childIssue:(VivaldiFeedbackIssue*)childIssue {
-  UIViewController *controller =
+                                   childIssue:
+                                       (VivaldiFeedbackIssue*)childIssue {
+  UIViewController* controller =
       [self.viewProvider makeFeedbackEditorViewControllerWith:parentIssue
                                                     childItem:childIssue];
   controller.title =
       childIssue != nil ? childIssue.titleString : parentIssue.titleString;
 
   if (self.baseNavigationController && !self.allowsCancel) {
-    [self.baseNavigationController pushViewController:controller
-                                             animated:YES];
+    [self.baseNavigationController pushViewController:controller animated:YES];
   } else {
-    [_navigationController pushViewController:controller
-                                     animated:YES];
+    [_navigationController pushViewController:controller animated:YES];
   }
 }
 
@@ -167,41 +163,40 @@
   __weak __typeof(self) weakSelf = self;
 
   [self.viewProvider observeRateAppTapEvent:^{
-      [weakSelf handleRateAppTap];
+    [weakSelf handleRateAppTap];
   }];
 
   [self.viewProvider observeNoThanksTapEvent:^{
-      [weakSelf handleNoThanksTap];
+    [weakSelf handleNoThanksTap];
   }];
 
   [self.viewProvider
-      observeNavigateToIssueDetailEvent:^(VivaldiFeedbackIssue *issue) {
-      [weakSelf handleNavigateToIssueDetailWithIssue:issue];
-  }];
+      observeNavigateToIssueDetailEvent:^(VivaldiFeedbackIssue* issue) {
+        [weakSelf handleNavigateToIssueDetailWithIssue:issue];
+      }];
 
   [self.viewProvider
-      observeNavigateToEditorEvent:^(VivaldiFeedbackIssue *parentIssue,
-                                     VivaldiFeedbackIssue *childIssue) {
-      [weakSelf handleNavigateToEditorWithParentIssue:parentIssue
-                                           childIssue:childIssue];
-  }];
+      observeNavigateToEditorEvent:^(VivaldiFeedbackIssue* parentIssue,
+                                     VivaldiFeedbackIssue* childIssue) {
+        [weakSelf handleNavigateToEditorWithParentIssue:parentIssue
+                                             childIssue:childIssue];
+      }];
 
-  [self.viewProvider
-      observeSubmitTapEvent:^(VivaldiFeedbackIssue *parentIssue,
-                              VivaldiFeedbackIssue *childIssue,
-                              NSString *message) {
-      [weakSelf handleSubmitTapWithParentIssue:parentIssue
-                                    childIssue:childIssue
-                                       message:message];
+  [self.viewProvider observeSubmitTapEvent:^(VivaldiFeedbackIssue* parentIssue,
+                                             VivaldiFeedbackIssue* childIssue,
+                                             NSString* message) {
+    [weakSelf handleSubmitTapWithParentIssue:parentIssue
+                                  childIssue:childIssue
+                                     message:message];
   }];
 
   [self.viewProvider observeFeedbackFlowCompletion:^{
-      [weakSelf handleFeedbackFlowCompletion];
+    [weakSelf handleFeedbackFlowCompletion];
   }];
 }
 
 - (void)setupViewController {
-  UIViewController *controller =
+  UIViewController* controller =
       [self.viewProvider makeLandingViewControllerWith:_entryPoint];
   controller.title = l10n_util::GetNSString(IDS_IOS_FEEDBACK_MENU_TITLE);
   controller.navigationItem.largeTitleDisplayMode =
@@ -219,34 +214,34 @@
   // When pushed within a navigation controller i.e. in Settings, show
   // a Done button instead on the right.
   if (self.allowsCancel) {
-    UIBarButtonItem *cancelItem =
-        [[UIBarButtonItem alloc]
-            initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
-                                 target:self
-                                 action:@selector(handleCancelButtonTap)];
-    _navigationController.topViewController
-        .navigationItem.leftBarButtonItem = cancelItem;
+    UIBarButtonItem* cancelItem = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
+                             target:self
+                             action:@selector(handleCancelButtonTap)];
+    _navigationController.topViewController.navigationItem.leftBarButtonItem =
+        cancelItem;
   } else {
-    UIBarButtonItem *doneItem =
-        [[UIBarButtonItem alloc]
-            initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                                 target:self
-                                 action:@selector(handleCancelButtonTap)];
-    _navigationController.topViewController
-          .navigationItem.rightBarButtonItem = doneItem;
+    UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                             target:self
+                             action:@selector(handleCancelButtonTap)];
+    _navigationController.topViewController.navigationItem.rightBarButtonItem =
+        doneItem;
   }
 }
 
 - (void)setupSheetPresentationController {
-  UISheetPresentationController *sheetPc =
+  UISheetPresentationController* sheetPc =
       _navigationController.sheetPresentationController;
   // When iPad full screen or 2/3 SplitView support only large detent because
   // medium detent cuts the contents which may make no sense at all at a glance.
   if (IsSplitToolbarMode(self.baseViewController)) {
-    sheetPc.detents = @[UISheetPresentationControllerDetent.mediumDetent,
-                        UISheetPresentationControllerDetent.largeDetent];
+    sheetPc.detents = @[
+      UISheetPresentationControllerDetent.mediumDetent,
+      UISheetPresentationControllerDetent.largeDetent
+    ];
   } else {
-    sheetPc.detents = @[UISheetPresentationControllerDetent.largeDetent];
+    sheetPc.detents = @[ UISheetPresentationControllerDetent.largeDetent ];
   }
   sheetPc.prefersScrollingExpandsWhenScrolledToEdge = NO;
   sheetPc.widthFollowsPreferredContentSizeWhenEdgeAttached = YES;

@@ -2,6 +2,8 @@
 
 #include "direct_match_favicon_installer.h"
 
+#include <ranges>
+
 #include "base/barrier_callback.h"
 #include "base/files/file_util.h"
 #include "base/task/task_traits.h"
@@ -17,23 +19,22 @@
 
 namespace direct_match {
 
-void DirectMatchFaviconInstaller::Entry::OnImageDecoded(const SkBitmap& bitmap) {
+void DirectMatchFaviconInstaller::Entry::OnImageDecoded(
+    const SkBitmap& bitmap) {
   history::HistoryService* service =
-    HistoryServiceFactory::GetForProfileWithoutCreating(profile_);
+      HistoryServiceFactory::GetForProfileWithoutCreating(profile_);
   if (service) {
     const gfx::ImageSkia icon(gfx::ImageSkia::CreateFrom1xBitmap(bitmap));
     icon.EnsureRepsForSupportedScales();
     std::vector<SkBitmap> bitmaps;
     const std::vector<float> favicon_scales = favicon_base::GetFaviconScales();
     for (const gfx::ImageSkiaRep& rep : icon.image_reps()) {
-      if (base::Contains(favicon_scales, rep.scale())) {
+      if (std::ranges::contains(favicon_scales, rep.scale())) {
         bitmaps.push_back(rep.GetBitmap());
       }
     }
-    service->SetOnDemandFavicons(page_url_,
-                                 favicon_base::IconType::kFavicon,
-                                 image_url_,
-                                 bitmaps,
+    service->SetOnDemandFavicons(page_url_, favicon_base::IconType::kFavicon,
+                                 image_url_, bitmaps,
                                  // We do not need to know if icon was installed
                                  // or not as a failure is about if it (the url)
                                  // is already present in the DB.
@@ -52,7 +53,7 @@ void DirectMatchFaviconInstaller::Entry::OnDecodeImageFailed() {
 }
 
 DirectMatchFaviconInstaller::DirectMatchFaviconInstaller(Profile* profile)
-  : profile_(profile) {}
+    : profile_(profile) {}
 
 DirectMatchFaviconInstaller::~DirectMatchFaviconInstaller() {
   if (entries_) {
@@ -63,8 +64,8 @@ DirectMatchFaviconInstaller::~DirectMatchFaviconInstaller() {
 }
 
 void DirectMatchFaviconInstaller::Start() {
-  auto* service = direct_match::DirectMatchServiceFactory::GetForBrowserContext(
-      profile_);
+  auto* service =
+      direct_match::DirectMatchServiceFactory::GetForBrowserContext(profile_);
   if (service) {
     Start(service);
   } else {
@@ -99,8 +100,8 @@ void DirectMatchFaviconInstaller::Start(DirectMatchService* service) {
         base::BindOnce(&DirectMatchFaviconInstaller::Decode,
                        weak_ptr_factory_.GetWeakPtr()));
     // This will keep ondemand icons in cache.
-    timer_.Start(FROM_HERE, base::Days(7),
-               this, &DirectMatchFaviconInstaller::Touch);
+    timer_.Start(FROM_HERE, base::Days(7), this,
+                 &DirectMatchFaviconInstaller::Touch);
   }
 }
 
@@ -119,7 +120,7 @@ DirectMatchFaviconInstaller::ReadFromDisk(std::unique_ptr<EntryList> entries) {
 void DirectMatchFaviconInstaller::Touch() {
   if (profile_) {
     history::HistoryService* service =
-      HistoryServiceFactory::GetForProfileWithoutCreating(profile_);
+        HistoryServiceFactory::GetForProfileWithoutCreating(profile_);
     if (service) {
       for (auto& url : touch_list_) {
         service->TouchOnDemandFavicon(url);
@@ -161,4 +162,4 @@ void DirectMatchFaviconInstaller::Decode(std::unique_ptr<EntryList> entries) {
   }
 }
 
-}  // direct_match
+}  // namespace direct_match

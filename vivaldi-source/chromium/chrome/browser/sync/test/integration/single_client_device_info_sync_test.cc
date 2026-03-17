@@ -6,33 +6,47 @@
 
 #include "base/strings/stringprintf.h"
 #include "base/test/bind.h"
+#include "base/test/metrics/histogram_tester.h"
+#include "base/test/run_until.h"
+#include "base/test/scoped_feature_list.h"
 #include "build/build_config.h"
 #include "chrome/browser/metrics/chrome_metrics_service_accessor.h"
+#include "chrome/browser/metrics/testing/metrics_consent_override.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
 #include "chrome/browser/sync/device_info_sync_service_factory.h"
 #include "chrome/browser/sync/test/integration/bookmarks_helper.h"
 #include "chrome/browser/sync/test/integration/device_info_helper.h"
 #include "chrome/browser/sync/test/integration/sync_service_impl_harness.h"
 #include "chrome/browser/sync/test/integration/sync_test.h"
+#include "components/keyed_service/content/browser_context_dependency_manager.h"
+#include "components/signin/public/identity_manager/identity_test_utils.h"
 #include "components/sync/base/data_type.h"
+#include "components/sync/base/features.h"
 #include "components/sync/base/time.h"
 #include "components/sync/protocol/device_info_specifics.pb.h"
 #include "components/sync/protocol/entity_specifics.pb.h"
 #include "components/sync/protocol/sync.pb.h"
 #include "components/sync/protocol/sync_entity.pb.h"
 #include "components/sync/protocol/sync_enums.pb.h"
+#include "components/sync/service/device_statistics_tracker.h"
 #include "components/sync/test/fake_server.h"
-#include "components/sync/test/fake_server_http_post_provider.h"
 #include "components/sync_device_info/device_info.h"
 #include "components/sync_device_info/device_info_sync_service.h"
 #include "components/sync_device_info/device_info_tracker.h"
 #include "components/sync_device_info/device_info_util.h"
 #include "content/public/test/browser_test.h"
+#include "content/public/test/test_launcher.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/gurl.h"
+
+#if BUILDFLAG(IS_ANDROID)
+#include "base/android/android_info.h"
+#endif  // BUILDFLAG(IS_ANDROID)
 
 namespace {
 
 using bookmarks_helper::GetBookmarkModel;
+using bookmarks_helper::StoreType;
 using device_info_helper::HasCacheGuid;
 using device_info_helper::HasSharingFields;
 using syncer::DataType;
@@ -101,9 +115,12 @@ sync_pb::DeviceInfoSpecifics CreateSpecifics(
   sync_pb::DeviceInfoSpecifics specifics;
   specifics.set_cache_guid(CacheGuidForSuffix(suffix));
   specifics.set_client_name(ClientNameForSuffix(suffix));
-  specifics.set_device_type(sync_pb::SyncEnums_DeviceType_TYPE_LINUX);
+  specifics.set_os_type(sync_pb::SyncEnums_OsType_OS_TYPE_LINUX);
+  specifics.set_device_form_factor(
+      sync_pb::SyncEnums_DeviceFormFactor_DEVICE_FORM_FACTOR_DESKTOP);
   specifics.set_sync_user_agent(SyncUserAgentForSuffix(suffix));
-  specifics.set_chrome_version(ChromeVersionForSuffix(suffix));
+  specifics.mutable_chrome_version_info()->set_version_number(
+      ChromeVersionForSuffix(suffix));
   specifics.set_signin_scoped_device_id(SigninScopedDeviceIdForSuffix(suffix));
   specifics.set_last_updated_timestamp(
       syncer::TimeToProtoTime(base::Time::Now()));
@@ -158,9 +175,28 @@ class DeviceInfoCommitChecker : public SingleClientStatusChangeChecker {
   const raw_ptr<fake_server::FakeServer> fake_server_;
 };
 
-class SingleClientDeviceInfoSyncTest : public SyncTest {
+class SingleClientDeviceInfoSyncTest
+    : public SyncTest,
+      public testing::WithParamInterface<SyncTest::SetupSyncMode> {
  public:
-  SingleClientDeviceInfoSyncTest() : SyncTest(SINGLE_CLIENT) {}
+  explicit SingleClientDeviceInfoSyncTest(
+      bool enable_device_statistics_metrics = false)
+      : SyncTest(SINGLE_CLIENT) {
+    std::vector<base::test::FeatureRefAndParams> enabled_features;
+    if (enable_device_statistics_metrics) {
+      enabled_features.emplace_back(
+          syncer::kSyncRecordDeviceStatisticsMetrics,
+          base::FieldTrialParams{
+              {syncer::kSyncRecordDeviceStatisticsMetricsDelay.name, "0"}});
+    }
+    if (GetSetupSyncMode() == SetupSyncMode::kSyncTransportOnly) {
+      enabled_features.emplace_back(syncer::kReplaceSyncPromosWithSignInPromos,
+                                    base::FieldTrialParams{});
+    }
+    scoped_feature_list_.InitWithFeaturesAndParameters(
+        enabled_features,
+        /*disabled_features=*/{});
+  }
 
   SingleClientDeviceInfoSyncTest(const SingleClientDeviceInfoSyncTest&) =
       delete;
@@ -168,6 +204,10 @@ class SingleClientDeviceInfoSyncTest : public SyncTest {
       const SingleClientDeviceInfoSyncTest&) = delete;
 
   ~SingleClientDeviceInfoSyncTest() override = default;
+
+  SyncTest::SetupSyncMode GetSetupSyncMode() const override {
+    return GetParam();
+  }
 
   std::string GetLocalCacheGuid() const {
     return GetCacheGuid(/*profile_index=*/0);
@@ -197,10 +237,24 @@ class SingleClientDeviceInfoSyncTest : public SyncTest {
             specifics,
             /*creation_time=*/0, /*last_modified_time=*/0));
   }
+
+  StoreType GetStoreType() const {
+    return GetSetupSyncMode() == SyncTest::SetupSyncMode::kSyncTransportOnly
+               ? StoreType::kAccountStore
+               : StoreType::kLocalOrSyncableStore;
+  }
+
+ protected:
+  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
+INSTANTIATE_TEST_SUITE_P(,
+                         SingleClientDeviceInfoSyncTest,
+                         GetSyncTestModes(),
+                         testing::PrintToStringParamName());
+
 #if BUILDFLAG(IS_CHROMEOS)
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        UmaEnabledSetFullHardwareClass) {
   bool uma_enabled = true;
   ChromeMetricsServiceAccessor::SetMetricsAndCrashReportingForTesting(
@@ -213,7 +267,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
   ChromeMetricsServiceAccessor::SetMetricsAndCrashReportingForTesting(nullptr);
 }
 
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        UmaDisabledFullHardwareClassEmpty) {
   bool uma_enabled = false;
   ChromeMetricsServiceAccessor::SetMetricsAndCrashReportingForTesting(
@@ -226,7 +280,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
   ChromeMetricsServiceAccessor::SetMetricsAndCrashReportingForTesting(nullptr);
 }
 #else
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        UmaEnabledFullHardwareClassOnNonChromeOS) {
   bool uma_enabled = true;
   ChromeMetricsServiceAccessor::SetMetricsAndCrashReportingForTesting(
@@ -240,7 +294,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
 }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest, CommitLocalDevice) {
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest, CommitLocalDevice) {
   ASSERT_TRUE(SetupSync());
 
   // The local device should eventually be committed to the server.
@@ -249,7 +303,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest, CommitLocalDevice) {
                   .Wait());
 }
 
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest, DownloadRemoteDevices) {
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest, DownloadRemoteDevices) {
   InjectDeviceInfoEntityToServer(/*suffix=*/1);
   InjectDeviceInfoEntityToServer(/*suffix=*/2);
 
@@ -267,17 +321,18 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest, DownloadRemoteDevices) {
                            ModelEntryHasCacheGuid(CacheGuidForSuffix(2))));
 }
 
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        DownloadRemoteDeviceWithoutChromeVersion) {
   sync_pb::DeviceInfoSpecifics device_info_specifics =
       CreateSpecifics(/*suffix=*/1);
   device_info_specifics.clear_chrome_version();
+  device_info_specifics.clear_chrome_version_info();
   InjectDeviceInfoSpecificsToServer(device_info_specifics);
 
   ASSERT_TRUE(SetupSync());
 
-  // Devices without a chrome_version correspond to non-Chromium-based clients
-  // and should be excluded.
+  // Devices without a chrome_version/chrome_version_info correspond to
+  // non-Chromium-based clients and should be excluded.
   EXPECT_THAT(
       GetDeviceInfoTracker()->GetAllChromeDeviceInfo(),
       UnorderedElementsAre(ModelEntryHasCacheGuid(GetLocalCacheGuid())));
@@ -287,7 +342,25 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
                            ModelEntryHasCacheGuid(CacheGuidForSuffix(1))));
 }
 
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
+                       DownloadRemoteDeviceWithOldVersionFieldOnly) {
+  sync_pb::DeviceInfoSpecifics device_info_specifics =
+      CreateSpecifics(/*suffix=*/1);
+  device_info_specifics.clear_chrome_version_info();
+  device_info_specifics.set_chrome_version("someversion");
+  InjectDeviceInfoSpecificsToServer(device_info_specifics);
+
+  ASSERT_TRUE(SetupSync());
+
+  // Devices with only the deprecated `chrome_version` should still be
+  // recognized as Chrome devices.
+  EXPECT_THAT(
+      GetDeviceInfoTracker()->GetAllChromeDeviceInfo(),
+      UnorderedElementsAre(ModelEntryHasCacheGuid(GetLocalCacheGuid()),
+                           ModelEntryHasCacheGuid(CacheGuidForSuffix(1))));
+}
+
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        DownloadRemoteDeviceWithNewVersionFieldOnly) {
   sync_pb::DeviceInfoSpecifics device_info_specifics =
       CreateSpecifics(/*suffix=*/1);
@@ -298,10 +371,10 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
 
   ASSERT_TRUE(SetupSync());
 
-  // Devices without a chrome_version correspond to non-Chromium-based clients
-  // and should be excluded.
+  // Devices with only the new `chrome_version_info` should be recognized as
+  // Chrome devices.
   EXPECT_THAT(
-      GetDeviceInfoTracker()->GetAllDeviceInfo(),
+      GetDeviceInfoTracker()->GetAllChromeDeviceInfo(),
       UnorderedElementsAre(ModelEntryHasCacheGuid(GetLocalCacheGuid()),
                            ModelEntryHasCacheGuid(CacheGuidForSuffix(1))));
 }
@@ -317,7 +390,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
 #else
 #define MAYBE_CommitLocalDevice_TransportOnly CommitLocalDevice_TransportOnly
 #endif  // BUILDFLAG(IS_ANDROID)
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        MAYBE_CommitLocalDevice_TransportOnly) {
   ASSERT_TRUE(SetupClients());
 
@@ -343,7 +416,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
 #define MAYBE_DownloadRemoteDevices_TransportOnly \
   DownloadRemoteDevices_TransportOnly
 #endif  // BUILDFLAG(IS_ANDROID)
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        MAYBE_DownloadRemoteDevices_TransportOnly) {
   InjectDeviceInfoEntityToServer(/*suffix=*/1);
   InjectDeviceInfoEntityToServer(/*suffix=*/2);
@@ -365,7 +438,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
 
 #endif  // !BUILDFLAG(IS_CHROMEOS)
 
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        ShouldSetTheOnlyClientFlag) {
   ASSERT_TRUE(SetupSync());
 
@@ -376,15 +449,19 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
   // GetUpdates request. The next sync cycle may download the latest committed
   // DeviceInfo reflection and drop optimization flags. Hence, make it sure that
   // there are at least 2 sync cycles and check the second one only.
-  bookmarks_helper::AddURL(/*profile=*/0, u"Title", GURL("http://foo.com"));
+  bookmarks_helper::AddURL(/*profile=*/0, u"Title", GURL("http://foo.com"),
+                           GetStoreType());
   ASSERT_TRUE(bookmarks_helper::BookmarkModelMatchesFakeServerChecker(
-                  GetBookmarkModel(0), GetSyncService(0), GetFakeServer())
+                  GetBookmarkModel(0), GetSyncService(0), GetFakeServer(),
+                  GetStoreType())
                   .Wait());
 
   // Perform the second sync cycle.
-  bookmarks_helper::AddURL(/*profile=*/0, u"Title", GURL("http://foo.com"));
+  bookmarks_helper::AddURL(/*profile=*/0, u"Title", GURL("http://foo.com"),
+                           GetStoreType());
   ASSERT_TRUE(bookmarks_helper::BookmarkModelMatchesFakeServerChecker(
-                  GetBookmarkModel(0), GetSyncService(0), GetFakeServer())
+                  GetBookmarkModel(0), GetSyncService(0), GetFakeServer(),
+                  GetStoreType())
                   .Wait());
 
   // Double check that DeviceInfo hasn't been committed during the test. It may
@@ -404,7 +481,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
                   .single_client_with_standalone_invalidations());
 }
 
-IN_PROC_BROWSER_TEST_F(
+IN_PROC_BROWSER_TEST_P(
     SingleClientDeviceInfoSyncTest,
     ShouldSetTheOnlyClientFlagForStandaloneInvalidationsOnly) {
   // A client without standalone invalidations shouldn't affect |single_client|
@@ -417,15 +494,19 @@ IN_PROC_BROWSER_TEST_F(
   // GetUpdates request. The next sync cycle may download the latest committed
   // DeviceInfo reflection and drop optimization flags. Hence, make it sure that
   // there are at least 2 sync cycles and check the second one only.
-  bookmarks_helper::AddURL(/*profile=*/0, u"Title", GURL("http://foo.com"));
+  bookmarks_helper::AddURL(/*profile=*/0, u"Title", GURL("http://foo.com"),
+                           GetStoreType());
   ASSERT_TRUE(bookmarks_helper::BookmarkModelMatchesFakeServerChecker(
-                  GetBookmarkModel(0), GetSyncService(0), GetFakeServer())
+                  GetBookmarkModel(0), GetSyncService(0), GetFakeServer(),
+                  GetStoreType())
                   .Wait());
 
   // Perform the second sync cycle.
-  bookmarks_helper::AddURL(/*profile=*/0, u"Title", GURL("http://foo.com"));
+  bookmarks_helper::AddURL(/*profile=*/0, u"Title", GURL("http://foo.com"),
+                           GetStoreType());
   ASSERT_TRUE(bookmarks_helper::BookmarkModelMatchesFakeServerChecker(
-                  GetBookmarkModel(0), GetSyncService(0), GetFakeServer())
+                  GetBookmarkModel(0), GetSyncService(0), GetFakeServer(),
+                  GetStoreType())
                   .Wait());
 
   sync_pb::ClientToServerMessage message;
@@ -437,7 +518,7 @@ IN_PROC_BROWSER_TEST_F(
                   .single_client_with_standalone_invalidations());
 }
 
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        ShouldSetTheOnlyClientFlagForDataType) {
   // There is a remote client which is not interested in BOOKMARKS.
   const DataTypeSet remote_interested_data_types =
@@ -451,15 +532,19 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
   // GetUpdates request. The next sync cycle may download the latest committed
   // DeviceInfo reflection and drop optimization flags. Hence, make it sure that
   // there are at least 2 sync cycles and check the second one only.
-  bookmarks_helper::AddURL(/*profile=*/0, u"Title", GURL("http://foo.com"));
+  bookmarks_helper::AddURL(/*profile=*/0, u"Title", GURL("http://foo.com"),
+                           GetStoreType());
   ASSERT_TRUE(bookmarks_helper::BookmarkModelMatchesFakeServerChecker(
-                  GetBookmarkModel(0), GetSyncService(0), GetFakeServer())
+                  GetBookmarkModel(0), GetSyncService(0), GetFakeServer(),
+                  GetStoreType())
                   .Wait());
 
   // Perform the second sync cycle.
-  bookmarks_helper::AddURL(/*profile=*/0, u"Title", GURL("http://foo.com"));
+  bookmarks_helper::AddURL(/*profile=*/0, u"Title", GURL("http://foo.com"),
+                           GetStoreType());
   ASSERT_TRUE(bookmarks_helper::BookmarkModelMatchesFakeServerChecker(
-                  GetBookmarkModel(0), GetSyncService(0), GetFakeServer())
+                  GetBookmarkModel(0), GetSyncService(0), GetFakeServer(),
+                  GetStoreType())
                   .Wait());
 
   sync_pb::ClientToServerMessage message;
@@ -474,7 +559,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
                   .single_client_with_standalone_invalidations());
 }
 
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        ShouldNotProvideTheOnlyClientFlag) {
   InjectDeviceInfoSpecificsToServer(CreateSpecifics(
       /*suffix=*/1, "fcm_token_1", DefaultInterestedDataTypes()));
@@ -495,9 +580,11 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
   // Everything's ready to verify that the next commit request contains
   // single_client which is false. Commit a bookmark to trigger a commit
   // request.
-  bookmarks_helper::AddURL(/*profile=*/0, u"Title", GURL("http://foo.com"));
+  bookmarks_helper::AddURL(/*profile=*/0, u"Title", GURL("http://foo.com"),
+                           GetStoreType());
   ASSERT_TRUE(bookmarks_helper::BookmarkModelMatchesFakeServerChecker(
-                  GetBookmarkModel(0), GetSyncService(0), GetFakeServer())
+                  GetBookmarkModel(0), GetSyncService(0), GetFakeServer(),
+                  GetStoreType())
                   .Wait());
 
   sync_pb::ClientToServerMessage message;
@@ -511,7 +598,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
 
 // This test verifies that single_client optimization flag is not set after
 // DeviceInfo has been received (even within the same sync cycle).
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        ShouldNotPopulateTheOnlyClientWhenDeviceInfoUpdated) {
   ASSERT_TRUE(SetupSync());
 
@@ -522,7 +609,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
 
   // Simulate going offline to have both downloading and committing updates in
   // the same sync cycle.
-  fake_server::FakeServerHttpPostProvider::DisableNetwork();
+  DisableNetwork();
 
   // Add a DeviceInfo tombstone to cause a commit request (removing local
   // DeviceInfo will cause its reupload).
@@ -535,7 +622,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
 
   // Simulate going online. This starts a new sync cycle with both GetUpdates
   // and Commit requests.
-  fake_server::FakeServerHttpPostProvider::EnableNetwork();
+  EnableNetwork();
 
   // Waiting for a local DeviceInfo reupload.
   ASSERT_TRUE(ServerDeviceInfoMatchChecker(
@@ -557,7 +644,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
               IsEmpty());
 }
 
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        ShouldReuploadLocalDeviceIfRemovedFromServer) {
   ASSERT_TRUE(SetupSync());
 
@@ -575,7 +662,7 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
                   .Wait());
 }
 
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        ShouldRetryDeviceInfoCommitOnAuthError) {
   ASSERT_TRUE(SetupSync());
 
@@ -599,12 +686,12 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
 
 // PRE_* tests aren't supported on Android browser tests.
 #if !BUILDFLAG(IS_ANDROID)
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        PRE_ShouldNotSendDeviceInfoAfterBrowserRestart) {
   ASSERT_TRUE(SetupSync());
 }
 
-IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
+IN_PROC_BROWSER_TEST_P(SingleClientDeviceInfoSyncTest,
                        ShouldNotSendDeviceInfoAfterBrowserRestart) {
   const std::vector<sync_pb::SyncEntity> entities_before =
       fake_server_->GetSyncEntitiesByDataType(syncer::DEVICE_INFO);
@@ -633,5 +720,306 @@ IN_PROC_BROWSER_TEST_F(SingleClientDeviceInfoSyncTest,
   EXPECT_EQ(entities_before.front().mtime(), entities_after.front().mtime());
 }
 #endif  // !BUILDFLAG(IS_ANDROID)
+
+class SingleClientDeviceInfoWithDeviceStatisticsSyncTest
+    : public SingleClientDeviceInfoSyncTest {
+ public:
+  explicit SingleClientDeviceInfoWithDeviceStatisticsSyncTest(
+      bool metrics_consent_value = true)
+      : SingleClientDeviceInfoSyncTest(
+            /*enable_device_statistics_metrics=*/true),
+        metrics_consent_value_(metrics_consent_value) {}
+
+  void SetUpInProcessBrowserTestFixture() override {
+    create_services_subscription_ =
+        BrowserContextDependencyManager::GetInstance()
+            ->RegisterCreateServicesCallbackForTesting(base::BindRepeating(
+                &SingleClientDeviceInfoWithDeviceStatisticsSyncTest::
+                    OnWillCreateBrowserContextServices,
+                base::Unretained(this)));
+  }
+
+ protected:
+  // Note: The HistogramTester must be created before the test body, since
+  // otherwise it's a race condition whether the default test profile manages to
+  // record the metrics first or not.
+  base::HistogramTester histograms_;
+
+ private:
+  void OnWillCreateBrowserContextServices(content::BrowserContext* context) {
+    // Note: On Android 10 (API level 29), setting the metrics consent override
+    // causes the test setup to time out, see crbug.com/483394870. The tests
+    // that rely on this are similarly short-circuited.
+#if BUILDFLAG(IS_ANDROID)
+    if (base::android::android_info::sdk_int() <
+        base::android::android_info::SDK_VERSION_R) {
+      return;
+    }
+#endif  // BUILDFLAG(IS_ANDROID)
+
+    // Note: The `MetricsConsentOverride` must be set *after*
+    // `g_browser_process` has been initialized, but *before* the KeyedServices
+    // have been created (since SyncService creation kicks off the metrics
+    // recording).
+    // In PRE_ tests, do *not* set metrics consent, otherwise the following
+    // proper test wouldn't record the metrics due to the once-per-day limit.
+    metrics_consent_.emplace(metrics_consent_value_ && !content::IsPreTest());
+  }
+
+  const bool metrics_consent_value_;
+  base::CallbackListSubscription create_services_subscription_;
+  std::optional<metrics::test::MetricsConsentOverride> metrics_consent_;
+};
+
+INSTANTIATE_TEST_SUITE_P(,
+                         SingleClientDeviceInfoWithDeviceStatisticsSyncTest,
+                         GetSyncTestModes(),
+                         testing::PrintToStringParamName());
+
+class SingleClientDeviceInfoWithDeviceStatisticsWithoutConsentSyncTest
+    : public SingleClientDeviceInfoWithDeviceStatisticsSyncTest {
+ public:
+  SingleClientDeviceInfoWithDeviceStatisticsWithoutConsentSyncTest()
+      : SingleClientDeviceInfoWithDeviceStatisticsSyncTest(false) {}
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    ,
+    SingleClientDeviceInfoWithDeviceStatisticsWithoutConsentSyncTest,
+    GetSyncTestModes(),
+    testing::PrintToStringParamName());
+
+IN_PROC_BROWSER_TEST_P(
+    SingleClientDeviceInfoWithDeviceStatisticsWithoutConsentSyncTest,
+    ShouldNotRecordDeviceStatisticsMetrics) {
+  // Simulate that the primary account has two other devices.
+  InjectDeviceInfoEntityToServer(1);
+  InjectDeviceInfoEntityToServer(2);
+
+  ASSERT_TRUE(SetupSync());
+
+  // Wait long enough so that the DeviceStatisticsTracker would've started, if
+  // it were going to.
+  const base::Time wait_start = base::Time::Now();
+  const base::TimeDelta wait_time = std::max(
+      base::Seconds(1), syncer::kSyncRecordDeviceStatisticsMetricsDelay.Get());
+  ASSERT_TRUE(base::test::RunUntil(
+      [&]() { return base::Time::Now() - wait_start > wait_time; }));
+
+  histograms_.ExpectTotalCount("Sync.DeviceStatistics.RequestsStartedCount", 0,
+                               FROM_HERE);
+  histograms_.ExpectTotalCount("Sync.DeviceStatistics.Outcome.Overall", 0,
+                               FROM_HERE);
+}
+
+IN_PROC_BROWSER_TEST_P(
+    SingleClientDeviceInfoWithDeviceStatisticsSyncTest,
+    PRE_ShouldRecordDeviceStatisticsMetricsWithPrimaryAccount) {
+  // Simulate that the primary account has two other devices.
+  InjectDeviceInfoEntityToServer(1);
+  InjectDeviceInfoEntityToServer(2);
+
+  // Sign in, to ensure that during startup of the following test, there is
+  // already a primary account.
+  ASSERT_TRUE(SetupSync());
+}
+
+// TODO(crbug.com/465716865): Figure out why this test sometimes times out on
+// ASan and consistently times out on ChromeOS Debug.
+// TODO(crbug.com/479828012): PRE_ tests that set up Sync are currently flaky on
+// Android.
+#if defined(ADDRESS_SANITIZER) || \
+    (BUILDFLAG(IS_CHROMEOS) && !defined(NDEBUG)) || BUILDFLAG(IS_ANDROID)
+#define MAYBE_ShouldRecordDeviceStatisticsMetricsWithPrimaryAccount \
+  DISABLED_ShouldRecordDeviceStatisticsMetricsWithPrimaryAccount
+#else
+#define MAYBE_ShouldRecordDeviceStatisticsMetricsWithPrimaryAccount \
+  ShouldRecordDeviceStatisticsMetricsWithPrimaryAccount
+#endif
+IN_PROC_BROWSER_TEST_P(
+    SingleClientDeviceInfoWithDeviceStatisticsSyncTest,
+    MAYBE_ShouldRecordDeviceStatisticsMetricsWithPrimaryAccount) {
+  // Note: On Android 10 (API level 29), setting the metrics consent override
+  // causes the test setup to time out, see crbug.com/483394870, so this test
+  // cannot run.
+#if BUILDFLAG(IS_ANDROID)
+  if (base::android::android_info::sdk_int() <
+      base::android::android_info::SDK_VERSION_R) {
+    return;
+  }
+#endif  // BUILDFLAG(IS_ANDROID)
+
+  ASSERT_TRUE(SetupClients());
+
+  // Wait for the statistics requests to finish and metrics be recorded. (This
+  // is not tied to a sync cycle.)
+  // Note that the DeviceStatisticsTracker also gets instantiated in the default
+  // profile (which is not used in SyncTests except on Android), so there will
+  // be two samples in total.
+  EXPECT_TRUE(base::test::RunUntil([&]() {
+#if BUILDFLAG(IS_ANDROID)
+    constexpr size_t kExpectedCount = 1;
+#else   // BUILDFLAG(IS_ANDROID)
+    constexpr size_t kExpectedCount = 2;
+#endif  // BUILDFLAG(IS_ANDROID)
+    return histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall")
+               .size() == kExpectedCount;
+  }));
+
+  // Note: Since the default profile doesn't have any signed-in accounts, it
+  // shouldn't have started any requests, so there should be only one request.
+  // On Android, where the default profile is used, this histogram may get
+  // recorded before the test body, and thus before the HistogramTester is
+  // instantiated.
+#if !BUILDFLAG(IS_ANDROID)
+  histograms_.ExpectUniqueSample("Sync.DeviceStatistics.RequestsStartedCount",
+                                 /*sample=*/1, /*expected_bucket_count=*/1,
+                                 FROM_HERE);
+#endif  // !BUILDFLAG(IS_ANDROID)
+
+  histograms_.ExpectUniqueSample(
+      "Sync.DeviceStatistics.RequestsCompletedSuccess",
+      syncer::DeviceStatisticsTracker::RequestsCompletedSuccess::kAllSucceeded,
+      /*expected_bucket_count=*/1, FROM_HERE);
+
+#if BUILDFLAG(IS_ANDROID)
+  histograms_.ExpectUniqueSample(
+      "Sync.DeviceStatistics.Outcome.Overall",
+      syncer::DeviceStatisticsTracker::AccountsHaveOtherDevicesSummary::
+          kPrimaryYesNonPrimaryNA,
+      /*expected_bucket_count=*/1, FROM_HERE);
+#else
+  // Note: We'd expect a single sample in the `kPrimaryYesNonPrimaryNA` bucket
+  // here, but since this histogram also gets recorded in the (unused) default
+  // profile, there is an additional `kNoAccounts` sample.
+  EXPECT_THAT(
+      histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall"),
+      ElementsAre(
+          base::Bucket(
+              syncer::DeviceStatisticsTracker::AccountsHaveOtherDevicesSummary::
+                  kPrimaryYesNonPrimaryNA,
+              1),
+          base::Bucket(syncer::DeviceStatisticsTracker::
+                           AccountsHaveOtherDevicesSummary::kNoAccounts,
+                       1)));
+#endif
+
+  histograms_.ExpectUniqueSample(
+      "Sync.DeviceStatistics.Outcome.PrimaryAccount.NumberOfAdditionalClients",
+      /*sample=*/2,
+      /*expected_bucket_count=*/1, FROM_HERE);
+}
+
+// On ChromeOS, there is always a primary account, so this test doesn't apply.
+#if !BUILDFLAG(IS_CHROMEOS)
+IN_PROC_BROWSER_TEST_P(
+    SingleClientDeviceInfoWithDeviceStatisticsSyncTest,
+    PRE_ShouldRecordDeviceStatisticsMetricsWithoutPrimaryAccount) {
+  // Simulate that the account has two other devices. (Note that the FakeServer
+  // doesn't actually know anything about accounts, so it'll return those
+  // devices also for the non-primary account that's set up below.)
+  InjectDeviceInfoEntityToServer(1);
+  InjectDeviceInfoEntityToServer(2);
+
+  // Sign in, to ensure that during startup of the following test, there is
+  // already a signed-in (but non-primary) account.
+  ASSERT_TRUE(SetupClients());
+
+  signin::IdentityManager* identity_manager =
+      IdentityManagerFactory::GetForProfile(GetProfile(0));
+  signin::AccountAvailabilityOptionsBuilder options =
+      signin::AccountAvailabilityOptionsBuilder().WithGaiaId(
+          GetClient(0)->GetGaiaIdForAccount(SyncTestAccount::kDefaultAccount));
+  signin::MakeAccountAvailable(identity_manager,
+                               options.Build(GetClient(0)->GetEmailForAccount(
+                                   SyncTestAccount::kDefaultAccount)));
+}
+
+// TODO(crbug.com/465716865): Figure out why this test sometimes times out on
+// ASan.
+// TODO(crbug.com/483936092): signin::MakeAccountAvailable() (needed by the PRE_
+// test) doesn't work on Android.
+#if defined(ADDRESS_SANITIZER) || BUILDFLAG(IS_ANDROID)
+#define MAYBE_ShouldRecordDeviceStatisticsMetricsWithoutPrimaryAccount \
+  DISABLED_ShouldRecordDeviceStatisticsMetricsWithoutPrimaryAccount
+#else
+#define MAYBE_ShouldRecordDeviceStatisticsMetricsWithoutPrimaryAccount \
+  ShouldRecordDeviceStatisticsMetricsWithoutPrimaryAccount
+#endif
+IN_PROC_BROWSER_TEST_P(
+    SingleClientDeviceInfoWithDeviceStatisticsSyncTest,
+    MAYBE_ShouldRecordDeviceStatisticsMetricsWithoutPrimaryAccount) {
+  // Note: On Android 10 (API level 29), setting the metrics consent override
+  // causes the test setup to time out, see crbug.com/483394870, so this test
+  // cannot run.
+#if BUILDFLAG(IS_ANDROID)
+  if (base::android::android_info::sdk_int() <
+      base::android::android_info::SDK_VERSION_R) {
+    return;
+  }
+#endif  // BUILDFLAG(IS_ANDROID)
+
+  ASSERT_TRUE(SetupClients());
+
+  // Wait for the statistics requests to finish and metrics be recorded.
+  // Note that the DeviceStatisticsTracker also gets instantiated in the default
+  // profile (which is not used in SyncTests except on Android), so there will
+  // be two samples in total.
+  EXPECT_TRUE(base::test::RunUntil([&]() {
+#if BUILDFLAG(IS_ANDROID)
+    constexpr size_t kExpectedCount = 1;
+#else   // BUILDFLAG(IS_ANDROID)
+    constexpr size_t kExpectedCount = 2;
+#endif  // BUILDFLAG(IS_ANDROID)
+    return histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall")
+               .size() == kExpectedCount;
+  }));
+
+  // Note: Since the default profile doesn't have any signed-in accounts, it
+  // shouldn't have started any requests, so there should be only one request.
+  // On Android, where the default profile is used, this histogram may get
+  // recorded before the test body, and thus before the HistogramTester is
+  // instantiated.
+#if !BUILDFLAG(IS_ANDROID)
+  histograms_.ExpectUniqueSample("Sync.DeviceStatistics.RequestsStartedCount",
+                                 /*sample=*/1, /*expected_bucket_count=*/1,
+                                 FROM_HERE);
+#endif  // !BUILDFLAG(IS_ANDROID)
+
+  histograms_.ExpectUniqueSample(
+      "Sync.DeviceStatistics.RequestsCompletedSuccess",
+      syncer::DeviceStatisticsTracker::RequestsCompletedSuccess::kAllSucceeded,
+      /*expected_bucket_count=*/1, FROM_HERE);
+
+#if BUILDFLAG(IS_ANDROID)
+  histograms_.ExpectUniqueSample(
+      "Sync.DeviceStatistics.Outcome.Overall",
+      syncer::DeviceStatisticsTracker::AccountsHaveOtherDevicesSummary::
+          kPrimaryNANonPrimaryYes,
+      /*expected_bucket_count=*/1, FROM_HERE);
+#else
+  // Note: We'd expect a single sample in the `kPrimaryYesNonPrimaryNA` bucket
+  // here, but since this histogram also gets recorded in the (unused) default
+  // profile, there is an additional `kNoAccounts` sample.
+  EXPECT_THAT(
+      histograms_.GetAllSamples("Sync.DeviceStatistics.Outcome.Overall"),
+      ElementsAre(
+          base::Bucket(
+              syncer::DeviceStatisticsTracker::AccountsHaveOtherDevicesSummary::
+                  kPrimaryNANonPrimaryYes,
+              1),
+          base::Bucket(syncer::DeviceStatisticsTracker::
+                           AccountsHaveOtherDevicesSummary::kNoAccounts,
+                       1)));
+#endif
+
+  histograms_.ExpectUniqueSample(
+      "Sync.DeviceStatistics.Outcome.NonPrimaryAccount."
+      "NumberOfAdditionalClients",
+      /*sample=*/2,
+      /*expected_bucket_count=*/1, FROM_HERE);
+}
+
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 }  // namespace

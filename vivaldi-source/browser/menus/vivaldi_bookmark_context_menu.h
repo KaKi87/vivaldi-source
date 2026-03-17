@@ -45,7 +45,8 @@ void ExecuteBookmarkMenuCommand(Browser* browser,
                                 int64_t bookmark_id,
                                 int mouse_event_flags);
 void HandleHoverUrl(Browser* browser, const std::string& url);
-const bookmarks::BookmarkNode* GetNodeByFolder(bookmarks::BookmarkModel* model,
+const bookmarks::BookmarkNode* GetNodeByFolder(
+    bookmarks::BookmarkModel* model,
     const BookmarkParentFolder& folder);
 void HandleOpenMenu(bookmarks::BookmarkModel* model,
                     const BookmarkParentFolder& folder);
@@ -71,7 +72,7 @@ bool AddIfSeparator(const bookmarks::BookmarkNode* node,
                     views::MenuItemView* menu,
                     size_t menu_index);
 views::MenuItemView* AddMenuItem(views::MenuItemView* menu,
-                                 size_t/*unsigned int*/* menu_index,
+                                 size_t /*unsigned int*/* menu_index,
                                  int id,
                                  const std::u16string& label,
                                  const ui::ImageModel& icon,
@@ -81,15 +82,15 @@ unsigned int GetStartIndexForBookmarks(views::MenuItemView* menu, int64_t id);
 bool IsVivaldiMenuItem(int id);
 const gfx::Image GetBookmarkDefaultIcon();
 const gfx::Image GetBookmarkletIcon(views::MenuItemView* menu,
-                                         views::Widget* widget);
+                                    views::Widget* widget);
 ui::ImageModel GetBookmarkFolderIcon(views::MenuItemView* menu,
                                      views::Widget* widget);
 ui::ImageModel GetBookmarkSpeeddialIcon(views::MenuItemView* menu,
                                         views::Widget* widget);
 void GetDraggedNodes(
-      bookmarks::BookmarkModel* model,
-      std::vector<raw_ptr<const bookmarks::BookmarkNode, VectorExperimental>>&
-          nodes);
+    bookmarks::BookmarkModel* model,
+    std::vector<raw_ptr<const bookmarks::BookmarkNode, VectorExperimental>>&
+        nodes);
 base::FilePath GetDraggedPath();
 }  // namespace vivaldi
 

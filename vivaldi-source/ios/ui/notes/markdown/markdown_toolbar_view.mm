@@ -115,12 +115,10 @@ constexpr CGFloat kDefaultToolbarHeight = 44;
 }
 
 - (void)toolbarUndoAction:(UIBarButtonItem*)sender {
-  [self.commandDelegate sendCommand:@""
-                        commandType:@"UNDO_COMMAND"];
+  [self.commandDelegate sendCommand:@"" commandType:@"UNDO_COMMAND"];
 }
 - (void)toolbarRedoAction:(UIBarButtonItem*)sender {
-  [self.commandDelegate sendCommand:@""
-                        commandType:@"REDO_COMMAND"];
+  [self.commandDelegate sendCommand:@"" commandType:@"REDO_COMMAND"];
 }
 
 #pragma mark - Toolbar button definitions
@@ -132,8 +130,8 @@ constexpr CGFloat kDefaultToolbarHeight = 44;
     image = [UIImage imageNamed:name];
   }
   DCHECK(image);
-  UIImage* icon = [image
-      imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
+  UIImage* icon =
+      [image imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate];
 
   UIBarButtonItem* button =
       [[UIBarButtonItem alloc] initWithImage:icon

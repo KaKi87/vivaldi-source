@@ -65,7 +65,7 @@ bool DocumentBlockedInterstitial::ShouldDisplayURL() const {
 void DocumentBlockedInterstitial::OnInterstitialClosing() {}
 
 void DocumentBlockedInterstitial::PopulateInterstitialStrings(
-    base::Value::Dict& load_time_data) {
+    base::DictValue& load_time_data) {
   std::u16string blocker_name =
       blocking_group_ == RuleGroup::kTrackingRules
           ? l10n_util::GetStringUTF16(IDS_DOCUMENT_BLOCKED_TRACKER_BLOCKER)

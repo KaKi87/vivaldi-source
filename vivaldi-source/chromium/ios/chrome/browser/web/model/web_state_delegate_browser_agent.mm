@@ -12,6 +12,8 @@
 #import "ios/chrome/browser/context_menu/ui_bundled/context_menu_configuration_provider.h"
 #import "ios/chrome/browser/dialogs/ui_bundled/nsurl_protection_space_util.h"
 #import "ios/chrome/browser/enterprise/data_controls/model/data_controls_tab_helper.h"
+#import "ios/chrome/browser/intelligence/bwg/utils/bwg_constants.h"
+#import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_callback_manager.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_modality.h"
 #import "ios/chrome/browser/overlays/model/public/overlay_request.h"
@@ -21,6 +23,8 @@
 #import "ios/chrome/browser/overlays/model/public/web_content_area/insecure_form_overlay.h"
 #import "ios/chrome/browser/permissions/model/permissions_tab_helper.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
+#import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
+#import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/snapshots/model/snapshot_tab_helper.h"
 #import "ios/chrome/browser/supervised_user/model/supervised_user_capabilities.h"
 #import "ios/chrome/browser/tab_insertion/model/tab_insertion_browser_agent.h"
@@ -94,21 +98,17 @@ bool IsMicOrCameraAccessSubjectToParentalControls(
 
 }  // namespace
 
-WebStateDelegateBrowserAgent::WebStateDelegateBrowserAgent(
-    Browser* browser,
-    TabInsertionBrowserAgent* tab_insertion_agent)
+WebStateDelegateBrowserAgent::WebStateDelegateBrowserAgent(Browser* browser)
     : BrowserUserData(browser),
       web_state_list_(browser->GetWebStateList()),
-      tab_insertion_agent_(tab_insertion_agent) {
-  DCHECK(tab_insertion_agent_);
-
+      browser_(browser) {
   // All the BrowserAgent are attached to the Browser during the creation,
   // the WebStateList must be empty at this point.
   DCHECK(web_state_list_->empty())
       << "WebStateDelegateBrowserAgent created for a Browser with a non-empty "
          "WebStateList.";
 
-  StartObserving(browser, Policy::kOnlyRealized);
+  StartObserving(browser);
 }
 
 WebStateDelegateBrowserAgent::~WebStateDelegateBrowserAgent() {
@@ -191,7 +191,7 @@ web::WebState* WebStateDelegateBrowserAgent::CreateNewWebState(
   // Requested web state should not be blocked from opening.
   SnapshotTabHelper::FromWebState(source)->UpdateSnapshotWithCallback(nil);
 
-  return tab_insertion_agent_->InsertWebStateOpenedByDOM(source);
+  return tab_insertion_agent()->InsertWebStateOpenedByDOM(source);
 }
 
 void WebStateDelegateBrowserAgent::CloseWebState(web::WebState* source) {
@@ -219,8 +219,8 @@ web::WebState* WebStateDelegateBrowserAgent::OpenURLFromWebState(
     case WindowOpenDisposition::NEW_BACKGROUND_TAB: {
       insertion_params.in_background =
           params.disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB;
-      return tab_insertion_agent_->InsertWebState(load_params,
-                                                  insertion_params);
+      return tab_insertion_agent()->InsertWebState(load_params,
+                                                   insertion_params);
     }
     case WindowOpenDisposition::CURRENT_TAB: {
       source->GetNavigationManager()->LoadURLWithParams(load_params);
@@ -228,8 +228,8 @@ web::WebState* WebStateDelegateBrowserAgent::OpenURLFromWebState(
     }
     case WindowOpenDisposition::NEW_POPUP: {
       insertion_params.opened_by_dom = true;
-      return tab_insertion_agent_->InsertWebState(load_params,
-                                                  insertion_params);
+      return tab_insertion_agent()->InsertWebState(load_params,
+                                                   insertion_params);
     }
     default:
       NOTIMPLEMENTED();
@@ -325,6 +325,14 @@ void WebStateDelegateBrowserAgent::ContextMenuConfiguration(
     web::WebState* source,
     const web::ContextMenuParams& params,
     void (^completion_handler)(UIContextMenuConfiguration*)) {
+  if (IsGeminiCopresenceEnabled()) {
+    id<BWGCommands> geminiHandler =
+        HandlerForProtocol(browser_->GetCommandDispatcher(), BWGCommands);
+    [geminiHandler
+        hideFloatyIfInvokedAnimated:YES
+                         fromSource:gemini::FloatyUpdateSource::WebContextMenu];
+  }
+
   UIContextMenuConfiguration* configuration =
       [context_menu_provider_ contextMenuConfigurationForWebState:source
                                                            params:params];
@@ -379,4 +387,8 @@ void WebStateDelegateBrowserAgent::DidFinishClipboardRead(
     web::WebState* source) {
   data_controls::DataControlsTabHelper::GetOrCreateForWebState(source)
       ->DidFinishClipboardRead();
+}
+
+TabInsertionBrowserAgent* WebStateDelegateBrowserAgent::tab_insertion_agent() {
+  return TabInsertionBrowserAgent::FromBrowser(browser_);
 }

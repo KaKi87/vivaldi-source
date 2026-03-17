@@ -5,11 +5,16 @@
 #import "ios/chrome/browser/composebox/coordinator/composebox_tab_picker_mediator.h"
 
 #import "base/strings/string_number_conversions.h"
+#import "base/strings/sys_string_conversions.h"
+#import "base/strings/utf_string_conversions.h"
 #import "ios/chrome/browser/composebox/coordinator/composebox_constants.h"
 #import "ios/chrome/browser/composebox/coordinator/web_state_deferred_executor.h"
+#import "ios/chrome/browser/composebox/debugger/composebox_debugger_logger.h"
+#import "ios/chrome/browser/composebox/public/features.h"
 #import "ios/chrome/browser/composebox/ui/composebox_snackbar_presenter.h"
 #import "ios/chrome/browser/composebox/ui/composebox_tab_picker_consumer.h"
 #import "ios/chrome/browser/intelligence/persist_tab_context/model/persist_tab_context_browser_agent.h"
+#import "ios/chrome/browser/ntp/model/new_tab_page_util.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/snapshots/model/snapshot_tab_helper.h"
@@ -21,6 +26,9 @@
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_switcher_item.h"
 #import "ios/chrome/browser/web/model/page_placeholder_tab_helper.h"
 #import "ios/web/public/web_state.h"
+
+@interface ComposeboxTabPickerMediator () <WebStateDeferredExecutorDelegate>
+@end
 
 @implementation ComposeboxTabPickerMediator {
   /// The grid consumer.
@@ -56,6 +64,7 @@
         setSelectedTabsCount:self.selectedEditingItems.tabsCount];
 
     _webStateDeferredExecutor = [[WebStateDeferredExecutor alloc] init];
+    _webStateDeferredExecutor.delegate = self;
     _failedLoadedItemIDs = [[NSMutableSet alloc] init];
   }
 
@@ -109,7 +118,14 @@
   if ([self attachmentLimitReached:itemID]) {
     ComposeboxSnackbarPresenter* snackbar =
         [[ComposeboxSnackbarPresenter alloc] initWithBrowser:self.browser];
-    [snackbar showAttachmentLimitSnackbar];
+
+    if (EnableComposeboxServerSideState()) {
+      [snackbar showSnackbarForTabAttachmentLimit:[_tabsAttachmentDelegate
+                                                      maxTabAttachmentCount]];
+    } else {
+      [snackbar showSnackbarForAttachmentLimit:kAttachmentLimit];
+    }
+
     return;
   }
 
@@ -198,6 +214,9 @@
   NSMutableArray<GridItemIdentifier*>* items = [[NSMutableArray alloc] init];
   for (int i = 0; i < self.webStateList->count(); i++) {
     web::WebState* webState = self.webStateList->GetWebStateAt(i);
+    if (IsVisibleURLNewTabPage(webState)) {
+      continue;
+    }
     GridItemIdentifier* item = [GridItemIdentifier tabIdentifier:webState];
     [items addObject:item];
   }
@@ -248,6 +267,9 @@
   _validAPCwebStatesIDs = validCachedwebStatesIDs;
   for (int i = 0; i < self.webStateList->count(); ++i) {
     web::WebState* webState = self.webStateList->GetWebStateAt(i);
+    if (IsVisibleURLNewTabPage(webState)) {
+      continue;
+    }
     GridItemIdentifier* item = [GridItemIdentifier tabIdentifier:webState];
     [items addObject:item];
   }
@@ -277,10 +299,10 @@
     }
   }
 
-  [_gridConsumer populateItems:items selectedItemIdentifier:nil];
+  [_gridConsumer populateItems:items
+        selectedItemIdentifier:[self activeIdentifier]];
 
-  // Defer scrolling until the next run loop to ensure the collection view
-  // layout is finalized.
+  // Defer scrolling to ensure the collection view layout is finalized.
   __weak __typeof(self) weakSelf = self;
   dispatch_async(dispatch_get_main_queue(), ^{
     [weakSelf bringActiveGridItemIntoView];
@@ -328,9 +350,8 @@
 /// an existing item implies removal).
 - (BOOL)attachmentLimitReached:(GridItemIdentifier*)itemID {
   return ![self.selectedEditingItems containItem:itemID] &&
-         (self.selectedEditingItems.tabsCount +
-              [_tabsAttachmentDelegate nonTabAttachmentCount] >=
-          kAttachmentLimit);
+         (self.selectedEditingItems.tabsCount >=
+          [_tabsAttachmentDelegate maxTabAttachmentCount]);
 }
 
 /// Handles the scenario where a tab fails to load.
@@ -346,6 +367,48 @@
 /// Brings the active grid item into view.
 - (void)bringActiveGridItemIntoView {
   [_gridConsumer bringItemIntoView:[self activeIdentifier] animated:NO];
+}
+
+#pragma mark - WebStateDeferredExecutorDelegate
+
+- (void)webStateDeferredExecutor:(WebStateDeferredExecutor*)executor
+                willLoadWebState:(web::WebState*)webState {
+  ComposeboxDebuggerEvent* event = [ComposeboxDebuggerEvent
+       tabEvent:composebox_debugger::event::Tabs::kWillLoadTab
+      withTitle:base::SysUTF16ToNSString(webState->GetTitle())
+          tabID:webState->GetUniqueIdentifier().identifier()];
+  [self.debugLogger logEvent:event];
+}
+
+- (void)webStateDeferredExecutor:(WebStateDeferredExecutor*)executor
+                 didLoadWebState:(web::WebState*)webState
+                         success:(BOOL)success {
+  composebox_debugger::event::Tabs tabEvent =
+      success ? composebox_debugger::event::Tabs::kDidLoadTab
+              : composebox_debugger::event::Tabs::kFailedToLoadTab;
+  ComposeboxDebuggerEvent* event = [ComposeboxDebuggerEvent
+       tabEvent:tabEvent
+      withTitle:base::SysUTF16ToNSString(webState->GetTitle())
+          tabID:webState->GetUniqueIdentifier().identifier()];
+  [self.debugLogger logEvent:event];
+}
+
+- (void)webStateDeferredExecutor:(WebStateDeferredExecutor*)executor
+        willForceRealizeWebState:(web::WebState*)webState {
+  ComposeboxDebuggerEvent* event = [ComposeboxDebuggerEvent
+       tabEvent:composebox_debugger::event::Tabs::kWillRealizeTab
+      withTitle:base::SysUTF16ToNSString(webState->GetTitle())
+          tabID:webState->GetUniqueIdentifier().identifier()];
+  [self.debugLogger logEvent:event];
+}
+
+- (void)webStateDeferredExecutor:(WebStateDeferredExecutor*)executor
+         didForceRealizeWebState:(web::WebState*)webState {
+  ComposeboxDebuggerEvent* event = [ComposeboxDebuggerEvent
+       tabEvent:composebox_debugger::event::Tabs::kDidRealizeTab
+      withTitle:base::SysUTF16ToNSString(webState->GetTitle())
+          tabID:webState->GetUniqueIdentifier().identifier()];
+  [self.debugLogger logEvent:event];
 }
 
 @end

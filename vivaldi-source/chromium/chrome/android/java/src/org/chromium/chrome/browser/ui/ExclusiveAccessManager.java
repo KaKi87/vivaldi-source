@@ -9,10 +9,10 @@ import android.os.Bundle;
 
 import org.jni_zero.NativeMethods;
 
-import org.chromium.base.Callback;
 import org.chromium.base.lifetime.Destroyable;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -45,8 +45,8 @@ public class ExclusiveAccessManager
     private @MonotonicNonNull DesktopWindowStateManager mDesktopWindowStateManager;
     @Nullable private TabModelSelector mTabModelSelector;
     private final TabModelObserver mTabModelObserver;
-    private final ObservableSupplierImpl<Boolean> mExclusiveAccessState =
-            new ObservableSupplierImpl<>(false);
+    private final SettableNonNullObservableSupplier<Boolean> mExclusiveAccessState =
+            ObservableSuppliers.createNonNull(false);
     private boolean mPendingFullscreen;
     @Nullable private FullscreenOptions mLatestFullscreenOptions;
 
@@ -85,20 +85,13 @@ public class ExclusiveAccessManager
                                         tab.getWebContents());
                     }
                 };
+        // Exclusive Access Manager always follows the fullscreen state. We subscribe to the FS
+        // state supplier in case when the fullscreen is delayed. Thanks to that EAM stat supplier
+        // will update on all FS enter and exit events. Exiting fullscreen should unlock all other
+        // locks.
         mFullscreenManager
                 .getPersistentFullscreenModeSupplier()
-                .addObserver(
-                        new Callback<Boolean>() {
-                            @Override
-                            public void onResult(Boolean result) {
-                                // Exclusive Access Manager always follows the fullscreen state. We
-                                // subscribe to the FS state supplier in case when the fullscreen is
-                                // delayed. Thanks to that EAM stat supplier will update on all FS
-                                // enter and exit events.
-                                // Exiting fullscreen should unlock all other locks.
-                                mExclusiveAccessState.set(result);
-                            }
-                        });
+                .addSyncObserverAndPostIfNonNull(mExclusiveAccessState::set);
     }
 
     public void initialize(
@@ -159,7 +152,7 @@ public class ExclusiveAccessManager
         mLatestFullscreenOptions = options;
     }
 
-    public ObservableSupplier<Boolean> getExclusiveAccessStateSupplier() {
+    public NonNullObservableSupplier<Boolean> getExclusiveAccessStateSupplier() {
         return mExclusiveAccessState;
     }
 

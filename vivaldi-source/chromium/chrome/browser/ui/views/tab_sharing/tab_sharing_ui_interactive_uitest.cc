@@ -36,18 +36,6 @@ class TabSharingMultiContentsViewTest
     ASSERT_TRUE(embedded_test_server()->Start());
   }
 
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    InteractiveBrowserTest::SetUpCommandLine(command_line);
-    scoped_feature_list_.InitWithFeatures(
-        {
-            features::kSideBySide,
-#if BUILDFLAG(IS_CHROMEOS)
-            features::kTabCaptureBlueBorderCrOS,
-#endif
-        },
-        {});
-  }
-
  protected:
   TabStripModel* tab_strip_model() { return browser()->tab_strip_model(); }
 
@@ -99,6 +87,7 @@ class TabSharingMultiContentsViewTest
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
+#if !BUILDFLAG(IS_CHROMEOS)
 IN_PROC_BROWSER_TEST_F(TabSharingMultiContentsViewTest,
                        ContentsSharingBorderShows) {
   RunTestSequence(
@@ -110,6 +99,27 @@ IN_PROC_BROWSER_TEST_F(TabSharingMultiContentsViewTest,
       InAnyContext(WaitForHide(kContentsCaptureBorder)),
       CheckIsCaptureContentsBorderShowing(0, false),
       CheckIsCaptureContentsBorderShowing(1, false));
+}
+
+IN_PROC_BROWSER_TEST_F(TabSharingMultiContentsViewTest,
+                       ContentsSharingBorderShowsOnVisibleInactiveTab) {
+  DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kThirdTab);
+  DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kFourthTab);
+  RunTestSequence(
+      InstrumentTab(kNewTab), AddInstrumentedTab(kSecondTab, GetTestUrl()),
+      AddInstrumentedTab(kThirdTab, GetTestUrl()),
+      AddInstrumentedTab(kFourthTab, GetTestUrl()),
+      SelectTab(kTabStripElementId, 0), EnterSplitView(0, 1),
+      SelectTab(kTabStripElementId, 2), EnterSplitView(2, 3),
+      SelectTab(kTabStripElementId, 0), ShareTab(0),
+      WaitForShow(kContentsCaptureBorder),
+      CheckIsCaptureContentsBorderShowing(0, true),
+      CheckIsCaptureContentsBorderShowing(1, false),
+      // Focusing on the inactive tab should still show the contents capture
+      // border
+      FocusInactiveTabInSplit(), EnsurePresent(kContentsCaptureBorder),
+      // Switching to a split that isn't screen sharing should hide the border
+      SelectTab(kTabStripElementId, 2), WaitForHide(kContentsCaptureBorder));
 }
 
 IN_PROC_BROWSER_TEST_F(TabSharingMultiContentsViewTest,
@@ -145,26 +155,16 @@ IN_PROC_BROWSER_TEST_F(TabSharingMultiContentsViewTest,
       SelectTab(kTabStripElementId, 1), WaitForHide(kContentsCaptureBorder),
       CheckIsCaptureContentsBorderShowing(0, false));
 }
+#endif  // !BUILDFLAG(IS_CHROMEOS)
 
 #if BUILDFLAG(IS_CHROMEOS)
 class ChromeOsTabSharingTest : public TabSharingMultiContentsViewTest {
  public:
-  void SetUpCommandLine(base::CommandLine* command_line) override {
-    InteractiveBrowserTest::SetUpCommandLine(command_line);
-    scoped_feature_list_.InitWithFeatures(
-        {}, {
-                features::kTabCaptureBlueBorderCrOS,
-            });
-  }
-
   TabCaptureContentsBorderHelper* GetTabCaptureContentsBorderHelper(int index) {
     TabStripModel* const tab_strip_model = browser()->tab_strip_model();
     return TabCaptureContentsBorderHelper::FromWebContents(
         tab_strip_model->GetWebContentsAt(index));
   }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(ChromeOsTabSharingTest, BorderStaysHidden) {

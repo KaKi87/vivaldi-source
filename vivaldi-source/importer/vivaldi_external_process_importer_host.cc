@@ -15,7 +15,7 @@ void ExternalProcessImporterHost::NotifyImportItemFailed(
 }
 
 void ExternalProcessImporterHost::ShowChromeWarningDialog() {
-  int importerLockString_id=0;
+  int importerLockString_id = 0;
 
   if (source_profile_.importer_type == user_data_importer::TYPE_CHROME ||
       source_profile_.importer_type == user_data_importer::TYPE_CHROMIUM) {
@@ -39,7 +39,8 @@ void ExternalProcessImporterHost::ShowChromeWarningDialog() {
   } else if (source_profile_.importer_type ==
              user_data_importer::TYPE_OPERA_GX) {
     importerLockString_id = IDS_OPERA_GX_IMPORTER_LOCK_TEXT;
-  } else if (source_profile_.importer_type == user_data_importer::TYPE_VIVALDI) {
+  } else if (source_profile_.importer_type ==
+             user_data_importer::TYPE_VIVALDI) {
     importerLockString_id = IDS_VIVALDI_IMPORTER_LOCK_TEXT;
   }
 
@@ -49,8 +50,7 @@ void ExternalProcessImporterHost::ShowChromeWarningDialog() {
       base::BindOnce(
           &ExternalProcessImporterHost::OnChromiumImportLockDialogEnd,
           weak_ptr_factory_.GetWeakPtr()),
-      IDS_IMPORTER_LOCK_TITLE,
-      importerLockString_id);
+      IDS_IMPORTER_LOCK_TITLE, importerLockString_id);
 }
 
 void ExternalProcessImporterHost::OnChromiumImportLockDialogEnd(

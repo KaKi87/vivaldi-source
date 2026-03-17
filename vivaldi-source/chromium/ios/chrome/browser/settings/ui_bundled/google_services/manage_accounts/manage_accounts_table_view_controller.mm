@@ -138,17 +138,15 @@ typedef NS_ENUM(NSInteger, EditAccountListItemType) {
 - (void)updateAccountItem:(TableViewAccountItem*)item
      withIdentityViewItem:(IdentityViewItem*)identityViewItem {
   item.image = identityViewItem.avatar;
-  if (AreSeparateProfilesForManagedAccountsEnabled()) {
-    item.detailText = identityViewItem.userEmail;
-    item.text = identityViewItem.userFullName;
-  } else {
-    item.text = identityViewItem.userEmail;
-  }
+  item.detailText = identityViewItem.userEmail;
+  item.text = identityViewItem.userFullName;
   item.accessibilityIdentifier = identityViewItem.accessibilityIdentifier;
   item.mode = TableViewAccountModeNonTappable;
   item.accessoryType = UITableViewCellAccessoryNone;
   item.accessibilityTraits = UIAccessibilityTraitStaticText;
-  item.managed = identityViewItem.managed;
+  if (identityViewItem.managed) {
+    item.detailImage = TableViewAccountDetailImage::kManaged;
+  }
 }
 
 - (TableViewItem*)removeAccountItemWithIdentityViewItem:

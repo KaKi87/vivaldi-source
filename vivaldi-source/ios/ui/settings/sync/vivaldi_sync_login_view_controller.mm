@@ -41,10 +41,9 @@ typedef NS_ENUM(NSInteger, ItemType) {
   ItemTypeError,
 };
 
-@interface VivaldiSyncLoginViewController () <
-    UITextFieldDelegate,
-    UITextViewDelegate,
-    TableViewTextLinkCellDelegate>
+@interface VivaldiSyncLoginViewController () <UITextFieldDelegate,
+                                              UITextViewDelegate,
+                                              TableViewTextLinkCellDelegate>
 
 @property(nonatomic, strong) VivaldiTableViewTextEditItem* usernameItem;
 @property(nonatomic, strong) VivaldiTableViewTextEditItem* passwordItem;
@@ -91,11 +90,10 @@ typedef NS_ENUM(NSInteger, ItemType) {
 }
 
 - (void)setupLeftCancelButton {
-  UIBarButtonItem* cancelButton =
-      [[UIBarButtonItem alloc]
-          initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
-                               target:self
-                               action:@selector(dismissView)];
+  UIBarButtonItem* cancelButton = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
+                           target:self
+                           action:@selector(dismissView)];
   self.customLeftBarButtonItem = cancelButton;
   self.navigationItem.leftBarButtonItem = self.customLeftBarButtonItem;
 }
@@ -129,16 +127,15 @@ typedef NS_ENUM(NSInteger, ItemType) {
   };
   // Using empty string since this is handled in the function
   NSDictionary* linkAttributes = @{
-      NSLinkAttributeName : [NSURL URLWithString:@""],
+    NSLinkAttributeName : [NSURL URLWithString:@""],
   };
 
   auto subtitleText = AttributedStringFromStringWithLink(
-      l10n_util::GetNSString(IDS_VIVALDI_CREATE_ACCOUNT_TEXT),
-      textAttributes, linkAttributes);
+      l10n_util::GetNSString(IDS_VIVALDI_CREATE_ACCOUNT_TEXT), textAttributes,
+      linkAttributes);
   title.subtitle = subtitleText;
 
-  [model addItem:title
-      toSectionWithIdentifier:SectionIdentifierHeader];
+  [model addItem:title toSectionWithIdentifier:SectionIdentifierHeader];
 
   self.usernameItem =
       [[VivaldiTableViewTextEditItem alloc] initWithType:ItemTypeUsername];
@@ -166,19 +163,18 @@ typedef NS_ENUM(NSInteger, ItemType) {
   self.passwordItem.textFieldSecureTextEntry = YES;
   self.passwordItem.autoCapitalizationType = UITextAutocapitalizationTypeNone;
   self.passwordItem.textContentType = UITextContentTypePassword;
-  self.passwordItem.identifyingIconAccessibilityLabel = l10n_util::GetNSString(
-      IDS_VIVALDI_IOS_SETTINGS_SHOW_PASSWORD_HINT);
+  self.passwordItem.identifyingIconAccessibilityLabel =
+      l10n_util::GetNSString(IDS_VIVALDI_IOS_SETTINGS_SHOW_PASSWORD_HINT);
   [model addItem:self.passwordItem
       toSectionWithIdentifier:SectionIdentifierUsernamePassword];
 
   self.switchItemSavePassword =
-    [[TableViewSwitchItem alloc] initWithType:ItemTypeSavePasswordSwitch];
-  self.switchItemSavePassword.text = l10n_util::GetNSString(
-      IDS_VIVALDI_ACCOUNT_SAVE_CREDENTIALS);
+      [[TableViewSwitchItem alloc] initWithType:ItemTypeSavePasswordSwitch];
+  self.switchItemSavePassword.text =
+      l10n_util::GetNSString(IDS_VIVALDI_ACCOUNT_SAVE_CREDENTIALS);
   self.switchItemSavePassword.on = NO;
   self.switchItemSavePassword.target = self;
-  self.switchItemSavePassword.selector =
-      @selector(savePasswordSwitchToggled);
+  self.switchItemSavePassword.selector = @selector(savePasswordSwitchToggled);
   self.switchItemSavePassword.tag = ItemTypeSavePasswordSwitch;
   [model addItem:self.switchItemSavePassword
       toSectionWithIdentifier:SectionIdentifierSavePassword];
@@ -196,9 +192,8 @@ typedef NS_ENUM(NSInteger, ItemType) {
   [model addItem:self.deviceNameItem
       toSectionWithIdentifier:SectionIdentifierUserDetails];
 
-  self.loginButton =
-      [[VivaldiTableViewTextSpinnerButtonItem alloc]
-          initWithType:ItemTypeLoginButton];
+  self.loginButton = [[VivaldiTableViewTextSpinnerButtonItem alloc]
+      initWithType:ItemTypeLoginButton];
   self.loginButton.activityInProgress = NO;
   self.loginButton.buttonText =
       l10n_util::GetNSString(IDS_VIVALDI_ACCOUNT_LOG_IN);
@@ -208,7 +203,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
   self.loginButton.disableButtonIntrinsicWidth = YES;
 
   [self.tableViewModel addItem:self.loginButton
-      toSectionWithIdentifier:SectionIdentifierLoginButton];
+       toSectionWithIdentifier:SectionIdentifierLoginButton];
 
   [self addForgotUsernamePasswordSection];
 }
@@ -245,12 +240,11 @@ typedef NS_ENUM(NSInteger, ItemType) {
   switch (itemType) {
     case ItemTypeLoginButton: {
       VivaldiTableViewTextSpinnerButtonCell* tableViewTextButtonCell =
-          base::apple::ObjCCastStrict<VivaldiTableViewTextSpinnerButtonCell>
-              (cell);
-      [tableViewTextButtonCell.button
-                 addTarget:self
-                    action:@selector(logInButtonPressed:)
-          forControlEvents:UIControlEventTouchUpInside];
+          base::apple::ObjCCastStrict<VivaldiTableViewTextSpinnerButtonCell>(
+              cell);
+      [tableViewTextButtonCell.button addTarget:self
+                                         action:@selector(logInButtonPressed:)
+                               forControlEvents:UIControlEventTouchUpInside];
       [tableViewTextButtonCell
           setActivityIndicatorEnabled:self.loginButton.activityInProgress];
       break;
@@ -312,20 +306,22 @@ typedef NS_ENUM(NSInteger, ItemType) {
   NSURL* recoverPasswordURL = [NSURL URLWithString:vVivaldiRecoverPasswordUrl];
   if ([URL.nsurl isEqual:recoverUsernameURL]) {
     [self.modalPageHandler
-      showModalPage:recoverUsernameURL
-              title:l10n_util::GetNSString(IDS_VIVALDI_RECOVER_USERNAME_TEXT)];
+        showModalPage:recoverUsernameURL
+                title:l10n_util::GetNSString(
+                          IDS_VIVALDI_RECOVER_USERNAME_TEXT)];
   } else if ([URL.nsurl isEqual:recoverPasswordURL]) {
     [self.modalPageHandler
-      showModalPage:recoverPasswordURL
-              title:l10n_util::GetNSString(IDS_VIVALDI_RECOVER_PASSOWRD_TEXT)];
+        showModalPage:recoverPasswordURL
+                title:l10n_util::GetNSString(
+                          IDS_VIVALDI_RECOVER_PASSOWRD_TEXT)];
   }
 }
 
 #pragma mark - Private Methods
 - (void)addForgotUsernamePasswordSection {
   TableViewTextLinkItem* forgotUsernamePasswordItem =
-    [[TableViewTextLinkItem alloc]
-      initWithType:ItemTypeForgotUsernamePassword];
+      [[TableViewTextLinkItem alloc]
+          initWithType:ItemTypeForgotUsernamePassword];
 
   std::vector<GURL> linkURLs;
 
@@ -340,14 +336,15 @@ typedef NS_ENUM(NSInteger, ItemType) {
   }
 
   StringWithTags itemStringWithTags = ParseStringWithLinks(
-       l10n_util::GetNSString(IDS_VIVALDI_FORGOT_USERNAME_PASSWORD_TEXT));
+      l10n_util::GetNSString(IDS_VIVALDI_FORGOT_USERNAME_PASSWORD_TEXT));
   forgotUsernamePasswordItem.text = itemStringWithTags.string;
 
   if (linkURLs.size() == 2 && itemStringWithTags.ranges.size() == 2) {
     forgotUsernamePasswordItem.linkURLs = linkURLs;
-    forgotUsernamePasswordItem.linkRanges =
-    @[ [NSValue valueWithRange:itemStringWithTags.ranges[0]],
-       [NSValue valueWithRange:itemStringWithTags.ranges[1]] ];
+    forgotUsernamePasswordItem.linkRanges = @[
+      [NSValue valueWithRange:itemStringWithTags.ranges[0]],
+      [NSValue valueWithRange:itemStringWithTags.ranges[1]]
+    ];
     [self.tableViewModel addItem:forgotUsernamePasswordItem
          toSectionWithIdentifier:SectionIdentifierForgotUsernamePassword];
   }
@@ -357,9 +354,9 @@ typedef NS_ENUM(NSInteger, ItemType) {
   self.passwordItem.textFieldSecureTextEntry =
       !self.passwordItem.textFieldSecureTextEntry;
   self.passwordItem.identifyingIcon =
-      self.passwordItem.textFieldSecureTextEntry ?
-        [UIImage systemImageNamed:kShowPasswordIcon] :
-        [UIImage systemImageNamed:kHidePasswordIcon];
+      self.passwordItem.textFieldSecureTextEntry
+          ? [UIImage systemImageNamed:kShowPasswordIcon]
+          : [UIImage systemImageNamed:kHidePasswordIcon];
   [self reconfigureCellsForItems:@[ self.passwordItem ]];
 }
 
@@ -371,9 +368,11 @@ typedef NS_ENUM(NSInteger, ItemType) {
   NSString* errorMessage;
 
   if ([self.usernameItem.textFieldValue length] == 0) {
-    errorMessage = l10n_util::GetNSString(IDS_VIVALDI_ACCOUNT_USERNAME_REQUIRED);
+    errorMessage =
+        l10n_util::GetNSString(IDS_VIVALDI_ACCOUNT_USERNAME_REQUIRED);
   } else if ([self.passwordItem.textFieldValue length] == 0) {
-    errorMessage = l10n_util::GetNSString(IDS_VIVALDI_ACCOUNT_PASSWORD_REQUIRED);
+    errorMessage =
+        l10n_util::GetNSString(IDS_VIVALDI_ACCOUNT_PASSWORD_REQUIRED);
   }
 
   [self removeErrorCell:SectionIdentifierUsernamePassword

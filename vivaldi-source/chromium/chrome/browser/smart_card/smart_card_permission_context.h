@@ -6,7 +6,6 @@
 #define CHROME_BROWSER_SMART_CARD_SMART_CARD_PERMISSION_CONTEXT_H_
 
 #include <cstdint>
-#include <map>
 #include <set>
 
 #include "base/containers/flat_map.h"
@@ -54,9 +53,9 @@ class SmartCardPermissionContext
                                 RequestReaderPermissionCallback callback);
 
   // permissions::ObjectPermissionContextBase:
-  std::string GetKeyForObject(const base::Value::Dict& object) override;
-  bool IsValidObject(const base::Value::Dict& object) override;
-  std::u16string GetObjectDisplayName(const base::Value::Dict& object) override;
+  std::string GetKeyForObject(const base::DictValue& object) override;
+  bool IsValidObject(const base::DictValue& object) override;
+  std::u16string GetObjectDisplayName(const base::DictValue& object) override;
 
   // permissions::ObjectPermissionContextBase::PermissionObserver:
   void OnPermissionRevoked(const url::Origin& origin) override;

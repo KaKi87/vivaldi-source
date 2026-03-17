@@ -15,8 +15,8 @@
   void NavigationStateChanged(content::WebContents* source,
                               content::InvalidateTypes changed_flags) override;
   void UpdateTargetURL(content::WebContents* source, const GURL& url) override;
-  void CreateSearch(const base::Value::List& search) override;
-  void PasteAndGo(const base::Value::List& search) override;
+  void CreateSearch(const base::ListValue& search) override;
+  void PasteAndGo(const base::ListValue& search) override;
   void ToggleFullscreenModeForTab(content::WebContents* web_contents,
                                   bool enter_fullscreen);
   void BeforeUnloadFired(content::WebContents* web_contents, bool proceed,
@@ -143,13 +143,13 @@
   // further operation on |this| must be done if false is returned, we might be
   // deleted.
   bool VivaldiCreateWebContents(std::unique_ptr<GuestViewBase> owned_this,
-                                const base::Value::Dict& create_params,
+                                const base::DictValue& create_params,
                                 GuestPageCreatedCallback callback);
 
   // vivaldi addition:
   bool IsMouseGesturesEnabled() const;
 
-  void VivaldiSetLoadProgressEventExtraArgs(base::Value::Dict& dictionary);
+  void VivaldiSetLoadProgressEventExtraArgs(base::DictValue& dictionary);
 
   bool is_fullscreen_ = false;
   //ui::mojom::WindowShowState window_state_prior_to_fullscreen_ = ui::mojom::WindowShowState::kNormal;

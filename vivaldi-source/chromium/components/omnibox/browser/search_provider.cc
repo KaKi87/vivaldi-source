@@ -111,10 +111,9 @@ bool ShouldOnlyShowVerbatimMatches(const AutocompleteInput& input) {
       input.lens_overlay_suggest_inputs().has_value() &&
       !base::FeatureList::IsEnabled(omnibox::kComposeboxAttachmentsTypedState);
   const bool is_image_gen_mode =
-      input.aim_tool_mode() ==
-          omnibox::ChromeAimToolsAndModels::TOOL_MODE_IMAGE_GEN_UPLOAD ||
-      input.aim_tool_mode() ==
-          omnibox::ChromeAimToolsAndModels::TOOL_MODE_IMAGE_GEN;
+      input.input_state().active_tool ==
+          omnibox::ToolMode::TOOL_MODE_IMAGE_GEN_UPLOAD ||
+      input.input_state().active_tool == omnibox::ToolMode::TOOL_MODE_IMAGE_GEN;
 
   // When contextual typed state suggestions are disabled for composebox, or
   // when in image generation mode, do not query suggest and only show
@@ -123,7 +122,11 @@ bool ShouldOnlyShowVerbatimMatches(const AutocompleteInput& input) {
     return true;
   }
 #endif
-  return false;
+  // Nano banana and deep search typed suggestions should be disabled.
+  const bool in_tool_mode = input.input_state().active_tool !=
+                            omnibox::ToolMode::TOOL_MODE_UNSPECIFIED;
+  return in_tool_mode &&
+         omnibox::IsComposebox(input.current_page_classification());
 }
 
 }  // namespace
@@ -473,7 +476,7 @@ void SearchProvider::OnURLLoadComplete(
   // clear if the suggest server will send back sensible results to the
   // request we're constructing here for on-focus inputs.
   if (!input_.IsZeroSuggest() && request_succeeded) {
-    std::optional<base::Value::List> data =
+    std::optional<base::ListValue> data =
         SearchSuggestionParser::DeserializeJsonData(
             SearchSuggestionParser::ExtractJsonData(source,
                                                     std::move(response_body)));
@@ -982,7 +985,7 @@ std::unique_ptr<network::SimpleURLLoader> SearchProvider::CreateSuggestLoader(
   }
   search_term_args.lens_overlay_suggest_inputs =
       input.lens_overlay_suggest_inputs();
-  search_term_args.aim_tool_mode = input.aim_tool_mode();
+  search_term_args.input_state = input.input_state();
 
   const SearchTermsData& search_terms_data =
       client()->GetTemplateURLService()->search_terms_data();
@@ -1069,6 +1072,13 @@ void SearchProvider::ConvertResultsToAutocompleteMatches() {
       verbatim.SetAnswerType(match_with_answer->answer_type);
       verbatim.SetRichAnswerTemplate(*match_with_answer->answer_template);
     }
+    if (omnibox::IsComposebox(input_.current_page_classification())) {
+      omnibox::SuggestTemplateInfo suggest_template;
+      suggest_template.set_type_icon(
+          omnibox::SuggestTemplateInfo_IconType_SEARCH_LOOP_WITH_SPARKLE);
+      verbatim.SetSuggestTemplateInfo(suggest_template);
+    }
+
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_IOS)
     // Boost SEARCH_WHAT_YOU_TYPED item if autocomplete is disabled.
     if (vivaldi::IsVivaldiRunning() &&
@@ -1076,7 +1086,8 @@ void SearchProvider::ConvertResultsToAutocompleteMatches() {
             vivaldiprefs::kAddressBarAutocompleteEnabled)) {
       verbatim.set_relevance(verbatim.relevance() + 1000);
     }
-#endif
+#endif // End Vivaldi
+
     AddMatchToMap(verbatim, GetInput(verbatim.from_keyword()),
                   GetTemplateURL(verbatim.from_keyword()),
                   client()->GetTemplateURLService()->search_terms_data(),
@@ -1097,7 +1108,7 @@ void SearchProvider::ConvertResultsToAutocompleteMatches() {
     if (keyword_url &&
         (keyword_url->type() != TemplateURL::OMNIBOX_API_EXTENSION) &&
         (keyword_url->starter_pack_id() !=
-         template_url_starter_pack_data::kTabs)) {
+         template_url_starter_pack_data::StarterPackId::kTabs)) {
       bool keyword_relevance_from_server;
       const int keyword_verbatim_relevance =
           GetKeywordVerbatimRelevance(&keyword_relevance_from_server);

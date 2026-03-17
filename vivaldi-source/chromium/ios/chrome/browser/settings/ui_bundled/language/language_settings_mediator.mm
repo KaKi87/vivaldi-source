@@ -4,11 +4,11 @@
 
 #import "ios/chrome/browser/settings/ui_bundled/language/language_settings_mediator.h"
 
+#import <algorithm>
 #import <memory>
 
 #import "base/apple/foundation_util.h"
 #import "base/check.h"
-#import "base/containers/contains.h"
 #import "base/metrics/histogram_macros.h"
 #import "base/notreached.h"
 #import "base/strings/sys_string_conversions.h"
@@ -35,7 +35,7 @@
 #import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
 #import "ios/translate/vivaldi_ios_translate_client.h"
 #import "ios/translate/vivaldi_ios_translate_service.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 // End Vivaldi
 
 #if defined(VIVALDI_BUILD)
@@ -234,7 +234,7 @@
       [NSMutableArray arrayWithCapacity:languages.size()];
   for (const auto& language : languages) {
     // Ignore languages already in the accept languages list.
-    if (base::Contains(acceptLanguageCodes, language.code)) {
+    if (std::ranges::contains(acceptLanguageCodes, language.code)) {
       continue;
     }
     LanguageItem* languageItem = [self languageItemFromLanguage:language];

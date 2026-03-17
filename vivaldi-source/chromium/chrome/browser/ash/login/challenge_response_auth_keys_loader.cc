@@ -87,7 +87,7 @@ void LoadStoredChallengeResponseSpkiKeysForUser(
     const AccountId& account_id,
     std::vector<std::string>* spki_items,
     base::flat_set<std::string>* extension_ids) {
-  const base::Value::List known_user_value =
+  const base::ListValue known_user_value =
       user_manager::KnownUser(g_browser_process->local_state())
           .GetChallengeResponseKeys(account_id);
   std::vector<DeserializedChallengeResponseKey>
@@ -283,7 +283,14 @@ class ExtensionLoadObserver final
       return;
     }
 
+    // OnExtensionInstalled() can cause `this` to be destroyed.
+    // Use a `WeakPtr` to prevent a use-after-free here.
+    base::WeakPtr<ExtensionLoadObserver> weak_this =
+        weak_ptr_factory_.GetWeakPtr();
     for (const std::string& extension_id : extension_ids_to_wait_for) {
+      if (!weak_this) {
+        break;
+      }
       const extensions::Extension* extension =
           GetExtensionRegistry()->GetInstalledExtension(extension_id);
       if (extension) {

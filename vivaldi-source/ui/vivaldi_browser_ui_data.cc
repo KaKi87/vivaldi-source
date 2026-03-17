@@ -12,8 +12,7 @@ namespace vivaldi {
 
 DEFINE_USER_DATA(VivaldiBrowserUiData);
 
-VivaldiBrowserUiData::VivaldiBrowserUiData(
-    BrowserWindowInterface* browser)
+VivaldiBrowserUiData::VivaldiBrowserUiData(BrowserWindowInterface* browser)
     : browser_interface_(CHECK_DEREF(browser)),
       scoped_data_holder_(browser->GetUnownedUserDataHost(), *this) {
   Browser* typed_browser = static_cast<Browser*>(browser);
@@ -40,4 +39,4 @@ void VivaldiBrowserUiData::set_viv_ext_data(const std::string& viv_ext_data) {
   }
 }
 
-} // namespace vivaldi
+}  // namespace vivaldi

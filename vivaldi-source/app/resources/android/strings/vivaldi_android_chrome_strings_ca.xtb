@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">Obre a una nova pila de pestanyes</translation>
 <translation id="1925021887439448749">Introdueix l'adreça web personalitzada</translation>
 <translation id="2038563949887743358">Activa la petició de vista del lloc d'escriptori</translation>
+<translation id="2072027001582274150">Pestanyes no usades o duplicades</translation>
 <translation id="208033313373016095">Mode de lectura per pàgines web</translation>
 <translation id="2149973817440762519">Edita el marcador</translation>
 <translation id="2306442503286132111">Marcador desat a la carpeta <ph name="FOLDER_NAME" /></translation>
@@ -46,6 +47,10 @@
 <translation id="385051799172605136">Enrere</translation>
 <translation id="3987993985790029246">Copia l'enllaç</translation>
 <translation id="399014816462153200">Articles llegits:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> pestanya}
+          other {<ph name="TAB_COUNT_MANY" /> pestanyes, <ph name="TAB_COUNT_INCOGNITO" /> privades}}</translation>
+<translation id="408336132633586393">Finestra privada</translation>
 <translation id="4121750346708795461">En fer servir aquesta aplicació, acceptes les <ph name="BEGIN_LINK1" />condicions de servei<ph name="END_LINK1" /> i la <ph name="BEGIN_LINK2" />política de privacitat<ph name="END_LINK2" /> de Vivaldi.</translation>
 <translation id="4137746084635924146">Idioma actual del dispositiu</translation>
 <translation id="4167670741834902166">Nova pestanya privada</translation>
@@ -55,9 +60,7 @@
 <translation id="4269820728363426813">Copia l'adreça de l'enllaç</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Activa el bloqueig de pantalla als ajustos d'Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Gestor de contrasenyes</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {Pestanya i grup no usat durant 1 dia o més}
-          other {Pestanyes i grups no usats durant 1 dia o més}}</translation>
+<translation id="441100617989818073">Pestanyes i grups no usats o duplicats</translation>
 <translation id="451872707440238414">Cerca als marcadors</translation>
 <translation id="4526803704855831732">Pestanyes privades</translation>
 <translation id="4532845899244822526">Escull carpeta</translation>
@@ -71,6 +74,9 @@ La funcionalitat de prèmer per cercar només és disponible quan Google és el 
 <translation id="4883379392681899581">Surt del mode privat</translation>
 <translation id="4943872375798546930">Sense resultats</translation>
 <translation id="49576331685473090">Bloquejador de continguts</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> pestanya privada}
+          other {<ph name="TAB_COUNT_NORMAL" /> pestanyes privades}}</translation>
 <translation id="5079259810715830221">Quan un lloc de Google pregunta per precarregar privadament enllaços a la seva pàgina, Vivaldi encripta i precarrega les pàgines a través dels servidors de Google sense galetes. Això amaga la teva identitat al lloc precarregat.</translation>
 <translation id="5118676864324397542">Emmagatzematge de <ph name="APP_NAME" /></translation>
 <translation id="5144385790872094440">Algunes de les pàgines que visites estan precarregades. És possible que les pàgines es precarreguin a través dels servidors de Google quan s'enllacin des d'una aplicació o des d'un lloc de Google.</translation>
@@ -103,6 +109,7 @@ Per ajustar el teu terme de cerca, prem llarg per seleccionar. Per refinar la te
 <translation id="6909589135458168665">Precàrrega de pàgines</translation>
 <translation id="7029995644714925509">Quan un lloc pregunta per precarregar privadament enllaços a la seva pàgina, Vivaldi encripta i precarrega les pàgines a través dels servidors de Google sense galetes. Això amaga la teva identitat al lloc precarregat.</translation>
 <translation id="706339621163631076">Política de privadesa de Vivaldi</translation>
+<translation id="7100573672995171864">Personalitza i controla Vivaldi</translation>
 <translation id="732145680195464316">Marcador desat a <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Envia una sol·licitud "Do Not Track"</translation>
 <translation id="7359002509206457351">Accedeix a les formes de pagament</translation>
@@ -124,14 +131,11 @@ Per ajustar el teu terme de cerca, prem llarg per seleccionar. Per refinar la te
 <translation id="8348430946834215779">Utilitza HTTPS sempre que sigui possible i rep un avís abans de carregar llocs que no ho admeten</translation>
 <translation id="8560602726703398413">Troba la teva llista de lectura als marcadors</translation>
 <translation id="85991616550051997">Ves a la pàgina principal</translation>
-<translation id="8693232767599693749">Veure el mode de lectura?</translation>
+<translation id="8738163682604285902">Veure el mode lectura?</translation>
 <translation id="8820817407110198400">Marcadors</translation>
 <translation id="9042893549633094279">Privadesa i seguretat</translation>
 <translation id="9063523880881406963">Desactiva la petició de vista del lloc d'escriptori</translation>
 <translation id="9080642952018487277">Entra al mode privat</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {No usat durant 1 dia o més}
-          other {No usat durant # dies o més}}</translation>
 <translation id="930124987204876019">Suprimeix l'historial, les galetes, les dades dels llocs web, la memòria cau…</translation>
 <translation id="961856697154696964">Suprimeix les dades de navegació</translation>
 </translationbundle>

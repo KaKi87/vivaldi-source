@@ -41,7 +41,8 @@ std::string VivaldiFilterLDPreload() {
     if (filterable.find(entry) != filterable.end())
       continue;
 
-    if (!filterable_preload && entry.find("libffmpeg.so") != std::string::npos) {
+    if (!filterable_preload &&
+        entry.find("libffmpeg.so") != std::string::npos) {
       continue;
     }
 

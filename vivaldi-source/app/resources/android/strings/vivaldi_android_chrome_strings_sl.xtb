@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">Odpri v novem nizu zavihkov</translation>
 <translation id="1925021887439448749">Vnesite spletni naslov po meri</translation>
 <translation id="2038563949887743358">Vklop možnosti Zahteva za namizno spletno mesto</translation>
+<translation id="2072027001582274150">Neuporabljeni ali podvojeni zavihki</translation>
 <translation id="208033313373016095">Pogled bralnika za spletne strani</translation>
 <translation id="2149973817440762519">Uredi zaznamek</translation>
 <translation id="2306442503286132111">Zaznamek je shranjen v mapi <ph name="FOLDER_NAME" /></translation>
@@ -46,6 +47,10 @@
 <translation id="385051799172605136">Nazaj</translation>
 <translation id="3987993985790029246">Kopiraj povezavo</translation>
 <translation id="399014816462153200">Preberite članke:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> tab}
+          other {<ph name="TAB_COUNT_MANY" /> tabs, <ph name="TAB_COUNT_INCOGNITO" /> private}}</translation>
+<translation id="408336132633586393">Zasebno okno</translation>
 <translation id="4121750346708795461">Z uporabo te aplikacije se strinjate z Vivaldijevo <ph name="BEGIN_LINK1" />Licenčno pogodba za končnega uporabnika<ph name="END_LINK1" /> in <ph name="BEGIN_LINK2" />Pravilnikom o zasebnosti<ph name="END_LINK2" />.</translation>
 <translation id="4137746084635924146">Trenutni jezik naprave</translation>
 <translation id="4167670741834902166">Nov zasebni zavihek</translation>
@@ -55,9 +60,7 @@
 <translation id="4269820728363426813">Kopiraj naslov povezave</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Vklop zaklepanja zaslona v nastavitvah za Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Upravitelj gesel</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, množina,
-          =1 {Zavihki in skupine, ki niso bili uporabljeni 1 dan ali več}
-          other {drugo {Zavihki in skupine niso bili uporabljeni # dni ali več}}</translation>
+<translation id="441100617989818073">Neuporabljeni ali podvojeni zavihki in skupine</translation>
 <translation id="451872707440238414">Iščite med zaznamki</translation>
 <translation id="4526803704855831732">Zasebni zavihki</translation>
 <translation id="4532845899244822526">Izberite mapo</translation>
@@ -71,6 +74,9 @@ Iskanje z dotikom je funkcija, ki je na voljo le, če je Google nastavljen kot p
 <translation id="4883379392681899581">Zapusti zasebni način</translation>
 <translation id="4943872375798546930">Ni rezultatov</translation>
 <translation id="49576331685473090">Blokator vsebine</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> private tab}
+          other {<ph name="TAB_COUNT_NORMAL" /> private tabs}}</translation>
 <translation id="5079259810715830221">Ko Googlovo spletno mesto zahteva zasebno vnaprejšnje nalaganje povezav na svojo stran, Vivaldi šifrira in vnaprej naloži strani prek Googlovih strežnikov brez piškotkov. To skrije vašo identiteto na prednaloženem spletnem mestu.</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" /> shramba</translation>
 <translation id="5144385790872094440">Nekatere strani, ki jih obiščete, so vnaprej naložene. Strani so lahko vnaprej naložene prek Googlovih strežnikov, ko so povezane z Googlovega spletnega mesta ali aplikacije.</translation>
@@ -104,6 +110,7 @@ Iskanje z dotikom je funkcija, ki je na voljo le, če je Google nastavljen kot p
 <translation id="6909589135458168665">Prednaloži strani</translation>
 <translation id="7029995644714925509">Ko spletno mesto zahteva zasebno prednalaganje povezav na svojo stran, Vivaldi šifrira in vnaprej naloži strani prek Googlovih strežnikov brez piškotkov. To skrije vašo identiteto na prednaloženem spletnem mestu.</translation>
 <translation id="706339621163631076">Pravilnik o zasebnosti brskalnika</translation>
+<translation id="7100573672995171864">Prilagodite in upravljajte Vivaldi</translation>
 <translation id="732145680195464316">Zaznamek je shranjen v <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Pošlji zahtevo "Ne sledi"</translation>
 <translation id="7359002509206457351">Dostop do načinov plačila</translation>
@@ -125,14 +132,11 @@ Iskanje z dotikom je funkcija, ki je na voljo le, če je Google nastavljen kot p
 <translation id="8348430946834215779">Uporabite HTTPS, kadar koli je to mogoče, in prejmite opozorilo, preden naložite spletna mesta, ki tega ne podpirajo</translation>
 <translation id="8560602726703398413">Poiščite svoj bralni seznam v zaznamkih</translation>
 <translation id="85991616550051997">Pojdi na domačo stran</translation>
-<translation id="8693232767599693749">Ogled načina branja?</translation>
+<translation id="8738163682604285902">Ogled načina branja?</translation>
 <translation id="8820817407110198400">Zaznamki</translation>
 <translation id="9042893549633094279">Zasebnost in varnost</translation>
 <translation id="9063523880881406963">Izklop možnosti Zahteva za namizno spletno mesto</translation>
 <translation id="9080642952018487277">Vstopi v zasebni način</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {Ni uporabljeno 1 ali več dni}
-          other {drugo {Ni uporabljeno # ali več dni}}</translation>
 <translation id="930124987204876019">Brisanje zgodovine, piškotkov, podatkov spletnih mest, predpomnilnika…</translation>
 <translation id="961856697154696964">Brisanje podatkov brskanja</translation>
 </translationbundle>

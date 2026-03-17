@@ -33,7 +33,8 @@ import org.chromium.base.CallbackUtils;
 import org.chromium.base.lifetime.DestroyChecker;
 import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.base.task.PostTask;
 import org.chromium.base.task.TaskTraits;
 import org.chromium.build.annotations.EnsuresNonNull;
@@ -44,7 +45,6 @@ import org.chromium.chrome.R;
 import org.chromium.chrome.browser.app.tabmodel.ArchivedTabModelOrchestrator;
 import org.chromium.chrome.browser.back_press.BackPressManager;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.hub.PaneManager;
 import org.chromium.chrome.browser.settings.SettingsNavigationFactory;
 import org.chromium.chrome.browser.tab.Tab;
@@ -415,11 +415,11 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
     private final ViewGroup mTabSwitcherView;
     private final FadingShadowView mShadowView;
     private final @Nullable DesktopWindowStateManager mDesktopWindowStateManager;
-    private final ObservableSupplier<EdgeToEdgeController> mEdgeToEdgeSupplier;
+    private final MonotonicObservableSupplier<EdgeToEdgeController> mEdgeToEdgeSupplier;
     private final @Nullable TabGroupSyncService mTabGroupSyncService;
     private final Supplier<PaneManager> mPaneManagerSupplier;
     private final Supplier<TabGroupUiActionHandler> mTabGroupUiActionHandlerSupplier;
-    private final ObservableSupplier<@Nullable TabGroupModelFilter>
+    private final NullableObservableSupplier<TabGroupModelFilter>
             mCurrentTabGroupModelFilterSupplier;
     private final DestroyChecker mDestroyChecker = new DestroyChecker();
 
@@ -468,11 +468,11 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
             TabArchiveSettings tabArchiveSettings,
             ModalDialogManager modalDialogManager,
             @Nullable DesktopWindowStateManager desktopWindowStateManager,
-            ObservableSupplier<EdgeToEdgeController> edgeToEdgeSupplier,
+            MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeSupplier,
             @Nullable TabGroupSyncService tabGroupSyncService,
             Supplier<PaneManager> paneManagerSupplier,
             Supplier<TabGroupUiActionHandler> tabGroupUiActionHandlerSupplier,
-            ObservableSupplier<@Nullable TabGroupModelFilter> currentTabGroupModelFilterSupplier) {
+            NullableObservableSupplier<TabGroupModelFilter> currentTabGroupModelFilterSupplier) {
         mActivity = activity;
         mBrowserControlsStateProvider = browserControlsStateProvider;
         mTabContentManager = tabContentManager;
@@ -595,7 +595,9 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
         }
 
         mOnTabSelectingListener = onTabSelectingListener;
-        mArchivedTabModelOrchestrator.getTabCountSupplier().addObserver(mTabCountObserver);
+        mArchivedTabModelOrchestrator
+                .getTabCountSupplier()
+                .addSyncObserverAndPostIfNonNull(mTabCountObserver);
 
         TabListEditorController controller = mTabListEditorCoordinator.getController();
         controller.setLifecycleObserver(mTabListEditorLifecycleObserver);
@@ -794,7 +796,6 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
                         /* parentView= */ mDialogView.findViewById(R.id.tab_list_editor_container),
                         mBrowserControlsStateProvider,
                         assumeNonNull(mArchivedTabModelOrchestrator.getTabModelSelector())
-                                .getTabGroupModelFilterProvider()
                                 .getCurrentTabGroupModelFilterSupplier(),
                         mTabContentManager,
                         /* clientTabListRecyclerViewPositionSetter= */ CallbackUtils
@@ -811,7 +812,8 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
                         CreationMode.FULL_SCREEN,
                         mUndoBarController,
                         COMPONENT_NAME,
-                        TabListEditorCoordinator.UNLIMITED_SELECTION);
+                        TabListEditorCoordinator.UNLIMITED_SELECTION,
+                        false);
     }
 
     @VisibleForTesting
@@ -953,10 +955,7 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
                                 R.string.archived_tab_iph_card_subtitle_autodelete_section,
                                 autoDeleteTimeDeltaMonths)
                         : "";
-        int iphCardSubtitleRes =
-                ChromeFeatureList.sAndroidTabDeclutterArchiveTabGroups.isEnabled()
-                        ? R.string.archived_tab_iph_card_subtitle_with_tab_groups
-                        : R.string.archived_tab_iph_card_subtitle;
+        int iphCardSubtitleRes = R.string.archived_tab_iph_card_subtitle_with_tab_groups;
         String description =
                 context.getString(
                         iphCardSubtitleRes, archiveTimeDeltaDays, autoDeleteTitle, settingsTitle);
@@ -973,8 +972,7 @@ public class ArchivedTabsDialogCoordinator implements SnackbarManager.SnackbarMa
     }
 
     private List<String> getArchivedTabGroupSyncIds() {
-        if (!ChromeFeatureList.sAndroidTabDeclutterArchiveTabGroups.isEnabled()
-                || mTabGroupSyncService == null) {
+        if (mTabGroupSyncService == null) {
             return Collections.emptyList();
         }
 

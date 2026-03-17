@@ -4,7 +4,8 @@
 
 package org.chromium.chrome.browser.tab_group_suggestion;
 
-import static org.mockito.Mockito.never;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -28,7 +29,8 @@ import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.Callback;
 import org.chromium.base.Token;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
@@ -55,7 +57,8 @@ public class SuggestionMetricsServiceUnitTest {
     @Captor private ArgumentCaptor<StartStopWithNativeObserver> mStartStopObserverCaptor;
 
     @Spy
-    private final ObservableSupplierImpl<Tab> mCurrentTabSupplier = new ObservableSupplierImpl<>();
+    private final SettableNullableObservableSupplier<Tab> mCurrentTabSupplier =
+            ObservableSuppliers.createNullable();
 
     private final Token mGtsGroupId = new Token(1, 1);
 
@@ -164,13 +167,12 @@ public class SuggestionMetricsServiceUnitTest {
         StartStopWithNativeObserver observer = mStartStopObserverCaptor.getValue();
         Callback<Tab> tabCallback = mTabObserverCaptor.getValue();
 
-        verify(mLifecycleDispatcher, never()).unregister(observer);
-        verify(mCurrentTabSupplier, never()).removeObserver(tabCallback);
+        assertTrue(mCurrentTabSupplier.hasObservers());
 
         onDestroy();
 
         verify(mLifecycleDispatcher).unregister(observer);
-        verify(mCurrentTabSupplier).removeObserver(tabCallback);
+        assertFalse(mCurrentTabSupplier.hasObservers());
     }
 
     @Test(expected = AssertionError.class)

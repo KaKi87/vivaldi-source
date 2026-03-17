@@ -104,7 +104,7 @@ void UpdateEventRouter::OnUpdateProgress(VivaldiUpdateService* service,
 // Helper to actually dispatch an event to extension listeners.
 void UpdateEventRouter::DispatchEvent(Profile* profile,
                                       const std::string& event_name,
-                                      base::Value::List event_args) {
+                                      base::ListValue event_args) {
   if (profile && EventRouter::Get(profile)) {
     EventRouter* event_router = EventRouter::Get(profile);
     if (event_router) {

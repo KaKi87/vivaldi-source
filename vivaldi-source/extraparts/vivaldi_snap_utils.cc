@@ -8,8 +8,9 @@ bool IsRunningInSnap() {
   return env->HasVar("SNAP");
 }
 
-bool GetSnapDesktopPathOverride(base::FilePath *path) {
-  if (!IsRunningInSnap()) return false;
+bool GetSnapDesktopPathOverride(base::FilePath* path) {
+  if (!IsRunningInSnap())
+    return false;
 
   std::unique_ptr<base::Environment> env(base::Environment::Create());
   auto realhome = env->GetVar("SNAP_REAL_HOME");
@@ -17,9 +18,10 @@ bool GetSnapDesktopPathOverride(base::FilePath *path) {
   if (!realhome.has_value())
     return true;
 
-  *path = base::FilePath(realhome.value()).Append(FILE_PATH_LITERAL("/.local/share/applications"));
+  *path = base::FilePath(realhome.value())
+              .Append(FILE_PATH_LITERAL("/.local/share/applications"));
 
   return true;
 }
 
-} // namespace vivaldi
+}  // namespace vivaldi

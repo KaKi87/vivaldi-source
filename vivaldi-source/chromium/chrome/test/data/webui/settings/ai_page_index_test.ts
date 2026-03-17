@@ -36,11 +36,10 @@ suite('AiPageIndex', function() {
     loadTimeData.overrideValues({
       showAiPage: true,
       showAiPageAiFeatureSection: true,
-      showCompareControl: true,
       showComposeControl: true,
       showHistorySearchControl: true,
       showTabOrganizationControl: true,
-      // <if expr="enable_glic">
+      // <if expr="enable_glic"> // Vivaldi keep disabled
       showGlicSettings: true,
       // </if>
     });
@@ -51,7 +50,7 @@ suite('AiPageIndex', function() {
   test('Routing', async function() {
     const defaultViews = [
       'aiInfoCard',
-      // <if expr="enable_glic">
+      // <if expr="enable_glic"> // Vivaldi keep disabled
       'glic',
       // </if>
       'parent',
@@ -76,11 +75,7 @@ suite('AiPageIndex', function() {
     await microtasksFinished();
     assertActiveViews(['compose']);
 
-    Router.getInstance().navigateTo(routes.COMPARE);
-    await microtasksFinished();
-    assertActiveViews(['compare']);
-
-    // <if expr="enable_glic">
+    // <if expr="enable_glic"> // Vivaldi keep disabled
     Router.getInstance().navigateTo(routes.GEMINI);
     await microtasksFinished();
     assertActiveViews(['gemini']);
@@ -99,7 +94,7 @@ suite('AiPageIndex', function() {
     assertFalse(!!index.$.viewManager.querySelector('#parent[slot=view]'));
   });
 
-  // <if expr="enable_glic">
+  // <if expr="enable_glic"> // Vivaldi keep disabled
   test('glicSectionVisibility', async function() {
     assertTrue(!!index.$.viewManager.querySelector('#glic[slot=view]'));
 
@@ -115,14 +110,13 @@ suite('AiPageIndex', function() {
 
   // Test that the child views are properly annotated.
   test('DataParentViewId', function() {
-    const childViewsId =
-        ['tabOrganization', 'historySearch', 'compose', 'compare'];
+    const childViewsId = ['tabOrganization', 'historySearch', 'compose'];
     for (const id of childViewsId) {
       assertTrue(!!index.$.viewManager.querySelector(
           `#${id}[slot=view][data-parent-view-id=parent]`));
     }
 
-    // <if expr="enable_glic">
+    // <if expr="enable_glic"> // Vivaldi keep disabled
     assertTrue(!!index.$.viewManager.querySelector(
         '#gemini[slot=view][data-parent-view-id=glic]'));
     // </if>
@@ -148,7 +142,7 @@ suite('AiPageIndex', function() {
     assertFalse(result.wasClearSearch);
     assertVisibleViews(['parent'], ['glic']);
 
-    // <if expr="enable_glic">
+    // <if expr="enable_glic"> // Vivaldi keep disabled
     // Case2: Results only in the "Glic" card.
     result = await index.searchContents('keyboard shortcut');
     assertFalse(result.canceled);
@@ -165,7 +159,7 @@ suite('AiPageIndex', function() {
     assertVisibleViews(
         [
           'parent',
-          // <if expr="enable_glic">
+          // <if expr="enable_glic"> // Vivaldi keep disabled
           'glic',
           // </if>
         ],

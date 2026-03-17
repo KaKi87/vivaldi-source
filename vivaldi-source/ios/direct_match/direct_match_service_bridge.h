@@ -19,12 +19,12 @@ using direct_match::DirectMatchService;
 namespace direct_match_ios {
 // A bridge that translates DirectMatchService Observers C++ callbacks into ObjC
 // callbacks.
-class DirectMatchServiceBridge:
-    public direct_match::DirectMatchService::Observer {
+class DirectMatchServiceBridge
+    : public direct_match::DirectMatchService::Observer {
  public:
   explicit DirectMatchServiceBridge(
-        id<DirectMatchServiceBridgeObserver> observer,
-        direct_match::DirectMatchService* directMatchService);
+      id<DirectMatchServiceBridgeObserver> observer,
+      direct_match::DirectMatchService* directMatchService);
   ~DirectMatchServiceBridge() override;
 
  private:

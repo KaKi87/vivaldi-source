@@ -94,7 +94,6 @@ kokeile auttaako sen poistaminen ja uudelleenlisääminen.</translation>
 <translation id="4250431568374086873">Sivuston yhteys ei ole täysin suojattu</translation>
 <translation id="4265872034478892965">Ylläpidon sallima</translation>
 <translation id="4305666528087210886">Tiedostoa ei voi käyttää</translation>
-<translation id="4408413947728134509">Evästeet <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> ei hyväksynyt kirjautumisvarmennettasi tai varmennetta ei toimitettu.</translation>
 <translation id="4506599922270137252">Ota yhteyttä järjestelmän ylläpitoon</translation>
 <translation id="4522570452068850558">Tiedot</translation>
@@ -111,7 +110,6 @@ kokeile auttaako sen poistaminen ja uudelleenlisääminen.</translation>
 <translation id="4943872375798546930">Ei tuloksia</translation>
 <translation id="5017554619425969104">Kopioimasi teksti</translation>
 <translation id="5023310440958281426">Tarkista ylläpidon asettamat käytännöt</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1{(1 käytössä)}other{(# käytössä)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Tarkista välityspalvelimen osoite<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bittinen)</translation>
 <translation id="5216942107514965959">Viimeksi vierailtu tänään</translation>
@@ -133,7 +131,6 @@ Pyri tavoittamaan järjestelmäsi ylläpito.</translation>
 <translation id="5838278095973806738">Älä anna sivustolle salasanoja, luottokorttinumeroita tai muita arkaluonteisia tietoja, sillä hyökkääjät saattavat varastaa ne.</translation>
 <translation id="5863515189965725638">Muokkaa IBANia</translation>
 <translation id="5869405914158311789">Sivustoon ei saada yhteyttä</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{1 käytössä}other{# käytössä}}</translation>
 <translation id="5932224571077948991">Sivustolla on häiritseviä tai harhaanjohtavia mainoksia</translation>
 <translation id="6051221802930200923"><ph name="SITE" /> ei juuri nyt ole käytettävissä, koska se käyttää varmenteiden kiinnittämistä. Verkkovirheet ja hyökkäykset ovat yleensä väliaikaisia, joten sivu luultavasti toimii myöhemmin.</translation>
 <translation id="6146055958333702838">Tarkista kaikki kaapelit ja käynnistä reitittimet, modeemit ja muut

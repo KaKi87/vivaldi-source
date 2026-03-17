@@ -23,7 +23,8 @@
 @synthesize baseNavigationController = _baseNavigationController;
 
 - (instancetype)initWithBaseNavigationController:
-    (UINavigationController*)navigationController browser:(Browser*)browser {
+                    (UINavigationController*)navigationController
+                                         browser:(Browser*)browser {
   self = [super initWithBaseViewController:navigationController
                                    browser:browser];
   if (self) {
@@ -34,49 +35,48 @@
 
 - (void)start {
   self.viewProvider = [[VivaldiPageZoomSettingsViewProvider alloc] init];
-  self.viewController =
-    [self.viewProvider makeViewController];
+  self.viewController = [self.viewProvider makeViewController];
   self.viewController.title =
-    l10n_util::GetNSString(IDS_IOS_PAGEZOOM_SETTING_TITLE);
+      l10n_util::GetNSString(IDS_IOS_PAGEZOOM_SETTING_TITLE);
   self.viewController.navigationItem.largeTitleDisplayMode =
-    UINavigationItemLargeTitleDisplayModeNever;
+      UINavigationItemLargeTitleDisplayModeNever;
 
   self.mediator = [[VivaldiPageZoomSettingsMediator alloc]
-                    initWithOriginalPrefService:self.browser->GetProfile()
-                    ->GetPrefs()];
+      initWithOriginalPrefService:self.browser->GetProfile()->GetPrefs()];
   self.mediator.browser = self.browser;
   self.mediator.consumer = self.viewProvider;
   self.viewProvider.settingsStateConsumer = self.mediator;
   [self observeResetDomainSettingsButtonTapEvent];
 
   // Add Done button
-  UIBarButtonItem* doneItem =
-  [[UIBarButtonItem alloc]
-    initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                         target:self
-                         action:@selector(handleDoneButtonTap)];
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
   self.viewController.navigationItem.rightBarButtonItem = doneItem;
 
   if (self.isFromDialog) {
     // Create a new navigation controller because the page zoom
     // dialoge is presenting from a different view hireacrchy
     UINavigationController* navigationController =
-      [[UINavigationController alloc]
-        initWithRootViewController:self.viewController];
+        [[UINavigationController alloc]
+            initWithRootViewController:self.viewController];
     navigationController.modalPresentationStyle = UIModalPresentationPageSheet;
 
     // Configure sheet presentation
     UISheetPresentationController* sheetPc =
-      navigationController.sheetPresentationController;
+        navigationController.sheetPresentationController;
     if (sheetPc) {
       // When iPad full screen or 2/3 SplitView support only large detent
       // because medium detent cuts the contents makes
       // the dialog small and off centered.
       if (IsSplitToolbarMode(self.baseViewController)) {
-        sheetPc.detents = @[UISheetPresentationControllerDetent.mediumDetent,
-                            UISheetPresentationControllerDetent.largeDetent];
+        sheetPc.detents = @[
+          UISheetPresentationControllerDetent.mediumDetent,
+          UISheetPresentationControllerDetent.largeDetent
+        ];
       } else {
-        sheetPc.detents = @[UISheetPresentationControllerDetent.largeDetent];
+        sheetPc.detents = @[ UISheetPresentationControllerDetent.largeDetent ];
       }
       sheetPc.prefersScrollingExpandsWhenScrolledToEdge = NO;
       sheetPc.widthFollowsPreferredContentSizeWhenEdgeAttached = YES;
@@ -101,8 +101,7 @@
 #pragma mark - Private
 - (void)handleDoneButtonTap {
   if (self.isFromDialog) {
-    [self.baseViewController dismissViewControllerAnimated:YES
-                                                completion:nil];
+    [self.baseViewController dismissViewControllerAnimated:YES completion:nil];
   } else {
     [self.baseNavigationController dismissViewControllerAnimated:YES
                                                       completion:nil];

@@ -36,8 +36,8 @@ cc_library(
         "//xla/tsl/platform:logging",
         "//xla/tsl/platform:statusor",
         "@com_google_absl//absl/status:statusor",
-        "@local_tsl//tsl/profiler/lib:traceme",
-        "@local_tsl//tsl/profiler/lib:traceme_encode",
+        "@tsl//tsl/profiler/lib:traceme",
+        "@tsl//tsl/profiler/lib:traceme_encode",
     ],
 )
 
@@ -82,7 +82,7 @@ xla_cc_test(
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/types:span",
         "@eigen_archive//:eigen3",
-        "@local_tsl//tsl/platform:casts",
+        "@tsl//tsl/platform:casts",
     ],
 )
 
@@ -113,7 +113,7 @@ cc_library(
         "//xla/service/cpu:cpu_aot_loader",
         "//xla/service/cpu:cpu_executable",
         "//xla/service/cpu:executable_proto_cc",
-        "//xla/stream_executor:device_memory",
+        "//xla/stream_executor:device_address",
         "//xla/tsl/concurrency:async_value",
         "//xla/tsl/platform:errors",
         "//xla/tsl/platform:logging",
@@ -128,10 +128,10 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "@eigen_archive//:eigen3",
-        "@local_tsl//tsl/platform:casts",
-        "@local_tsl//tsl/platform:platform_port",
-        "@local_tsl//tsl/profiler/lib:traceme",
-        "@local_tsl//tsl/profiler/lib:traceme_encode",
+        "@tsl//tsl/platform:casts",
+        "@tsl//tsl/platform:platform_port",
+        "@tsl//tsl/profiler/lib:traceme",
+        "@tsl//tsl/profiler/lib:traceme_encode",
     ],
 )
 
@@ -168,6 +168,7 @@ cc_library(
         "//xla/python/ifrt:user_context",
         "//xla/python/ifrt/hlo:hlo_program",
         "//xla/python/pjrt_ifrt:pjrt_dtype",
+        "//xla/python/pjrt_ifrt:pjrt_layout",
         "//xla/python/pjrt_ifrt:xla_ifrt",
         "//xla/service:hlo_module_config",
         "//xla/tsl/concurrency:async_value",
@@ -190,9 +191,9 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@eigen_archive//:eigen3",
         "@llvm-project//llvm:Support",
-        "@local_tsl//tsl/platform:fingerprint",
-        "@local_tsl//tsl/platform:platform_port",
-        "@local_tsl//tsl/profiler/lib:traceme",
+        "@tsl//tsl/platform:fingerprint",
+        "@tsl//tsl/platform:platform_port",
+        "@tsl//tsl/profiler/lib:traceme",
     ],
 )
 

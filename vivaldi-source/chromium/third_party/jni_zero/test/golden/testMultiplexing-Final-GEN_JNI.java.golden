@@ -4,6 +4,9 @@
 
 package org.jni_zero;
 
+import javax.annotation.processing.Generated;
+
+@Generated("JNI Zero")
 public class GEN_JNI {
   public static void org_jni_1zero_SampleForAnnotationProcessor_foo() {
     J.N.V();
@@ -112,6 +115,7 @@ public class GEN_JNI {
       Object convertedString,
       Object convertedStrings,
       Object optionalString,
+      Object funcType,
       Object tStruct,
       Object structs,
       Object obj,
@@ -121,7 +125,7 @@ public class GEN_JNI {
       Object view,
       Object context,
       Object convertedObjects) {
-    J.N.VOOOOOOOOOOOOOOOOOO(
+    J.N.VOOOOOOOOOOOOOOOOOOO(
         clazz,
         classes,
         throwable,
@@ -131,6 +135,7 @@ public class GEN_JNI {
         convertedString,
         convertedStrings,
         optionalString,
+        funcType,
         tStruct,
         structs,
         obj,

@@ -33,18 +33,18 @@ NSString* GetBundleIdForDefaultAppForScheme(NSString* scheme) {
   return default_app_bundle.bundleIdentifier;
 }
 
-}
+}  // namespace
 
 // Returns true if Opera is the default browser for the current user.
 bool IsOperaDefaultBrowser() {
   return [GetBundleIdForDefaultAppForScheme(@"http")
-    isEqualToString:@"com.operasoftware.Opera"];
+      isEqualToString:@"com.operasoftware.Opera"];
 }
 
 // Returns true if Chrome is the default browser for the current user.
 bool IsChromeDefaultBrowser() {
   return [GetBundleIdForDefaultAppForScheme(@"http")
-    isEqualToString:@"com.google.Chrome"];
+      isEqualToString:@"com.google.Chrome"];
 }
 
-} //  namespace vivaldi
+}  //  namespace vivaldi

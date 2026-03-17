@@ -264,16 +264,11 @@ void ClassroomPageHandlerImpl::OnListAssignmentsFetched(
     ListAssignmentsHelper(course_id, result.value()->next_page_token(),
                           std::move(fetched_assignments), std::move(callback));
   } else {
-    // This is the logical exit point: either the request failed OR all pages
-    // for /courseWork are finished. Now we check the flag to see what to do
-    // next.
-    if (features::IsBocaCourseWorkMaterialApiEnabled()) {
-      ListCourseWorkMaterialsHelper(course_id, /*page_token=*/"",
-                                    std::move(fetched_assignments),
-                                    std::move(callback));
-    } else {
-      std::move(callback).Run(std::move(*fetched_assignments));
-    }
+    // Request failed OR all pages for /courseWork are finished.
+    // Move on to fetching CourseWorkMaterials.
+    ListCourseWorkMaterialsHelper(course_id, /*page_token=*/"",
+                                  std::move(fetched_assignments),
+                                  std::move(callback));
   }
 }
 
@@ -330,20 +325,13 @@ void ClassroomPageHandlerImpl::OnListCourseWorkMaterialsFetched(
 // static
 std::unique_ptr<google_apis::RequestSender>
 ClassroomPageHandlerImpl::CreateRequestSender() {
-  std::vector<std::string> scopes = {
-      GaiaConstants::kClassroomReadOnlyRostersOAuth2Scope,
-      GaiaConstants::kClassroomReadOnlyCoursesOAuth2Scope,
-      GaiaConstants::kClassroomReadOnlyCourseWorkStudentsOAuth2Scope,
-      GaiaConstants::kClassroomProfileEmailOauth2Scope,
-      GaiaConstants::kClassroomProfilePhotoUrlScope,
-      GaiaConstants::kClassroomCourseWorkMaterialsOAuthScope,
-  };
   auto url_loader_factory = BocaAppClient::Get()->GetURLLoaderFactory();
   auto* identity_manager = BocaAppClient::Get()->GetIdentityManager();
   auto auth_service = std::make_unique<google_apis::AuthService>(
       identity_manager,
       identity_manager->GetPrimaryAccountId(signin::ConsentLevel::kSignin),
-      url_loader_factory, scopes);
+      url_loader_factory,
+      signin::OAuthConsumerId::kAshBocaClassroomPageHandler);
   return std::make_unique<google_apis::RequestSender>(
       std::move(auth_service), url_loader_factory,
       base::ThreadPool::CreateSequencedTaskRunner(

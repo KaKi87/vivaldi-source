@@ -42,6 +42,12 @@ class DepthStencilStateTest : public DawnTest {
     void SetUp() override {
         DawnTest::SetUp();
 
+        // TODO(crbug.com/458102531): Flaky on WARP.
+        DAWN_SUPPRESS_TEST_IF(IsWindows() && IsWARP());
+
+        // TODO(crbug.com/473870505): [Capture] support depth/stencil and multi-planar textures.
+        DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
+
         wgpu::TextureDescriptor renderTargetDescriptor;
         renderTargetDescriptor.dimension = wgpu::TextureDimension::e2D;
         renderTargetDescriptor.size.width = kRTSize;
@@ -443,36 +449,42 @@ TEST_P(DepthStencilStateTest, DepthAlways) {
 }
 
 TEST_P(DepthStencilStateTest, DepthEqual) {
-    // TODO(crbug.com/458102531): Flaky on WARP.
-    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsWARP());
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     CheckDepthCompareFunction(wgpu::CompareFunction::Equal, false, true, false);
 }
 
 TEST_P(DepthStencilStateTest, DepthGreater) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     CheckDepthCompareFunction(wgpu::CompareFunction::Greater, false, false, true);
 }
 
 TEST_P(DepthStencilStateTest, DepthGreaterEqual) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     CheckDepthCompareFunction(wgpu::CompareFunction::GreaterEqual, false, true, true);
 }
 
 TEST_P(DepthStencilStateTest, DepthLess) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     CheckDepthCompareFunction(wgpu::CompareFunction::Less, true, false, false);
 }
 
 TEST_P(DepthStencilStateTest, DepthLessEqual) {
-    // TODO(crbug.com/458102531): Flaky on WARP.
-    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsWARP());
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     CheckDepthCompareFunction(wgpu::CompareFunction::LessEqual, true, true, false);
 }
 
 TEST_P(DepthStencilStateTest, DepthNever) {
-    // TODO(crbug.com/458102531): Flaky on WARP.
-    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsWARP());
     CheckDepthCompareFunction(wgpu::CompareFunction::Never, false, false, false);
 }
 
 TEST_P(DepthStencilStateTest, DepthNotEqual) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     CheckDepthCompareFunction(wgpu::CompareFunction::NotEqual, true, false, true);
 }
 
@@ -527,30 +539,44 @@ TEST_P(DepthStencilStateTest, StencilAlways) {
 }
 
 TEST_P(DepthStencilStateTest, StencilEqual) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     CheckStencilCompareFunction(wgpu::CompareFunction::Equal, false, true, false);
 }
 
 TEST_P(DepthStencilStateTest, StencilGreater) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     CheckStencilCompareFunction(wgpu::CompareFunction::Greater, false, false, true);
 }
 
 TEST_P(DepthStencilStateTest, StencilGreaterEqual) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     CheckStencilCompareFunction(wgpu::CompareFunction::GreaterEqual, false, true, true);
 }
 
 TEST_P(DepthStencilStateTest, StencilLess) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     CheckStencilCompareFunction(wgpu::CompareFunction::Less, true, false, false);
 }
 
 TEST_P(DepthStencilStateTest, StencilLessEqual) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     CheckStencilCompareFunction(wgpu::CompareFunction::LessEqual, true, true, false);
 }
 
 TEST_P(DepthStencilStateTest, StencilNever) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     CheckStencilCompareFunction(wgpu::CompareFunction::Never, false, false, false);
 }
 
 TEST_P(DepthStencilStateTest, StencilNotEqual) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     CheckStencilCompareFunction(wgpu::CompareFunction::NotEqual, true, false, true);
 }
 
@@ -593,6 +619,8 @@ TEST_P(DepthStencilStateTest, StencilDecrementWrap) {
 
 // Check that the setting a stencil read mask works
 TEST_P(DepthStencilStateTest, StencilReadMask) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     wgpu::StencilFaceState baseStencilFaceDescriptor;
     baseStencilFaceDescriptor.compare = wgpu::CompareFunction::Always;
     baseStencilFaceDescriptor.failOp = wgpu::StencilOperation::Keep;
@@ -632,6 +660,8 @@ TEST_P(DepthStencilStateTest, StencilReadMask) {
 
 // Check that setting a stencil write mask works
 TEST_P(DepthStencilStateTest, StencilWriteMask) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     wgpu::StencilFaceState baseStencilFaceDescriptor;
     baseStencilFaceDescriptor.compare = wgpu::CompareFunction::Always;
     baseStencilFaceDescriptor.failOp = wgpu::StencilOperation::Keep;
@@ -800,6 +830,8 @@ TEST_P(DepthStencilStateTest, CreatePipelineWithAllFormats) {
 
 // Test that the front and back stencil states are set correctly (and take frontFace into account)
 TEST_P(DepthStencilStateTest, StencilFrontAndBackFace) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     wgpu::DepthStencilState state;
     state.depthWriteEnabled = wgpu::OptionalBool::False;
     state.depthCompare = wgpu::CompareFunction::Always;
@@ -815,6 +847,8 @@ TEST_P(DepthStencilStateTest, StencilFrontAndBackFace) {
 
 // Test that the depth reference of a new render pass is initialized to default value 0
 TEST_P(DepthStencilStateTest, StencilReferenceInitialized) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     wgpu::DepthStencilState stencilAlwaysReplaceState;
     stencilAlwaysReplaceState.depthWriteEnabled = wgpu::OptionalBool::False;
     stencilAlwaysReplaceState.depthCompare = wgpu::CompareFunction::Always;

@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_TRANSLATE_TRANSLATE_BUBBLE_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_TRANSLATE_TRANSLATE_BUBBLE_VIEW_H_
 
-#include <map>
 #include <memory>
 #include <string>
 
@@ -77,7 +76,7 @@ class TranslateBubbleView : public LocationBarBubbleDelegateView,
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kErrorMessage);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kOpenLanguageSettings);
 
-  TranslateBubbleView(views::View* anchor_view,
+  TranslateBubbleView(views::BubbleAnchor anchor,
                       std::unique_ptr<TranslateBubbleModel> model,
                       translate::TranslateErrors error_type,
                       content::WebContents* web_contents,

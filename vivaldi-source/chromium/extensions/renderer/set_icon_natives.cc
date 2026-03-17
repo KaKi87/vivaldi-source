@@ -227,6 +227,22 @@ void SetIconNatives::SetIconCommon(
 
   gin::DataObjectBuilder dict_builder(isolate);
   dict_builder.Set("imageData", bitmap_set_value);
+  // Start Vivaldi addition to keep track of specific icons being set for known
+  // extensions. Like Proton VPN.
+  v8::Local<v8::String> path_key =
+      v8::String::NewFromUtf8(isolate, "path",
+                              v8::NewStringType::kInternalized)
+          .ToLocalChecked();
+  bool has_path = false;
+  if (details->HasOwnProperty(v8_context, path_key).To(&has_path)) {
+    if (has_path) {
+      v8::Local<v8::Value> path;
+      if (details->Get(v8_context, path_key).ToLocal(&path)) {
+        dict_builder.Set("path", path);
+      }
+    }
+  }
+// end Vivaldi.
 
   v8::Local<v8::String> tab_id_key =
       v8::String::NewFromUtf8(isolate, "tabId",

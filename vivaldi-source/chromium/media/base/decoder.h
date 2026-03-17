@@ -63,8 +63,8 @@ enum class VideoDecoderType : int {
   kMaxValue = kVivWMFDecoder
 };
 
-MEDIA_EXPORT std::string GetDecoderName(AudioDecoderType type);
-MEDIA_EXPORT std::string GetDecoderName(VideoDecoderType type);
+MEDIA_EXPORT const char* GetDecoderName(AudioDecoderType type);
+MEDIA_EXPORT const char* GetDecoderName(VideoDecoderType type);
 MEDIA_EXPORT std::ostream& operator<<(std::ostream& out, AudioDecoderType type);
 MEDIA_EXPORT std::ostream& operator<<(std::ostream& out, VideoDecoderType type);
 

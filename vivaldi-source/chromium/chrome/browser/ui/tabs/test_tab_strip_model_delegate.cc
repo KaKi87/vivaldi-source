@@ -98,11 +98,6 @@ bool TestTabStripModelDelegate::RunUnloadListenerBeforeClosing(
   return false;
 }
 
-bool TestTabStripModelDelegate::ShouldDisplayFavicon(
-    content::WebContents* web_contents) const {
-  return true;
-}
-
 bool TestTabStripModelDelegate::CanReload() const {
   return true;
 }
@@ -151,7 +146,7 @@ void TestTabStripModelDelegate::OnRemovingAllTabsFromGroups(
   std::move(callback).Run();
 }
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 bool TestTabStripModelDelegate::IsTabGlicPinned(tabs::TabHandle tab_handle) {
   return true;
 }
@@ -167,4 +162,7 @@ bool TestTabStripModelDelegate::GlicUnpinTabs(
 }
 
 void TestTabStripModelDelegate::OpenGlicWindowFromSharedTab() {}
+
+void TestTabStripModelDelegate::GlicUnpinTabsFromAllConversations(
+    base::span<const tabs::TabHandle> tab_handles) {}
 #endif

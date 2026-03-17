@@ -17,7 +17,7 @@ namespace content {
 static void JNI_PrefetchTestUtil_WaitUntilPrefetchResponseCompleted(
     JNIEnv* env,
     GURL& url,
-    const base::android::JavaParamRef<jobject>& callback) {
+    const base::android::JavaRef<jobject>& callback) {
   PrefetchContainer::SetPrefetchResponseCompletedCallbackForTesting(
       base::BindRepeating(
           [](const GURL& url,
@@ -25,7 +25,7 @@ static void JNI_PrefetchTestUtil_WaitUntilPrefetchResponseCompleted(
              base::WeakPtr<PrefetchContainer> container) {
             PrefetchKey key{std::nullopt, url};
             if (key == container->key()) {
-              base::android::RunRunnableAndroid(callback);
+              jni_zero::RunRunnable(callback);
             }
           },
           url, base::android::ScopedJavaGlobalRef<jobject>(callback)));

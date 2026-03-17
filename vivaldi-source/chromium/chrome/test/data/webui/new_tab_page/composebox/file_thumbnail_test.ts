@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import {ComposeboxFileThumbnailElement} from 'chrome://new-tab-page/lazy_load.js';
-import {FileUploadStatus} from 'chrome://resources/cr_components/composebox/composebox_query.mojom-webui.js';
+import {ContextUploadStatus} from 'chrome://resources/cr_components/composebox/composebox_query.mojom-webui.js';
 import {assertEquals, assertTrue} from 'chrome://webui-test/chai_assert.js';
 import {eventToPromise, microtasksFinished} from 'chrome://webui-test/test_util.js';
 
@@ -23,7 +23,7 @@ suite('NewTabPageComposeboxFileThumbnailTest', () => {
     fileThumbnailElement.file = createComposeboxFile(1, {
       type: 'image/jpeg',
       objectUrl: 'data:foo',
-      status: FileUploadStatus.kUploadStarted,
+      status: ContextUploadStatus.kUploadStarted,
     });
     await microtasksFinished();
 
@@ -79,7 +79,7 @@ suite('NewTabPageComposeboxFileThumbnailTest', () => {
   test('display tab file', async () => {
     // Arrange.
     fileThumbnailElement.file = createComposeboxFile(2, {
-      url: {url: 'https://example.com/some/path'},
+      url: 'https://example.com/some/path',
       name: 'some tab',
     });
     await microtasksFinished();
@@ -161,7 +161,7 @@ suite('NewTabPageComposeboxFileThumbnailTest', () => {
   test('clicking tab delete button sends event', async () => {
     // Arrange.
     fileThumbnailElement.file = createComposeboxFile(2, {
-      url: {url: 'https://example.com/some/path'},
+      url: 'https://example.com/some/path',
       name: 'some tab',
     });
     await microtasksFinished();
@@ -181,7 +181,7 @@ suite('NewTabPageComposeboxFileThumbnailTest', () => {
   test('hides tab delete button when not deletable', async () => {
     // Arrange.
     fileThumbnailElement.file = createComposeboxFile(2, {
-      url: {url: 'https://example.com/some/path'},
+      url: 'https://example.com/some/path',
       name: 'some tab',
       isDeletable: false,
     });

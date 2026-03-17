@@ -4,6 +4,8 @@
 
 #import "ios/chrome/browser/composebox/coordinator/composebox_tab_picker_coordinator.h"
 
+#import "ios/chrome/browser/composebox/debugger/composebox_debugger_logger.h"
+#import "ios/chrome/browser/composebox/public/composebox_theme.h"
 #import "ios/chrome/browser/composebox/ui/composebox_tab_picker_view_controller.h"
 #import "ios/chrome/browser/shared/public/commands/composebox_tab_picker_commands.h"
 #import "ios/chrome/browser/tab_switcher/tab_grid/base_grid/ui/base_grid_view_controller.h"
@@ -23,6 +25,19 @@
   ComposeboxTabPickerViewController* _viewController;
   // The navigation controller displaying the tab picker.
   UINavigationController* _navigationController;
+  // The theme for the composebox.
+  ComposeboxTheme* _theme;
+}
+
+- (instancetype)initWithBaseViewController:(UIViewController*)viewController
+                                   browser:(Browser*)browser
+                                     theme:(ComposeboxTheme*)theme {
+  self = [super initWithBaseViewController:viewController browser:browser];
+  if (self) {
+    _theme = theme;
+  }
+
+  return self;
 }
 
 - (void)start {
@@ -32,6 +47,7 @@
         initWithGridConsumer:_viewController.gridViewController
            tabPickerConsumer:_viewController
       tabsAttachmentDelegate:self];
+  _mediator.debugLogger = self.debugLogger;
   _mediator.browser = self.browser;
 
   _viewController.mutator = _mediator;
@@ -40,6 +56,10 @@
   _viewController.gridViewController.gridProvider = _mediator;
   _viewController.composeboxTabPickerHandler = self.composeboxTabPickerHandler;
 
+  if (_theme.incognito) {
+    _viewController.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+  }
+
   _navigationController = [[UINavigationController alloc]
       initWithRootViewController:_viewController];
   _navigationController.modalPresentationStyle = UIModalPresentationFormSheet;
@@ -47,12 +67,20 @@
                                         animated:YES
                                       completion:nil];
   self.started = YES;
+  [self.debugLogger
+      logEvent:[ComposeboxDebuggerEvent
+                   composeboxGeneralEvent:composebox_debugger::event::
+                                              Composebox::kTabPickerShown]];
 }
 
 - (void)stop {
   if (!self.started) {
     return;
   }
+  [self.debugLogger
+      logEvent:[ComposeboxDebuggerEvent
+                   composeboxGeneralEvent:composebox_debugger::event::
+                                              Composebox::kTabPickerHidden]];
   [_navigationController.presentingViewController
       dismissViewControllerAnimated:YES
                          completion:nil];
@@ -73,11 +101,15 @@
 }
 
 - (std::set<web::WebStateID>)preselectedWebStateIDs {
-  return [self.delegate webStateIDsForAttachedTabs];
+  return [self.delegate attachedWebStateIDsInCurrentContext];
 }
 
 - (NSUInteger)nonTabAttachmentCount {
   return [self.delegate nonTabAttachmentCount];
+}
+
+- (NSUInteger)maxTabAttachmentCount {
+  return [self.delegate maxTabAttachmentCount];
 }
 
 @end

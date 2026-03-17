@@ -41,9 +41,12 @@
 // `domain` provides only the domain part of address.
 // `showFull` indicates whether steady view should show full address or only
 // domain.
+// `clipTail` indicates whether the tail or the head should be clipped when the
+// location text is too long.
 - (void)updateLocationText:(NSString*)text
                     domain:(NSString*)domain
-                  showFull:(BOOL)showFull;
+                  showFull:(BOOL)showFull
+                  clipTail:(BOOL)clipTail;
 // End Vivaldi
 
 @end

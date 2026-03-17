@@ -5,10 +5,10 @@
 #import "ios/chrome/browser/intelligence/bwg/ui/bwg_fre_wrapper_view_controller.h"
 
 #import "base/check.h"
-#import "ios/chrome/browser/intelligence/bwg/ui/bwg_consent_mutator.h"
 #import "ios/chrome/browser/intelligence/bwg/ui/bwg_consent_view_controller.h"
 #import "ios/chrome/browser/intelligence/bwg/ui/bwg_promo_view_controller.h"
 #import "ios/chrome/browser/intelligence/bwg/ui/bwg_promo_view_controller_delegate.h"
+#import "ios/chrome/browser/intelligence/bwg/ui/gemini_consent_mutator.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/bwg_constants.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
@@ -127,6 +127,9 @@ const CGFloat kSpacingAfterSecondaryButton = 32.0;
 
 - (void)viewDidAppear:(BOOL)animated {
   [super viewDidAppear:animated];
+  if (_currentChildViewController == _promoViewController) {
+    [self.mutator didShowGeminiPromo];
+  }
   // The related WebState can be hidden asynchronously while this animated view
   // is being shown. `BWGTabHelper::WasHidden()` causes the related coordinator
   // to shut down, causing the `mutator` to be nil, and leaves the view in a

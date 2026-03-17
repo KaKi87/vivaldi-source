@@ -8,17 +8,20 @@
 
 // Vivaldi: Detects if given render frame host belongs to a vivaldi tab.
 bool IsVivaldiRegularTabFrame(content::RenderFrameHost* frame) {
-  auto *guestView = extensions::WebViewGuest::FromRenderFrameHost(frame);
-  if (!guestView) return false;
+  auto* guestView = extensions::WebViewGuest::FromRenderFrameHost(frame);
+  if (!guestView)
+    return false;
   return guestView->IsVivaldiRegularTab();
 }
 
 bool IsVivaldiEditorFrame(content::RenderFrameHost* render_frame_host) {
-  content::WebContents* web_contents = content::WebContents::FromRenderFrameHost(render_frame_host);
+  content::WebContents* web_contents =
+      content::WebContents::FromRenderFrameHost(render_frame_host);
   if (!web_contents)
     return false;
 
-  extensions::WebViewGuest* webview_guest = extensions::WebViewGuest::FromWebContents(web_contents);
+  extensions::WebViewGuest* webview_guest =
+      extensions::WebViewGuest::FromWebContents(web_contents);
   if (!webview_guest || !webview_guest->owner_rfh())
     return false;
 

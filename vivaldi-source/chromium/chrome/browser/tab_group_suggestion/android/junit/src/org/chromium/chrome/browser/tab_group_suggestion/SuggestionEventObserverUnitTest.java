@@ -24,15 +24,16 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
-import org.chromium.base.Callback;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplierImpl;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.hub.HubManager;
 import org.chromium.chrome.browser.hub.Pane;
 import org.chromium.chrome.browser.hub.PaneId;
@@ -79,38 +80,26 @@ public class SuggestionEventObserverUnitTest {
     @Captor ArgumentCaptor<TabModelObserver> mTabModelObserverCaptor;
 
     private SuggestionEventObserver mSuggestionEventObserver;
-    private ObservableSupplierImpl<Boolean> mHubVisibilitySupplier;
-    private ObservableSupplierImpl<Pane> mFocusedPaneSupplier;
+    private final SettableNonNullObservableSupplier<Boolean> mHubVisibilitySupplier =
+            ObservableSuppliers.createNonNull(false);
+    private final SettableMonotonicObservableSupplier<Pane> mFocusedPaneSupplier =
+            ObservableSuppliers.createMonotonic();
     private OneshotSupplierImpl<HubManager> mHubManagerSupplier;
 
     @Before
     public void setup() {
+        mFocusedPaneSupplier.set(mPane);
+
         when(mTabModelSelector.getModel(false)).thenReturn(mTabModel);
         when(mTabModel.getProfile()).thenReturn(mProfile);
-        ObservableSupplier<Tab> currentTabSupplier =
-                new ObservableSupplier<>() {
-                    @Override
-                    public @Nullable Tab addObserver(Callback<Tab> obs, int behavior) {
-                        return null;
-                    }
-
-                    @Override
-                    public void removeObserver(Callback<Tab> obs) {}
-
-                    @Override
-                    public Tab get() {
-                        return mTab;
-                    }
-                };
+        SettableNullableObservableSupplier<Tab> currentTabSupplier =
+                ObservableSuppliers.createNullable(mTab);
         doReturn(currentTabSupplier).when(mTabModel).getCurrentTabSupplier();
         doNothing().when(mTabModel).addObserver(mTabModelObserverCaptor.capture());
         when(mTab.getId()).thenReturn(TAB_ID);
         when(mTab.getUrl()).thenReturn(TEST_URL);
-        mHubVisibilitySupplier = new ObservableSupplierImpl<>();
         when(mHubManager.getHubVisibilitySupplier()).thenReturn(mHubVisibilitySupplier);
         when(mHubManager.getPaneManager()).thenReturn(mPaneManager);
-        mFocusedPaneSupplier = new ObservableSupplierImpl<>();
-        mFocusedPaneSupplier.set(mPane);
         when(mPaneManager.getFocusedPaneSupplier()).thenReturn(mFocusedPaneSupplier);
         mHubManagerSupplier = new OneshotSupplierImpl<>();
         mHubManagerSupplier.set(mHubManager);
@@ -183,7 +172,10 @@ public class SuggestionEventObserverUnitTest {
 
     @Test
     public void testSelectFirstTab() {
-        ObservableSupplierImpl<Tab> currentTabSupplier = new ObservableSupplierImpl<>();
+        Mockito.clearInvocations(mGroupSuggestionsService);
+
+        SettableNullableObservableSupplier<Tab> currentTabSupplier =
+                ObservableSuppliers.createNullable();
         currentTabSupplier.set(mTab);
         doReturn(currentTabSupplier).when(mTabModel).getCurrentTabSupplier();
 
@@ -200,7 +192,7 @@ public class SuggestionEventObserverUnitTest {
                         eq(TEST_URL),
                         eq(
                                 org.chromium.components.visited_url_ranking.url_grouping
-                                        .TabSelectionType.FROM_NEW_TAB),
+                                        .TabSelectionCause.FROM_NEW_TAB),
                         eq(Tab.INVALID_TAB_ID));
     }
 
@@ -216,15 +208,6 @@ public class SuggestionEventObserverUnitTest {
     @Test
     public void testEnterPane_NotFocusTabSwitcher() {
         doReturn(PaneId.INCOGNITO_TAB_SWITCHER).when(mPane).getPaneId();
-
-        mHubVisibilitySupplier.set(true);
-
-        verify(mGroupSuggestionsService, never()).didEnterTabSwitcher();
-    }
-
-    @Test
-    public void testEnterPane_InvalidFocusedPane() {
-        mFocusedPaneSupplier.set(null);
 
         mHubVisibilitySupplier.set(true);
 

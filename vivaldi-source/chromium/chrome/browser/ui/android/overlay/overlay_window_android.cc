@@ -124,11 +124,11 @@ OverlayWindowAndroid::~OverlayWindowAndroid() {
   Java_PictureInPictureActivity_onWindowDestroyed(env, java_ref_.get(env));
 }
 
-static jlong JNI_PictureInPictureActivity_OnActivityStart(
+static int64_t JNI_PictureInPictureActivity_OnActivityStart(
     JNIEnv* env,
-    const jni_zero::JavaParamRef<jobject>& j_token,
-    const jni_zero::JavaParamRef<jobject>& self,
-    const jni_zero::JavaParamRef<jobject>& window) {
+    const jni_zero::JavaRef<jobject>& j_token,
+    const jni_zero::JavaRef<jobject>& self,
+    const jni_zero::JavaRef<jobject>& window) {
   auto token = base::android::UnguessableTokenAndroid::FromJavaUnguessableToken(
       env, j_token);
   auto iter = GetWindowMap().find(token);
@@ -138,13 +138,13 @@ static jlong JNI_PictureInPictureActivity_OnActivityStart(
   OverlayWindowAndroid* thiz = iter->second;
   thiz->Initialize(env, self, window);
 
-  return reinterpret_cast<jlong>(thiz);
+  return reinterpret_cast<int64_t>(thiz);
 }
 
 void OverlayWindowAndroid::Initialize(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& self,
-    const base::android::JavaParamRef<jobject>& jwindow_android) {
+    const base::android::JavaRef<jobject>& self,
+    const base::android::JavaRef<jobject>& jwindow_android) {
   java_ref_ = JavaObjectWeakGlobalRef(env, self);
   window_android_ = ui::WindowAndroid::FromJavaWindowAndroid(jwindow_android);
   window_android_->AddObserver(this);
@@ -267,7 +267,7 @@ void OverlayWindowAndroid::Hide(JNIEnv* env) {
 
 void OverlayWindowAndroid::CompositorViewCreated(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& compositor_view) {
+    const base::android::JavaRef<jobject>& compositor_view) {
   compositor_view_ =
       thin_webview::android::CompositorView::FromJavaObject(compositor_view);
   DCHECK(compositor_view_);
@@ -275,8 +275,8 @@ void OverlayWindowAndroid::CompositorViewCreated(
 }
 
 void OverlayWindowAndroid::OnViewSizeChanged(JNIEnv* env,
-                                             jint width,
-                                             jint height) {
+                                             int32_t width,
+                                             int32_t height) {
   gfx::Size content_size(width, height);
   if (bounds_.size() == content_size) {
     return;

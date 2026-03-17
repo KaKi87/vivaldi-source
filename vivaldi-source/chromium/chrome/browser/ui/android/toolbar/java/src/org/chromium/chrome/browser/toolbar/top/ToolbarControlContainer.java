@@ -34,12 +34,14 @@ import org.chromium.base.ObserverList;
 import org.chromium.base.TraceEvent;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplier;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.Initializer;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
+import org.chromium.cc.input.BrowserControlsState;
 import org.chromium.chrome.browser.browser_controls.BrowserStateBrowserControlsVisibilityDelegate;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
@@ -109,8 +111,8 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
     private final ObserverList<TouchEventObserver> mTouchEventObservers = new ObserverList<>();
     private final Callback<Boolean> mOnXrSpaceModeChanged = this::onXrSpaceModeChanged;
     private final Callback<Resource> mOnResourceCaptureCallback = this::onToolbarCaptureUpdated;
-    private @Nullable ObservableSupplier<Boolean> mXrSpaceModeObservableSupplier;
-    private @Nullable ObservableSupplierImpl<Integer> mHeightChangedSupplier;
+    private @Nullable NonNullObservableSupplier<Boolean> mXrSpaceModeObservableSupplier;
+    private @Nullable SettableNonNullObservableSupplier<Integer> mHeightChangedSupplier;
     private ToolbarDataProvider mToolbarDataProvider;
 
     // Vivaldi
@@ -211,7 +213,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
     }
 
     public void setOnHeightChangedListener(
-            @Nullable ObservableSupplierImpl<Integer> heightChangedSupplier) {
+            @Nullable SettableNonNullObservableSupplier<Integer> heightChangedSupplier) {
         mHeightChangedSupplier = heightChangedSupplier;
     }
 
@@ -446,9 +448,9 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
             Toolbar toolbar,
             ViewGroup toolbarView,
             boolean isIncognito,
-            ObservableSupplier<@Nullable Integer> constraintsSupplier,
+            NullableObservableSupplier<@BrowserControlsState Integer> constraintsSupplier,
             Supplier<@Nullable Tab> tabSupplier,
-            ObservableSupplier<Boolean> compositorInMotionSupplier,
+            NonNullObservableSupplier<Boolean> compositorInMotionSupplier,
             BrowserStateBrowserControlsVisibilityDelegate
                     browserStateBrowserControlsVisibilityDelegate,
             OneshotSupplier<LayoutStateProvider> layoutStateProviderSupplier,
@@ -585,9 +587,9 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         @Initializer
         public void setPostInitializationDependencies(
                 Toolbar toolbar,
-                ObservableSupplier<@Nullable Integer> constraintsSupplier,
+                NullableObservableSupplier<@BrowserControlsState Integer> constraintsSupplier,
                 Supplier<@Nullable Tab> tabSupplier,
-                ObservableSupplier<Boolean> compositorInMotionSupplier,
+                NonNullObservableSupplier<Boolean> compositorInMotionSupplier,
                 BrowserStateBrowserControlsVisibilityDelegate
                         browserStateBrowserControlsVisibilityDelegate,
                 BooleanSupplier isVisible,
@@ -654,7 +656,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         private Toolbar mToolbar;
         private ConstraintsChecker mConstraintsObserver;
         private Supplier<@Nullable Tab> mTabSupplier;
-        private ObservableSupplier<Boolean> mCompositorInMotionSupplier;
+        private @Nullable NonNullObservableSupplier<Boolean> mCompositorInMotionSupplier;
 
         private BrowserStateBrowserControlsVisibilityDelegate
                 mBrowserStateBrowserControlsVisibilityDelegate;
@@ -694,9 +696,9 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         @Initializer
         public void setPostInitializationDependencies(
                 Toolbar toolbar,
-                ObservableSupplier<@Nullable Integer> constraintsSupplier,
+                NullableObservableSupplier<@BrowserControlsState Integer> constraintsSupplier,
                 Supplier<@Nullable Tab> tabSupplier,
-                ObservableSupplier<Boolean> compositorInMotionSupplier,
+                NonNullObservableSupplier<Boolean> compositorInMotionSupplier,
                 BrowserStateBrowserControlsVisibilityDelegate
                         browserStateBrowserControlsVisibilityDelegate,
                 BooleanSupplier controlContainerIsVisibleSupplier,
@@ -714,7 +716,8 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
                     new ConstraintsChecker(this, constraintsSupplier, Looper.getMainLooper());
             mTabSupplier = tabSupplier;
             mCompositorInMotionSupplier = compositorInMotionSupplier;
-            mCompositorInMotionSupplier.addObserver(mOnCompositorInMotionChange);
+            mCompositorInMotionSupplier.addSyncObserverAndPostIfNonNull(
+                    mOnCompositorInMotionChange);
             mBrowserStateBrowserControlsVisibilityDelegate =
                     browserStateBrowserControlsVisibilityDelegate;
             mControlContainerIsVisibleSupplier = controlContainerIsVisibleSupplier;
@@ -771,8 +774,7 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
                 // capture when the controls were partially or fully scrolled off, in the middle
                 // of motion, before the view became dirty.
                 if (mCompositorInMotionSupplier != null) {
-                    Boolean compositorInMotion = mCompositorInMotionSupplier.get();
-                    if (Boolean.TRUE.equals(compositorInMotion)) {
+                    if (mCompositorInMotionSupplier.get()) {
                         CaptureReadinessResult.logCaptureReasonFromResult(
                                 CaptureReadinessResult.notReady(
                                         TopToolbarBlockCaptureReason.COMPOSITOR_IN_MOTION));
@@ -850,17 +852,15 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
         }
 
         public void onPageLoadStopped() {
-            if (ChromeFeatureList.sBrowserControlsInViz.isEnabled()) {
-                // With capture suppression, we don't capture after navigating. Instead, we schedule
-                // a capture to happen when the controls become unlocked. With BCIV, there is no
-                // surface sync, so it's more likely to scroll before the capture is complete. To
-                // fix this, we capture after page load finishes. This is late enough in navigation
-                // to not delay other important tasks on the main thread, and early enough so we
-                // have a capture available before the controls are unlocked.
-                mNeedCaptureAfterPageLoad = true;
-                onResourceRequested();
-                mNeedCaptureAfterPageLoad = false;
-            }
+            // With capture suppression, we don't capture after navigating. Instead, we schedule
+            // a capture to happen when the controls become unlocked. With BCIV, there is no
+            // surface sync, so it's more likely to scroll before the capture is complete. To
+            // fix this, we capture after page load finishes. This is late enough in navigation
+            // to not delay other important tasks on the main thread, and early enough so we
+            // have a capture available before the controls are unlocked.
+            mNeedCaptureAfterPageLoad = true;
+            onResourceRequested();
+            mNeedCaptureAfterPageLoad = false;
         }
 
         private boolean shouldSampleStaleCaptureHistogram() {
@@ -1058,8 +1058,8 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
     }
 
     public void setXrSpaceModeObservableSupplierMaybe(
-            @Nullable ObservableSupplier<Boolean> xrSpaceModeObservableSupplier) {
-        if (mXrSpaceModeObservableSupplier == null && xrSpaceModeObservableSupplier != null) {
+            NonNullObservableSupplier<Boolean> xrSpaceModeObservableSupplier) {
+        if (mXrSpaceModeObservableSupplier == null) {
             mXrSpaceModeObservableSupplier = xrSpaceModeObservableSupplier;
             mXrSpaceModeObservableSupplier.addSyncObserver(mOnXrSpaceModeChanged);
         }
@@ -1072,6 +1072,19 @@ public class ToolbarControlContainer extends OptimizedFrameLayout
     static Runnable forceStaleCaptureHistogramForTesting() {
         sForceStaleCaptureHistogram = true;
         return () -> sForceStaleCaptureHistogram = false;
+    }
+
+    @Override
+    public void doSynchronousLayoutAndCapture() {
+        int widthSpec = View.MeasureSpec.makeMeasureSpec(getWidth(), View.MeasureSpec.EXACTLY);
+        int heightSpec = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED);
+
+        measure(widthSpec, heightSpec);
+        layout(getLeft(), getTop(), getLeft() + getMeasuredWidth(), getTop() + getMeasuredHeight());
+
+        ViewResourceAdapter resourceAdapter = getToolbarResourceAdapter();
+        resourceAdapter.invalidate(null);
+        resourceAdapter.triggerBitmapCapture();
     }
 
     /** Vivaldi */

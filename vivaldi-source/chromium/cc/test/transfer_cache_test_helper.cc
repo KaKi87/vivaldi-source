@@ -8,18 +8,25 @@
 #include <utility>
 
 #include "base/check.h"
-#include "base/containers/contains.h"
 #include "base/containers/heap_array.h"
 #include "base/containers/span.h"
+#include "third_party/skia/include/gpu/ganesh/mock/GrMockTypes.h"
 
 namespace cc {
 
-TransferCacheTestHelper::TransferCacheTestHelper(GrDirectContext* context)
-    : context_(context) {
-  if (!context_) {
-    owned_context_ = GrDirectContext::MakeMock(nullptr);
-    context_ = owned_context_.get();
-  }
+TransferCacheTestHelper::TransferCacheTestHelper() {
+  GrMockOptions options;
+  options.fMipmapSupport = true;
+  options.fConfigOptions[static_cast<int>(GrColorType::kGray_8)].fTexturable =
+      true;
+  options.fConfigOptions[static_cast<int>(GrColorType::kRGBA_F16)].fTexturable =
+      true;
+  options.fConfigOptions[static_cast<int>(GrColorType::kAlpha_16)].fTexturable =
+      true;
+  options.fConfigOptions[static_cast<int>(GrColorType::kAlpha_F16)]
+      .fTexturable = true;
+
+  context_ = GrDirectContext::MakeMock(&options);
 }
 TransferCacheTestHelper::~TransferCacheTestHelper() = default;
 
@@ -32,13 +39,15 @@ void TransferCacheTestHelper::CreateEntryDirect(const EntryKey& key,
   // Deserialize into a service transfer cache entry.
   std::unique_ptr<ServiceTransferCacheEntry> service_entry =
       ServiceTransferCacheEntry::Create(key.first);
-  if (!service_entry)
+  if (!service_entry) {
     return;
+  }
 
-  bool success =
-      service_entry->Deserialize(context_, /*graphite_recorder=*/nullptr, data);
-  if (!success)
+  bool success = service_entry->Deserialize(
+      context_.get(), /*graphite_recorder=*/nullptr, data);
+  if (!success) {
     return;
+  }
 
   last_added_entry_ = key;
 
@@ -74,10 +83,6 @@ void TransferCacheTestHelper::DeleteEntryDirect(const EntryKey& key) {
   entries_.erase(key);
 }
 
-void TransferCacheTestHelper::SetGrContext(GrDirectContext* context) {
-  context_ = context;
-}
-
 void TransferCacheTestHelper::SetCachedItemsLimit(size_t limit) {
   cached_items_limit_ = limit;
   EnforceLimits();
@@ -90,14 +95,14 @@ ServiceTransferCacheEntry* TransferCacheTestHelper::GetEntryInternal(
   if (locked_entries_.count(key) + local_entries_.count(key) == 0) {
     return nullptr;
   }
-  if (!base::Contains(entries_, key)) {
+  if (!entries_.contains(key)) {
     return nullptr;
   }
   return entries_[key].get();
 }
 
 bool TransferCacheTestHelper::LockEntryInternal(const EntryKey& key) {
-  if (!base::Contains(entries_, key)) {
+  if (!entries_.contains(key)) {
     return false;
   }
 
@@ -110,7 +115,7 @@ uint32_t TransferCacheTestHelper::CreateEntryInternal(
     const ClientTransferCacheEntry& client_entry,
     uint8_t* memory) {
   auto key = std::make_pair(client_entry.Type(), client_entry.Id());
-  DCHECK(!base::Contains(entries_, key));
+  DCHECK(!entries_.contains(key));
 
   // Serialize data.
   uint32_t size = client_entry.SerializedSize();
@@ -123,15 +128,17 @@ uint32_t TransferCacheTestHelper::CreateEntryInternal(
 }
 
 void TransferCacheTestHelper::FlushEntriesInternal(std::set<EntryKey> keys) {
-  for (auto& key : keys)
+  for (auto& key : keys) {
     locked_entries_.erase(key);
+  }
   EnforceLimits();
 }
 
 void TransferCacheTestHelper::EnforceLimits() {
   for (auto it = entries_.begin(); it != entries_.end();) {
-    if (entries_.size() <= cached_items_limit_)
+    if (entries_.size() <= cached_items_limit_) {
       break;
+    }
 
     auto found = locked_entries_.find(it->first);
     if (found == locked_entries_.end()) {

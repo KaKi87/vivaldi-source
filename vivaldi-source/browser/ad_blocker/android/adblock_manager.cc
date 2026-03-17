@@ -24,13 +24,11 @@
 #include "ui/web_ui_native_call_utils.h"
 #endif
 
-using base::android::JavaParamRef;
 using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
 using content::WebContents;
 
-static jlong JNI_AdblockManager_Init(JNIEnv* env,
-                                     const JavaParamRef<jobject>& obj) {
+static jlong JNI_AdblockManager_Init(JNIEnv* env, const JavaRef<jobject>& obj) {
   Profile* profile = ProfileManager::GetActiveUserProfile();
 
   if (!profile) {
@@ -70,7 +68,7 @@ AdblockManager::~AdblockManager() {
 }
 
 void AdblockManager::SetActiveExceptionsList(JNIEnv* env,
-                                             const JavaParamRef<jobject>& obj,
+                                             const JavaRef<jobject>& obj,
                                              jint group,
                                              jint list) {
   CHECK(rule_service_->IsLoaded());
@@ -80,19 +78,18 @@ void AdblockManager::SetActiveExceptionsList(JNIEnv* env,
 }
 
 jint AdblockManager::GetActiveExceptionsList(JNIEnv* env,
-                                             const JavaParamRef<jobject>& obj,
+                                             const JavaRef<jobject>& obj,
                                              jint group) {
   CHECK(rule_service_->IsLoaded());
   return rule_service_->GetRuleManager()->GetActiveExceptionList(
       static_cast<adblock_filter::RuleGroup>(group));
 }
 
-void AdblockManager::AddExceptionForDomain(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
-    jint group,
-    jint list,
-    const JavaParamRef<jstring>& domain) {
+void AdblockManager::AddExceptionForDomain(JNIEnv* env,
+                                           const JavaRef<jobject>& obj,
+                                           jint group,
+                                           jint list,
+                                           const JavaRef<jstring>& domain) {
   CHECK(rule_service_->IsLoaded());
   rule_service_->GetRuleManager()->AddExceptionForDomain(
       static_cast<adblock_filter::RuleGroup>(group),
@@ -100,12 +97,11 @@ void AdblockManager::AddExceptionForDomain(
       base::android::ConvertJavaStringToUTF8(env, domain));
 }
 
-void AdblockManager::RemoveExceptionForDomain(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
-    jint group,
-    jint list,
-    const JavaParamRef<jstring>& domain) {
+void AdblockManager::RemoveExceptionForDomain(JNIEnv* env,
+                                              const JavaRef<jobject>& obj,
+                                              jint group,
+                                              jint list,
+                                              const JavaRef<jstring>& domain) {
   CHECK(rule_service_->IsLoaded());
   rule_service_->GetRuleManager()->RemoveExceptionForDomain(
       static_cast<adblock_filter::RuleGroup>(group),
@@ -114,7 +110,7 @@ void AdblockManager::RemoveExceptionForDomain(
 }
 
 void AdblockManager::RemoveAllExceptions(JNIEnv* env,
-                                         const JavaParamRef<jobject>& obj,
+                                         const JavaRef<jobject>& obj,
                                          jint group,
                                          jint list) {
   CHECK(rule_service_->IsLoaded());
@@ -125,7 +121,7 @@ void AdblockManager::RemoveAllExceptions(JNIEnv* env,
 
 ScopedJavaLocalRef<jobjectArray> AdblockManager::GetExceptions(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
+    const JavaRef<jobject>& obj,
     jint group,
     jint list) const {
   CHECK(rule_service_->IsLoaded());
@@ -140,9 +136,9 @@ ScopedJavaLocalRef<jobjectArray> AdblockManager::GetExceptions(
 
 ScopedJavaLocalRef<jobjectArray> AdblockManager::GetBlockedUrlsInfo(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
+    const JavaRef<jobject>& obj,
     jint group,
-    const JavaParamRef<jobject>& web_contents) const {
+    const JavaRef<jobject>& web_contents) const {
   CHECK(rule_service_->IsLoaded());
   std::vector<std::string> blocked_urls;
   adblock_filter::TabStateAndLogs* tab_state_and_logs =
@@ -181,8 +177,8 @@ ScopedJavaLocalRef<jobjectArray> AdblockManager::GetBlockedUrlsInfo(
 
 ScopedJavaLocalRef<jstring> AdblockManager::GetAdAtributionDomain(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
-    const JavaParamRef<jobject>& web_contents) const {
+    const JavaRef<jobject>& obj,
+    const JavaRef<jobject>& web_contents) const {
   CHECK(rule_service_->IsLoaded());
   adblock_filter::TabStateAndLogs* tab_state_and_logs =
       rule_service_->GetStateAndLogs()->GetTabHelper(
@@ -196,8 +192,8 @@ ScopedJavaLocalRef<jstring> AdblockManager::GetAdAtributionDomain(
 
 bool AdblockManager::IsAdAttributionActive(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
-    const JavaParamRef<jobject>& web_contents) const {
+    const JavaRef<jobject>& obj,
+    const JavaRef<jobject>& web_contents) const {
   CHECK(rule_service_->IsLoaded());
   adblock_filter::TabStateAndLogs* tab_state_and_logs =
       rule_service_->GetStateAndLogs()->GetTabHelper(
@@ -207,8 +203,8 @@ bool AdblockManager::IsAdAttributionActive(
 
 bool AdblockManager::IsPartnerAdsShown(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
-    const JavaParamRef<jobject>& web_contents) const {
+    const JavaRef<jobject>& obj,
+    const JavaRef<jobject>& web_contents) const {
   CHECK(rule_service_->IsLoaded());
 
   return rule_service_->HasDocumentActivationForRuleSource(
@@ -221,8 +217,8 @@ bool AdblockManager::IsPartnerAdsShown(
 base::android::ScopedJavaLocalRef<jobjectArray>
 AdblockManager::GetAllowedAdAttributionTrackers(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
-    const base::android::JavaParamRef<jobject>& web_contents) const {
+    const base::android::JavaRef<jobject>& obj,
+    const base::android::JavaRef<jobject>& web_contents) const {
   CHECK(rule_service_->IsLoaded());
   adblock_filter::TabStateAndLogs* tab_state_and_logs =
       rule_service_->GetStateAndLogs()->GetTabHelper(
@@ -237,9 +233,9 @@ AdblockManager::GetAllowedAdAttributionTrackers(
 }
 
 bool AdblockManager::IsExemptOfFiltering(JNIEnv* env,
-                                         const JavaParamRef<jobject>& obj,
+                                         const JavaRef<jobject>& obj,
                                          const jint group,
-                                         const JavaParamRef<jstring>& domain) {
+                                         const JavaRef<jstring>& domain) {
   CHECK(rule_service_->IsLoaded());
   return rule_service_->GetRuleManager()->IsExemptOfFiltering(
       static_cast<adblock_filter::RuleGroup>(group),
@@ -305,7 +301,7 @@ std::string SerializeRuleSource(const CombinedRuleSource& source) {
 
 ScopedJavaLocalRef<jstring> AdblockManager::GetRuleSource(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
+    const base::android::JavaRef<jobject>& obj,
     const jint group,
     const jlong source_id) const {
   CHECK(rule_service_->IsLoaded());
@@ -345,7 +341,7 @@ ScopedJavaLocalRef<jstring> AdblockManager::GetRuleSource(
 
 ScopedJavaLocalRef<jobjectArray> AdblockManager::GetRuleSources(
     JNIEnv* env,
-    const JavaParamRef<jobject>& obj,
+    const JavaRef<jobject>& obj,
     const jint group) const {
   CHECK(rule_service_->IsLoaded());
   std::vector<std::string> rule_sources;
@@ -382,9 +378,9 @@ ScopedJavaLocalRef<jobjectArray> AdblockManager::GetRuleSources(
 
 jlong AdblockManager::AddSourceFromUrl(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
+    const base::android::JavaRef<jobject>& obj,
     const jint group,
-    const base::android::JavaParamRef<jstring>& url) {
+    const base::android::JavaRef<jstring>& url) {
   CHECK(rule_service_->IsLoaded());
   auto core = adblock_filter::RuleSourceCore::FromUrl(
       GURL(base::android::ConvertJavaStringToUTF8(env, url)));
@@ -401,9 +397,9 @@ jlong AdblockManager::AddSourceFromUrl(
 
 jlong AdblockManager::AddSourceFromFile(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
+    const base::android::JavaRef<jobject>& obj,
     const jint group,
-    const base::android::JavaParamRef<jstring>& file) {
+    const base::android::JavaRef<jstring>& file) {
   CHECK(rule_service_->IsLoaded());
   auto core =
       adblock_filter::RuleSourceCore::FromFile(base::FilePath::FromUTF8Unsafe(
@@ -421,7 +417,7 @@ jlong AdblockManager::AddSourceFromFile(
 
 bool AdblockManager::SetSourceSettings(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
+    const base::android::JavaRef<jobject>& obj,
     const jint group,
     const jlong source_id,
     bool allow_apb_snippets,
@@ -437,44 +433,40 @@ bool AdblockManager::SetSourceSettings(
           .use_whole_document_allow = use_whole_document_allow});
 }
 
-bool AdblockManager::RemoveSource(
-    JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
-    const jint group,
-    const jlong source_id) {
+bool AdblockManager::RemoveSource(JNIEnv* env,
+                                  const base::android::JavaRef<jobject>& obj,
+                                  const jint group,
+                                  const jlong source_id) {
   CHECK(rule_service_->IsLoaded());
   return rule_service_->GetKnownSourcesHandler()->RemoveSource(
       static_cast<adblock_filter::RuleGroup>(group),
       static_cast<uint32_t>(source_id));
 }
 
-bool AdblockManager::EnableSource(
-    JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
-    const jint group,
-    const jlong source_id) {
+bool AdblockManager::EnableSource(JNIEnv* env,
+                                  const base::android::JavaRef<jobject>& obj,
+                                  const jint group,
+                                  const jlong source_id) {
   CHECK(rule_service_->IsLoaded());
   return rule_service_->GetKnownSourcesHandler()->EnableSource(
       static_cast<adblock_filter::RuleGroup>(group),
       static_cast<uint32_t>(source_id));
 }
 
-void AdblockManager::DisableSource(
-    JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
-    const jint group,
-    const jlong source_id) {
+void AdblockManager::DisableSource(JNIEnv* env,
+                                   const base::android::JavaRef<jobject>& obj,
+                                   const jint group,
+                                   const jlong source_id) {
   CHECK(rule_service_->IsLoaded());
   rule_service_->GetKnownSourcesHandler()->DisableSource(
       static_cast<adblock_filter::RuleGroup>(group),
       static_cast<uint32_t>(source_id));
 }
 
-bool AdblockManager::IsSourceEnabled(
-    JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
-    const jint group,
-    const jlong source_id) {
+bool AdblockManager::IsSourceEnabled(JNIEnv* env,
+                                     const base::android::JavaRef<jobject>& obj,
+                                     const jint group,
+                                     const jlong source_id) {
   CHECK(rule_service_->IsLoaded());
   return rule_service_->GetKnownSourcesHandler()->IsSourceEnabled(
       static_cast<adblock_filter::RuleGroup>(group),
@@ -483,7 +475,7 @@ bool AdblockManager::IsSourceEnabled(
 
 void AdblockManager::ResetPresetSources(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
+    const base::android::JavaRef<jobject>& obj,
     const jint group) {
   CHECK(rule_service_->IsLoaded());
   rule_service_->GetKnownSourcesHandler()->ResetPresetSources(
@@ -492,14 +484,14 @@ void AdblockManager::ResetPresetSources(
 
 bool AdblockManager::IsDocumentBlockingEnabled(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj) {
+    const base::android::JavaRef<jobject>& obj) {
   return prefs_->GetBoolean(
       vivaldiprefs::kPrivacyAdBlockerEnableDocumentBlocking);
 }
 
 void AdblockManager::SetDocumentBlockingEnabled(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
+    const base::android::JavaRef<jobject>& obj,
     bool enabled) {
   prefs_->SetBoolean(vivaldiprefs::kPrivacyAdBlockerEnableDocumentBlocking,
                      enabled);
@@ -513,10 +505,9 @@ void AdblockManager::OnStatsDataLoaded(
                                                     trackersBlocked);
 }
 
-void AdblockManager::GetBlockingData(
-    JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
-    const jint interval) {
+void AdblockManager::GetBlockingData(JNIEnv* env,
+                                     const base::android::JavaRef<jobject>& obj,
+                                     const jint interval) {
   CHECK(rule_service_->IsLoaded());
   const auto* stats_store = rule_service_->GetStatsStore();
   auto callback = base::BindOnce(&AdblockManager::OnStatsDataLoaded,
@@ -657,3 +648,5 @@ void AdblockManager::OnNewAttributionTrackerAllowed(
     return;
   Java_AdblockManager_onNewAttributionTrackerAllowed(env, obj);
 }
+
+DEFINE_JNI_FOR_AdblockManager_SEE_JNI_ZERO_README()

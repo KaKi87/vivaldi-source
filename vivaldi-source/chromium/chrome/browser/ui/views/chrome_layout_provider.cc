@@ -154,10 +154,14 @@ int ChromeLayoutProvider::GetDistanceMetric(int metric) const {
       return 20;
     case DISTANCE_SIDE_PANEL_HEADER_INTERIOR_MARGIN_HORIZONTAL:
       return 4;
+    case DISTANCE_CONTENT_HEIGHT_SIDE_PANEL_CONTENT_RADIUS:
+      return 16;
+    case DISTANCE_TOOLBAR_HEIGHT_SIDE_PANEL_CONTENT_RADIUS:
+      return 8;
     case DISTANCE_HORIZONTAL_SEPARATOR_PADDING_PAGE_INFO_VIEW:
       return 20;
     case DISTANCE_INFOBAR_HORIZONTAL_ICON_LABEL_PADDING:
-      return 16;
+      return 12;
     case DISTANCE_INFOBAR_HEIGHT:
       // Spec says height of button should be 36dp, vertical padding on both
       // top and bottom should be 8dp.
@@ -243,7 +247,7 @@ int ChromeLayoutProvider::GetDistanceMetric(int metric) const {
     case DISTANCE_FEATURE_FIRST_RUN_INFO_BOX_VERTICAL:
       return 1;
     case DISTANCE_INFOBAR_BUTTON_VERTICAL_PADDING:
-      return 6;
+      return 8;
     case DISTANCE_INFOBAR_BUTTON_HORIZONTAL_PADDING:
       return 12;
   }

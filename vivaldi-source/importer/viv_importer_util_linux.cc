@@ -58,7 +58,7 @@ base::FilePath GetThunderbirdMailDirectory() {
   // For thunderbird installed with snap
   mail_directory = home.Append("snap/thunderbird/common/.thunderbird");
   if (base::PathExists(mail_directory)) {
-     return mail_directory;
+    return mail_directory;
   }
 
   return base::FilePath();

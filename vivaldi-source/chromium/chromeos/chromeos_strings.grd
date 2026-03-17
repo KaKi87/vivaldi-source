@@ -1828,9 +1828,6 @@
         <message name="IDS_NETWORK_TYPE_TETHER" desc="Label for Instant Tethering networks.">
           Instant Tethering
         </message>
-        <message name="IDS_NETWORK_TYPE_HOTSPOT" desc="Label for Instant Hotspot networks.">
-          Instant hotspot
-        </message>
         <message name="IDS_NETWORK_TYPE_MOBILE_DATA" desc="Label for category which includes both Cellular and Tether networks.">
           Mobile data
         </message>
@@ -6348,7 +6345,6 @@
         <!-- End of Feedback Tool -->
 
         <!-- Shortcut Customization -->
-        <!-- TODO(b/340668387): Update strings for split modifier keyboard.-->
         <message name="IDS_SHORTCUT_CUSTOMIZATION_APP_TITLE" desc="Title of the app">
           Key Shortcuts
         </message>
@@ -7120,11 +7116,6 @@
       </message>
       <message name="IDS_WEB_APP_RELAUNCH_NOTIFICATION_MESSAGE" desc="Message of the app relaunch notification.">
           Please wait while this application is being updated
-      </message>
-
-      <message name="IDS_DEEP_SCANNING_PROMPT_REMOVAL_NOTIFICATION"
-               desc="Notification text shown on Lacros indicating to the users that future suspicious downloads will scan automatically">
-        Suspicious files will be scanned automatically by Google Safe Browsing as part of the enhanced protection you chose
       </message>
 
       <message name="IDS_DEVICE_RESTRICTION_SCHEDULE_UPCOMING_LOGOUT_NOTIFICATION_TITLE" desc="Title of the notification telling the user they will be signed out soon.">

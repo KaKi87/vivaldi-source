@@ -28,7 +28,7 @@
   cell.isAccessibilityElement = YES;
 
   cell.textLabel.text = self.text;
-    cell.accessibilityLabel = self.text;
+  cell.accessibilityLabel = self.text;
 
   if (self.textFont) {
     cell.textLabel.font = self.textFont;

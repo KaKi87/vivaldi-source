@@ -4,12 +4,11 @@
 
 #include "chrome/browser/ash/app_list/arc/arc_package_syncable_service.h"
 
-#include <unordered_set>
 #include <utility>
 #include <vector>
 
 #include "ash/constants/ash_pref_names.h"
-#include "base/containers/contains.h"
+#include "base/containers/flat_set.h"
 #include "chrome/browser/ash/app_list/arc/arc_app_list_prefs.h"
 #include "chrome/browser/ash/app_list/arc/arc_package_install_priority_handler.h"
 #include "chrome/browser/ash/app_list/arc/arc_package_syncable_service_factory.h"
@@ -160,10 +159,8 @@ ArcPackageSyncableService::MergeDataAndStartSyncing(
   metrics_helper_.SetTimeSyncStarted();
   uint64_t num_expected_apps = 0;
 
-  const std::vector<std::string> local_packages =
-      prefs_->GetPackagesFromPrefs();
-  const std::unordered_set<std::string> local_package_set(
-      local_packages.begin(), local_packages.end());
+  const base::flat_set<std::string> local_package_set(
+      prefs_->GetPackagesFromPrefs());
 
   // Creates sync items from synced data.
   for (const syncer::SyncData& sync_data : initial_sync_data) {
@@ -174,7 +171,7 @@ ArcPackageSyncableService::MergeDataAndStartSyncing(
     if (!ShouldSyncPackage(package_name))
       continue;
 
-    if (!base::Contains(local_package_set, package_name)) {
+    if (!local_package_set.contains(package_name)) {
       pending_install_items_[package_name] = std::move(sync_item);
       if (base::FeatureList::IsEnabled(arc::kSyncInstallPriority)) {
         prefs_->GetInstallPriorityHandler()->InstallSyncedPacakge(
@@ -194,9 +191,10 @@ ArcPackageSyncableService::MergeDataAndStartSyncing(
 
   // Creates sync items for local unsynced packages.
   syncer::SyncChangeList change_list;
-  for (const auto& local_package_name : local_packages) {
-    if (base::Contains(sync_items_, local_package_name))
+  for (const auto& local_package_name : local_package_set) {
+    if (sync_items_.contains(local_package_name)) {
       continue;
+    }
 
     if (!ShouldSyncPackage(local_package_name))
       continue;

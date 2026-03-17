@@ -249,8 +249,8 @@ const CGSize faviconMaskSizeiPad = CGSizeMake(26.f, 26.f);
     BOOL useDarkText =
         [VivaldiGlobalHelpers shouldUseDarkTextForImage:wallpaper];
     UIColor* textColor =
-        useDarkText ? [UIColor colorNamed:vNTPSpeedDialDomainTextColorDark] :
-            [UIColor colorNamed:vNTPSpeedDialDomainTextColorLight];
+        useDarkText ? [UIColor colorNamed:vNTPSpeedDialDomainTextColorDark]
+                    : [UIColor colorNamed:vNTPSpeedDialDomainTextColorLight];
     self.titleLabel.textColor = textColor;
   } else {
     self.titleLabel.textColor =

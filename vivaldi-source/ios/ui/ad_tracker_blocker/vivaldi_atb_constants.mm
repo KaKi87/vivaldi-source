@@ -18,7 +18,7 @@ const CGFloat iOS26ActionButtonCornerRadius = 28.f;
 const UIEdgeInsets actionButtonPadding = UIEdgeInsetsMake(4.f, 20.f, 4.f, 20.f);
 // Common container view padding for the cells
 const UIEdgeInsets commonContainerPadding =
-  UIEdgeInsetsMake(0.f, 16.f, 0.f, 16.f);
+    UIEdgeInsetsMake(0.f, 16.f, 0.f, 16.f);
 // Size for the bottom underline used to seperate one item from another
 const CGSize separatorSize = CGSizeMake(0.f, 1.f);
 // Spacing between two view on a vertical stack view
@@ -34,5 +34,4 @@ NSString* vATBShieldTrackers = @"vivaldi_atb_shield_trackers";
 // Image name for trackers and ads blocking shield
 NSString* vATBShieldTrackesAndAds = @"vivaldi_atb_shield_trackers_and_ads";
 // Image name for tracker blocker selection check
-NSString* vATBSettingsSelectionCheck =
-  @"vivaldi_atb_settings_selection_check";
+NSString* vATBSettingsSelectionCheck = @"vivaldi_atb_settings_selection_check";

@@ -4,11 +4,12 @@
 
 #import "ios/chrome/browser/browser_view/ui_bundled/tab_lifecycle_mediator.h"
 
+#import "components/webauthn/ios/passkey_tab_helper.h"
 #import "ios/chrome/browser/app_launcher/model/app_launcher_tab_helper.h"
 #import "ios/chrome/browser/autofill/model/autofill_tab_helper.h"
 #import "ios/chrome/browser/autofill/model/bottom_sheet/autofill_bottom_sheet_tab_helper.h"
 #import "ios/chrome/browser/autofill/model/form_suggestion_tab_helper.h"
-#import "ios/chrome/browser/browser_container/model/edit_menu_tab_helper.h"
+#import "ios/chrome/browser/browser_content/model/edit_menu_tab_helper.h"
 #import "ios/chrome/browser/commerce/model/price_notifications/price_notifications_tab_helper.h"
 #import "ios/chrome/browser/contextual_panel/model/contextual_panel_tab_helper.h"
 #import "ios/chrome/browser/download/coordinator/download_manager_coordinator.h"
@@ -21,7 +22,6 @@
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/itunes_urls/model/itunes_urls_handler_tab_helper.h"
 #import "ios/chrome/browser/lens/model/lens_tab_helper.h"
-#import "ios/chrome/browser/mini_map/model/mini_map_tab_helper.h"
 #import "ios/chrome/browser/ntp/model/new_tab_page_tab_helper.h"
 #import "ios/chrome/browser/overscroll_actions/model/overscroll_actions_tab_helper.h"
 #import "ios/chrome/browser/passwords/model/password_tab_helper.h"
@@ -52,7 +52,6 @@
 #import "ios/chrome/browser/ssl/model/captive_portal_tab_helper.h"
 #import "ios/chrome/browser/supervised_user/model/supervised_user_error_container.h"
 #import "ios/chrome/browser/tab_insertion/model/tab_insertion_browser_agent.h"
-#import "ios/chrome/browser/tabs/model/tabs_dependency_installer.h"
 #import "ios/chrome/browser/tabs/model/tabs_dependency_installer_bridge.h"
 #import "ios/chrome/browser/web/model/annotations/annotations_tab_helper.h"
 #import "ios/chrome/browser/web/model/choose_file/choose_file_tab_helper.h"
@@ -78,8 +77,7 @@
 
 - (instancetype)initWithBrowser:(Browser*)browser {
   if ((self = [super init])) {
-    _dependencyInstallerBridge.StartObserving(
-        self, browser, TabsDependencyInstaller::Policy::kOnlyRealized);
+    _dependencyInstallerBridge.StartObserving(self, browser);
     _browser = browser;
   }
   return self;
@@ -124,6 +122,13 @@
     passwordTabHelper->SetPasswordControllerDelegate(
         _passwordControllerDelegate);
     passwordTabHelper->SetDispatcher(_commandDispatcher);
+  }
+
+  webauthn::PasskeyTabHelper* passkeyTabHelper =
+      webauthn::PasskeyTabHelper::FromWebState(webState);
+  if (passkeyTabHelper) {
+    passkeyTabHelper->SetIOSPasskeyClientCommandsHandler(
+        HandlerForProtocol(_commandDispatcher, IOSPasskeyClientCommands));
   }
 
   AutofillBottomSheetTabHelper* bottomSheetTabHelper =
@@ -223,12 +228,6 @@
         HandlerForProtocol(_commandDispatcher, UnitConversionCommands));
   }
 
-  MiniMapTabHelper* miniMapTabHelper = MiniMapTabHelper::FromWebState(webState);
-  if (miniMapTabHelper) {
-    miniMapTabHelper->SetMiniMapCommands(
-        HandlerForProtocol(_commandDispatcher, MiniMapCommands));
-  }
-
   PriceNotificationsTabHelper* priceNotificationsTabHelper =
       PriceNotificationsTabHelper::FromWebState(webState);
   if (priceNotificationsTabHelper) {
@@ -263,16 +262,15 @@
         HandlerForProtocol(_commandDispatcher, BWGCommands);
     BWGTabHelper->SetBwgCommandsHandler(BWGCommandsHandler);
 
-    // TODO(crbug.com/448157489): Remove this or refactor to
-    // `HandlerForProtocol`.
-    if (IsAskGeminiSnackbarEnabled() || IsWebPageReportedImagesSheetEnabled()) {
-      BWGTabHelper->SetSnackbarCommandsHandler(
-          static_cast<id<SnackbarCommands>>(_commandDispatcher));
-    }
-
     if (IsAskGeminiChipEnabled()) {
       BWGTabHelper->SetLocationBarBadgeCommandsHandler(
           id<LocationBarBadgeCommands>(_commandDispatcher));
+    }
+
+    if (IsGeminiImageRemixToolEnabled()) {
+      id<HelpCommands> helpCommandsHandler =
+          HandlerForProtocol(_commandDispatcher, HelpCommands);
+      BWGTabHelper->SetHelpCommandsHandler(helpCommandsHandler);
     }
   }
 
@@ -310,6 +308,12 @@
   if (passwordTabHelper) {
     passwordTabHelper->SetPasswordControllerDelegate(nil);
     passwordTabHelper->SetDispatcher(nil);
+  }
+
+  webauthn::PasskeyTabHelper* passkeyTabHelper =
+      webauthn::PasskeyTabHelper::FromWebState(webState);
+  if (passkeyTabHelper) {
+    passkeyTabHelper->SetIOSPasskeyClientCommandsHandler(nil);
   }
 
   AutofillBottomSheetTabHelper* bottomSheetTabHelper =
@@ -372,11 +376,6 @@
     annotationsTabHelper->SetUnitConversionCommands(nil);
   }
 
-  MiniMapTabHelper* miniMapTabHelper = MiniMapTabHelper::FromWebState(webState);
-  if (miniMapTabHelper) {
-    miniMapTabHelper->SetMiniMapCommands(nil);
-  }
-
   PriceNotificationsTabHelper* priceNotificationsTabHelper =
       PriceNotificationsTabHelper::FromWebState(webState);
   if (priceNotificationsTabHelper) {
@@ -406,11 +405,11 @@
   BwgTabHelper* BWGTabHelper = BwgTabHelper::FromWebState(webState);
   if (BWGTabHelper) {
     BWGTabHelper->SetBwgCommandsHandler(nil);
-    if (IsAskGeminiSnackbarEnabled()) {
-      BWGTabHelper->SetSnackbarCommandsHandler(nil);
-    }
     if (IsAskGeminiChipEnabled()) {
       BWGTabHelper->SetLocationBarBadgeCommandsHandler(nil);
+    }
+    if (IsGeminiImageRemixToolEnabled()) {
+      BWGTabHelper->SetHelpCommandsHandler(nil);
     }
   }
 

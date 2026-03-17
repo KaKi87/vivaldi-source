@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Votre connexion à ce site n’est pas totalement sécurisée</translation>
 <translation id="4265872034478892965">Autorisé par votre administrateur</translation>
 <translation id="4305666528087210886">Impossible d’accéder à votre fichier</translation>
-<translation id="4408413947728134509">Cookies <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> n’a pas accepté votre certificat de connexion, ou vous ne l’avez pas fourni.</translation>
 <translation id="4506599922270137252">Contacter l’administrateur système</translation>
 <translation id="4522570452068850558">Détails</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Aucun résultat</translation>
 <translation id="5017554619425969104">Texte que vous avez copié</translation>
 <translation id="5023310440958281426">Vérifiez les règles définies par votre administrateur</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1{(1 en cours d’utilisation)} other {(# en cours d’utilisation)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Vérifier l’adresse du proxy<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 bits)</translation>
 <translation id="5216942107514965959">Dernières visites aujourd’hui</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Vous ne devriez pas saisir d’informations sensibles sur ce site (par exemple, vos mots de passe ou les informations de votre carte de paiement), car elles risquent d’être dérobées par des pirates informatiques.</translation>
 <translation id="5863515189965725638">Modifier l’IBAN</translation>
 <translation id="5869405914158311789">Ce site est inaccessible</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{1 en cours d’utilisation} other{# en cours d’utilisation}}</translation>
 <translation id="5932224571077948991">Le site affiche des publicités intrusives ou trompeuses</translation>
 <translation id="6051221802930200923">Le site <ph name="SITE" /> est actuellement inaccessible, car il utilise l’épinglage des certificats. Les erreurs réseau et les attaques sont généralement temporaires. Vous devriez donc pouvoir accéder à cette page plus tard.</translation>
 <translation id="6146055958333702838">Vérifiez les câbles et redémarrez votre routeur, votre modem

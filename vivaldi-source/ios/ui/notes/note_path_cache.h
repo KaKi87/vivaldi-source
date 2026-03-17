@@ -24,17 +24,16 @@ class PrefService;
 
 // Caches the note top most row that the user was last viewing.
 + (void)cacheNoteTopMostRowWithPrefService:(PrefService*)prefService
-                                      folderId:(int64_t)folderId
-                                    topMostRow:(int)topMostRow;
+                                  folderId:(int64_t)folderId
+                                topMostRow:(int)topMostRow;
 
 // Gets the note top most row that the user was last viewing. Returns YES if
 // a valid cache exists. |folderId| and |topMostRow| are out variables, only
 // populated if the return is YES.
 + (BOOL)getNoteTopMostRowCacheWithPrefService:(PrefService*)prefService
-                                            model:
-                                                (vivaldi::NotesModel*)model
-                                         folderId:(int64_t*)folderId
-                                       topMostRow:(int*)topMostRow;
+                                        model:(vivaldi::NotesModel*)model
+                                     folderId:(int64_t*)folderId
+                                   topMostRow:(int*)topMostRow;
 
 // Clears the note top most row cache.
 + (void)clearNoteTopMostRowCacheWithPrefService:(PrefService*)prefService;

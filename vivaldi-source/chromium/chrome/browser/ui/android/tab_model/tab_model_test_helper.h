@@ -15,6 +15,7 @@
 #include "chrome/browser/android/tab_android.h"
 #include "chrome/browser/flags/android/chrome_session_state.h"
 #include "chrome/browser/ui/android/tab_model/tab_model.h"
+#include "components/tabs/public/tab_interface.h"
 #include "content/public/test/browser_test_utils.h"
 #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
 #include "url/gurl.h"
@@ -48,9 +49,12 @@ class TestTabModel : public TabModel {
   tabs::TabInterface* GetActiveTab() override;
   content::WebContents* GetWebContentsAt(int index) const override;
   base::android::ScopedJavaLocalRef<jobject> GetJavaObject() const override;
-  void CreateTab(TabAndroid* parent,
-                 content::WebContents* web_contents,
-                 bool select) override;
+  tabs::TabInterface* CreateTab(
+      TabAndroid* parent,
+      std::unique_ptr<content::WebContents> web_contents,
+      int index,
+      TabLaunchType type,
+      bool should_pin) override;
   void HandlePopupNavigation(TabAndroid* parent,
                              NavigateParams* params) override;
   content::WebContents* CreateNewTabForDevTools(const GURL& url,
@@ -79,7 +83,10 @@ class TestTabModel : public TabModel {
 
   // TODO(crbug.com/415351293): Implement these.
   // TabListInterface implementation.
+  void ActivateTab(tabs::TabHandle tab) override;
   tabs::TabInterface* OpenTab(const GURL& url, int index) override;
+  void SetOpenerForTab(tabs::TabHandle target, tabs::TabHandle opener) override;
+  tabs::TabInterface* GetOpenerForTab(tabs::TabHandle target) override;
   void DiscardTab(tabs::TabHandle tab) override;
   tabs::TabInterface* DuplicateTab(tabs::TabHandle tab) override;
   tabs::TabInterface* GetTab(int index) override;
@@ -91,6 +98,16 @@ class TestTabModel : public TabModel {
   std::vector<tabs::TabInterface*> GetAllTabs() override;
   void PinTab(tabs::TabHandle tab) override;
   void UnpinTab(tabs::TabHandle tab) override;
+  bool ContainsTabGroup(tab_groups::TabGroupId group_id) override;
+  std::vector<tab_groups::TabGroupId> ListTabGroups() override;
+  std::optional<tab_groups::TabGroupVisualData> GetTabGroupVisualData(
+      tab_groups::TabGroupId group_id) override;
+  gfx::Range GetTabGroupTabIndices(tab_groups::TabGroupId group_id) override;
+  std::optional<tab_groups::TabGroupId> CreateTabGroup(
+      const std::vector<tabs::TabHandle>& tabs) override;
+  void SetTabGroupVisualData(
+      tab_groups::TabGroupId group_id,
+      const tab_groups::TabGroupVisualData& visual_data) override;
   std::optional<tab_groups::TabGroupId> AddTabsToGroup(
       std::optional<tab_groups::TabGroupId> group_id,
       const std::set<tabs::TabHandle>& tabs) override;
@@ -102,6 +119,8 @@ class TestTabModel : public TabModel {
   void MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
                             SessionID destination_window_id,
                             int destination_index) override;
+  bool IsThisTabListEditable() override;
+  bool IsClosingAllTabs() override;
 
 // BrowserWindowInterface is available on desktop Android, but not other Android
 // builds.
@@ -117,7 +136,7 @@ class TestTabModel : public TabModel {
   raw_ptr<TabModelObserver> observer_ = nullptr;
   std::vector<raw_ptr<content::WebContents>> web_contents_list_;
 
-  std::unique_ptr<ui::ScopedUnownedUserData<TabModel>>
+  std::unique_ptr<ui::ScopedUnownedUserData<TabListInterface>>
       scoped_unowned_user_data_;
 };
 
@@ -149,9 +168,12 @@ class OwningTestTabModel : public TabModel {
   void SetActiveIndex(int index) override;
   void ForceCloseAllTabs() override;
   void CloseTabAt(int index) override;
-  void CreateTab(TabAndroid* parent,
-                 content::WebContents* web_contents,
-                 bool select) override;
+  tabs::TabInterface* CreateTab(
+      TabAndroid* parent,
+      std::unique_ptr<content::WebContents> web_contents,
+      int index,
+      TabLaunchType type,
+      bool should_pin) override;
   bool IsActiveModel() const override;
   void AddObserver(TabModelObserver* observer) override;
   void RemoveObserver(TabModelObserver* observer) override;
@@ -191,7 +213,10 @@ class OwningTestTabModel : public TabModel {
 
   // TODO(crbug.com/415351293): Implement these.
   // TabListInterface implementation.
+  void ActivateTab(tabs::TabHandle tab) override;
   tabs::TabInterface* OpenTab(const GURL& url, int index) override;
+  void SetOpenerForTab(tabs::TabHandle target, tabs::TabHandle opener) override;
+  tabs::TabInterface* GetOpenerForTab(tabs::TabHandle target) override;
   void DiscardTab(tabs::TabHandle tab) override;
   tabs::TabInterface* DuplicateTab(tabs::TabHandle tab) override;
   tabs::TabInterface* GetTab(int index) override;
@@ -203,6 +228,16 @@ class OwningTestTabModel : public TabModel {
   std::vector<tabs::TabInterface*> GetAllTabs() override;
   void PinTab(tabs::TabHandle tab) override;
   void UnpinTab(tabs::TabHandle tab) override;
+  bool ContainsTabGroup(tab_groups::TabGroupId group_id) override;
+  std::vector<tab_groups::TabGroupId> ListTabGroups() override;
+  std::optional<tab_groups::TabGroupVisualData> GetTabGroupVisualData(
+      tab_groups::TabGroupId group_id) override;
+  gfx::Range GetTabGroupTabIndices(tab_groups::TabGroupId group_id) override;
+  std::optional<tab_groups::TabGroupId> CreateTabGroup(
+      const std::vector<tabs::TabHandle>& tabs) override;
+  void SetTabGroupVisualData(
+      tab_groups::TabGroupId group_id,
+      const tab_groups::TabGroupVisualData& visual_data) override;
   std::optional<tab_groups::TabGroupId> AddTabsToGroup(
       std::optional<tab_groups::TabGroupId> group_id,
       const std::set<tabs::TabHandle>& tabs) override;
@@ -214,6 +249,8 @@ class OwningTestTabModel : public TabModel {
   void MoveTabGroupToWindow(tab_groups::TabGroupId group_id,
                             SessionID destination_window_id,
                             int destination_index) override;
+  bool IsThisTabListEditable() override;
+  bool IsClosingAllTabs() override;
 
  private:
   void SelectTab(TabAndroid* tab, TabModel::TabSelectionType selection_type);

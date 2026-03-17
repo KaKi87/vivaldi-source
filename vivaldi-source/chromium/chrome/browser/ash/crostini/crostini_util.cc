@@ -40,7 +40,6 @@
 #include "chrome/browser/ui/ash/shelf/shelf_spinner_controller.h"
 #include "chrome/browser/ui/ash/shelf/shelf_spinner_item_controller.h"
 #include "chrome/browser/ui/views/crostini/crostini_recovery_view.h"
-#include "chrome/browser/ui/webui/ash/crostini_upgrader/crostini_upgrader_dialog.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/grit/generated_resources.h"
 #include "chromeos/ui/base/app_types.h"
@@ -189,17 +188,9 @@ bool IsCrostiniRunning(Profile* profile) {
 }
 
 bool ShouldConfigureDefaultContainer(Profile* profile) {
-  const base::FilePath ansible_playbook_file_path =
-      profile->GetPrefs()->GetFilePath(prefs::kCrostiniAnsiblePlaybookFilePath);
   bool default_container_configured = profile->GetPrefs()->GetBoolean(
       prefs::kCrostiniDefaultContainerConfigured);
-  return !default_container_configured && !ansible_playbook_file_path.empty();
-}
-
-bool ShouldAllowContainerUpgrade(Profile* profile) {
-  return CrostiniFeatures::Get()->IsContainerUpgradeUIAllowed(profile) &&
-         crostini::CrostiniManager::GetForProfile(profile)
-             ->IsContainerUpgradeable(DefaultContainerId());
+  return !default_container_configured;
 }
 
 void AddSpinner(crostini::CrostiniManager::RestartId restart_id,
@@ -302,15 +293,6 @@ void LaunchCrostiniAppWithIntent(Profile* profile,
         args, std::move(callback));
   }
 
-  if (crostini_manager->GetCrostiniDialogStatus(DialogType::UPGRADER)) {
-    // Reshow the existing dialog.
-    ash::CrostiniUpgraderDialog::Reshow();
-    VLOG(1) << "Reshowing upgrade dialog";
-    std::move(callback).Run(
-        false, "LaunchCrostiniApp called while upgrade dialog showing");
-    return;
-  }
-
   LaunchCrostiniAppImpl(profile, app_id, std::move(*registration), container_id,
                         display_id, args, std::move(callback));
 }
@@ -375,7 +357,7 @@ base::FilePath ContainerChromeOSBaseDirectory() {
 
 void AddNewLxdContainerToPrefs(Profile* profile,
                                const guest_os::GuestId& container_id) {
-  base::Value::Dict properties;
+  base::DictValue properties;
   properties.Set(guest_os::prefs::kContainerOsVersionKey,
                  static_cast<int>(ContainerOsVersion::kUnknown));
   properties.Set(guest_os::prefs::kContainerOsPrettyNameKey, "");

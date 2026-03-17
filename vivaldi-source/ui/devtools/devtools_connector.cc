@@ -104,7 +104,8 @@ void DevtoolsConnectorAPI::CloseDevtoolsForBrowser(
     if (extensions::ExtensionTabUtil::GetTabById(
             (*it)->tab_id(), browser_context, true, &browser,
             &tabstrip_contents, &tab_index)) {
-      if (closing_browser == nullptr || closing_browser == browser->GetBrowser()) {
+      if (closing_browser == nullptr ||
+          closing_browser == browser->GetBrowser()) {
         DevToolsWindow* window =
             DevToolsWindow::GetInstanceForInspectedWebContents(
                 tabstrip_contents);
@@ -112,7 +113,8 @@ void DevtoolsConnectorAPI::CloseDevtoolsForBrowser(
           // This call removes the element from connector_items_.
           window->ForceCloseWindow();
           it = api->connector_items_.begin();
-        } else return;
+        } else
+          return;
       } else {
         it++;
       }
@@ -131,9 +133,8 @@ void DevtoolsConnectorAPI::SendOnUndockedEvent(
   bool need_defaults = true;
   Profile* profile = Profile::FromBrowserContext(browser_context);
   PrefService* prefs = profile->GetPrefs();
-  const base::Value::Dict& pref_dict =
-      prefs->GetDict(prefs::kAppWindowPlacement);
-  if (const base::Value::Dict* state =
+  const base::DictValue& pref_dict = prefs->GetDict(prefs::kAppWindowPlacement);
+  if (const base::DictValue* state =
           pref_dict.FindDict(DevToolsWindow::kDevToolsApp)) {
     params.left = state->FindInt("left").value_or(0);
     params.top = state->FindInt("top").value_or(0);
@@ -146,8 +147,8 @@ void DevtoolsConnectorAPI::SendOnUndockedEvent(
   if (need_defaults) {
     // Set defaults in prefs, based on DevToolsWindow::CreateDevToolsBrowser
     ScopedDictPrefUpdate update(prefs, prefs::kAppWindowPlacement);
-    base::Value::Dict& wp_prefs = update.Get();
-    base::Value::Dict dev_tools_defaults;
+    base::DictValue& wp_prefs = update.Get();
+    base::DictValue dev_tools_defaults;
     dev_tools_defaults.Set("left", 100);
     dev_tools_defaults.Set("top", 100);
     dev_tools_defaults.Set("right", 740);
@@ -155,8 +156,7 @@ void DevtoolsConnectorAPI::SendOnUndockedEvent(
     dev_tools_defaults.Set("maximized", false);
     dev_tools_defaults.Set("always_on_top", false);
 
-    wp_prefs.Set(DevToolsWindow::kDevToolsApp,
-                            std::move(dev_tools_defaults));
+    wp_prefs.Set(DevToolsWindow::kDevToolsApp, std::move(dev_tools_defaults));
   }
 
   ::vivaldi::BroadcastEvent(
@@ -221,9 +221,9 @@ content::WebContents* DevtoolsConnectorItem::AddNewContents(
     bool* was_blocked) {
   if (devtools_delegate_) {
     // The webview is called in devtools_delegate_
-    return devtools_delegate_->AddNewContents(source, std::move(new_contents),
-                                       target_url, disposition, window_features,
-                                       user_gesture, was_blocked);
+    return devtools_delegate_->AddNewContents(
+        source, std::move(new_contents), target_url, disposition,
+        window_features, user_gesture, was_blocked);
   }
 
   return nullptr;
@@ -288,31 +288,30 @@ bool DevtoolsConnectorItem::HandleContextMenu(
 
 #if BUILDFLAG(IS_MAC)
 constexpr std::array<std::string_view, 14> commands_to_fwd = {
-  "COMMAND_CLOSE_TAB",
-  "COMMAND_CLOSE_WINDOW",
-  "COMMAND_DEVELOPER_TOOLS",
-  "COMMAND_DEVTOOLS_CONSOLE",
-  "COMMAND_NEW_TAB",
-  "COMMAND_NEW_BACKGROUND_TAB",
-  "COMMAND_NEW_PRIVATE_WINDOW",
-  "COMMAND_NEW_WINDOW",
-  "COMMAND_QUIT_MAC_MAYBE_WARN",
-  "COMMAND_CLIPBOARD_COPY",
-  "COMMAND_CLIPBOARD_CUT",
-  "COMMAND_CLIPBOARD_PASTE",
-  "COMMAND_CLIPBOARD_SELECT_ALL",
-  "COMMAND_CLIPBOARD_PASTE_AS_PLAIN_TEXT"
-};
+    "COMMAND_CLOSE_TAB",
+    "COMMAND_CLOSE_WINDOW",
+    "COMMAND_DEVELOPER_TOOLS",
+    "COMMAND_DEVTOOLS_CONSOLE",
+    "COMMAND_NEW_TAB",
+    "COMMAND_NEW_BACKGROUND_TAB",
+    "COMMAND_NEW_PRIVATE_WINDOW",
+    "COMMAND_NEW_WINDOW",
+    "COMMAND_QUIT_MAC_MAYBE_WARN",
+    "COMMAND_CLIPBOARD_COPY",
+    "COMMAND_CLIPBOARD_CUT",
+    "COMMAND_CLIPBOARD_PASTE",
+    "COMMAND_CLIPBOARD_SELECT_ALL",
+    "COMMAND_CLIPBOARD_PASTE_AS_PLAIN_TEXT"};
 
 bool ShouldForwardKeyCombo(std::string shortcut_text,
-    content::BrowserContext* browser_context) {
+                           content::BrowserContext* browser_context) {
   Profile* profile = Profile::FromBrowserContext(browser_context);
   PrefService* prefs = profile->GetPrefs();
   auto& vivaldi_actions = prefs->GetList(vivaldiprefs::kActions);
-  const base::Value::Dict* dict = vivaldi_actions[0].GetIfDict();
+  const base::DictValue* dict = vivaldi_actions[0].GetIfDict();
 
   for (const auto& cmd : commands_to_fwd) {
-    const base::Value::Dict* shortcut = dict->FindDict(cmd);
+    const base::DictValue* shortcut = dict->FindDict(cmd);
     if (!shortcut) {
       continue;
     }
@@ -349,12 +348,12 @@ bool DevtoolsConnectorItem::HandleKeyboardEvent(
 #if BUILDFLAG(IS_MAC)
   if ((event.GetType() == blink::WebInputEvent::Type::kRawKeyDown) &&
       ((event.windows_key_code != ui::VKEY_CONTROL &&
-      event.windows_key_code != ui::VKEY_MENU &&
-      event.windows_key_code != ui::VKEY_SHIFT &&
-      event.windows_key_code != ui::VKEY_COMMAND &&
-      event.GetModifiers() > 0) ||
-      (ui::VKEY_F1 <= event.windows_key_code &&
-      event.windows_key_code <= ui::VKEY_F12))) {
+        event.windows_key_code != ui::VKEY_MENU &&
+        event.windows_key_code != ui::VKEY_SHIFT &&
+        event.windows_key_code != ui::VKEY_COMMAND &&
+        event.GetModifiers() > 0) ||
+       (ui::VKEY_F1 <= event.windows_key_code &&
+        event.windows_key_code <= ui::VKEY_F12))) {
     std::string shortcut_text =
         base::ToLowerASCII(::vivaldi::ShortcutTextFromEvent(event));
     if (ShouldForwardKeyCombo(shortcut_text, browser_context_)) {
@@ -379,7 +378,7 @@ DevtoolsConnectorItem::GetJavaScriptDialogManager(
     return devtools_delegate_->GetJavaScriptDialogManager(source);
   }
   NOTREACHED();
-  //return nullptr;
+  // return nullptr;
 }
 
 void DevtoolsConnectorItem::RunFileChooser(
@@ -387,8 +386,8 @@ void DevtoolsConnectorItem::RunFileChooser(
     scoped_refptr<content::FileSelectListener> listener,
     const blink::mojom::FileChooserParams& params) {
   if (devtools_delegate_) {
-    return devtools_delegate_->RunFileChooser(render_frame_host, std::move(listener),
-                                       params);
+    return devtools_delegate_->RunFileChooser(render_frame_host,
+                                              std::move(listener), params);
   }
   NOTREACHED();
 }
@@ -400,7 +399,7 @@ bool DevtoolsConnectorItem::PreHandleGestureEvent(
     return devtools_delegate_->PreHandleGestureEvent(source, event);
   }
   NOTREACHED();
-  //return true;
+  // return true;
 }
 
 content::WebContents* DevtoolsConnectorItem::OpenURLFromTab(
@@ -413,7 +412,7 @@ content::WebContents* DevtoolsConnectorItem::OpenURLFromTab(
         source, params, std::move(navigation_handle_callback));
   }
   NOTREACHED();
-  //return nullptr;
+  // return nullptr;
 }
 
 std::unique_ptr<content::EyeDropper> DevtoolsConnectorItem::OpenEyeDropper(
@@ -423,7 +422,7 @@ std::unique_ptr<content::EyeDropper> DevtoolsConnectorItem::OpenEyeDropper(
     return devtools_delegate_->OpenEyeDropper(frame, listener);
   }
   NOTREACHED();
-  //return nullptr;
+  // return nullptr;
 }
 
 // DevToolsUIBindings::Delegate implementation
@@ -590,20 +589,19 @@ int UIBindingsDelegate::GetDockStateForLogging() {
   if (ui_bindings_delegate_) {
     return ui_bindings_delegate_->GetDockStateForLogging();
   }
-  return 0; // kUndocked
+  return 0;  // kUndocked
 }
 int UIBindingsDelegate::GetOpenedByForLogging() {
   if (ui_bindings_delegate_) {
     return ui_bindings_delegate_->GetDockStateForLogging();
   }
-  return 0; // kUndocked
+  return 0;  // kUndocked
 }
 int UIBindingsDelegate::GetClosedByForLogging() {
   if (ui_bindings_delegate_) {
     return ui_bindings_delegate_->GetDockStateForLogging();
   }
-  return 0; // kUndocked
+  return 0;  // kUndocked
 }
-
 
 }  // namespace extensions

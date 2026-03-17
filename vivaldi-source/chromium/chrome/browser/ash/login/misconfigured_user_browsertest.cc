@@ -6,7 +6,9 @@
 #include <optional>
 #include <utility>
 
+#include "ash/constants/ash_switches.h"
 #include "ash/public/cpp/login_screen_test_api.h"
+#include "base/command_line.h"
 #include "base/run_loop.h"
 #include "base/test/test_future.h"
 #include "base/values.h"
@@ -60,6 +62,11 @@ class MisconfiguredOwnerUserTest : public MixinBasedInProcessBrowserTest {
     MixinBasedInProcessBrowserTest::SetUpInProcessBrowserTestFixture();
     // Forward account verification to the embedded server.
     host_resolver()->AddRule("*", "127.0.0.1");
+  }
+
+  void SetUpCommandLine(base::CommandLine* command_line) override {
+    command_line->AppendSwitch(ash::switches::kFirstExecAfterBoot);
+    MixinBasedInProcessBrowserTest::SetUpCommandLine(command_line);
   }
 
   void SetUpOnMainThread() override {
@@ -184,7 +191,7 @@ IN_PROC_BROWSER_TEST_F(MisconfiguredUserTest,
   ASSERT_TRUE(add_auth_factor_waiter_->Wait());
   PrefService* local_state = g_browser_process->local_state();
   ASSERT_TRUE(local_state->HasPrefPath(kMisconfiguredUserPrefV2));
-  const base::Value::Dict& pref_dict =
+  const base::DictValue& pref_dict =
       local_state->GetDict(kMisconfiguredUserPrefV2);
   std::optional<AccountId> account_id = user_manager::LoadAccountId(pref_dict);
   ASSERT_TRUE(account_id);

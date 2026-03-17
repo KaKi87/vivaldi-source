@@ -30,12 +30,6 @@ inline constexpr char kArticlesForYouEnabled[] = "suggestions.articles_enabled";
 // Boolean which indicates if the omnibox should be at the bottom of the screen.
 inline constexpr char kBottomOmnibox[] = "ios.bottom_omnibox";
 
-// Boolean which indicates if the default value of `kBottomOmnibox` is bottom.
-// This saves the default value of the bottom omnibox setting to present the
-// omnibox consistently.
-inline constexpr char kBottomOmniboxByDefault[] =
-    "ios.bottom_omnibox_by_default";
-
 // Boolean that is true when Browser Lockdown Mode is enabled.
 inline constexpr char kBrowserLockdownModeEnabled[] =
     "ios.browser_lockdown_mode_enabled";
@@ -463,6 +457,11 @@ inline constexpr char kIosReadingListSettingsPromoAlreadySeen[] =
 inline constexpr char kIosReadingListSigninPromoDisplayedCount[] =
     "ios.reading_list.signin_promo_displayed_count";
 
+// Preference that holds a boolean indicating whether the "Reading mode
+// available" message is shown.
+inline constexpr char kIosReaderModeShowAvailability[] =
+    "ios.reading_mode.show_availability";
+
 // Preference that holds a boolean indicating whether the link previews are
 // enabled. Link previews display a live preview of the selected link after a
 // long press.
@@ -503,7 +502,7 @@ inline constexpr char kOverflowMenuDestinationUsageHistory[] =
 // Boolean preference that tracks whether the destination usage history feature
 // is enabled on the overflow menu.
 extern inline constexpr char kOverflowMenuDestinationUsageHistoryEnabled[] =
-    "overflow_menu.destination_usage_history.enabled";
+    "overflow_menu.destination_usage_history_enabled";
 
 // List preference which tracks new destinations added to the overflow menu
 // carousel.
@@ -721,11 +720,6 @@ inline constexpr char
 inline constexpr char kHomeCustomizationMagicStackShopCardReviewsEnabled[] =
     "ios.home_customization.magic_stack.shop_card_price_reviews.enabled";
 
-// List preference that stores the positions in the Magic Stack where the Safety
-// Check module with the notifications opt-in button is shown.
-inline constexpr char kMagicStackSafetyCheckNotificationsShown[] =
-    "ios.home_customization.magic_stack.safety_check.notifications_shown";
-
 // Integer preference that stores the most recent count of Safety Check issues
 // presented to the user in the Safety Check module (part of the Magic Stack).
 inline constexpr char kHomeCustomizationMagicStackSafetyCheckIssuesCount[] =
@@ -795,6 +789,9 @@ inline constexpr char kIOSBWGPageContentSetting[] =
 inline constexpr char kIOSBWGPromoImpressionCount[] =
     "ios.bwg.promo_impressions";
 
+// A boolean specifying whether the Gemini camera permission setting is enabled.
+inline constexpr char kIOSGeminiCameraSetting[] = "ios.gemini.camera.setting";
+
 // Timestamp tracking the last interaction with the Gemini floaty.
 inline constexpr char kLastGeminiInteractionTimestamp[] =
     "ios.gemini.last_interaction_timestamp";
@@ -824,6 +821,11 @@ inline constexpr char kNextSSORecallTime[] = "ios.next_sso_recall_time";
 // An integer determining the enabled status of Gemini by policy.
 // 0 means Gemini is enabled (default), and 1 means it's disabled.
 inline constexpr char kGeminiEnabledByPolicy[] = "ios.gemini_enabled_by_policy";
+
+// An integer determining the enabled status of Gen Ai by policy.
+// 0 or 1 means all covered generative AI features are enabled, while 2 means
+// that they are disabled.
+inline constexpr char kGenAiEnabledByPolicy[] = "ios.gen_ai_enabled_by_policy";
 
 // A boolean specifying whether the user has ever been eligible for AI Hub.
 inline constexpr char kAIHubEligibilityTriggered[] =
@@ -878,6 +880,10 @@ inline constexpr char kCrossPlatformPromosActiveDays[] =
 // recent than 28 days ago.
 inline constexpr char kCrossPlatformPromosIOS16thActiveDay[] =
     "cross_platform_promos.ios_16th_active_day";
+
+// A time pref to remember the last time the "active day" feature engagement
+// tracker event was fired.
+inline constexpr char kLastRecordedActiveDay[] = "ios.last_recorded_active_day";
 
 }  // namespace prefs
 

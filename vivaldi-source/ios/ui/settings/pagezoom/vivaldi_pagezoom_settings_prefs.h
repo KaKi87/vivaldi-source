@@ -18,11 +18,11 @@ class PrefService;
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry;
 
 /// Returns page zoom level
-+ (int)getPageZoomLevelWithPrefService: (PrefService*)prefService;
++ (int)getPageZoomLevelWithPrefService:(PrefService*)prefService;
 
 /// Sets page zoom level
 + (void)setPageZoomLevelWithPrefService:(int)level
-                       inPrefServices:(PrefService*)prefService;
+                         inPrefServices:(PrefService*)prefService;
 
 @end
 

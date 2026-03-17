@@ -47,7 +47,6 @@ class RuleServiceImpl : public RuleService,
  public:
   RuleServiceImpl(std::unique_ptr<Client> client,
                   content::BrowserContext* context,
-                  RuleSourceHandler::RulesCompiler rules_compiler,
                   std::string locale);
   ~RuleServiceImpl() override;
   RuleServiceImpl(const RuleServiceImpl&) = delete;
@@ -100,7 +99,6 @@ class RuleServiceImpl : public RuleService,
   const std::unique_ptr<Client> client_;
   const raw_ptr<content::BrowserContext> context_;
 
-  RuleSourceHandler::RulesCompiler rules_compiler_;
   std::string locale_;
 
   // We can't have one injection manager per rule group, because they all use

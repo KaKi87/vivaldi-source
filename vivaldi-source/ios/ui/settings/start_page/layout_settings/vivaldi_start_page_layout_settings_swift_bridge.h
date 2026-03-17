@@ -14,4 +14,5 @@
 #import "ui/base/l10n/l10n_util_mac_bridge.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-#endif /* IOS_UI_SETTINGS_START_PAGE_LAYOUT_SETTINGS_VIVALDI_START_LAYOUT_QUICK_SETTINGS_SWIFT_BRIDGE_H_ */
+#endif /* IOS_UI_SETTINGS_START_PAGE_LAYOUT_SETTINGS_VIVALDI_START_LAYOUT_QUICK_SETTINGS_SWIFT_BRIDGE_H_ \
+        */

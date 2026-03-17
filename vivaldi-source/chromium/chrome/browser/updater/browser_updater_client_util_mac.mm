@@ -38,13 +38,17 @@
 #include "chrome/browser/updater/browser_updater_client.h"
 #include "chrome/browser/updater/browser_updater_client_util.h"
 #include "chrome/browser/updater/browser_updater_helper_client_mac.h"
+#include "chrome/browser/updater/updater.h"
 #include "chrome/grit/branded_strings.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/updater/constants.h"
 #include "chrome/updater/updater_branding.h"
 #include "chrome/updater/updater_scope.h"
+#include "components/activity_reporter/buildflags.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/l10n/l10n_util_mac.h"
+
+namespace updater {
 
 namespace {
 
@@ -140,9 +144,8 @@ bool ShouldPromoteUpdater() {
 int RunCommand(const base::FilePath& exe_path, const char* cmd_switch) {
   base::CommandLine command(exe_path);
   command.AppendSwitch(cmd_switch);
-  command.AppendSwitch(updater::kEnableLoggingSwitch);
-  command.AppendSwitchASCII(updater::kLoggingModuleSwitch,
-                            updater::kLoggingModuleSwitchValue);
+  command.AppendSwitch(kEnableLoggingSwitch);
+  command.AppendSwitchASCII(kLoggingModuleSwitch, kLoggingModuleSwitchValue);
 
   int exit_code = -1;
   auto process = base::LaunchProcess(command, {});
@@ -156,7 +159,7 @@ int RunCommand(const base::FilePath& exe_path, const char* cmd_switch) {
 
 // Only works in kUser scope.
 void RegisterBrowser(base::OnceClosure complete) {
-  BrowserUpdaterClient::Create(updater::UpdaterScope::kUser)
+  BrowserUpdaterClient::Create(UpdaterScope::kUser)
       ->Register(std::move(complete));
 }
 
@@ -199,53 +202,58 @@ void InstallUpdaterAndRegisterBrowser(base::TaskPriority priority,
           std::move(complete)));
 }
 
+}  // namespace
+
 // Marks the browser as active, and schedules a call 1 hour later to mark the
-// browser as active again.
+// browser as active again, when using the legacy active definition.
 void SetActive() {
   base::FilePath actives_dir =
       base::GetHomeDir()
           .AppendASCII("Library")
           .Append(FILE_PATH_LITERAL(COMPANY_SHORTNAME_STRING))
-          .Append(FILE_PATH_LITERAL(COMPANY_SHORTNAME_STRING "SoftwareUpdate"))
+          .Append(FILE_PATH_LITERAL(KEYSTONE_NAME))
           .AppendASCII("Actives");
   if (!CreateDirectory(actives_dir)) {
     return;
   }
   base::WriteFile(actives_dir.Append(base::apple::BaseBundleID()), "");
+#if BUILDFLAG(USE_LEGACY_ACTIVE_DEFINITION)
+  // Only SetActive in a loop on macOS when using the legacy definition; the
+  // non-legacy definition will always call SetActive when appropriate.
   base::ThreadPool::PostDelayedTask(
       FROM_HERE,
       {base::MayBlock(), base::TaskPriority::BEST_EFFORT,
        base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
       base::BindOnce(&SetActive), base::Hours(1));
+#endif
 }
 
-}  // namespace
-
-std::string CurrentlyInstalledVersion() {
+base::Version CurrentlyInstalledVersion() {
   base::ScopedBlockingCall blocks(FROM_HERE, base::BlockingType::WILL_BLOCK);
   base::FilePath outer_bundle = base::apple::OuterBundlePath();
   base::FilePath plist_path =
       outer_bundle.Append("Contents").Append("Info.plist");
   NSDictionary* info_plist = [NSDictionary
       dictionaryWithContentsOfFile:base::apple::FilePathToNSString(plist_path)];
-  return base::SysNSStringToUTF8(base::apple::ObjCCast<NSString>(
-      info_plist[@"CFBundleShortVersionString"]));
+  return base::Version(base::SysNSStringToUTF8(base::apple::ObjCCast<NSString>(
+      info_plist[@"CFBundleShortVersionString"])));
 }
 
-updater::UpdaterScope GetBrowserUpdaterScope() {
+UpdaterScope GetBrowserUpdaterScope() {
   std::optional<uid_t> owner = GetBundleOwner();
-  return owner && (*owner == 0 || *owner != geteuid())
-             ? updater::UpdaterScope::kSystem
-             : updater::UpdaterScope::kUser;
+  return owner && (*owner == 0 || *owner != geteuid()) ? UpdaterScope::kSystem
+                                                       : UpdaterScope::kUser;
 }
 
 void EnsureUpdater(base::TaskPriority priority,
                    base::OnceClosure prompt,
                    base::OnceClosure complete) {
+#if BUILDFLAG(USE_LEGACY_ACTIVE_DEFINITION)
   base::ThreadPool::PostTask(FROM_HERE,
                              {base::MayBlock(), priority,
                               base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
                              base::BindOnce(&SetActive));
+#endif
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE,
       {base::MayBlock(), priority,
@@ -253,7 +261,7 @@ void EnsureUpdater(base::TaskPriority priority,
       base::BindOnce(&GetBrowserUpdaterScope),
       base::BindOnce(
           [](base::TaskPriority priority, base::OnceClosure prompt,
-             base::OnceClosure complete, updater::UpdaterScope scope) {
+             base::OnceClosure complete, UpdaterScope scope) {
             scoped_refptr<BrowserUpdaterClient> client =
                 BrowserUpdaterClient::Create(scope);
             client->IsBrowserRegistered(base::BindOnce(
@@ -300,7 +308,7 @@ void EnsureUpdater(base::TaskPriority priority,
           priority, std::move(prompt), std::move(complete)));
 }
 
-void SetupSystemUpdater() {
+void SetUpSystemUpdater() {
   NSString* prompt = l10n_util::GetNSStringFWithFixup(
       IDS_PROMOTE_AUTHENTICATION_PROMPT,
       l10n_util::GetStringUTF16(IDS_PRODUCT_NAME));
@@ -333,3 +341,5 @@ void SetupSystemUpdater() {
             << result;
       }));
 }
+
+}  // namespace updater

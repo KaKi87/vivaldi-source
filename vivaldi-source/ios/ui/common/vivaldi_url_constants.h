@@ -31,5 +31,4 @@ extern const char vVivaldiDonateUrl[];
 extern const char vVivaldiHelpCopyLinkToHightlightUrl[];
 extern const char vVivaldiHelpPreloadWebpagUrl[];
 
-
-#endif // IOS_UI_COMMON_VIVALDI_URL_CONSTANTS_H_
+#endif  // IOS_UI_COMMON_VIVALDI_URL_CONSTANTS_H_

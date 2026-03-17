@@ -27,8 +27,11 @@
 <translation id="1702758681952953055">As de flater oanhâld, meitsje der dan in melding fan mei de folgjende details:</translation>
 <translation id="1728549374069268714">Plakke en gean</translation>
 <translation id="1756026472674246267">Keppeling yn nije ljepper iepenje</translation>
+<translation id="1756609631857154536">Wachtwurd triem bestiet net</translation>
 <translation id="1759842336958782510">Chrome</translation>
 <translation id="1769904678986817931">Ofbylding eigenskippen...</translation>
+<translation id="1826707182290941822">Dyn Chrome ynstellingen binne net beskikber as de sneuper útfierd wurdt. Om dizze ynstellingen nei Vivaldi te ymportearjen, moat al dyn wurk bewarre en alle Chrome finster slúten wurde. Klik dêrnei op trochgean.</translation>
+<translation id="1836997307232631937">Wachtwurd triem kin net lêzen wurde en kin beskeadige wêze</translation>
 <translation id="1919345977826869612">Advertinsjes</translation>
 <translation id="1920297417712412573">Nei notysje kopiearje</translation>
 <translation id="1924750141060565109">Lânskip 15</translation>
@@ -38,7 +41,10 @@
 <translation id="1985669426322966465">Software-fernijing</translation>
 <translation id="2079036669923635404">Klik hjir om Vivaldi te fernijen nei ferzje <ph name="VERSION" />.</translation>
 <translation id="2096375219036704155">Blêdwizer triem net fûn</translation>
+<translation id="2101054359190001133">Dyn Opera ynstellingen binne net beskikber as de sneuper útfierd wurdt. Om dizze ynstellingen nei Vivaldi te ymportearjen, moat al dyn wurk bewarre en alle Opera finster slúten wurde. Klik dêrnei op trochgean.</translation>
 <translation id="2141974047387702305">Der barde in flater by it ynladen fan triemmen foar it fernijen. Kontrolearje jo ynternet ferbining en besykje nochris.</translation>
+<translation id="2142146492302700970">Kin 'encrypted_key' ynfier net fine foar boarne profyl</translation>
+<translation id="2209970441698102782">Kin Local State net fine foar boarne profyl</translation>
 <translation id="2225863440766607138">Folgers</translation>
 <translation id="2226825946708954262">⚠ trochgean mei ferlies fan gegevens</translation>
 <translation id="2339641773402824483">Kontrolearje op fernijings...</translation>
@@ -56,6 +62,7 @@
 <translation id="2765309692777226484">Folger en advertinsje tsjinkearing is útskeakele.</translation>
 <translation id="2848085334714181751">Bist 3</translation>
 <translation id="2873951654529031587">Jiskefet</translation>
+<translation id="2902312830803030883">Mear aksjes</translation>
 <translation id="292258461174562431">Meunster 4</translation>
 <translation id="2923448633003185837">Plakke en gean</translation>
 <translation id="2953943267837858202">It automatrysk ôfspylje fan fideo's net tastean</translation>
@@ -64,6 +71,7 @@
 <translation id="2989805286512600854">Iepenje yn nije ljepper</translation>
 <translation id="3084011186245865060">Lânskip 6</translation>
 <translation id="3085906383264247940">Opera (Beta)</translation>
+<translation id="3089483810725397237">Notysje triem bestiet net</translation>
 <translation id="3093931836425623631">Vivaldi is mei mooglik makke troch it iepen boarne projekt Chromium en oare iepen boarne software.</translation>
 <translation id="3119245580849443327">Vivaldi privacy rapportaasje</translation>
 <translation id="3126903660515914763">https://vivaldi.com/blog/news/alert-no-google-topics-in-vivaldi/</translation>
@@ -82,6 +90,7 @@
 <translation id="3378346665180477942">Net jildich blêdwizer triem</translation>
 <translation id="3383198080133834965">De ferzje is folslein by de tiid!</translation>
 <translation id="3402602684546832928">Opera blêdwizer triem selektearje</translation>
+<translation id="3427361875526086153">Triem mei ynloch gegevens net fûn</translation>
 <translation id="3451317331714872347">Lânskip 8</translation>
 <translation id="3457498675806041407">Utgong befêstigje</translation>
 <translation id="3470981972195599598">Vivaldi <ph name="VERSION" /> is al ynstallearre en wurdt aktivearre nei dat de sneuper op 'e nij úteinsetten is.</translation>
@@ -102,6 +111,7 @@
 <translation id="3732157130969736834">Keppeling as blêdwizer taheakje</translation>
 <translation id="3732388226447288666">Bist 2</translation>
 <translation id="3732439195215136813">Bist 5</translation>
+<translation id="3807270291741046903">Kaai is net in DPAPI kaai, ûntsifering net mooglik</translation>
 <translation id="3821561970091304474">Koe de gegevens triem fan de skiednis net iepenje</translation>
 <translation id="3822431842304177896">Nije skieding</translation>
 <translation id="3832132597516774400">Lânskip 5</translation>
@@ -114,24 +124,31 @@
 <translation id="4012248391474116967">Blêdwizer triem bestiet net</translation>
 <translation id="4044951018940382324">Vivaldi</translation>
 <translation id="4064545092083709582">Vivaldi kin dyn feilige kaai opslach net ûntgrendelje. Sûnder de kaai bewarplak, sille dyn bewarre ynloggen, feilige koekjes, en wat oare funksjes lykas Syngronisaasje, Post en Aginda ophâlde mei wurkjen.
-...Ferlit Vivaldi, ûntgrendel of reparearje dyn kaai bewarplak en besykje it dan op 'e nij. Wolle jo wier trochgean en gegevens ferlieze?</translation>
+
+    Ferlit Vivaldi, ûntgrendel of reparearje dyn kaai bewarplak en besykje it dan op 'e nij. Wolle jo wier trochgean en gegevens ferlieze?</translation>
 <translation id="4074744496918018786">Ofbylding yn privee finster iepenje</translation>
 <translation id="410351446219883937">Automatysk ôfspylje</translation>
+<translation id="4241573219093785166">Dyn ynstellingen binne net beskikber as in oare Vivaldi eksimplaar útfierd wurdt. Om dizze ynstellingen te ymportearjen, moat al dyn wurk bewarre en alle finster dy oan de Vivaldi eksimplaar tahearre slúten wurde. Klik dêrnei op trochgean.</translation>
 <translation id="4281844954008187215">Betingsten fan tsjinst</translation>
 <translation id="430967081421617822">Altyd</translation>
 <translation id="4324492550286218827">Lânskip 2</translation>
+<translation id="436942009209245676">Net mooglik om JSON yn local State te ferwurkjen</translation>
 <translation id="4406101500523955324">Iepenje yn nij privee finster</translation>
 <translation id="4420816922321010053">Wolle jo Vivaldi ferlitte?</translation>
 <translation id="4430019312045809116">Folume</translation>
 <translation id="443008484043213881">Ark</translation>
+<translation id="4441649773969751521">Dyn Yandex ynstellingen binne net beskikber as de sneuper útfierd wurdt. Om dizze ynstellingen nei Vivaldi te ymportearjen, moat al dyn wurk bewarre en alle Yandex finster slúten wurde. Klik dêrnei op trochgean.</translation>
 <translation id="4456211719108566931">Meunster 6</translation>
 <translation id="4459169140545916303"><ph name="DEVICE_LAST_ACTIVATED_TIME" /> dagen lyn aktyf</translation>
 <translation id="4474776280324528449">https://vivaldi.com/blog/do-no-track-gets-legal-backing-in-germany/</translation>
 <translation id="4510781427281143276">Profyl wiskje</translation>
+<translation id="4511738570787012048">Slút dy oan by Vivaldi's stânpunt tsjin folgjen en nim kontrôle oer privacy wer werom
+		Mear ynformaasje oer ús striid foar brûkers rjochten is te lêzen yn de ûndersteande artikelen.</translation>
 <translation id="4512900838580567989">Keppeling yn nije eftergrûn ljepper iepenje</translation>
 <translation id="4545097004879999966">Opera Post</translation>
 <translation id="4548358047305717967">Ofbylding yn nije eftergrûn ljepper iepenje</translation>
 <translation id="4582480609585453144">Keppeling iepenje yn eftergrûn ljepper</translation>
+<translation id="461909702339733257">Dyn Edge ynstellingen binne net beskikber as de sneuper útfierd wurdt. Om dizze ynstellingen nei Vivaldi te ymportearjen, moat al dyn wurk bewarre en alle Edge finster slúten wurde. Klik dêrnei op trochgean.</translation>
 <translation id="4636708767492582204">Mei e-post stjoere</translation>
 <translation id="4677434526832593569">Bist 8</translation>
 <translation id="4729666228450010210">Koe de triem mei fluchkiezers net lêze</translation>
@@ -141,6 +158,7 @@
 <translation id="4881695831933465202">Iepenje</translation>
 <translation id="498766871928286903"><ph name="DOWNLOADED" /> fan 'e <ph name="TOTAL_SIZE_TO_DOWNLOAD" /></translation>
 <translation id="5014281392052865061">Ymportearre fluchkiezer</translation>
+<translation id="5034185370374718631">Dyn Opera GX ynstellingen binne net beskikber as de sneuper útfierd wurdt. Om dizze ynstellingen nei Vivaldi te ymportearjen, moat al dyn wurk bewarre en alle Opera GX finster slúten wurde. Klik dêrnei op trochgean.</translation>
 <translation id="5092656712000637858">Side oan webpaniel taheakje</translation>
 <translation id="5106275083540628394">Untsifering mislearre: risiko op ûnthâld ferlies</translation>
 <translation id="5177818338935286353">Meunster 7</translation>
@@ -148,6 +166,7 @@
 <translation id="5238244642230426581">Ymportearre blêdwizers</translation>
 <translation id="527605719918376753">Ljepper dimme</translation>
 <translation id="5305569355661722298">Finster útgong befêstigje</translation>
+<translation id="5317780077021120954">Bewarje</translation>
 <translation id="5322922669477407077">Opera (Developer)</translation>
 <translation id="5388358297987318779">Ofbylding iepenje</translation>
 <translation id="5398772614898833570">Advertinsjes tsjinkeard</translation>
@@ -183,6 +202,7 @@
 <translation id="6630781781151951863">Lânskip 18</translation>
 <translation id="6635049669875534328">Utjefte notysjes:</translation>
 <translation id="6653655836861174026">Mei Vivaldi profilen kinst al dyn Vivaldi spul fan elkoar skiede. Meitsje profilen foar freonen en familje, of ferdiel tusken wurk en wille.</translation>
+<translation id="6693551000972665087">Haadwachtwurd fereaske mar net ynset</translation>
 <translation id="6693585104974197539">Selektearje it Edge profyl om te ymportearjen</translation>
 <translation id="6726279523566323394">Selektearje it Brave profyl om te ymportearjen</translation>
 <translation id="6736243959894955139">Adres</translation>
@@ -202,8 +222,11 @@
 <translation id="7319087656340696133">Fersifering kaai is ûnjildich</translation>
 <translation id="7321500017121629018">Juster aktyf</translation>
 <translation id="7337881442233988129">Chromium</translation>
+<translation id="7382439465323652245">Kin 'os_crypt' ynfier net fine foar boarne profyl</translation>
 <translation id="7421665776469827022">Gegevens bewarre</translation>
 <translation id="7454640759045234067">Folgers tsjinkeard</translation>
+<translation id="7508642657131162635">Dyn Brave ynstellingen binne net beskikber as de sneuper útfierd wurdt. Om dizze ynstellingen nei Vivaldi te ymportearjen, moat al dyn wurk bewarre en alle Brave finster slúten wurde. Klik dêrnei op trochgean.</translation>
+<translation id="7515032462649518126">Oanpaste avatar ôfbylding selektearje</translation>
 <translation id="7581266044164103589">It slagge net om de ynstallearder fan de fernijing te starten. Kontrolearje of jo kompjûter genôch ûnthâld en skiifromte hat en besykje nochris.</translation>
 <translation id="7658239707568436148">Ofbrekke</translation>
 <translation id="7698231949697067951">Watst do op it ynternet dochst is dyn saak! Hjirûnder sjochst hoe wy dy holpen ha beskerme te bliuwen.</translation>
@@ -244,6 +267,7 @@
 <translation id="8774017153185436870">Websteeën soenen automatysk fideo's ôfspylje</translation>
 <translation id="8813277370772331957">Werinnerje my letter</translation>
 <translation id="8837256239226739065">Background Service Worker ynspektearje</translation>
+<translation id="8861872665418508137">Dyn Arc ynstellingen binne net beskikber as de sneuper útfierd wurdt. Om dizze ynstellingen nei Vivaldi te ymportearjen, moat al dyn wurk bewarre en alle Arc finster slúten wurde. Klik dêrnei op trochgean.</translation>
 <translation id="8894900864683381599">Keppeling oan webpaniel taheakje</translation>
 <translation id="8912720443398351457">Wolle jo Vivaldi ferlitte?</translation>
 <translation id="8924818205225323428">Skiednis triem bestiet net</translation>
@@ -252,6 +276,7 @@
 <translation id="9017566390391482291">Selektearje Vivaldi profyl map foar ymportearjen</translation>
 <translation id="9048058608784130603">Fernijing <ph name="VERSION" /> yn behanneling</translation>
 <translation id="9048224371732578627">It automatrysk ôfspylje fan fideo's tastean</translation>
+<translation id="9051519327745317142">Opera foarkar triem net fûn</translation>
 <translation id="9065203028668620118">Bewurkje</translation>
 <translation id="9090254883741610153">Lit my trochgean</translation>
 <translation id="910680796491389880">Thunderbird</translation>

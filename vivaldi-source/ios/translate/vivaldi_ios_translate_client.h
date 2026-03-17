@@ -45,7 +45,8 @@ class VivaldiIOSTranslateClient
       public web::WebStateUserData<VivaldiIOSTranslateClient> {
  public:
   VivaldiIOSTranslateClient(const VivaldiIOSTranslateClient&) = delete;
-  VivaldiIOSTranslateClient& operator=(const VivaldiIOSTranslateClient&) = delete;
+  VivaldiIOSTranslateClient& operator=(const VivaldiIOSTranslateClient&) =
+      delete;
 
   ~VivaldiIOSTranslateClient() override;
 
@@ -78,8 +79,7 @@ class VivaldiIOSTranslateClient
   friend class web::WebStateUserData<VivaldiIOSTranslateClient>;
   FRIEND_TEST_ALL_PREFIXES(VivaldiIOSTranslateClient,
                            NewMetricsOnPageLoadCommits);
-  FRIEND_TEST_ALL_PREFIXES(VivaldiIOSTranslateClient,
-                           NoNewMetricsOnErrorPage);
+  FRIEND_TEST_ALL_PREFIXES(VivaldiIOSTranslateClient, NoNewMetricsOnErrorPage);
   FRIEND_TEST_ALL_PREFIXES(VivaldiIOSTranslateClient,
                            PageTranslationCorrectlyUpdatesMetrics);
 

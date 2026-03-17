@@ -23,7 +23,7 @@ UIColor* ButtonBackgroundColor() {
 UIColor* ShadowUIColor() {
   return [UIColor colorWithWhite:0 alpha:0.25];
 }
-}
+}  // namespace
 
 @interface VivaldiReaderModeFloatingUI ()
 @property(nonatomic, copy) UIView* (^containerProvider)(void);
@@ -55,7 +55,8 @@ UIColor* ShadowUIColor() {
 }
 
 - (void)presentFromAnchor:(UIView*)anchor {
-  if (!self.browser) return;
+  if (!self.browser)
+    return;
   if (self.coordinator) {
     [self.coordinator stop];
     self.coordinator = nil;
@@ -65,8 +66,8 @@ UIColor* ShadowUIColor() {
   UIViewController* baseVC = [self baseViewControllerForAnchor:anchor];
   VivaldiReaderModeCoordinator* coordinator =
       [[VivaldiReaderModeCoordinator alloc]
-                          initWithBaseViewController:baseVC
-                                             browser:self.browser];
+          initWithBaseViewController:baseVC
+                             browser:self.browser];
   coordinator.popoverSourceView = anchor ?: self.button;
   coordinator.popoverSourceRect = (anchor ?: self.button).bounds;
   __weak VivaldiReaderModeFloatingUI* weakSelf = self;
@@ -80,7 +81,6 @@ UIColor* ShadowUIColor() {
   [self.coordinator start];
 }
 
-
 - (void)invalidate {
   if (self.button) {
     [self.button removeFromSuperview];
@@ -92,9 +92,11 @@ UIColor* ShadowUIColor() {
 #pragma mark - Private methods / helpers
 
 - (void)setupContainer {
-  if (!self.containerProvider) return;
+  if (!self.containerProvider)
+    return;
   UIView* container = self.containerProvider();
-  if (!container) return;
+  if (!container)
+    return;
   if (!self.button) {
     [self setupViewsInContainer:container];
   } else if (self.button.superview != container) {
@@ -111,9 +113,8 @@ UIColor* ShadowUIColor() {
   button.layer.shadowColor = ShadowUIColor().CGColor;
   button.layer.shadowOpacity = kShadowOpacity;
   button.layer.shadowRadius = kShadowRadius;
-  button.layer.shadowOffset = CGSizeMake(
-      kShadowOffsetWidth,
-      kShadowOffsetHeight);
+  button.layer.shadowOffset =
+      CGSizeMake(kShadowOffsetWidth, kShadowOffsetHeight);
   UIImage* symbol = [UIImage imageNamed:@(kSymbolName)];
   [button setImage:symbol forState:UIControlStateNormal];
   // keeping the same tint color as the symbol for dark mode and light mode
@@ -125,12 +126,15 @@ UIColor* ShadowUIColor() {
   [container addSubview:button];
   UILayoutGuide* guide = container.safeAreaLayoutGuide;
   [button.trailingAnchor constraintEqualToAnchor:guide.trailingAnchor
-                                        constant:-kButtonMargin].active = YES;
+                                        constant:-kButtonMargin]
+      .active = YES;
   [button.bottomAnchor constraintEqualToAnchor:guide.bottomAnchor
-                                      constant:-kButtonMargin].active = YES;
+                                      constant:-kButtonMargin]
+      .active = YES;
 
-  [button addTarget:self action:@selector(onTap:)
-   forControlEvents:UIControlEventTouchUpInside];
+  [button addTarget:self
+                action:@selector(onTap:)
+      forControlEvents:UIControlEventTouchUpInside];
   self.button = button;
   self.button.hidden = YES;
 }
@@ -140,31 +144,35 @@ UIColor* ShadowUIColor() {
 }
 
 - (void)updateVisible:(BOOL)visible {
-  if (!self.button) return;
-  if (visible == !self.button.hidden) return;
+  if (!self.button)
+    return;
+  if (visible == !self.button.hidden)
+    return;
   __weak VivaldiReaderModeFloatingUI* weakSelf = self;
   if (visible) {
     self.button.alpha = 0.0;
     self.button.hidden = NO;
     [UIView animateWithDuration:kFadeDuration
-                     animations:^{ weakSelf.button.alpha = 1.0; }
-    ];
+                     animations:^{
+                       weakSelf.button.alpha = 1.0;
+                     }];
   } else {
     [UIView animateWithDuration:kFadeDuration
-                     animations:^{ weakSelf.button.alpha = 0.0; }
-                     completion:^(BOOL finished) {
-                       if (weakSelf) {
-                         weakSelf.button.hidden = YES;
-                         weakSelf.button.alpha = 1.0;
-                       }
-                     }
-    ];
+        animations:^{
+          weakSelf.button.alpha = 0.0;
+        }
+        completion:^(BOOL finished) {
+          if (weakSelf) {
+            weakSelf.button.hidden = YES;
+            weakSelf.button.alpha = 1.0;
+          }
+        }];
   }
 }
 
 - (UIViewController*)baseViewControllerForAnchor:(UIView*)anchor {
   UIView* containerView =
-            self.containerProvider ? self.containerProvider() : nil;
+      self.containerProvider ? self.containerProvider() : nil;
   UIResponder* responder = containerView;
   while (responder && ![responder isKindOfClass:[UIViewController class]]) {
     responder = [responder nextResponder];

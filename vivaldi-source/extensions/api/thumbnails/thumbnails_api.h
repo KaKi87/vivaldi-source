@@ -52,7 +52,8 @@ class ThumbnailsCaptureTabFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
-class ThumbnailsCaptureBookmarkFunction : public ExtensionFunction, public ProfileObserver {
+class ThumbnailsCaptureBookmarkFunction : public ExtensionFunction,
+                                          public ProfileObserver {
  public:
   DECLARE_EXTENSION_FUNCTION("thumbnails.captureBookmark",
                              THUMBNAILS_CAPTUREBOOKMARK)

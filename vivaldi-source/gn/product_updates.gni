@@ -125,6 +125,23 @@ if (!is_ios) {
   }
 }
 
+if (vivaldi_build_tests) {
+  update_template_instance("//chrome/test:browser_tests") {
+    deps -= [
+      "//chrome/browser/actor:browser_tests",
+      "//chrome/browser/actor:test_support",
+      "//chrome/browser/actor/ui:browser_tests",
+      "//chrome/browser/extensions/api/pdf_viewer_private:browser_tests",
+    ]
+  }
+
+  update_template_instance("//chrome/test:unit_tests") {
+    deps -= [
+      "//chrome/browser/contextual_cueing:unit_tests",
+    ]
+  }
+}
+
 update_template_instance("//components/vector_icons:components_vector_icons") {
   sources -= [
     "${branding_path_component}/product.icon",

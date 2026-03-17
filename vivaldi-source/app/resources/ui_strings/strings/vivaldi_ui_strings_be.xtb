@@ -37,9 +37,7 @@
 <translation id="6863590663815976734">{HOURS,plural, =1{Засталася 1 гадзіна}one{Засталася # гадзіна}few{Засталося # гадзіны}many{Засталося # гадзін}other{Засталося # гадзін}}</translation>
 <translation id="6907759265145635167"><ph name="QUANTITY" />ПБ/с</translation>
 <translation id="6974053822202609517">Справа налева</translation>
-<translation id="7238427729722629793">{HOURS,plural, =1{Засталася 1 хвіліна}one{Засталася # хвіліна}few{Засталося # хвіліны}many{Засталося # хвілін}other{Засталося # хвілін}}</translation>
 <translation id="7365057348334984696">{MINUTES,plural, =1{1 хвіліну таму}one{# хвіліну таму}few{# хвіліны таму}many{# хвілін таму}other{# хвілін таму}}</translation>
-<translation id="7410957453383678442">{HOURS,plural, =1{Засталася 1 хвіліна}one{Засталася # хвіліна}few{Засталося # хвіліны}many{Засталося # хвілін}other{Засталося # хвілін}}</translation>
 <translation id="7460907917090416791"><ph name="QUANTITY" /> ТБ</translation>
 <translation id="8106081041558092062">{HOURS,plural, =1{1 гадзіну таму}few{# гадзіны таму}many{# гадзін таму}other{# гадзін таму}}</translation>
 <translation id="8131263257437993507">{SECONDS,plural, =1{Засталася 1 секунда}one{Засталася # секунда}few{Заталося # секунды}many{Засталося # секунд}other{Засталося # секунд}}</translation>

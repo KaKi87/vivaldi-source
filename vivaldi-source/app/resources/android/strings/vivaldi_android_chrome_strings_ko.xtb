@@ -118,14 +118,10 @@ Touch to Search는 Google이 Vivaldi의 기본 검색 엔진으로 설정된 경
 <translation id="8348430946834215779">가능할 때마다 HTTPS를 사용하고 이를 지원하지 않는 사이트를 로드하기 전에 경고를 받으세요</translation>
 <translation id="8560602726703398413">북마크에서 읽기 목록 찾기</translation>
 <translation id="85991616550051997">홈페이지로 이동</translation>
-<translation id="8693232767599693749">읽기 모드로 보시겠어요?</translation>
 <translation id="8820817407110198400">북마크</translation>
 <translation id="9042893549633094279">개인정보 보호 및 보안</translation>
 <translation id="9063523880881406963">데스크톱 버전으로 보기 사용 중지</translation>
 <translation id="9080642952018487277">사생활 보호 모드로 들어가기</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {1일 이상 사용하지 않음}
-          other {#일 이상 사용하지 않음}}</translation>
 <translation id="930124987204876019">방문 기록, 쿠키, 사이트 데이터, 캐시 삭제…</translation>
 <translation id="961856697154696964">인터넷 사용 기록 삭제</translation>
 </translationbundle>

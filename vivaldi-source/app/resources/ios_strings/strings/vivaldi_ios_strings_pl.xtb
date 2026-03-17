@@ -23,6 +23,7 @@
 <translation id="2565593432251168402">Utrzymuj porządek tworząc grupy kart</translation>
 <translation id="2783161812871838616">Wersja na komputer</translation>
 <translation id="2806957659107692459">Utwórz grupę kart</translation>
+<translation id="2830375794722738493">Ukryj karty prywatne</translation>
 <translation id="2899836479226240291">Ustaw Vivaldi jako przeglądarkę domyślną, aby linki otwierały się w niej automatycznie.</translation>
 <translation id="3365529507898144230">Zapisz w Zdjęciach</translation>
 <translation id="3434473769478814796">Wklej i przejdź</translation>
@@ -49,8 +50,8 @@
 <translation id="4838250035189612538">Zmień nazwę grupy</translation>
 <translation id="4873540827942947151">{count, plural,
             =1 {1 grupa kart została zamknięta i zapisana}
-            few {{count} grupy kart zostały zamknięte i zapisane}}
-            many {{count} grup kart zostało zamkniętych i zapisanych}}
+            few {{count} grupy kart zostały zamknięte i zapisane}
+            many {{count} grup kart zostało zamkniętych i zapisanych}
             other {{count} grup kart zostało zamkniętych i zapisanych}}</translation>
 <translation id="5019787757991745254">Kolor grupy kart <ph name="COLOR" /></translation>
 <translation id="5022440170224170365">Grupa kart. Zwinięta.</translation>
@@ -78,9 +79,11 @@ Funkcja Handoff musi być włączona w ustawieniach (sekcja Ogólne), a Twoje ur
 <translation id="6233792867654386826">Otwiera wprowadzone adresy URL w Vivaldi.</translation>
 <translation id="6271462272606946663">Ukryj żądanie wersji mobilnej strony</translation>
 <translation id="6309282378909663947">Hasła z menadżera haseł Vivaldi</translation>
+<translation id="6464648082977038075">Zamknij karty prywatne</translation>
 <translation id="6478587527114893588">Zamknij grupę kart.</translation>
 <translation id="6527405730445064713">Grupa kart. Rozwinięta.</translation>
 <translation id="6532106788206463496">Zapisz zmiany</translation>
+<translation id="6575010608310776688">Kontynuuj w trybie prywatnym</translation>
 <translation id="6636411080833380839">Usuń z grupy</translation>
 <translation id="6644512095122093795">Proponuj zapisywanie haseł</translation>
 <translation id="6666425778700353369">Spowoduje to usunięcie grupy kart ze wszystkich urządzeń zalogowanych na konto <ph name="USER_EMAIL" />.</translation>

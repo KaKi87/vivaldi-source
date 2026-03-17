@@ -26,6 +26,20 @@ class NewTabPageBrowserTest : public WebUIMochaBrowserTest {
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
+class NewTabPageNextBrowserTest : public WebUIMochaBrowserTest {
+ protected:
+  NewTabPageNextBrowserTest() {
+    set_test_loader_host(chrome::kChromeUINewTabPageHost);
+    scoped_feature_list_.InitWithFeatures(
+        /*enabled_features=*/{omnibox::kAimServerEligibilityEnabled,
+                              ntp_realbox::kNtpRealboxNext},
+        /*disabled_features=*/{});
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
+
 using NewTabPageTest = NewTabPageBrowserTest;
 
 IN_PROC_BROWSER_TEST_F(NewTabPageTest, MetricsUtils) {
@@ -34,6 +48,12 @@ IN_PROC_BROWSER_TEST_F(NewTabPageTest, MetricsUtils) {
 
 IN_PROC_BROWSER_TEST_F(NewTabPageTest, VoiceSearchOverlay) {
   RunTest("new_tab_page/voice_search_overlay_test.js", "mocha.run()");
+}
+
+using NewTabPageNextTest = NewTabPageNextBrowserTest;
+
+IN_PROC_BROWSER_TEST_F(NewTabPageNextTest, Realbox) {
+  RunTest("new_tab_page/realbox_test.js", "mocha.run()");
 }
 
 // TODO(crbug.com/40933410):  Re-enable once no longer fails.
@@ -58,6 +78,10 @@ IN_PROC_BROWSER_TEST_F(NewTabPageTest, BackgroundManager) {
   RunTest("new_tab_page/background_manager_test.js", "mocha.run()");
 }
 
+IN_PROC_BROWSER_TEST_F(NewTabPageTest, BackgroundImage) {
+  RunTest("new_tab_page/background_image_test.js", "mocha.run()");
+}
+
 IN_PROC_BROWSER_TEST_F(NewTabPageTest, MiddleSlotPromo) {
   RunTest("new_tab_page/middle_slot_promo_test.js", "mocha.run()");
 }
@@ -74,6 +98,26 @@ IN_PROC_BROWSER_TEST_F(NewTabPageTest, Composebox) {
   RunTest("new_tab_page/composebox/composebox_test.js", "mocha.run()");
 }
 
+// TODO(https://crbug.com/490326237): flaky on linux-chromeos-dbg.
+#if BUILDFLAG(IS_CHROMEOS) && !defined(NDEBUG)
+#define MAYBE_ComposeboxAutocomplete DISABLED_ComposeboxAutocomplete
+#else
+#define MAYBE_ComposeboxAutocomplete ComposeboxAutocomplete
+#endif
+IN_PROC_BROWSER_TEST_F(NewTabPageTest, MAYBE_ComposeboxAutocomplete) {
+  RunTest("new_tab_page/composebox/composebox_autocomplete_test.js",
+          "mocha.run()");
+}
+
+IN_PROC_BROWSER_TEST_F(NewTabPageTest, ComposeboxContextMenu) {
+  RunTest("new_tab_page/composebox/composebox_context_menu_test.js",
+          "mocha.run()");
+}
+
+IN_PROC_BROWSER_TEST_F(NewTabPageTest, ComposeboxUpload) {
+  RunTest("new_tab_page/composebox/composebox_upload_test.js", "mocha.run()");
+}
+
 IN_PROC_BROWSER_TEST_F(NewTabPageTest, ComposeboxFileCarousel) {
   RunTest("new_tab_page/composebox/file_carousel_test.js", "mocha.run()");
 }
@@ -82,9 +126,13 @@ IN_PROC_BROWSER_TEST_F(NewTabPageTest, ComposeboxFileThumbnail) {
   RunTest("new_tab_page/composebox/file_thumbnail_test.js", "mocha.run()");
 }
 
-IN_PROC_BROWSER_TEST_F(NewTabPageTest, ContextualEntrypointAndCarousel) {
-  RunTest("new_tab_page/composebox/contextual_entrypoint_and_carousel_test.js",
+IN_PROC_BROWSER_TEST_F(NewTabPageTest, ComposeboxFileInputs) {
+  RunTest("new_tab_page/composebox/composebox_file_inputs_test.js",
           "mocha.run()");
+}
+
+IN_PROC_BROWSER_TEST_F(NewTabPageTest, ThreadsRail) {
+  RunTest("new_tab_page/composebox/threads_rail_test.js", "mocha.run()");
 }
 
 IN_PROC_BROWSER_TEST_F(NewTabPageTest, ActionChips) {
@@ -262,6 +310,16 @@ IN_PROC_BROWSER_TEST_F(NewTabPageAppTest, RealboxNext) {
 IN_PROC_BROWSER_TEST_F(NewTabPageAppTest, ActionChips) {
   RunTest("new_tab_page/app_test.js",
           "runMochaSuite('NewTabPageAppTest ActionChips')");
+}
+
+IN_PROC_BROWSER_TEST_F(NewTabPageAppTest, ThreadsRail) {
+  RunTest("new_tab_page/app_test.js",
+          "runMochaSuite('NewTabPageAppTest ThreadsRail')");
+}
+
+IN_PROC_BROWSER_TEST_F(NewTabPageAppTest, ReducedMotion) {
+  RunTest("new_tab_page/app_test.js",
+          "runMochaSuite('NewTabPageAppReducedMotionTest')");
 }
 
 // TODO(crbug.com/428156129): Re-enable test

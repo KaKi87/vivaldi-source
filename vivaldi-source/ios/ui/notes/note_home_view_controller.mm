@@ -26,7 +26,7 @@
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/snackbar_commands.h"
 #import "ios/chrome/browser/shared/ui/elements/home_waiting_view.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
@@ -62,8 +62,8 @@
 #import "ios/ui/notes/note_home_consumer.h"
 #import "ios/ui/notes/note_home_mediator.h"
 #import "ios/ui/notes/note_home_shared_state.h"
-#import "ios/ui/notes/note_interaction_controller_delegate.h"
 #import "ios/ui/notes/note_interaction_controller.h"
+#import "ios/ui/notes/note_interaction_controller_delegate.h"
 #import "ios/ui/notes/note_model_bridge_observer.h"
 #import "ios/ui/notes/note_navigation_controller.h"
 #import "ios/ui/notes/note_path_cache.h"
@@ -74,8 +74,8 @@
 #import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 #import "ios/web/public/navigation/navigation_manager.h"
 #import "ios/web/public/navigation/referrer.h"
-#import "ui/base/l10n/l10n_util_mac.h"
 #import "ui/base/l10n/l10n_util.h"
+#import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using l10n_util::GetNSString;
@@ -179,8 +179,7 @@ const int kRowsHiddenByNavigationBar = 3;
 @property(nonatomic, assign) BOOL isReconstructingFromCache;
 
 // Handler for commands.
-@property(nonatomic, readonly, weak) id<ApplicationCommands, BrowserCommands>
-    handler;
+@property(nonatomic, readonly, weak) id<SceneCommands, BrowserCommands> handler;
 
 // The current search term.  Set to the empty string when no search is active.
 @property(nonatomic, copy) NSString* searchTerm;
@@ -708,8 +707,7 @@ const int kRowsHiddenByNavigationBar = 3;
 
 - (void)handleSelectNodesForDeletion:
     (const std::set<const vivaldi::NoteNode*>&)nodes {
-  if (_rootNode->is_trash() ||
-      self.notes->IsChildOfTrashNode(_rootNode)) {
+  if (_rootNode->is_trash() || self.notes->IsChildOfTrashNode(_rootNode)) {
     [self deleteNodes:nodes];
   } else {
     [self moveNodesToTrash:nodes];
@@ -1222,7 +1220,7 @@ const int kRowsHiddenByNavigationBar = 3;
       [[SharingCoordinator alloc] initWithBaseViewController:self
                                                      browser:self.browser
                                                       params:params
-                                                  originView:cellView];
+                                                  sourceItem:cellView];
   [self.sharingCoordinator start];
 }
 
@@ -1442,9 +1440,11 @@ const int kRowsHiddenByNavigationBar = 3;
   switch (state) {
     case NotesContextBarDefault:
       [self setNotesContextBarButtonsDefaultState];
+      [self setNotesNavigationBarButtonsDefaultState];
       break;
     case NotesContextBarBeginSelection:
       [self setNotesContextBarSelectionStartState];
+      [self setNotesNavigationBarSelectionState];
       break;
     case NotesContextBarSingleNoteSelection:
     case NotesContextBarMultipleNoteSelection:
@@ -1453,10 +1453,13 @@ const int kRowsHiddenByNavigationBar = 3;
     case NotesContextBarSingleFolderSelection:
       // Reset to start state, and then override with customizations that apply.
       [self setNotesContextBarSelectionStartState];
+      [self setNotesNavigationBarSelectionState];
       self.moreButton.enabled = YES;
       self.deleteButton.enabled = YES;
       break;
     case NotesContextBarNone:
+      [self setNotesNavigationBarButtonsDefaultState];
+      break;
     default:
       break;
   }
@@ -1790,7 +1793,6 @@ const int kRowsHiddenByNavigationBar = 3;
 }
 
 - (void)setNotesContextBarSelectionStartState {
-  self.navigationItem.rightBarButtonItem.enabled = NO;
   // Disabled Delete button.
   NSString* titleString = GetNSString(IDS_VIVALDI_NOTE_CONTEXT_BAR_DELETE);
   self.deleteButton =
@@ -1812,14 +1814,14 @@ const int kRowsHiddenByNavigationBar = 3;
   self.moreButton.enabled = NO;
   self.moreButton.accessibilityIdentifier = kNoteHomeCenterButtonIdentifier;
 
-  // Enabled Cancel button.
-  titleString = GetNSString(IDS_CANCEL);
-  UIBarButtonItem* cancelButton =
+  // Enabled Done button. This is shown only while searching.
+  titleString = GetNSString(IDS_DONE);
+  UIBarButtonItem* doneButton =
       [[UIBarButtonItem alloc] initWithTitle:titleString
                                        style:UIBarButtonItemStylePlain
                                       target:self
                                       action:@selector(trailingButtonClicked)];
-  cancelButton.accessibilityIdentifier = kNoteHomeTrailingButtonIdentifier;
+  doneButton.accessibilityIdentifier = kNoteHomeTrailingButtonIdentifier;
 
   // Spacer button.
   UIBarButtonItem* spaceButton = [[UIBarButtonItem alloc]
@@ -1827,9 +1829,14 @@ const int kRowsHiddenByNavigationBar = 3;
                            target:nil
                            action:nil];
 
-  [self setToolbarItems:@[
-    self.deleteButton, spaceButton, self.moreButton, spaceButton, cancelButton
-  ]
+  BOOL isCurrentlyShowingSearchResults =
+      self.sharedState.currentlyShowingSearchResults;
+
+  [self setToolbarItems:isCurrentlyShowingSearchResults ? @[
+        self.deleteButton, spaceButton, self.moreButton, spaceButton, doneButton
+      ] : @[
+        self.deleteButton, spaceButton, self.moreButton
+      ]
                animated:NO];
 }
 
@@ -2644,47 +2651,48 @@ const int kRowsHiddenByNavigationBar = 3;
   self.settingsNavigationController = nil;
 }
 
-- (UIBarButtonItem*)customizedDoneButton {
-  UIBarButtonItem* doneButton;
-  if (@available(iOS 26, *)) {
-    doneButton = [[UIBarButtonItem alloc]
-        initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                             target:self
-                             action:@selector(navigationBarCancel:)];
-  } else {
-    doneButton = [[UIBarButtonItem alloc]
-      initWithTitle:GetNSString(IDS_IOS_NAVIGATION_BAR_DONE_BUTTON)
-              style:UIBarButtonItemStyleDone
-             target:self
-             action:@selector(navigationBarCancel:)];
-  }
-  doneButton.accessibilityLabel =
-      GetNSString(IDS_IOS_NAVIGATION_BAR_DONE_BUTTON);
+// Returns a Done button for the right side of the navigation bar.
+- (UIBarButtonItem*)createNavigationBarDoneButton {
+  BOOL isEditingWithoutActiveSearch =
+      self.sharedState.currentlyInEditMode &&
+      !self.sharedState.currentlyShowingSearchResults;
+  BOOL shouldUseDoneButtonStyle =
+      isEditingWithoutActiveSearch || [self isDisplayingNoteRoot];
+  UIBarButtonSystemItem buttonItem = shouldUseDoneButtonStyle
+                                         ? UIBarButtonSystemItemDone
+                                         : UIBarButtonSystemItemClose;
+
+  UIBarButtonItem* doneButton = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:buttonItem
+                           target:self
+                           action:@selector(didTapNavigationBarDoneButton)];
   doneButton.accessibilityIdentifier =
       kNoteHomeNavigationBarDoneButtonIdentifier;
-
   return doneButton;
 }
 
-- (UIBarButtonItem*)customizedDoneTextButton {
-  UIBarButtonItem* doneButton;
-  if (@available(iOS 26, *)) {
-    doneButton = [[UIBarButtonItem alloc]
-        initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                             target:self
-                             action:@selector(navigationBarCancel:)];
-  } else {
-    doneButton = [[UIBarButtonItem alloc]
-      initWithTitle:GetNSString(IDS_IOS_NAVIGATION_BAR_DONE_BUTTON)
-              style:UIBarButtonItemStyleDone
-             target:self
-             action:@selector(navigationBarCancel:)];
+// Called when the right navigation bar button is tapped. Exits search/edit
+// mode or dismisses the view.
+- (void)didTapNavigationBarDoneButton {
+  BOOL isEditingWithoutActiveSearch =
+      self.sharedState.currentlyInEditMode &&
+      !self.sharedState.currentlyShowingSearchResults;
+
+  if (isEditingWithoutActiveSearch) {
+    [self setTableViewEditing:NO];
+    return;
   }
-  doneButton.accessibilityLabel =
-      GetNSString(IDS_IOS_NAVIGATION_BAR_DONE_BUTTON);
-  doneButton.accessibilityIdentifier =
-      kNoteHomeNavigationBarDoneButtonIdentifier;
-  return doneButton;
+  [self navigationBarCancel:nil];
+}
+
+// Sets the default navigation bar buttons.
+- (void)setNotesNavigationBarButtonsDefaultState {
+  self.navigationItem.rightBarButtonItem = [self createNavigationBarDoneButton];
+}
+
+// Sets the navigation bar buttons in edit mode.
+- (void)setNotesNavigationBarSelectionState {
+  self.navigationItem.rightBarButtonItem = [self createNavigationBarDoneButton];
 }
 
 // Set up navigation bar for |viewController|'s navigationBar using |node|.
@@ -2700,15 +2708,7 @@ const int kRowsHiddenByNavigationBar = 3;
   }
 
   viewController.title = note_utils_ios::TitleForNoteNode(node);
-  NSArray* items = nil;
-  if ([self isDisplayingNoteRoot]) {
-    viewController.navigationItem.rightBarButtonItem =
-        [self customizedDoneTextButton];
-  } else {
-    viewController.title = note_utils_ios::TitleForNoteNode(node);
-    items = @[ [self customizedDoneButton] ];
-    viewController.navigationItem.rightBarButtonItems = items;
-  }
+  [viewController setNotesNavigationBarButtonsDefaultState];
 }
 
 - (void)setupHeaderWithSearch {
@@ -2739,6 +2739,7 @@ const int kRowsHiddenByNavigationBar = 3;
       // Restore current list.
       [self.mediator computeNoteTableViewData];
       [self.sharedState.tableView reloadData];
+      [self setupContextBar];
     }
   } else {
     if (!self.sharedState.currentlyShowingSearchResults) {

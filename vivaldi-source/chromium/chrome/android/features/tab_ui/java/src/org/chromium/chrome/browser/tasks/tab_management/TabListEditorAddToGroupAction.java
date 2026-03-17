@@ -35,6 +35,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+// Vivaldi
+import org.vivaldi.browser.tabmodel.VivaldiTabModelUtils;
+
 /** Action to add one or more tabs to a tab group for the {@link TabListEditorMenu}. */
 @NullMarked
 public class TabListEditorAddToGroupAction extends TabListEditorAction {
@@ -134,6 +137,11 @@ public class TabListEditorAddToGroupAction extends TabListEditorAction {
 
         setEnabledAndItemCount(
                 !areAnyTabsPartOfSharedGroup(tabModel, tabs, null) && !itemIds.isEmpty(), numTabs);
+
+        // Note(david@vivaldi.com): Remove or disable items if applicable.
+        setEnabledAndItemCount(VivaldiTabModelUtils.maybeRemoveOrDisableTabActionMenuItem(
+                getTabGroupModelFilter().getTabModel(),
+                getTabsOrTabsAndRelatedTabsFromSelection(), null, this),itemIds.size());
     }
 
     @Override

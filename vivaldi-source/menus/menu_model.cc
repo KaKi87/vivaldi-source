@@ -32,14 +32,16 @@ Menu_Model::~Menu_Model() {
 }
 
 std::unique_ptr<MenuLoadDetails> Menu_Model::CreateLoadDetails(
-    const std::string& menu, bool is_reset) {
+    const std::string& menu,
+    bool is_reset) {
   Menu_Node* mainmenu = new Menu_Node(Menu_Node::mainmenu_node_guid(),
                                       Menu_Node::mainmenu_node_id());
   Menu_Control* control = new Menu_Control();
   control->version = ::vivaldi::GetVivaldiVersionString();
-  MenuLoadDetails::Mode mode = is_reset
-    ? (menu.empty() ? MenuLoadDetails::kResetAll : MenuLoadDetails::kResetByName)
-    : MenuLoadDetails::kLoad;
+  MenuLoadDetails::Mode mode =
+      is_reset ? (menu.empty() ? MenuLoadDetails::kResetAll
+                               : MenuLoadDetails::kResetByName)
+               : MenuLoadDetails::kLoad;
   return base::WrapUnique(
       new MenuLoadDetails(mainmenu, control, menu, loaded_ || is_reset, mode));
 }
@@ -115,7 +117,8 @@ void Menu_Model::LoadFinished(std::unique_ptr<MenuLoadDetails> details) {
       if (control_) {
         expired = control_->expired;
       }
-      std::unique_ptr<Menu_Node> mainmenu_node(details->release_mainmenu_node());
+      std::unique_ptr<Menu_Node> mainmenu_node(
+          details->release_mainmenu_node());
       mainmenu_node_ = mainmenu_node.get();
       root_.Add(std::move(mainmenu_node));
       control_ = details->release_control();
@@ -131,17 +134,16 @@ void Menu_Model::LoadFinished(std::unique_ptr<MenuLoadDetails> details) {
         // TODO: The name main menu node is kind of misleading since we also
         // store context menus under it.
         if (node->id() == details->mainmenu_node()->id()) {
-          Menu_Node* old_menu = mainmenu_node()->GetMenuByResourceName(
-            details->menu());
-          Menu_Node* new_menu = details->mainmenu_node()->GetMenuByResourceName(
-            details->menu());
+          Menu_Node* old_menu =
+              mainmenu_node()->GetMenuByResourceName(details->menu());
+          Menu_Node* new_menu =
+              details->mainmenu_node()->GetMenuByResourceName(details->menu());
           if (old_menu) {
             Remove(old_menu);
           }
           if (new_menu) {
             std::optional<size_t> index =
-                details->mainmenu_node()->GetIndexOf(
-              new_menu);
+                details->mainmenu_node()->GetIndexOf(new_menu);
             if (index.has_value()) {
               std::unique_ptr<Menu_Node> new_menu_node =
                   details->mainmenu_node()->Remove(index.value());
@@ -215,7 +217,6 @@ void Menu_Model::LoadFinished(std::unique_ptr<MenuLoadDetails> details) {
   }
 }
 
-
 bool Menu_Model::Move(const Menu_Node* node,
                       const Menu_Node* new_parent,
                       size_t index) {
@@ -267,13 +268,13 @@ Menu_Node* Menu_Model::Add(std::unique_ptr<Menu_Node> node,
   if (parent->id() == Menu_Node::mainmenu_node_id()) {
     if (!node->is_menu()) {
       NOTREACHED();
-      //return nullptr;
+      // return nullptr;
     }
     // Sanity check to prevent duplicate menus.
     for (const auto& menu_node : parent->children()) {
       if (menu_node->action() == node->action()) {
         NOTREACHED();
-        //return nullptr;
+        // return nullptr;
       }
     }
     action = node->action();
@@ -282,7 +283,7 @@ Menu_Node* Menu_Model::Add(std::unique_ptr<Menu_Node> node,
     const Menu_Node* menu = parent->GetMenu();
     if (!menu) {
       NOTREACHED();
-      //return nullptr;
+      // return nullptr;
     }
     action = menu->action();
   }
@@ -306,7 +307,7 @@ bool Menu_Model::SetTitle(Menu_Node* node, const std::u16string& title) {
   const Menu_Node* menu = node->GetMenu();
   if (!menu) {
     NOTREACHED();
-    //return false;
+    // return false;
   }
 
   RemoveBundleTag(node, false);
@@ -330,7 +331,7 @@ bool Menu_Model::SetParameter(Menu_Node* node, const std::string& parameter) {
   const Menu_Node* menu = node->GetMenu();
   if (!menu) {
     NOTREACHED();
-    //return false;
+    // return false;
   }
 
   RemoveBundleTag(node, false);
@@ -349,7 +350,7 @@ bool Menu_Model::SetShowShortcut(Menu_Node* node, bool show_shortcut) {
   const Menu_Node* menu = node->GetMenu();
   if (!menu) {
     NOTREACHED();
-    //return false;
+    // return false;
   }
 
   if (node->showShortcut().has_value() &&
@@ -372,7 +373,7 @@ bool Menu_Model::SetShowShortcut(Menu_Node* node, bool show_shortcut) {
 bool Menu_Model::SetContainerMode(Menu_Node* node, const std::string& mode) {
   if (!node->is_container()) {
     NOTREACHED();
-    //return false;
+    // return false;
   }
 
   if (node->containerMode() == mode) {
@@ -382,7 +383,7 @@ bool Menu_Model::SetContainerMode(Menu_Node* node, const std::string& mode) {
   const Menu_Node* menu = node->GetMenu();
   if (!menu) {
     NOTREACHED();
-    //return false;
+    // return false;
   }
 
   RemoveBundleTag(node, false);
@@ -400,7 +401,7 @@ bool Menu_Model::SetContainerMode(Menu_Node* node, const std::string& mode) {
 bool Menu_Model::SetContainerEdge(Menu_Node* node, const std::string& edge) {
   if (!node->is_container()) {
     NOTREACHED();
-    //return false;
+    // return false;
   }
 
   if (node->containerEdge() == edge) {
@@ -410,7 +411,7 @@ bool Menu_Model::SetContainerEdge(Menu_Node* node, const std::string& edge) {
   const Menu_Node* menu = node->GetMenu();
   if (!menu) {
     NOTREACHED();
-    //return false;
+    // return false;
   }
 
   RemoveBundleTag(node, false);
@@ -429,7 +430,7 @@ bool Menu_Model::Remove(Menu_Node* node) {
   const Menu_Node* menu = node->GetMenu();
   if (!menu) {
     NOTREACHED();
-    //return false;
+    // return false;
   }
 
   RemoveBundleTag(node, true);

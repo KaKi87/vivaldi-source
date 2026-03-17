@@ -16,8 +16,8 @@ class Browser;
 @end
 
 // The mediator for tracker blocker and site pref settings.
-@interface VivaldiSiteTrackerPrefsMediator:
-    NSObject<VivaldiSiteTrackerPrefsViewDelegate>
+@interface VivaldiSiteTrackerPrefsMediator
+    : NSObject <VivaldiSiteTrackerPrefsViewDelegate>
 
 - (instancetype)initWithBrowser:(Browser*)browser NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
@@ -26,8 +26,8 @@ class Browser;
 @property(nonatomic, weak) id<VivaldiSiteTrackerPrefsConsumer> consumer;
 // Presentation delegate to dismiss view when rules applying is finished for
 // the current session.
-@property(nonatomic, weak)
-    id<VivaldiSiteTrackerPrefsViewPresentationDelegate> presentationDelegate;
+@property(nonatomic, weak) id<VivaldiSiteTrackerPrefsViewPresentationDelegate>
+    presentationDelegate;
 
 // Disconnects settings and observation.
 - (void)disconnect;

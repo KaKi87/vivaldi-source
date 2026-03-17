@@ -10,6 +10,7 @@
 
 #include "base/feature_list.h"
 #include "base/memory/raw_ptr.h"
+#include "base/no_destructor.h"
 #include "base/types/pass_key.h"
 #include "build/build_config.h"
 #include "chrome/browser/chrome_browser_field_trials.h"
@@ -25,6 +26,10 @@ namespace installer {
 class InitialPreferences;
 }  // namespace installer
 
+namespace network_time {
+class NetworkTimeTracker;
+}  // namespace network_time
+
 class ChromeMetricsServicesManagerClient;
 
 // The ChromeFeatureListCreator creates the FeatureList and classes required for
@@ -35,7 +40,10 @@ class ChromeMetricsServicesManagerClient;
 // whose behavior depends on DBusThreadManager being initialized.
 class ChromeFeatureListCreator {
  public:
-  ChromeFeatureListCreator();
+  // The instance of ChromeFeatureListCreator gets constructed on first access
+  // through this API and is never destroyed. This construction is generally a
+  // no-op until CreateFeatureList() is called.
+  static ChromeFeatureListCreator* GetInstance();
 
   ChromeFeatureListCreator(const ChromeFeatureListCreator&) = delete;
   ChromeFeatureListCreator& operator=(const ChromeFeatureListCreator&) = delete;
@@ -49,9 +57,6 @@ class ChromeFeatureListCreator {
   // Sets the application locale and verifies (via a CHECK) that it matches
   // what was used when creating field trials.
   void SetApplicationLocale(const std::string& locale);
-
-  // Overrides cached UI strings on the resource bundle once it is initialized.
-  void OverrideCachedUIStrings();
 
   // Gets the MetricsServicesManagerClient* used in this class.
   metrics_services_manager::MetricsServicesManagerClient*
@@ -68,6 +73,9 @@ class ChromeFeatureListCreator {
   std::unique_ptr<policy::ChromeBrowserPolicyConnector>
   TakeChromeBrowserPolicyConnector();
 
+  // Passes ownership of the |network_time_tracker_| to the caller.
+  std::unique_ptr<network_time::NetworkTimeTracker> TakeNetworkTimeTracker();
+
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS)
   std::unique_ptr<installer::InitialPreferences> TakeInitialPrefs();
 #endif
@@ -75,6 +83,10 @@ class ChromeFeatureListCreator {
   PrefService* local_state() { return local_state_.get(); }
   policy::ChromeBrowserPolicyConnector* browser_policy_connector() {
     return browser_policy_connector_.get();
+  }
+  network_time::NetworkTimeTracker* network_time_tracker() {
+    CHECK(network_time_tracker_);
+    return network_time_tracker_.get();
   }
   const std::string& actual_locale() { return actual_locale_; }
 
@@ -92,8 +104,13 @@ class ChromeFeatureListCreator {
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
  private:
+  friend class base::NoDestructor<ChromeFeatureListCreator>;
+
+  ChromeFeatureListCreator();
+
   void CreatePrefService();
   void ConvertFlagsToSwitches();
+  void CreateNetworkTimeTracker();
 
   // Sets up the field trials and related initialization. Call only after
   // about:flags have been converted to switches. However,
@@ -125,6 +142,8 @@ class ChromeFeatureListCreator {
   // This is owned by |metrics_services_manager_| but we need to expose it.
   raw_ptr<ChromeMetricsServicesManagerClient, AcrossTasksDanglingUntriaged>
       metrics_services_manager_client_;
+
+  std::unique_ptr<network_time::NetworkTimeTracker> network_time_tracker_;
 
   std::unique_ptr<metrics_services_manager::MetricsServicesManager>
       metrics_services_manager_;

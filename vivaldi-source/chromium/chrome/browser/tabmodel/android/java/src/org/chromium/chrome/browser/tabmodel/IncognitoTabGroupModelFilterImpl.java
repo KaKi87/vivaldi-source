@@ -4,6 +4,8 @@
 
 package org.chromium.chrome.browser.tabmodel;
 
+import static org.chromium.chrome.browser.tabmodel.TabGroupTitleUtils.UNSET_TAB_GROUP_TITLE;
+
 import org.chromium.base.Callback;
 import org.chromium.base.ObserverList;
 import org.chromium.base.Token;
@@ -23,14 +25,8 @@ import java.util.Set;
  * last incognito tab is closed we fully tear down the associated profile and related {@link
  * TabCollectionTabModelImpl}. However, this class is long lasting and abstracts away this lifecycle
  * complexity to the outside world by always existing regardless of the existence of an OTR profile.
- *
- * <p>This class only exists if {@link TabCollectionTabModelImpl} is in use as the prior
- * implementation of {@link TabGroupModelFilterImpl} already fulfilled this role by wrapping the
- * {@link IncognitoTabModelImpl}.
- *
- * <p>Post {@link TabCollectionTabModelImpl} launching we could merge this class with {@link
- * IncognitoTabModelImpl}.
  */
+// TODO(crbug.com/463685717): Consider merging with IncognitoTabModelImpl.
 @NullMarked
 public class IncognitoTabGroupModelFilterImpl implements TabGroupModelFilterInternal {
     private final Callback<TabModelInternal> mDelegateModelObserver = this::setDelegateModel;
@@ -97,21 +93,6 @@ public class IncognitoTabGroupModelFilterImpl implements TabGroupModelFilterInte
     public void moveTabOutOfGroupInDirection(int sourceTabId, boolean trailing) {
         if (mCurrentFilter == null) return;
         mCurrentFilter.moveTabOutOfGroupInDirection(sourceTabId, trailing);
-    }
-
-    @Override
-    public void destroy() {
-        // Intentional no-op. Destruction of the mCurrentFilter is not managed by this class.
-    }
-
-    @Override
-    public boolean closeTabs(TabClosureParams params) {
-        // Special case. TabGroupModelFilterInternal and TabModelInternal implement TabCloser (the
-        // TabGroupModelFilter implementation can be removed once TabCollection launches). For now
-        // we need to be careful to call the method on the IncognitoTabModelImpl as it has some
-        // additional logic to prevent the delegate model from being destroyed during a tab closure
-        // operation.
-        return mIncognitoTabModel.closeTabs(params);
     }
 
     @Override
@@ -332,19 +313,19 @@ public class IncognitoTabGroupModelFilterImpl implements TabGroupModelFilterInte
     }
 
     @Override
-    public @Nullable String getTabGroupTitle(Token tabGroupId) {
-        if (mCurrentFilter == null) return null;
+    public String getTabGroupTitle(Token tabGroupId) {
+        if (mCurrentFilter == null) return UNSET_TAB_GROUP_TITLE;
         return mCurrentFilter.getTabGroupTitle(tabGroupId);
     }
 
     @Override
-    public @Nullable String getTabGroupTitle(Tab groupedTab) {
-        if (mCurrentFilter == null) return null;
+    public String getTabGroupTitle(Tab groupedTab) {
+        if (mCurrentFilter == null) return UNSET_TAB_GROUP_TITLE;
         return mCurrentFilter.getTabGroupTitle(groupedTab);
     }
 
     @Override
-    public void setTabGroupTitle(Token tabGroupId, @Nullable String title) {
+    public void setTabGroupTitle(Token tabGroupId, String title) {
         if (mCurrentFilter == null) return;
         mCurrentFilter.setTabGroupTitle(tabGroupId, title);
     }
@@ -405,6 +386,6 @@ public class IncognitoTabGroupModelFilterImpl implements TabGroupModelFilterInte
 
     // Vivaldi
     @Override
-    public void maybeDissolveTabStacks() {}
+    public void maybeDissolveTabStacks(boolean force) {}
     // End Vivaldi
 }

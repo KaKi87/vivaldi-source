@@ -16,9 +16,9 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "components/notes/note_load_details.h"
-#include "components/notes/tests/notes_contenthelper.h"
 #include "components/notes/notes_model.h"
 #include "components/notes/notes_storage.h"
+#include "components/notes/tests/notes_contenthelper.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 using base::ASCIIToUTF16;
@@ -133,11 +133,11 @@ class NotesCodecTest : public testing::Test {
 
   void GetNotesChildValue(base::Value& value,
                           size_t index,
-                          base::Value::Dict*& result) {
-    base::Value::Dict* dict = value.GetIfDict();
+                          base::DictValue*& result) {
+    base::DictValue* dict = value.GetIfDict();
     ASSERT_TRUE(dict);
 
-    base::Value::List* bb_children = dict->FindList(NotesCodec::kChildrenKey);
+    base::ListValue* bb_children = dict->FindList(NotesCodec::kChildrenKey);
     ASSERT_TRUE(bb_children);
 
     ASSERT_LT(index, bb_children->size());
@@ -219,7 +219,7 @@ TEST_F(NotesCodecTest, ChecksumManualEditTest) {
   base::Value value(EncodeHelper(model_to_encode.get(), &enc_checksum));
 
   // Change something in the encoded value before decoding it.
-  base::Value::Dict* child1 = nullptr;
+  base::DictValue* child1 = nullptr;
   GetNotesChildValue(value, 0, child1);
   std::string* title = child1->FindString(NotesCodec::kSubjectKey);
   ASSERT_TRUE(title);
@@ -249,7 +249,7 @@ TEST_F(NotesCodecTest, ChecksumManualEditIDsTest) {
 
   // Change IDs for all children of notes main node to be 1.
   for (int i = 0; i < notes_child_count; ++i) {
-    base::Value::Dict* child = nullptr;
+    base::DictValue* child = nullptr;
     GetNotesChildValue(value, i, child);
     ASSERT_TRUE(child->FindString(NotesCodec::kIdKey));
     child->Set(NotesCodec::kIdKey, "1");

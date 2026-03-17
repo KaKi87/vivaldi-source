@@ -13,8 +13,7 @@ class Browser;
 
 // This class is presented when a folder is selected from the speed dial
 // homepage or child page.
-@interface VivaldiSpeedDialViewController
-    : UIViewController
+@interface VivaldiSpeedDialViewController : UIViewController
 
 // INITIALIZERS
 + (instancetype)initWithItem:(VivaldiSpeedDialItem*)item
@@ -27,7 +26,7 @@ class Browser;
                           browser:(Browser*)browser;
 
 // DELEGATE
-@property (nonatomic, weak) id<VivaldiSpeedDialContainerDelegate> delegate;
+@property(nonatomic, weak) id<VivaldiSpeedDialContainerDelegate> delegate;
 
 @end
 

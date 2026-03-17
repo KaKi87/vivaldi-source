@@ -12,35 +12,35 @@
 
 @implementation SlideOutAnimator
 
--(NSTimeInterval)transitionDuration:
+- (NSTimeInterval)transitionDuration:
     (id<UIViewControllerContextTransitioning>)context {
-    return 0.3;
+  return 0.3;
 }
 
--(void)animateTransition:(id<UIViewControllerContextTransitioning>)context {
-    UIViewController* fromVC = [context
-                viewControllerForKey:UITransitionContextFromViewControllerKey];
-    UIView* fromView = [context viewForKey:UITransitionContextFromViewKey];
-    UIViewController* toVC = [context
-            viewControllerForKey:UITransitionContextToViewControllerKey];
-    toVC.view.alpha = 1.0;
-    CGRect fromViewStartFrame = [context initialFrameForViewController:fromVC];
-    CGRect fromViewFinalFrame = [context finalFrameForViewController:fromVC];
-    CGRect frame = fromViewFinalFrame;
-    frame.origin.x = - (panel_sidebar_width + panel_icon_size);
-    fromViewFinalFrame = frame;
-    fromView.frame = fromViewStartFrame;
-    float duration = [self transitionDuration:context];
-    [UIView animateWithDuration:duration
-                     delay: 0
-                   options: UIViewAnimationCurveEaseOut
-                animations:^{
-                        [fromView setFrame:fromViewFinalFrame];
-                        }
-                completion:^(BOOL finished) {
-                        [fromView removeFromSuperview];
-                        [context completeTransition:YES];
-                    }];
+- (void)animateTransition:(id<UIViewControllerContextTransitioning>)context {
+  UIViewController* fromVC =
+      [context viewControllerForKey:UITransitionContextFromViewControllerKey];
+  UIView* fromView = [context viewForKey:UITransitionContextFromViewKey];
+  UIViewController* toVC =
+      [context viewControllerForKey:UITransitionContextToViewControllerKey];
+  toVC.view.alpha = 1.0;
+  CGRect fromViewStartFrame = [context initialFrameForViewController:fromVC];
+  CGRect fromViewFinalFrame = [context finalFrameForViewController:fromVC];
+  CGRect frame = fromViewFinalFrame;
+  frame.origin.x = -(panel_sidebar_width + panel_icon_size);
+  fromViewFinalFrame = frame;
+  fromView.frame = fromViewStartFrame;
+  float duration = [self transitionDuration:context];
+  [UIView animateWithDuration:duration
+      delay:0
+      options:UIViewAnimationCurveEaseOut
+      animations:^{
+        [fromView setFrame:fromViewFinalFrame];
+      }
+      completion:^(BOOL finished) {
+        [fromView removeFromSuperview];
+        [context completeTransition:YES];
+      }];
 }
 
 @end

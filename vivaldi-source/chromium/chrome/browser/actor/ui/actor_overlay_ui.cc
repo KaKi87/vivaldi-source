@@ -14,6 +14,7 @@
 #include "chrome/common/chrome_features.h"
 #include "chrome/grit/actor_overlay_resources.h"
 #include "chrome/grit/actor_overlay_resources_map.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "ui/webui/webui_util.h"
 
@@ -21,7 +22,8 @@ namespace actor::ui {
 
 bool ActorOverlayUIConfig::IsWebUIEnabled(
     content::BrowserContext* browser_context) {
-  return features::kGlicActorUiOverlay.Get() &&
+  return base::FeatureList::IsEnabled(features::kGlicActorUi) &&
+         features::kGlicActorUiOverlay.Get() &&
          !browser_context->IsOffTheRecord();
 }
 
@@ -31,11 +33,18 @@ ActorOverlayUI::ActorOverlayUI(content::WebUI* web_ui)
       Profile::FromWebUI(web_ui), chrome::kChromeUIActorOverlayHost);
   webui::SetupWebUIDataSource(source, kActorOverlayResources,
                               IDR_ACTOR_OVERLAY_ACTOR_OVERLAY_HTML);
-  source->AddBoolean("isMagicCursorEnabled",
-                     features::kGlicActorUiOverlayMagicCursor.Get());
+  source->AddBoolean(
+      "isMagicCursorEnabled",
+      base::FeatureList::IsEnabled(features::kGlicActorUiMagicCursor));
   source->AddBoolean("isStandaloneBorderGlowEnabled",
                      features::kGlicActorUiStandaloneBorderGlow.Get());
   source->AddResourcePath("magic_cursor.svg", IDR_ACTOR_OVERLAY_MAGIC_CURSOR);
+  source->AddDouble("magicCursorSpeed",
+                    features::kGlicActorUiMagicCursorSpeed.Get());
+  source->AddInteger("magicCursorMinDurationMs",
+                     features::kGlicActorUiMagicCursorMinDuration.Get());
+  source->AddInteger("magicCursorMaxDurationMs",
+                     features::kGlicActorUiMagicCursorMaxDuration.Get());
 }
 
 WEB_UI_CONTROLLER_TYPE_IMPL(ActorOverlayUI)
@@ -53,21 +62,36 @@ void ActorOverlayUI::CreatePageHandler(
     mojo::PendingReceiver<mojom::ActorOverlayPageHandler> receiver) {
   handler_ = std::make_unique<ActorOverlayHandler>(
       std::move(page), std::move(receiver), web_ui()->GetWebContents());
+  if (!handler_initialized_callbacks_.empty()) {
+    for (auto& callback : handler_initialized_callbacks_) {
+      std::move(callback).Run();
+    }
+    handler_initialized_callbacks_.clear();
+  }
+}
+
+void ActorOverlayUI::SetHandlerInitializedCallback(base::OnceClosure callback) {
+  // If handler is already initialized, run the callback immediately.
+  if (handler_) {
+    std::move(callback).Run();
+    return;
+  }
+  handler_initialized_callbacks_.push_back(std::move(callback));
 }
 
 void ActorOverlayUI::SetOverlayBackground(bool is_visible) {
+  // If handler is not initialized yet, queue the update.
   if (!handler_) {
+    SetHandlerInitializedCallback(
+        base::BindOnce(&ActorOverlayUI::SetOverlayBackground,
+                       weak_factory_.GetWeakPtr(), is_visible));
     return;
   }
-
   handler_->SetOverlayBackground(is_visible);
 }
 
 void ActorOverlayUI::SetBorderGlowVisibility(bool is_visible) {
-  if (!handler_) {
-    return;
-  }
-
+  DCHECK(handler_);
   handler_->SetBorderGlowVisibility(is_visible);
 }
 
@@ -78,6 +102,17 @@ bool ActorOverlayUI::IsActorOverlayWebContents(
            web_ui->GetController()->GetType() == &kWebUIControllerType;
   }
   return false;
+}
+
+void ActorOverlayUI::MoveCursorTo(const gfx::Point& point,
+                                  base::OnceClosure callback) {
+  DCHECK(handler_);
+  handler_->MoveCursorTo(point, std::move(callback));
+}
+
+void ActorOverlayUI::TriggerClickAnimation(base::OnceClosure callback) {
+  DCHECK(handler_);
+  handler_->TriggerClickAnimation(std::move(callback));
 }
 
 }  // namespace actor::ui

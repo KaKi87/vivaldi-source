@@ -45,10 +45,6 @@ ContentInjectionProvider::GetInjectionsForFrame(
   if (!url.SchemeIsHTTPOrHTTPS())
     return result;
 
-  content::RenderFrameHost* parent = frame->GetParent();
-  url::Origin document_origin =
-      parent ? parent->GetLastCommittedOrigin() : url::Origin::Create(url);
-
   std::string stylesheet;
 
   for (auto group : {RuleGroup::kTrackingRules, RuleGroup::kAdBlockingRules}) {
@@ -58,12 +54,15 @@ ContentInjectionProvider::GetInjectionsForFrame(
     }
 
     const ActivationResults* activations = nullptr;
-    if (url == frame->GetLastCommittedURL()) {
+    // The url we get here comes from the blink document its ref part may have
+    // been removed.
+    if (url.GetWithoutRef() == frame->GetLastCommittedURL().GetWithoutRef()) {
       activations = &DocumentState::GetActivations(group, frame);
     } else {
       for (base::SafeRef<content::NavigationHandle> navigation_handle :
            frame->GetPendingCommitCrossDocumentNavigations()) {
-        if (navigation_handle->GetURL() == url) {
+        if (navigation_handle->GetURL().GetWithoutRef() ==
+            url.GetWithoutRef()) {
           activations =
               &NavigationTrackerImpl::GetForNavigationHandle(*navigation_handle)
                    ->GetActivations(group);
@@ -71,30 +70,33 @@ ContentInjectionProvider::GetInjectionsForFrame(
       }
     }
 
+    DCHECK(activations) << "Contact julien if you find a wayn to hit this";
     if (!activations) {
       // Somehow, we are getting activations for a document for which the
       // url doesn't match this frame. Unclear how this happens.
+      content::RenderFrameHost* parent = frame->GetParent();
       activations = &rule_index->FindActivations(
           SimpleIndexBaseQuery(url, parent ? parent->GetLastCommittedOrigin()
                                            : url::Origin::Create(url)));
     }
     CHECK(activations);
 
-    const bool disable_specific_rules =
+    const bool disable_specific_cosmetic_rules =
         activations->by_type[ActivationType::kSpecificHide].IsDecision(
             RuleDecision::kPass);
-    const bool disable_generic_rules =
+    const bool disable_generic_cosmetic_rules =
         activations->by_type[ActivationType::kGenericHide].IsDecision(
             RuleDecision::kPass);
     if (activations->IsDocumentDecision(RuleDecision::kPass) ||
-        (disable_generic_rules && disable_specific_rules)) {
+        (disable_generic_cosmetic_rules && disable_specific_cosmetic_rules)) {
       continue;
     }
 
     RulesIndex::InjectionData injection_data =
-        rule_index->GetInjectionDataForOrigin(
-            document_origin, disable_specific_rules, disable_generic_rules);
-    if (!disable_generic_rules) {
+        rule_index->GetInjectionDataForOrigin(url::Origin::Create(url),
+                                              disable_specific_cosmetic_rules,
+                                              disable_generic_cosmetic_rules);
+    if (!disable_generic_cosmetic_rules) {
       stylesheet += rule_index->GetDefaultStylesheet();
     }
     stylesheet += injection_data.stylesheet;

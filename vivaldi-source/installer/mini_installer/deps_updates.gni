@@ -39,6 +39,15 @@ if (is_win) {
     ]
   }
 
+  update_target("//chrome/browser:browser") {
+    deps -= [
+       "//chrome/installer/util:isolation_support",
+    ]
+    deps += [
+      "//vivaldi/installer/mini_installer/util:isolation_support",
+    ]
+  }
+
   update_target("//chrome/updater:base") {
     deps -= [
       "//chrome/installer/util:metainstaller_utils",
@@ -67,12 +76,10 @@ if (is_win) {
     "//chrome/browser/media/router:router",
     "//chrome/browser/enterprise/connectors/device_trust/key_management/browser/commands:commands",
     "//chrome/browser/enterprise/connectors/device_trust/key_management/core/persistence:persistence",
-    "//chrome/browser/ui/startup/default_browser_prompt:impl",
-    "//chrome/browser/ui/startup/default_browser_prompt/pin_infobar:impl",
     "//chrome/browser/google:google",
     "//chrome/browser/ui/dialogs:impl",
     "//chrome/browser/web_applications/chrome_pwa_launcher:util",
-    "//chrome/browser/updater:browser_updater_client",
+    #"//chrome/browser/updater:updater",
   ]
   if (vivaldi_build_tests) {
     _targets += [
@@ -159,7 +166,6 @@ if (is_win) {
     _targets += [
       "//chrome/browser/enterprise/connectors/device_trust/key_management/browser/commands:unit_tests",
       "//chrome/browser/enterprise/connectors/device_trust/test:test_support",
-      "//chrome/browser/os_crypt:test_support",
     ]
   }
 }
@@ -183,7 +189,6 @@ if (is_win) {
   ]
   if (vivaldi_build_tests) {
     _targets += [
-      "//chrome/browser/os_crypt:test_support",
       "//chrome/windows_services/service_program/test_support:test_support",
     ]
   }

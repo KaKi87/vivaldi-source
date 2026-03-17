@@ -24,7 +24,6 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/lens/core/mojom/geometry.mojom.h"
 #include "chrome/browser/lens/core/mojom/overlay_object.mojom-forward.h"
-#include "chrome/browser/lens/core/mojom/text.mojom-forward.h"
 #include "chrome/browser/lens/core/mojom/text.mojom.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/lens/lens_overlay_gen204_controller.h"
@@ -236,6 +235,7 @@ LenOverlayEntryPointFromInvocationSource(
     case lens::LensOverlayInvocationSource::kFindInPage:
       return lens::LensOverlayClientLogs::FIND_IN_PAGE;
     case lens::LensOverlayInvocationSource::kContextualTasksComposebox:
+    case lens::LensOverlayInvocationSource::kCobrowseToolbarButton:
       // TODO(crbug.com/469463485): This should be contextual tasks specific,
       // not unknown.
       return lens::LensOverlayClientLogs::UNKNOWN_ENTRY_POINT;
@@ -253,7 +253,6 @@ LenOverlayEntryPointFromInvocationSource(
     // used by the Lens overlay query controller, which is not used by those
     // flows, it is not necessary.
     case lens::LensOverlayInvocationSource::kNtpContextualQuery:
-      NOTREACHED() << "Invocation source not supported.";
   }
   return lens::LensOverlayClientLogs::UNKNOWN_ENTRY_POINT;
 }
@@ -708,6 +707,8 @@ std::unique_ptr<lens::LensOverlayRequestId>
 LensOverlayQueryController::GetNextRequestId(
     RequestIdUpdateMode update_mode,
     lens::LensOverlayRequestId::MediaType media_type) {
+  // LensOverlay uploads are all considered implicit uploads.
+  request_id_generator_->SetIsImplicitUpload(true);
   std::unique_ptr<lens::LensOverlayRequestId> request_id =
       request_id_generator_->GetNextRequestId(update_mode, media_type);
   latest_request_id_ = *request_id.get();
@@ -808,6 +809,8 @@ LensOverlayQueryController::LensServerFetchRequest::~LensServerFetchRequest() =
     default;
 
 std::string LensOverlayQueryController::GetVsridForNewTab() {
+  // LensOverlay search urls are all considered to use implicit uploads.
+  request_id_generator_->SetIsImplicitUpload(true);
   std::unique_ptr<lens::LensOverlayRequestId> request_id =
       request_id_generator_->GetNextRequestId(
           RequestIdUpdateMode::kOpenInNewTab,

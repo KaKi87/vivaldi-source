@@ -3,11 +3,12 @@
 #ifndef IOS_SEARCH_VIVALDI_ADD_SEARCH_ENGINE_JAVA_SCRIPT_FEATURE_H_
 #define IOS_SEARCH_VIVALDI_ADD_SEARCH_ENGINE_JAVA_SCRIPT_FEATURE_H_
 
+#include <stdint.h>
 #include <optional>
 #include <string>
 
-#include "base/observer_list.h"
 #include "base/no_destructor.h"
+#include "base/observer_list.h"
 #include "ios/web/public/js_messaging/java_script_feature.h"
 
 namespace web {
@@ -26,9 +27,9 @@ class VivaldiAddSearchEngineJavaScriptFeature : public web::JavaScriptFeature {
  public:
   class Observer : public base::CheckedObserver {
    public:
-    virtual void OnFocusedSearchableForm(
-        web::WebState* web_state,
-        std::optional<SearchableFormData> data) = 0;
+    virtual void OnFocusedSearchableForm(web::WebState* web_state,
+                                         std::optional<SearchableFormData> data,
+                                         std::optional<int64_t> request_id) = 0;
 
    protected:
     ~Observer() override = default;
@@ -41,7 +42,8 @@ class VivaldiAddSearchEngineJavaScriptFeature : public web::JavaScriptFeature {
 
   // Requests JS to evaluate the currently focused element. Returns true if the
   // JS call was dispatched.
-  bool RequestFocusedSearchFormData(web::WebState* web_state);
+  bool RequestFocusedSearchFormData(web::WebState* web_state,
+                                    int64_t request_id);
 
  private:
   friend class base::NoDestructor<VivaldiAddSearchEngineJavaScriptFeature>;

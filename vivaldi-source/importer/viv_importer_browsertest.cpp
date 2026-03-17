@@ -137,7 +137,7 @@ const OperaNotesInfo OperaNotes[] = {
 
 void TestImportedBookmarks(
     const user_data_importer::ImportedBookmarkEntry& imported,
-                           const OperaBookmarkInfo& expected) {
+    const OperaBookmarkInfo& expected) {
   EXPECT_EQ(base::WideToUTF16(expected.title), imported.title);
   EXPECT_EQ(expected.is_folder, imported.is_folder) << imported.title;
   EXPECT_EQ(expected.in_toolbar, imported.in_toolbar) << imported.title;
@@ -170,7 +170,7 @@ void TestImportedNotes(const ImportedNotesEntry& imported,
 class OperaImportObserver : public ProfileWriter,
                             public importer::ImporterProgressObserver {
  public:
-  OperaImportObserver(base::RunLoop *loop)
+  OperaImportObserver(base::RunLoop* loop)
       : ProfileWriter(NULL),
         loop(loop),
         bookmark_count(0),
@@ -233,7 +233,7 @@ class OperaImportObserver : public ProfileWriter,
  private:
   ~OperaImportObserver() override {}
 
-  base::RunLoop *loop;
+  base::RunLoop* loop;
   size_t bookmark_count;
   size_t notes_count;
   size_t password_count;

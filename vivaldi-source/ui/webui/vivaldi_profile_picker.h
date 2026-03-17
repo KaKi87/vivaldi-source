@@ -3,10 +3,10 @@
 #ifndef UI_PROFILE_PICKER_VIVALDI_PROFILE_PICKER_H_
 #define UI_PROFILE_PICKER_VIVALDI_PROFILE_PICKER_H_
 
+#include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_controller.h"
 #include "content/public/browser/webui_config.h"
 #include "content/public/common/url_constants.h"
-#include "content/public/browser/web_ui.h"
 
 extern const char* kVivaldiUIVivaldiProfilePickerUI;
 
@@ -33,4 +33,4 @@ class VivaldiProfilePickerUI : public content::WebUIController {
   raw_ptr<Profile> profile_;
 };
 
-#endif // UI_PROFILE_PICKER_VIVALDI_PROFILE_PICKER_H_
+#endif  // UI_PROFILE_PICKER_VIVALDI_PROFILE_PICKER_H_

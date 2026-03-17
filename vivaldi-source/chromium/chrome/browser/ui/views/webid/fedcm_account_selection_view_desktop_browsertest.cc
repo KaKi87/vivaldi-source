@@ -53,6 +53,7 @@ class FedCmAccountSelectionViewBrowserTest : public DialogBrowserTest {
     accounts_ = {base::MakeRefCounted<Account>(
         "id", "display_identifier", "display_name", "email", "name",
         "given_name", GURL(), "tel", "username",
+        /*potentially_approved_origin_hashes=*/std::vector<std::string>(),
         /*login_hints=*/std::vector<std::string>(),
         /*domain_hints=*/std::vector<std::string>(),
         /*labels=*/std::vector<std::string>())};
@@ -239,8 +240,9 @@ IN_PROC_BROWSER_TEST_F(FedCmAccountSelectionViewBrowserTest,
 // Tests crash scenario from crbug.com/1473691.
 IN_PROC_BROWSER_TEST_F(FedCmAccountSelectionViewBrowserTest, ClosedBrowser) {
   PreShow();
+  ui_test_utils::BrowserDestroyedObserver observer(browser());
   browser()->window()->Close();
-  ui_test_utils::WaitForBrowserToClose(browser());
+  observer.Wait();
 
   // Invoking this after browser is closed should not cause a crash.
   ShowUi("");
@@ -370,6 +372,7 @@ class FedCmMixin {
     accounts_ = {base::MakeRefCounted<Account>(
         "id", "display_identifier", "display_name", "email", "name",
         "given_name", GURL(), "phone", "username",
+        /*potentially_approved_origin_hashes=*/std::vector<std::string>(),
         /*login_hints=*/std::vector<std::string>(),
         /*domain_hints=*/std::vector<std::string>(),
         /*labels=*/std::vector<std::string>())};

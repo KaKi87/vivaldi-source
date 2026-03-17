@@ -34,7 +34,8 @@ void KillVivaldiProcesses(std::vector<DWORD>& process_ids) {
   std::vector<DWORD>::iterator it;
   for (it = process_ids.begin(); it != process_ids.end(); it++) {
     DWORD pid = *it;
-    cmd_line_string.append(base::UTF8ToWide(base::StringPrintf(" /PID %lu", pid)));
+    cmd_line_string.append(
+        base::UTF8ToWide(base::StringPrintf(" /PID %lu", pid)));
   }
 
   std::unique_ptr<wchar_t[]> cmd_line(

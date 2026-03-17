@@ -60,9 +60,7 @@ class RegKey {
 
 // Initializes |key| with the desired |access| to |app_guid|'s ClientState key.
 // Returns ERROR_SUCCESS on success, or a Windows error code on failure.
-LONG OpenClientStateKey(HKEY root_key,
-                        REGSAM access,
-                        RegKey* key);
+LONG OpenClientStateKey(HKEY root_key, REGSAM access, RegKey* key);
 
 }  // namespace mini_installer
 

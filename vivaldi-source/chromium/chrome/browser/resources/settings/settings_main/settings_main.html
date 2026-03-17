@@ -147,7 +147,7 @@
   </div>
   </if>
 
-<if expr="not is_chromeos">
+<if expr="_google_chrome and not is_chromeos">
   <template is="dom-if" if="[[showPage_(pageVisibility_.defaultBrowser)]]">
     <div slot="view" id="defaultBrowser">
       <template is="dom-if" if="[[renderPlugin_(

@@ -21,6 +21,9 @@ using FlatVectorOffset = FlatOffset<flatbuffers::Vector<FlatOffset<T>>>;
 
 using FlatStringListOffset = FlatVectorOffset<flatbuffers::String>;
 
+using DomainConstraintsNodeOffset = FlatOffset<flat::DomainConstraintsNode>;
+using DomainConstraintsTreeNodes = std::vector<DomainConstraintsNodeOffset>;
+
 struct OffsetVectorCompare {
   bool operator()(const std::vector<FlatStringOffset>& a,
                   const std::vector<FlatStringOffset>& b) const {
@@ -72,6 +75,115 @@ FlatStringListOffset SerializeStringList(
     return offset;
   }
   return it->second;
+}
+
+flat::DomainConstraintNodeType ToFlatDomainConstraintTreeNodeType(
+    const DomainConstraintsTree::Node::NodeType& type) {
+  switch (type) {
+    case DomainConstraintsTree::Node::kNone:
+      return flat::DomainConstraintNodeType_NONE;
+    case DomainConstraintsTree::Node::kIncluded:
+      return flat::DomainConstraintNodeType_INCLUDED;
+    case DomainConstraintsTree::Node::kExcluded:
+      return flat::DomainConstraintNodeType_EXCLUDED;
+  }
+}
+
+void AddNodeToFlatDomainConstraintsTree(
+    flatbuffers::FlatBufferBuilder* builder,
+    const DomainConstraintsTree::Node& node,
+    std::optional<size_t> first_child_node_index,
+    DomainConstraintsTreeNodes& nodes) {
+  std::vector<flatbuffers::Offset<flatbuffers::String>> subdomains;
+
+  DCHECK(first_child_node_index || node.subdomains().empty());
+
+  for (const auto& subdomain : node.subdomains()) {
+    subdomains.push_back(builder->CreateSharedString(subdomain.first));
+  }
+
+  auto subdomains_offset = builder->CreateVector(subdomains);
+
+  nodes.push_back(flat::CreateDomainConstraintsNode(
+      *builder, first_child_node_index,
+      ToFlatDomainConstraintTreeNodeType(node.GetNodeType()),
+      subdomains_offset));
+}
+
+std::optional<size_t> AddNodeDescendantsToFlatDomainConstraintsTree(
+    flatbuffers::FlatBufferBuilder* builder,
+    const DomainConstraintsTree::Node& node,
+    DomainConstraintsTreeNodes& nodes) {
+  if (node.subdomains().empty()) {
+    return std::nullopt;
+  }
+
+  std::map<const DomainConstraintsTree::Node*, std::optional<size_t>>
+      first_child_node_index_for_children;
+  for (auto& [label, child] : node.subdomains()) {
+    first_child_node_index_for_children.insert(
+        {&child,
+         AddNodeDescendantsToFlatDomainConstraintsTree(builder, child, nodes)});
+  }
+
+  // We add children to nodes below. The index of the first added child will
+  // be equal to the size of the vector, before that nodes gets added. Store
+  // that index here to return it afterwards, since the size changes with the
+  // added nodes.
+  size_t first_child_node_index = nodes.size();
+
+  for (auto& [label, child] : node.subdomains()) {
+    AddNodeToFlatDomainConstraintsTree(
+        builder, child, first_child_node_index_for_children.at(&child), nodes);
+  }
+
+  return first_child_node_index;
+}
+
+FlatOffset<flat::DomainConstraintsTree> DoSerializeDomainConstraintsTree(
+    flatbuffers::FlatBufferBuilder* builder,
+    const DomainConstraintsTree& tree,
+    FlatStringOffsetMap* string_offset_map) {
+  DomainConstraintsTreeNodes nodes;
+  std::optional<size_t> first_hostname_child_node_index =
+      AddNodeDescendantsToFlatDomainConstraintsTree(builder, tree.hostnames(),
+                                                    nodes);
+
+  size_t hostnames_index = nodes.size();
+  AddNodeToFlatDomainConstraintsTree(builder, tree.hostnames(),
+                                     first_hostname_child_node_index, nodes);
+
+  std::optional<size_t> first_entity_child_node_index =
+      AddNodeDescendantsToFlatDomainConstraintsTree(builder, tree.entities(),
+                                                    nodes);
+
+  size_t entities_index = nodes.size();
+  AddNodeToFlatDomainConstraintsTree(builder, tree.entities(),
+                                     first_entity_child_node_index, nodes);
+  auto nodes_offset = builder->CreateVector(nodes);
+  FlatStringListOffset included_regexes_offset =
+      SerializeStringList(builder, tree.included_regexes(), string_offset_map);
+  FlatStringListOffset excluded_regexes_offset =
+      SerializeStringList(builder, tree.excluded_regexes(), string_offset_map);
+
+  return flat::CreateDomainConstraintsTree(
+      *builder, ToFlatDomainConstraintTreeNodeType(tree.GetRootNodeType()),
+      hostnames_index, entities_index, nodes_offset, included_regexes_offset,
+      excluded_regexes_offset, tree.HasExclusions());
+}
+
+FlatOffset<flat::DomainConstraintsTree> SerializeDomainConstraintsTree(
+    flatbuffers::FlatBufferBuilder* builder,
+    const DomainConstraintsTree& tree,
+    FlatStringOffsetMap* string_offset_map) {
+  if (tree.GetRootNodeType() == DomainConstraintsTree::Node::kExcluded) {
+    // Serializing a generic exclude tree means all rules it contains are
+    // overruled by the top-level rule. Serialize an empty tree instead.
+    return DoSerializeDomainConstraintsTree(
+        builder, DomainConstraintsTree(true), string_offset_map);
+  }
+
+  return DoSerializeDomainConstraintsTree(builder, tree, string_offset_map);
 }
 
 uint8_t OptionsFromRequestFilterRule(const RequestFilterRule& rule) {
@@ -221,10 +333,9 @@ void AddRuleToBuffer(
     std::vector<FlatOffset<flat::RequestFilterRule>>* rules_offsets,
     std::vector<FlatOffset<flat::RequestFilterRule>>* bad_rules_offsets,
     FlatStringOffsetMap* string_offset_map) {
-  FlatStringListOffset domains_included_offset =
-      SerializeStringList(builder, rule.included_domains, string_offset_map);
-  FlatStringListOffset domains_excluded_offset =
-      SerializeStringList(builder, rule.excluded_domains, string_offset_map);
+  FlatOffset<flat::DomainConstraintsTree> domains_constraints_offset =
+      SerializeDomainConstraintsTree(builder, rule.from_domain_constraints,
+                                     string_offset_map);
 
   FlatStringOffset pattern_offset = builder->CreateSharedString(rule.pattern);
 
@@ -250,10 +361,9 @@ void AddRuleToBuffer(
       ActivationTypesFromRequestFilterRule(rule),
       PatternTypeFromRequestFilterRule(rule),
       AnchorTypeFromRequestFilterRule(rule), host_offset,
-      ad_domains_and_query_triggers, domains_included_offset,
-      domains_excluded_offset, ModifierFromRequestFilterModifier(rule),
-      modifier_value_offset, pattern_offset, ngram_search_string_offset,
-      original_rule_text);
+      ad_domains_and_query_triggers, domains_constraints_offset,
+      ModifierFromRequestFilterModifier(rule), modifier_value_offset,
+      pattern_offset, ngram_search_string_offset, original_rule_text);
 
   if (rule.bad_filter) {
     bad_rules_offsets->push_back(rule_offset);
@@ -265,14 +375,12 @@ void AddRuleToBuffer(
 FlatOffset<flat::ContentInjectionRuleCore> AddContentInjectionRuleCoreToBuffer(
     flatbuffers::FlatBufferBuilder* builder,
     const ContentInjectionRuleCore& core,
-    FlatStringOffsetMap* string_offser_map) {
-  FlatStringListOffset domains_included_offset =
-      SerializeStringList(builder, core.included_domains, string_offser_map);
-  FlatStringListOffset domains_excluded_offset =
-      SerializeStringList(builder, core.excluded_domains, string_offser_map);
-  return flat::CreateContentInjectionRuleCore(*builder, core.is_allow_rule,
-                                              domains_included_offset,
-                                              domains_excluded_offset);
+    FlatStringOffsetMap* string_offset_map) {
+  FlatOffset<flat::DomainConstraintsTree> domains_constraints_offset =
+      SerializeDomainConstraintsTree(builder, core.domain_constraints,
+                                     string_offset_map);
+  return flat::CreateContentInjectionRuleCore(*builder,
+                                              domains_constraints_offset);
 }
 
 void AddRuleToBuffer(flatbuffers::FlatBufferBuilder* builder,
@@ -292,18 +400,23 @@ void AddRuleToBuffer(
     const ScriptletInjectionRule& rule,
     std::vector<FlatOffset<flat::ScriptletInjectionRule>>* rules_offsets,
     FlatStringOffsetMap* string_offset_map) {
-  FlatStringOffset scriptlet_name_offset =
-      builder->CreateSharedString(rule.scriptlet_name);
-  std::vector<FlatStringOffset> argument_offsets;
-  for (const auto& argument : rule.arguments) {
-    argument_offsets.push_back(builder->CreateSharedString(argument));
+  std::vector<FlatOffset<flat::Scriptlet>> scriptlets;
+  for (const auto& scriptlet : rule.scriptlets) {
+    FlatStringOffset scriptlet_name_offset =
+        builder->CreateSharedString(scriptlet.name);
+    std::vector<FlatStringOffset> argument_offsets;
+    for (const auto& argument : scriptlet.arguments) {
+      argument_offsets.push_back(builder->CreateSharedString(argument));
+    }
+    scriptlets.push_back(
+        flat::CreateScriptlet(*builder, scriptlet_name_offset,
+                              builder->CreateVector(argument_offsets)));
   }
   FlatOffset<flat::ContentInjectionRuleCore> rule_core_offset =
       AddContentInjectionRuleCoreToBuffer(builder, rule.core,
                                           string_offset_map);
   rules_offsets->push_back(flat::CreateScriptletInjectionRule(
-      *builder, rule_core_offset, scriptlet_name_offset,
-      builder->CreateVector(argument_offsets)));
+      *builder, rule_core_offset, builder->CreateVector(scriptlets)));
 }
 
 bool SaveRulesList(const base::FilePath& output_path,

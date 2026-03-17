@@ -13,14 +13,15 @@
 
 static jlong JNI_PageActionsService_Init(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj) {
+    const base::android::JavaRef<jobject>& obj) {
   PageActionsServiceAndroid* page_actions_service =
       new PageActionsServiceAndroid(env, obj);
   return reinterpret_cast<intptr_t>(page_actions_service);
 }
 
-PageActionsServiceAndroid::PageActionsServiceAndroid(JNIEnv* env,
-  const base::android::JavaRef<jobject>& obj)
+PageActionsServiceAndroid::PageActionsServiceAndroid(
+    JNIEnv* env,
+    const base::android::JavaRef<jobject>& obj)
     : weak_java_ref_(env, obj) {
   Profile* profile = ProfileManager::GetActiveUserProfile();
   DCHECK(profile);
@@ -35,7 +36,7 @@ PageActionsServiceAndroid::~PageActionsServiceAndroid() {
 base::android::ScopedJavaLocalRef<jobjectArray>
 PageActionsServiceAndroid::GetScripts(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj) {
+    const base::android::JavaRef<jobject>& obj) {
   std::vector<base::FilePath> paths = service_->GetAllScriptPaths();
 
   std::vector<std::string> result;
@@ -47,22 +48,22 @@ PageActionsServiceAndroid::GetScripts(
 
 jboolean PageActionsServiceAndroid::SetScriptOverrideForTab(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
-    const base::android::JavaParamRef<jobject>& tab_contents,
-    const base::android::JavaParamRef<jstring>& script,
+    const base::android::JavaRef<jobject>& obj,
+    const base::android::JavaRef<jobject>& tab_contents,
+    const base::android::JavaRef<jstring>& script,
     jint script_override) {
   return service_->SetScriptOverrideForTab(
       content::WebContents::FromJavaWebContents(tab_contents),
       base::FilePath::FromUTF8Unsafe(
           base::android::ConvertJavaStringToUTF8(env, script)),
-          page_actions::Service::ScriptOverride(script_override));
+      page_actions::Service::ScriptOverride(script_override));
 }
 
 base::android::ScopedJavaLocalRef<jobjectArray>
 PageActionsServiceAndroid::GetScriptOverridesForTab(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& obj,
-    const base::android::JavaParamRef<jobject>& tab_contents,
+    const base::android::JavaRef<jobject>& obj,
+    const base::android::JavaRef<jobject>& tab_contents,
     jint script_override) {
   std::vector<std::string> result;
   auto* page_actions_helper = page_actions::TabHelper::FromWebContents(
@@ -96,3 +97,5 @@ void PageActionsServiceAndroid::OnServiceLoaded(
     return;
   Java_PageActionsService_onNativeServiceLoaded(env, obj);
 }
+
+DEFINE_JNI_FOR_PageActionsService_SEE_JNI_ZERO_README()

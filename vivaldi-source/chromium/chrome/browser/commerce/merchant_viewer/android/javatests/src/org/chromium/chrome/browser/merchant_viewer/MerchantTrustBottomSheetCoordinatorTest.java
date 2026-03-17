@@ -29,12 +29,12 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.test.BaseActivityTestRule;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
-import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.test.ChromeBrowserTestRule;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
@@ -47,8 +47,6 @@ import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.test.util.BlankUiTestActivity;
 import org.chromium.url.GURL;
-
-import java.util.function.Supplier;
 
 /** Tests for {@link MerchantTrustBottomSheetCoordinator}. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -70,8 +68,6 @@ public class MerchantTrustBottomSheetCoordinatorTest {
 
     @Mock private View mMockDecorView;
 
-    @Mock private Supplier<Tab> mMockTabProvider;
-
     @Mock private MerchantTrustMetrics mMockMetrics;
 
     @Mock private GURL mMockGurl;
@@ -79,6 +75,8 @@ public class MerchantTrustBottomSheetCoordinatorTest {
     @Mock private MerchantTrustBottomSheetMediator mMockMediator;
 
     @Mock private Runnable mMockOnBottomSheetDismissed;
+
+    @Mock private Profile mMockProfile;
 
     @Captor private ArgumentCaptor<EmptyBottomSheetObserver> mBottomSheetObserverCaptor;
 
@@ -104,11 +102,10 @@ public class MerchantTrustBottomSheetCoordinatorTest {
                                     sActivity,
                                     mWindowAndroid,
                                     mMockBottomSheetController,
-                                    mMockTabProvider,
                                     mMockDecorView,
                                     mMockMetrics,
                                     IntentRequestTracker.createFromActivity(sActivity),
-                                    new ObservableSupplierImpl<>());
+                                    ObservableSuppliers.createNonNull(mMockProfile));
                 });
         mDetailsTabCoordinator.setMediatorForTesting(mMockMediator);
         requestOpenSheetAndVerify();

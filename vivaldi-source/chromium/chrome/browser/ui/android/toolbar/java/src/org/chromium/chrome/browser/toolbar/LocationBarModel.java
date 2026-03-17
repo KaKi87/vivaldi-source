@@ -22,7 +22,8 @@ import org.jni_zero.NativeMethods;
 
 import org.chromium.base.ObserverList;
 import org.chromium.base.TraceEvent;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.UserDataHost;
+import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.build.annotations.EnsuresNonNullIf;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -52,6 +53,7 @@ import org.chromium.components.security_state.ConnectionMaliciousContentStatus;
 import org.chromium.components.security_state.ConnectionSecurityLevel;
 import org.chromium.components.security_state.SecurityStateModel;
 import org.chromium.content_public.browser.WebContents;
+import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.url.GURL;
 
 import java.util.Objects;
@@ -149,7 +151,7 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
     private final NewTabPageDelegate mNtpDelegate;
     private final UrlFormatter mUrlFormatter;
     private final OfflineStatus mOfflineStatus;
-    private final ObservableSupplier<@ControlsPosition Integer> mToolbarPositionSupplier;
+    private final NonNullObservableSupplier<@ControlsPosition Integer> mToolbarPositionSupplier;
 
     // Always null if optimizations are disabled. Otherwise, non-null and unchanging following
     // native init. Always tied to the original profile which is safe because no underlying
@@ -194,7 +196,7 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
             NewTabPageDelegate newTabPageDelegate,
             UrlFormatter urlFormatter,
             OfflineStatus offlineStatus,
-            ObservableSupplier<@ControlsPosition Integer> toolbarPositionSupplier) {
+            NonNullObservableSupplier<@ControlsPosition Integer> toolbarPositionSupplier) {
         this(
                 context,
                 newTabPageDelegate,
@@ -221,7 +223,7 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
             NewTabPageDelegate newTabPageDelegate,
             UrlFormatter urlFormatter,
             OfflineStatus offlineStatus,
-            ObservableSupplier<@ControlsPosition Integer> toolbarPositionSupplier,
+            NonNullObservableSupplier<@ControlsPosition Integer> toolbarPositionSupplier,
             boolean matchTrustedCdnUrl) {
         mContext = context;
         mNtpDelegate = newTabPageDelegate;
@@ -258,6 +260,7 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
             mChromeAutocompleteSchemeClassifier.destroy();
             mChromeAutocompleteSchemeClassifier = null;
         }
+
         if (mNativeLocationBarModelAndroid == 0) return;
         LocationBarModelJni.get().destroy(mNativeLocationBarModelAndroid);
         mNativeLocationBarModelAndroid = 0;
@@ -299,11 +302,15 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
         }
 
         updateUsingBrandColor();
+        boolean isUrlChanging = updateVisibleGurl();
+
         notifyTitleChanged();
         if (isTabChanging) {
             notifyTabChanged(previousTab);
         }
-        notifyUrlChanged(isTabChanging);
+        if (isTabChanging || isUrlChanging) {
+            broadcastUrlChanged(isTabChanging);
+        }
         notifyPrimaryColorChanged();
         notifySecurityStateChanged();
     }
@@ -320,6 +327,12 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
         // we no longer wait for TAB_CLOSED events to remove this tab.  Otherwise there is a chance
         // we use this tab after {@link Tab#destroy()} is called.
         return mTab != null && mTab.isInitialized() && !mTab.isDestroyed();
+    }
+
+    @Override
+    public @Nullable UserDataHost getUserDataHost() {
+        if (!hasTab()) return null;
+        return assumeNonNull(getTab()).getUserDataHost();
     }
 
     @Override
@@ -360,7 +373,8 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
      * @return whether the URL value has changed.
      */
     @VisibleForTesting
-    boolean updateVisibleGurl() {
+    public boolean updateVisibleGurl() {
+        if (mIsInSameDocNav && mAlreadyUpdatedUrlBarForSameDocNav) return false;
         try (TraceEvent te = TraceEvent.scoped("LocationBarModel.updateVisibleGurl")) {
             GURL gurl = getUrlOfVisibleNavigationEntry();
             if (!gurl.equals(mVisibleGurl)) {
@@ -379,12 +393,13 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
     }
 
     public void notifyUrlChanged(boolean isTabChanging) {
-        if (((mIsInSameDocNav && mAlreadyUpdatedUrlBarForSameDocNav) || !updateVisibleGurl())
-                && !isTabChanging) {
-            return;
+        if (updateVisibleGurl() || isTabChanging) {
+            broadcastUrlChanged(isTabChanging);
         }
+    }
 
-        // Url or tab has changed, propagate it.
+    /** Unconditionally broadcast url change event. */
+    private void broadcastUrlChanged(boolean isTabChanging) {
         for (LocationBarDataProvider.Observer observer : mLocationBarDataObservers) {
             observer.onUrlChanged(isTabChanging);
         }
@@ -420,6 +435,17 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
 
             GURL gurl = getCurrentGurl();
             if (!UrlBarData.shouldShowUrl(gurl, isOffTheRecord())) {
+                if (isNonMultiDisplayContextOnTablet()
+                        && gurl.getScheme().equals(UrlConstants.CHROME_NATIVE_SCHEME)
+                        && !UrlUtilities.isNtpUrl(gurl)) {
+                    String url = gurl.getSpec();
+                    String displayUrl =
+                            url.replaceFirst(
+                                    UrlConstants.CHROME_NATIVE_URL_PREFIX,
+                                    UrlConstants.CHROME_URL_PREFIX);
+                    return UrlBarData.create(
+                            gurl, displayUrl, 0, displayUrl.length(), /* editingText= */ null);
+                }
                 return UrlBarData.EMPTY;
             }
 
@@ -745,7 +771,7 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
         // Checking for a preview first because one possible preview type is showing an offline page
         // on a slow connection. In this case, the previews UI takes precedence.
         if (isOfflinePage) {
-            return R.drawable.ic_offline_pin_24dp;
+            return R.drawable.ic_offline_pin_fill_24dp;
         }
 
         // Pdf page is a native page used to render downloaded pdf files.
@@ -942,6 +968,11 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
         int getPageClassification(long nativeLocationBarModelAndroid, boolean isPrefetch);
     }
 
+    @VisibleForTesting
+    protected boolean isNonMultiDisplayContextOnTablet() {
+        return DeviceFormFactor.isNonMultiDisplayContextOnTablet(mContext);
+    }
+
     public void onPageLoadStopped() {
         for (LocationBarDataProvider.Observer observer : mLocationBarDataObservers) {
             observer.onPageLoadStopped();
@@ -949,7 +980,7 @@ public class LocationBarModel implements ToolbarDataProvider, LocationBarDataPro
     }
 
     @Override
-    public ObservableSupplier<@ControlsPosition Integer> getToolbarPositionSupplier() {
+    public NonNullObservableSupplier<@ControlsPosition Integer> getToolbarPositionSupplier() {
         return mToolbarPositionSupplier;
     }
 

@@ -92,7 +92,8 @@ class InstallUtil {
   static bool IsRunningAsInteractiveUser();
 
   // Returns the toast activator registry path.
-  static std::wstring GetToastActivatorRegistryPath(base::FilePath* target = nullptr);
+  static std::wstring GetToastActivatorRegistryPath(
+      base::FilePath* target = nullptr);
 
   // Populates |path| with EULA sentinel file path. Returns false on error.
   static bool GetEulaSentinelFilePath(base::FilePath* path);
@@ -168,11 +169,6 @@ class InstallUtil {
   // Returns the name of Chrome's shortcut in the Start Menu (among other
   // places).
   static std::wstring GetShortcutName();
-
-  // Returns the name of the subdirectory in which Chrome's Start Menu shortcut
-  // was once placed. This remains purely to migrate old installs to the new
-  // style.
-  static std::wstring GetChromeShortcutDirNameDeprecated();
 
   // Returns the name of the subdirectory in the Start Menu in which Chrome
   // apps' shortcuts are placed.

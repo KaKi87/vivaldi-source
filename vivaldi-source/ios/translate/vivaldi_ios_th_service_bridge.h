@@ -14,12 +14,12 @@ using translate_history::TH_ModelObserver;
 
 // The ObjC translations of the C++ observer callbacks are defined here.
 @protocol VivaldiIOSTHServiceBridgeObserver <NSObject>
-  - (void)modelDidLoad;
-  - (void)modelDidChange;
-  - (void)modelWillBeDeleted;
-  - (void)modelDidAddElementAtIndex:(NSInteger)index;
-  - (void)modelDidMoveElementAtIndex:(NSInteger)index;
-  - (void)modelDidRemoveElementsWithIds:(NSArray<NSString*>*)ids;
+- (void)modelDidLoad;
+- (void)modelDidChange;
+- (void)modelWillBeDeleted;
+- (void)modelDidAddElementAtIndex:(NSInteger)index;
+- (void)modelDidMoveElementAtIndex:(NSInteger)index;
+- (void)modelDidRemoveElementsWithIds:(NSArray<NSString*>*)ids;
 @end
 
 namespace translate_history {

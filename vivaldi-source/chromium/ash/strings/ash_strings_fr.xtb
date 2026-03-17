@@ -234,7 +234,7 @@
 <translation id="1747827819627189109">Clavier à l'écran activé</translation>
 <translation id="1749109475624620922">La fenêtre <ph name="WINDOW_TITLE" /> est associée à tous les bureaux</translation>
 <translation id="1750088060796401187">Seuls <ph name="MAX_DESK_LIMIT" /> bureaux sont autorisés. Supprimez un bureau pour en ajouter un.</translation>
-<translation id="1751335846119670066">M'aider à lire</translation>
+<translation id="1751335846119670066">Aide-moi à lire</translation>
 <translation id="1755408179247123630">Activer Sélectionner pour écouter ?</translation>
 <translation id="1755556344721611131">Appli de diagnostic</translation>
 <translation id="1756833229520115364">Impossible d'enregistrer le modèle. Il y a trop de fenêtres ou d'onglets.</translation>
@@ -874,6 +874,7 @@ Branchez votre appareil sur une source d'alimentation.</translation>
 <translation id="397105322502079400">Calcul en cours…</translation>
 <translation id="397726367135689299">La recharge de la batterie n'est peut-être pas fiable.</translation>
 <translation id="3977512764614765090">La batterie est en charge, avec un niveau de <ph name="PERCENTAGE" /> % pour l'instant.</translation>
+<translation id="3978162107953847778">Insérez des liens depuis des emplacements comme votre historique de navigation et Google Drive. Vous pouvez aussi insérer des emoji, des fichiers image et plus. <ph name="LINK_TO_LEARN_MORE" /></translation>
 <translation id="3982013579989864579">Changer de sortie audio ?</translation>
 <translation id="3984536049089846927">Page suivante</translation>
 <translation id="3986082989454912832">Répondre</translation>
@@ -1024,7 +1025,6 @@ Certaines fonctionnalités sont limitées afin d'augmenter l'autonomie de la bat
 <translation id="4449692009715125625">{NUM_NOTIFICATIONS,plural, =1{1 notification importante}one{# notification importante}other{# notifications importantes}}</translation>
 <translation id="4450893287417543264">Ne plus afficher</translation>
 <translation id="4451374464530248585">Le raccourci clavier Alt+Flèche vers le bas a été modifié. Pour utiliser la touche Page suivante, appuyez sur la touche du <ph name="LAUNCHER_KEY_NAME" />+Flèche vers le bas.</translation>
-<translation id="4453876312474547652">Le presse-papiers s'affiche lorsque vous appuyez de manière prolongée sur Ctrl+V. Vous pouvez désactiver ce raccourci en désactivant le flag #clipboard-history-longpress dans chrome://flags (os://flags si vous utilisez Lacros).</translation>
 <translation id="445765352722456792">Personnaliser les suggestions</translation>
 <translation id="4458688154122353284">Arrêter l'enregistrement de l'écran</translation>
 <translation id="445923051607553918">Se connecter à un réseau Wi-Fi</translation>
@@ -1600,6 +1600,7 @@ Aucun appareil connecté.</translation>
 <translation id="6260038345397266744"><ph name="TITLE" />. <ph name="DESCRIPTION" /></translation>
 <translation id="6267036997247669271"><ph name="NAME" /> : activation en cours…</translation>
 <translation id="6274202259872570803">Screencast</translation>
+<translation id="6274422179279280249">Insérez des liens, des emoji et plus. Vous pouvez aussi obtenir de l'aide de l'IA de Google pour rédiger des contenus. <ph name="LINK_TO_LEARN_MORE" /></translation>
 <translation id="6276708887952587684">Afficher le code source de la page</translation>
 <translation id="6285871695023807425">Ajouter à Agenda</translation>
 <translation id="6288235558961782912"><ph name="USER_EMAIL_ADDRESS" /> pourra être ajouté à nouveau ultérieurement avec l'autorisation d'un des parents.</translation>
@@ -1906,7 +1907,7 @@ Branchez votre appareil sur une source d'alimentation.</translation>
 <translation id="735745346212279324">VPN déconnecté</translation>
 <translation id="7360036564632145207">Vous pouvez optimiser les performances en modifiant le paramètre "Protection de l'accès aux données pour les périphériques"</translation>
 <translation id="736045644501761622">Définir le fond d'écran et le style</translation>
-<translation id="7368041336688136012">Vous devez avoir au moins 18 ans pour utiliser M'aider à lire, M'aider à écrire et pour créer des images avec l'IA.</translation>
+<translation id="7368041336688136012">Vous devez avoir au moins 18 ans pour utiliser Aide-moi à lire et Aide-moi à écrire, et pour créer des images avec l'IA.</translation>
 <translation id="7371404428569700291">Enregistrer la fenêtre</translation>
 <translation id="7372069265635026568"><ph name="AVAILABLE_MEMORY" /> de mémoire disponible sur un total de <ph name="TOTAL_MEMORY" /></translation>
 <translation id="737315737514430195">L'accès au micro est accordé à l'ensemble des sites Web et applis ayant l'autorisation d'y accéder</translation>
@@ -2191,9 +2192,9 @@ Pour éteindre l'appareil, appuyez à nouveau de manière prolongée sur le bout
 <translation id="8237964652943995219">Bureau suivant : <ph name="DESK_NAME" />. Bureau <ph name="DESK_INDEX" /> sur <ph name="DESK_COUNT" />.</translation>
 <translation id="8238817965863339552">Découvrez rapidement comment utiliser votre <ph name="PRODUCT_NAME" />. Lancez-vous en cinq étapes.</translation>
 <translation id="8239034820133090126">Activer le bureau à droite</translation>
+<translation id="8241650983304689286">Ajouter l'onglet à une nouvelle vue fractionnée</translation>
 <translation id="8247060538831475781"><ph name="CONNECTION_STATUS" />, force du signal : <ph name="SIGNAL_STRENGTH" />, batterie du téléphone à <ph name="BATTERY_STATUS" /></translation>
 <translation id="825129991941217170">Afficher tout le contenu Google Drive</translation>
-<translation id="8257510091797044096">Configurer votre appareil</translation>
 <translation id="8261506727792406068">Supprimer</translation>
 <translation id="8262312463845990408">Activer/Désactiver la lecture</translation>
 <translation id="8268302343625273732">Voir tous les devoirs dans Google Classroom</translation>
@@ -2475,7 +2476,7 @@ Pour éteindre l'appareil, appuyez à nouveau de manière prolongée sur le bout
 <translation id="954052413789300507">Espace insuffisant pour <ph name="FILENAME" />. Libérez de l'espace.</translation>
 <translation id="954520015070501466">30 min</translation>
 <translation id="956452277966142925">Paramètres du tableau de bord Jeux</translation>
-<translation id="961856697154696964">Suppr. données navigation</translation>
+<translation id="961856697154696964">Supprimer les données de navigation</translation>
 <translation id="974545358917229949">Affichage de <ph name="RESULT_COUNT" /> résultats pour <ph name="QUERY" /></translation>
 <translation id="981011780479609956">Aucune date limite</translation>
 <translation id="98120814841227350">Accéder à la fin du document</translation>

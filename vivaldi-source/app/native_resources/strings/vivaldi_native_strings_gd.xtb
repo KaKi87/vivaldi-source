@@ -10,9 +10,12 @@
 <translation id="1276145862619442150">Grad-cheanglaichean</translation>
 <translation id="1281950884873973195">Beathach 6</translation>
 <translation id="1411638389238344450">Cuir an ceangal air a’ phost-d</translation>
+<translation id="1444961972702494601">Cha b’ urrainn dhuinn faidhle roghainnean Opera a leughadh</translation>
 <translation id="1454726940098520109">Na seall an dearbhadh a-rithist</translation>
 <translation id="1462666970065907900">A bheil thu cinnteach gu bheil thu airson an uinneag seo a dhùnadh?</translation>
 <translation id="1480046233931937785">Creideasan</translation>
+<translation id="1489123210863708132">Cuir bacaiche na sanasachd is an tracaidh an gnìomh airson am brabhsadh is do phrìobhaideachd agad a dhìon.</translation>
+<translation id="1490502035430975848">Sgrùd sgrìobhainn a’ phortail</translation>
 <translation id="1521774566618522728">Gnìomhach an-diugh</translation>
 <translation id="1526344461589023948">Thachair mearachd fhad ’s a bha sinn a’ sàbhaladh ùrachadh a luchdaich sinn a-nuas.</translation>
 <translation id="1635542496948266458">Leum gu pròifil eile</translation>
@@ -23,17 +26,20 @@
 <translation id="1756026472674246267">Fosgail an ceangal ann an taba ùr</translation>
 <translation id="1759842336958782510">Chrome</translation>
 <translation id="1769904678986817931">Roghainnean an deilbh…</translation>
+<translation id="1919345977826869612">Sanasachd</translation>
 <translation id="1920297417712412573">Cuir lethbhreac dheth ann an nòta</translation>
 <translation id="1924750141060565109">Dreach-tìre 15</translation>
 <translation id="19598411548897379">Coitcheann</translation>
 <translation id="1973351931613083086">fèin-chluich</translation>
 <translation id="1985669426322966465">Ùrachadh bathair-bhog</translation>
 <translation id="2079036669923635404">Briog an-seo gus tionndadh <ph name="VERSION" /> de Vivaldi a stàladh.</translation>
+<translation id="2096375219036704155">Cha d’fhuair sinn lorg air faidhle chomharran-lìn</translation>
 <translation id="2141974047387702305">Thachair mearachd fhad ’s a bha sinn a’ luchdadh a-nuas faidhlichean an ùrachaidh. Thoir sùil air a’ cheangal agad ris an eadar-lìn is feuch ris a-rithist an ceann greis.</translation>
 <translation id="2226825946708954262">⚠ Lean air adhart le call dàta</translation>
 <translation id="2339641773402824483">A’ toirt sùil airson ùrachaidhean…</translation>
 <translation id="2429571091666452569">On liosta:</translation>
 <translation id="2441056087170876076">Uilebheist 2</translation>
+<translation id="2443880093901730341">Cha b’ urrainn dhuinn faidhle stòr-dàta na h-eachdraidh a cheasnachadh</translation>
 <translation id="2444387452209867610">Cuir nòta a-steach</translation>
 <translation id="2486841023299517366">Beathach 4</translation>
 <translation id="2501278716633472235">Air ais</translation>
@@ -70,15 +76,18 @@
 <translation id="3521635864657970829">A bheil thu cinnteach gu bheil thu airson an uinneag seo a dhùnadh?</translation>
 <translation id="3540597690227428180">Beathach 9</translation>
 <translation id="3542768452570884558">Fosgail an ceangal ann an uinneag ùr</translation>
+<translation id="3586931643579894722">Falaich am mion-fhiosrachadh</translation>
 <translation id="3588820906588687999">Fosgail an dealbh ann an taba ùr</translation>
 <translation id="3601066750251199488">Uilebheist 3</translation>
 <translation id="3620979700683094848">Faodaidh làraichean video a chluich gu fèin-obrachail</translation>
 <translation id="3658651522139217005">Opera GX</translation>
 <translation id="3680031241659195730">Tha tionndadh ùr de Vivaldi ri fhaighinn!</translation>
 <translation id="3708982624815781692">Sguireadh dhen luchdadh a-nuas.</translation>
+<translation id="3716128635228495027">Air ais gu Vivaldi</translation>
 <translation id="3732157130969736834">Dèan comharra-lìn dhen cheangal</translation>
 <translation id="3732388226447288666">Beathach 2</translation>
 <translation id="3732439195215136813">Beathach 5</translation>
+<translation id="3821561970091304474">Cha b’ urrainn dhuinn faidhle stòr-dàta na h-eachdraidh fhosgladh</translation>
 <translation id="3822431842304177896">Sgaradair ùr</translation>
 <translation id="3832132597516774400">Dreach-tìre 5</translation>
 <translation id="3894751534882749287">Ma tha thu airson coimhead air an duilleag co-dhiù, is urrainn dhut ìre an dìon o thracadh a chur air gleus ann am priob-uinneag blocaiche nan tracaichean no le bhith a’ briogadh air a’ phutan “Ceadaich”</translation>
@@ -86,6 +95,7 @@
 <translation id="3921292902397893431">Uilebheist 8</translation>
 <translation id="3943857333388298514">Cuir ann</translation>
 <translation id="4005270918754737597">Leum thairis air an tionndadh seo</translation>
+<translation id="4012248391474116967">Chan eil faidhle chomharran-lìn ann</translation>
 <translation id="4044951018940382324">Vivaldi</translation>
 <translation id="4064545092083709582">Cha b’ urrainn dha Vivaldi a’ ghlas a thoirt far stòras tèarainte nan iuchraichean agad. As aonais stòras nan iuchraichean, caillidh tu na clàraidhean a-steach agad, briosgaidean tèarainte agus chan obraich cuid a ghleusan mar an sioncronachadh, post is am mìosachan tuilleadh.
 
@@ -93,6 +103,7 @@
 <translation id="4074744496918018786">Fosgail an dealbh ann an uinneag phrìobhaideach ùr</translation>
 <translation id="410351446219883937">Fèin-chluich</translation>
 <translation id="4281844954008187215">Teirmichean na seirbheise</translation>
+<translation id="430967081421617822">Uair sam bith</translation>
 <translation id="4324492550286218827">Dreach-tìre 2</translation>
 <translation id="4406101500523955324">Fosgail an ceangal ann an uinneag phrìobhaideach</translation>
 <translation id="4420816922321010053">A bheil thu cinnteach gu bheil thu airson Vivaldi fhàgail?</translation>
@@ -100,12 +111,14 @@
 <translation id="443008484043213881">Innealan</translation>
 <translation id="4456211719108566931">Uilebheist 6</translation>
 <translation id="4459169140545916303">Gnìomhach <ph name="DEVICE_LAST_ACTIVATED_TIME" /> là(ithean) air ais</translation>
+<translation id="4510781427281143276">Sguab a’ phròifil às</translation>
 <translation id="4512900838580567989">Fosgail an ceangal ann an taba ùr sa chùlaibh</translation>
 <translation id="4545097004879999966">Opera Mail</translation>
 <translation id="4548358047305717967">Fosgail an dealbh ann an taba ùr sa chùlaibh</translation>
 <translation id="4582480609585453144">Fosgail an ceangal ann an taba sa chùlaibh</translation>
 <translation id="4636708767492582204">Cuir sa phost</translation>
 <translation id="4677434526832593569">Beathach 8</translation>
+<translation id="4729666228450010210">Cha b’ urrainn dhuinn faidhle nan grad-cheanglaichean a leughadh</translation>
 <translation id="4736016046474602958">Blocaiche nan tracaichean</translation>
 <translation id="474217410105706308">Mùch an taba</translation>
 <translation id="4861715717329665002">Seiseanan air am fèin-sàbhaladh</translation>
@@ -121,13 +134,16 @@
 <translation id="5305569355661722298">Dearbhaich dùnadh na h-uinneige</translation>
 <translation id="5322922669477407077">Opera (luchd-leasachaidh)</translation>
 <translation id="5388358297987318779">Fosgail an dealbh</translation>
+<translation id="5398772614898833570">Sanasachd air a bhacadh</translation>
 <translation id="5416008465899576639">Tha tionndadh ùr de Vivaldi ri fhaighinn.</translation>
 <translation id="5497042274492038489">Dearbh dùnadh na h-uinneige</translation>
 <translation id="5556459405103347317">Ath-luchdaich</translation>
 <translation id="5594602170491763400">Uilebheist 5</translation>
 <translation id="5648110075441906505">Fosgail an dealbh ann an uinneag ùr</translation>
 <translation id="5656371807944747581">Mearachd an ùrachaidh!</translation>
+<translation id="5707114137287591385">Cha b’ urrainn dhuinn an dàta a tha ri ion-phortadh a leughadh</translation>
 <translation id="5732584064771442623">Tha Vivaldi <ph name="NEW_VERSION" /> ri fhaighinn a-nis (’s e <ph name="OLD_VERSION" /> a th’ agad). A bheil thu airson a luchdadh a-nuas an-dràsta?</translation>
+<translation id="5741670635761443575">Caismeachd: Chan eil cuspairean Google ann an Vivaldi.</translation>
 <translation id="5770433027661640693">Dreach-tìre 10</translation>
 <translation id="5857090052475505287">Pasgan ùr</translation>
 <translation id="588258955323874662">Làn-sgrìn</translation>
@@ -146,15 +162,20 @@
 <translation id="6635049669875534328">Na nòtaichean sgaoilidh:</translation>
 <translation id="6693585104974197539">Tagh pasgan pròifil Edge gus ion-phortadh</translation>
 <translation id="6726279523566323394">Tagh pasgan pròifil Brave gus ion-phortadh</translation>
+<translation id="6736243959894955139">Seòladh</translation>
 <translation id="6892812721183419409">Fosgail an ceangal mar <ph name="USER" /></translation>
 <translation id="6896758677409633944">Lethbhreac</translation>
+<translation id="6951961820678531655">A bheil thu cinnteach gu bheil thu airson a’ phròifil “__1” a sguabadh às?</translation>
 <translation id="6960139763942959188">Tha a’ phròifil seo ga stòradh air dòigh nach eil tèarainte ’s e gun chrioptachadh. Tha Vivaldi an ìmpis na pròifil agad àrdachadh airson ’s gum bi e nas tèarainte le crioptachadh. Bu chòir dhut sguir dheth an-dràsta fhèin agus lethbhreac-glèidhidh dhen phròifil agad a dhèanamh mus lean thu air adhart.</translation>
 <translation id="7086554968911045110">Dreach-tìre 7</translation>
 <translation id="7099506190679014195">Àrdachadh tèarainte airson stòras nan iuchraichean</translation>
 <translation id="7111492742514999492">Dreach-tìre 9</translation>
 <translation id="7113310725918019676">Ceadaich <ph name="BLOCKED_TYPE" /> o <ph name="DOMAIN" /></translation>
+<translation id="7230790743794586907">Cha b’ urrainn dhuinn faidhle stòr-dàta nan clàradh a-steach fhosgladh</translation>
+<translation id="7319087656340696133">Chan eil an iuchair dì-chrioptachaidh dligheach</translation>
 <translation id="7321500017121629018">Gnìomhach an-dè</translation>
 <translation id="7337881442233988129">Chromium</translation>
+<translation id="7421665776469827022">Chaidh an dàta a shàbhaladh</translation>
 <translation id="7581266044164103589">Cha b’ urrainn dhuinn stàlaichear an ùrachaidh a chur gu dol. Dèan cinnteach gu bheil cuimhne gu leòr aig a’ choimpiutair no àite gu leòr air an diosg is feuch ris a-rithist an ceann greis.</translation>
 <translation id="7658239707568436148">Sguir dheth</translation>
 <translation id="7724603315864178912">Geàrr às</translation>
@@ -164,6 +185,7 @@
 <translation id="7848222781052558334">Dh’fhàillig dearbhadh soidhneadh digiteach nam faidhlichean a luchdaich thu a-nuas.</translation>
 <translation id="7865983598101744945">Dearbh gu bheil thu airson fàgail</translation>
 <translation id="7957213167373139414">Am mìosachan agam</translation>
+<translation id="7985415590384688462">Cha b’ urrainn dhuinn na faclan-faire a dhì-chrioptachadh</translation>
 <translation id="8027581147000338959">Fosgail ann an uinneag ùr</translation>
 <translation id="8044382196220116469">Na leig le làraichean video a chluich gu fèin-obrachail</translation>
 <translation id="8099620695029051217">Dèan lethbhreac de sheòladh na duilleige</translation>
@@ -187,8 +209,10 @@
 <translation id="8773635261052182196">Chan fhaic thu na brathan seo a-rithist. ’S urrainn dhut an cur an comas às ùr ann an roghainnean Vivaldi.</translation>
 <translation id="8774017153185436870">Dh’fhaoidte gun cluich làraichean video gu fèin-obrachail</translation>
 <translation id="8813277370772331957">Cuir nam chuimhne uaireigin eile</translation>
+<translation id="8837256239226739065">Sgrùd obraiche seirbheise a’ chùlaibh</translation>
 <translation id="8894900864683381599">Cuir an ceangal ris a’ phanail-lìn</translation>
 <translation id="8912720443398351457">A bheil thu cinnteach gu bheil thu airson Vivaldi fhàgail?</translation>
+<translation id="8924818205225323428">Chan eil faidhle eachdraidh ann</translation>
 <translation id="8940028675168378100">Air a bhacadh le <ph name="BLOCKER_NAME" /></translation>
 <translation id="8947109330183116400">Tagh faidhle comharran-lìn HTML</translation>
 <translation id="9017566390391482291">Tagh pasgan pròifil Vivaldi gus ion-phortadh</translation>
@@ -198,6 +222,7 @@
 <translation id="9090254883741610153">Leag leam a dhol air adhart</translation>
 <translation id="910680796491389880">Thunderbird</translation>
 <translation id="912022491595344261">Fosgail an dealbh mar <ph name="USER" /></translation>
+<translation id="9149866541089851383">Deasaich…</translation>
 <translation id="9157539936604258187">Fosgail an ceangal</translation>
 <translation id="9169060351863393881">Opera 12.x</translation>
 <translation id="9180553614777056266">Bacaiche na sanasachd</translation>

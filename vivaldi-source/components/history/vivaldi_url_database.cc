@@ -5,9 +5,9 @@
 #include <string>
 
 #include "base/i18n/case_conversion.h"
+#include "base/strings/string_split.h"
 #include "base/strings/utf_string_conversions.h"
 #include "db/vivaldi_history_types.h"
-#include "base/strings/string_split.h"
 
 namespace history {
 

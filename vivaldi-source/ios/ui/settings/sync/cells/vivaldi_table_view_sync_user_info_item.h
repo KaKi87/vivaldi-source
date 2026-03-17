@@ -25,8 +25,8 @@
 @property(nonatomic, readonly, strong) UILabel* userNameLabel;
 @property(nonatomic, readonly, strong) UILabel* sessionNameLabel;
 
-@property (nonatomic, weak)
-    id<VivaldiTableViewSyncUserInfoViewDelegate> delegate;
+@property(nonatomic, weak) id<VivaldiTableViewSyncUserInfoViewDelegate>
+    delegate;
 
 - (void)setUserAvatar:(UIImage*)image;
 - (void)setBadgeImage:(UIImage*)badgeImage;

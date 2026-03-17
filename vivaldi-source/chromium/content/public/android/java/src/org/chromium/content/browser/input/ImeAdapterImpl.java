@@ -18,7 +18,6 @@ import android.os.Handler;
 import android.os.ResultReceiver;
 import android.os.SystemClock;
 import android.text.SpannableString;
-import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.style.BackgroundColorSpan;
@@ -32,6 +31,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.inputmethod.BaseInputConnection;
+import android.view.inputmethod.CorrectionInfo;
 import android.view.inputmethod.DeleteGesture;
 import android.view.inputmethod.DeleteRangeGesture;
 import android.view.inputmethod.EditorInfo;
@@ -52,7 +52,6 @@ import org.jni_zero.CalledByNative;
 import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
 
-import org.chromium.base.AconfigFlaggedApiDelegate;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.TraceEvent;
@@ -72,6 +71,7 @@ import org.chromium.content.browser.WindowEventObserver;
 import org.chromium.content.browser.WindowEventObserverManager;
 import org.chromium.content.browser.picker.InputDialogContainer;
 import org.chromium.content.browser.webcontents.WebContentsImpl;
+import org.chromium.content.common.ContentInternalFeatures;
 import org.chromium.content_public.browser.ContentFeatureList;
 import org.chromium.content_public.browser.ContentFeatureMap;
 import org.chromium.content_public.browser.ImeAdapter;
@@ -80,6 +80,7 @@ import org.chromium.content_public.browser.InputMethodManagerWrapper;
 import org.chromium.content_public.browser.StylusWritingImeCallback;
 import org.chromium.content_public.browser.WebContents;
 import org.chromium.content_public.browser.WebContents.UserDataFactory;
+import org.chromium.content_public.common.ContentFeatures;
 import org.chromium.mojo.system.MessagePipeHandle;
 import org.chromium.mojo.system.MojoException;
 import org.chromium.mojo.system.impl.CoreImpl;
@@ -102,6 +103,10 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
+// Vivaldi
+import org.chromium.build.BuildConfig;
+import org.vivaldi.browser.common.VivaldiMultiDisplayFocusGuard;
+
 /**
  * Implementation of the interface {@link ImeAdapter} providing an interface in both ways native <->
  * java:
@@ -123,9 +128,13 @@ import java.util.List;
 @JNINamespace("content")
 @NullMarked
 public class ImeAdapterImpl
-        implements ImeAdapter, WindowEventObserver, UserData, InputMethodManagerWrapper.Delegate {
+        implements ImeAdapter,
+                WindowEventObserver,
+                UserData,
+                InputMethodManagerWrapper.Delegate,
+                AutocorrectManager.Delegate {
     private static final String TAG = "Ime";
-    private static final boolean DEBUG_LOGS = false;
+    private static final boolean DEBUG_LOGS = true; //!!
 
     private static final float SUGGESTION_HIGHLIGHT_BACKGROUND_TRANSPARENCY = 0.4f;
 
@@ -191,6 +200,14 @@ public class ImeAdapterImpl
     private final ArrayDeque<KeyEvent> mKeyDownEvents = new ArrayDeque<>();
 
     private String[] mSupportedMimeTypes = {};
+
+    private @Nullable AutocorrectManager mAutocorrectManager;
+
+    // Vivaldi
+    private final @Nullable VivaldiMultiDisplayFocusGuard mFocusGuard =
+            BuildConfig.IS_OEM_MERCEDES_BUILD
+                    ? new VivaldiMultiDisplayFocusGuard()
+                    : null;
 
     /**
      * {@ResultReceiver} passed in InputMethodManager#showSoftInput}. We need this to scroll to the
@@ -321,6 +338,9 @@ public class ImeAdapterImpl
         mInputMethodManagerWrapper = wrapper;
         mNativeImeAdapterAndroid = ImeAdapterImplJni.get().init(ImeAdapterImpl.this, mWebContents);
         WindowEventObserverManager.from(mWebContents).addObserver(this);
+        if (ContentFeatureMap.isEnabled(ContentFeatures.ANDROID_PK_AUTOCORRECT_UNDERLINE)) {
+            mAutocorrectManager = new AutocorrectManager(this);
+        }
     }
 
     @Override
@@ -557,6 +577,17 @@ public class ImeAdapterImpl
         mInputConnectionFactory = factory;
     }
 
+    @VisibleForTesting
+    void setAutocorrectManagerForTesting(AutocorrectManager autocorrectManager) {
+        mAutocorrectManager = autocorrectManager;
+    }
+
+    @VisibleForTesting
+    @Nullable AutocorrectManager getAutocorrectManagerForTesting() {
+        return mAutocorrectManager;
+    }
+
+    @VisibleForTesting
     ChromiumBaseInputConnection.@Nullable Factory getInputConnectionFactoryForTest() {
         return mInputConnectionFactory;
     }
@@ -748,9 +779,20 @@ public class ImeAdapterImpl
                 if (imeTextSpans == null || imeTextSpans.length == 0) {
                     textParam = text;
                 } else {
-                    SpannableStringBuilder spannable = new SpannableStringBuilder(text);
+                    SpannableString spannable = new SpannableString(text);
                     for (ImeTextSpan info : imeTextSpans) {
                         int flags = 0;
+
+                        // Autocorrect spans are intentionally omitted here. They are used
+                        // internally for rendering the underline but are not reported to the IME
+                        // to prevent unexpected behavior in the IME.
+                        if (mAutocorrectManager != null
+                                && ContentFeatureMap.isEnabled(
+                                        ContentFeatures.ANDROID_PK_AUTOCORRECT_UNDERLINE)
+                                && info.getType() == ImeTextSpanType.AUTOCORRECT) {
+                            continue;
+                        }
+
                         if (info.getType() == ImeTextSpanType.MISSPELLING_SUGGESTION) {
                             flags = SuggestionSpan.FLAG_MISSPELLED;
                         } else if (info.getType() == ImeTextSpanType.GRAMMAR_SUGGESTION) {
@@ -853,6 +895,8 @@ public class ImeAdapterImpl
 
     @CalledByNative
     private void updateOnTouchDown() {
+        // Vivaldi
+        if (mFocusGuard != null) mFocusGuard.noteLocalTouchDown(mViewDelegate);
         cancelRequestToScrollFocusedEditableNodeIntoView();
     }
 
@@ -958,6 +1002,13 @@ public class ImeAdapterImpl
     @Override
     public void onViewFocusChanged(boolean gainFocus, boolean hideKeyboardOnBlur) {
         if (DEBUG_LOGS) Log.i(TAG, "onViewFocusChanged: gainFocus [%b]", gainFocus);
+        // Vivaldi
+        if (mFocusGuard != null
+                && !gainFocus
+                && hideKeyboardOnBlur
+                && mFocusGuard.shouldHideOnBlurForInstance(mViewDelegate))
+            resetAndHideKeyboard();
+        else
         if (!gainFocus && hideKeyboardOnBlur) resetAndHideKeyboard();
         if (mInputConnectionFactory != null) {
             mInputConnectionFactory.onViewFocusChanged(gainFocus);
@@ -1131,6 +1182,16 @@ public class ImeAdapterImpl
 
     boolean sendCompositionToNative(
             CharSequence text, int newCursorPosition, boolean isCommit, int unicodeFromKeyEvent) {
+        return sendCompositionToNative(
+                text, newCursorPosition, isCommit, unicodeFromKeyEvent, false);
+    }
+
+    boolean sendCompositionToNative(
+            CharSequence text,
+            int newCursorPosition,
+            boolean isCommit,
+            int unicodeFromKeyEvent,
+            boolean isTextSuggestionSelected) {
         if (!isValid()) return false;
         onImeEvent();
         long timestampMs = SystemClock.uptimeMillis();
@@ -1178,6 +1239,10 @@ public class ImeAdapterImpl
                                 lastKeyDownEvent.getScanCode(),
                                 false,
                                 lastKeyDownEvent.getUnicodeChar());
+
+                if (mAutocorrectManager != null) {
+                    mAutocorrectManager.onCommitText();
+                }
                 return true;
             }
         }
@@ -1202,6 +1267,14 @@ public class ImeAdapterImpl
                             text,
                             text.toString(),
                             newCursorPosition);
+            // Gboard signals autocorrect by calling commitCorrection() after a deletion,
+            // followed by commitText(). We append the underline here because the text
+            // must be committed before the span can be applied to it.
+            if (mAutocorrectManager != null) {
+                mAutocorrectManager.maybeAppendAutocorrectUnderlineSpan();
+                mAutocorrectManager.onCommitText();
+            }
+
         } else {
             ImeAdapterImplJni.get()
                     .setComposingText(
@@ -1209,7 +1282,8 @@ public class ImeAdapterImpl
                             ImeAdapterImpl.this,
                             text,
                             text.toString(),
-                            newCursorPosition);
+                            newCursorPosition,
+                            isTextSuggestionSelected);
         }
 
         ImeAdapterImplJni.get()
@@ -1434,19 +1508,20 @@ public class ImeAdapterImpl
         }
 
         // Request view system keeps focused element on screen.
-        if (ContentFeatureList.sAccessibilityMagnificationFollowsFocus.isEnabled()) {
+        // Note: `SDK_INT_FULL` added in `BAKLAVA`, hence two checks.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA
+                && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1
+                && ContentFeatureList.sAccessibilityMagnificationFollowsFocus.isEnabled()) {
             Rect nodePix = fromCssToDevicePix(nodeLeftDip, nodeTopDip, nodeRightDip, nodeBottomDip);
             if (!nodePix.isEmpty()) {
-                // TODO(crbug.com/464269649): when Baklava 36.1 support lands in Clank, remove
-                // delegate indirection and inline `requestInputFocusOnScreen()` call.
-                AconfigFlaggedApiDelegate delegate = AconfigFlaggedApiDelegate.getInstance();
-                if (delegate != null) {
-                    delegate.requestInputFocusOnScreen(containerView, nodePix);
-                }
-                // Do nothing if new 36.1 `requestRectangleOnScreen()` API with request source
-                // parameter is unavailable.
+                containerView.requestRectangleOnScreen(
+                        nodePix,
+                        /* immediate= */ false,
+                        View.RECTANGLE_ON_SCREEN_REQUEST_SOURCE_INPUT_FOCUS);
             }
         }
+        // Do nothing if new 36.1 `requestRectangleOnScreen()` API with request source
+        // parameter is unavailable.
     }
 
     @CalledByNative
@@ -1652,11 +1727,13 @@ public class ImeAdapterImpl
                             caretCss.x + caretCss.width,
                             caretCss.y + caretCss.height);
 
-            // TODO(crbug.com/464269649): when Baklava 36.1 support lands in Clank, remove delegate
-            // indirection and inline `requestRectangleOnScreen()` call.
-            AconfigFlaggedApiDelegate delegate = AconfigFlaggedApiDelegate.getInstance();
-            if (delegate != null && delegate.requestTextCursorOnScreen(containerView, caretPix)) {
-                // Action is performed in condition.
+            // Note: `SDK_INT_FULL` added in `BAKLAVA`, hence two checks.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA
+                    && Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
+                containerView.requestRectangleOnScreen(
+                        caretPix,
+                        /* immediate= */ false,
+                        View.RECTANGLE_ON_SCREEN_REQUEST_SOURCE_TEXT_CURSOR);
             } else {
                 // Fallback to previous API (where `requestRectangleOnScreen()` calls are assumed
                 // to come from text cursor moves).
@@ -1715,7 +1792,14 @@ public class ImeAdapterImpl
     @CalledByNative
     private void onResizeScrollableViewport(boolean contentsHeightReduced) {
         if (!contentsHeightReduced) {
-            cancelRequestToScrollFocusedEditableNodeIntoView();
+            // Note: When the keyboard is shown, the viewport height can grow and shrink as various
+            // pieces of state are updated asynchronously. If we're waiting to scroll (non-empty
+            // mFocusPreOSKViewportRect), don't scroll yet, but don't cancel the request either.
+            // TODO(b/462636368): Avoid excessive churn in the Blink viewport height.
+            if (!ContentFeatureMap.isEnabled(
+                    ContentInternalFeatures.SCROLL_AFTER_OSK_VIEWPORT_SHRINK_FIX)) {
+                cancelRequestToScrollFocusedEditableNodeIntoView();
+            }
             return;
         }
 
@@ -1833,7 +1917,8 @@ public class ImeAdapterImpl
                                 suggestionHighlightColor,
                                 isAutoCorrectionSpan
                                         ? new String[0]
-                                        : suggestionSpan.getSuggestions());
+                                        : suggestionSpan.getSuggestions(),
+                                /* shouldHideSuggestionMenu= */ !isEasyCorrectSpan);
             }
         }
     }
@@ -1856,6 +1941,31 @@ public class ImeAdapterImpl
     void performSpellCheck() {
         if (!isValid()) return;
         ImeAdapterImplJni.get().performSpellCheck(mNativeImeAdapterAndroid);
+    }
+
+    void commitCorrection(CorrectionInfo correctionInfo) {
+        if (!isValid()) return;
+        if (mAutocorrectManager == null) return;
+        mAutocorrectManager.handlePendingCorrection(correctionInfo);
+    }
+
+    @Override
+    public void appendAutocorrectUnderlineSpan(int start, int end) {
+        if (!isValid()) return;
+        if (mAutocorrectManager == null) return;
+        if (DEBUG_LOGS) {
+            Log.i(TAG, "appendAutocorrectUnderlineSpan: start=[%d], end=[%d]", start, end);
+        }
+        ImeAdapterImplJni.get()
+                .appendAutocorrectUnderlineSpan(mNativeImeAdapterAndroid, start, end);
+    }
+
+    @Override
+    public void clearAllAutocorrectUnderlineSpans() {
+        if (!isValid()) return;
+        if (mAutocorrectManager == null) return;
+        if (DEBUG_LOGS) Log.i(TAG, "clearAllAutocorrectUnderlineSpans");
+        ImeAdapterImplJni.get().clearAllAutocorrectUnderlineSpans(mNativeImeAdapterAndroid);
     }
 
     @NativeMethods
@@ -1887,14 +1997,16 @@ public class ImeAdapterImpl
                 boolean removeOnFinishComposing,
                 int underlineColor,
                 int suggestionHighlightColor,
-                String[] suggestions);
+                String[] suggestions,
+                boolean shouldHideSuggestionMenu);
 
         void setComposingText(
                 long nativeImeAdapterAndroid,
                 ImeAdapterImpl self,
                 CharSequence text,
                 String textStr,
-                int newCursorPosition);
+                int newCursorPosition,
+                boolean isTextSuggestionSelected);
 
         void commitText(
                 long nativeImeAdapterAndroid,
@@ -1937,5 +2049,9 @@ public class ImeAdapterImpl
                 long nativeImeAdapterAndroid, int id, ByteBuffer gestureData);
 
         void performSpellCheck(long nativeImeAdapterAndroid);
+
+        void appendAutocorrectUnderlineSpan(long nativeImeAdapterAndroid, int start, int end);
+
+        void clearAllAutocorrectUnderlineSpans(long nativeImeAdapterAndroid);
     }
 }

@@ -176,7 +176,8 @@ class VivaldiPrivateTabObserver
       int tab_id,
       std::string* error);
 
-  static void BroadcastTabInfo(vivaldi::tabs_private::UpdateTabInfo& info, content::WebContents* web_contents);
+  static void BroadcastTabInfo(vivaldi::tabs_private::UpdateTabInfo& info,
+                               content::WebContents* web_contents);
 
   // content::WebContentsObserver implementation.
   void DidChangeThemeColor() override;
@@ -214,7 +215,6 @@ class VivaldiPrivateTabObserver
   void SpatnavRectReceived(JSSpatnavRectCallback callback,
                            ::vivaldi::mojom::SpatnavRectPtr rect);
 
-
   void DetermineTextLanguage(const std::string& text,
                              JSDetermineTextLanguageCallback callback);
   void DetermineTextLanguageDone(JSDetermineTextLanguageCallback callback,
@@ -223,8 +223,8 @@ class VivaldiPrivateTabObserver
   // If a page is accessing a resource controlled by a permission this will
   // fire.
   virtual void OnPermissionAccessed(ContentSettingsType type,
-                            std::string origin,
-                            ContentSetting content_setting);
+                                    std::string origin,
+                                    ContentSetting content_setting);
 
  private:
   friend class content::WebContentsUserData<VivaldiPrivateTabObserver>;
@@ -346,7 +346,7 @@ class TabsPrivateMoveSpatnavRectFunction : public ExtensionFunction {
  private:
   void SpatnavRectReceived(::vivaldi::mojom::SpatnavRectPtr rect);
 
- ResponseAction Run() override;
+  ResponseAction Run() override;
 };
 
 class TabsPrivateActivateSpatnavElementFunction : public ExtensionFunction {
@@ -478,8 +478,8 @@ class TabsPrivateGetSendTabToSelfEntriesFunction : public ExtensionFunction {
   ResponseAction Run() override;
 };
 
-
-class TabsPrivateDismissSendTabToSelfEntriesFunction : public ExtensionFunction {
+class TabsPrivateDismissSendTabToSelfEntriesFunction
+    : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("tabsPrivate.dismissSendTabToSelfEntries",
                              TABSPRIVATE_DISMISSSENDTABTOSELFENTRIES)

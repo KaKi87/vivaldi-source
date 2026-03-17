@@ -17,10 +17,9 @@ enum VivaldiScrollType {
 bool GetIsEnabledWithNoWindows(int action, bool* enabled);
 bool GetIsEnabled(int action, bool hasWindow, bool* enabled);
 bool GetIsSupportedInSettings(int action);
-bool HasActiveWindow();
 void SetVivaldiScrollType(int scrollType);
 void UpdateCommandsForVivaldi(CommandUpdater*);
 bool ExecuteVivaldiCommands(Browser* browser, int id);
-}
+}  // namespace vivaldi
 
 #endif  // APP_VIVALDI_COMMAND_CONTROLLER_H_

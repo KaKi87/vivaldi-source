@@ -6,18 +6,18 @@
 #import <UIKit/UIKit.h>
 
 namespace user_prefs {
-  class PrefRegistrySyncable;
+class PrefRegistrySyncable;
 }  // namespace user_prefs
 
 class PrefService;
 
-@interface VivaldiAppearanceSettingPrefs: NSObject
+@interface VivaldiAppearanceSettingPrefs : NSObject
 
 /// Static variable declaration
 + (PrefService*)prefService;
 
 /// Static method to set the PrefService
-+ (void)setPrefService:(PrefService *)pref;
++ (void)setPrefService:(PrefService*)pref;
 
 /// Making an an entry in registry for prefs
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry;

@@ -6,7 +6,7 @@
 #import "ios/chrome/browser/shared/coordinator/chrome_coordinator/chrome_coordinator.h"
 
 namespace syncer {
-  class SyncSetupInProgressHandle;
+class SyncSetupInProgressHandle;
 }
 
 @class VivaldiSyncCoordinator;
@@ -15,8 +15,7 @@ namespace syncer {
 @protocol VivaldiSyncCoordinatorDelegate <NSObject>
 
 // Called when the view controller is removed from its parent.
-- (void)vivaldiSyncCoordinatorWasRemoved:
-    (VivaldiSyncCoordinator*)coordinator;
+- (void)vivaldiSyncCoordinatorWasRemoved:(VivaldiSyncCoordinator*)coordinator;
 
 @end
 

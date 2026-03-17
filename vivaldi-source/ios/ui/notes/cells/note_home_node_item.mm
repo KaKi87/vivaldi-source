@@ -19,7 +19,7 @@ using l10n_util::GetNSString;
 @synthesize noteNode = _noteNode;
 
 - (instancetype)initWithType:(NSInteger)type
-                noteNode:(const vivaldi::NoteNode*)node {
+                    noteNode:(const vivaldi::NoteNode*)node {
   if ((self = [super initWithType:type])) {
     if (node->is_folder()) {
       self.cellClass = [TableViewNoteFolderCell class];
@@ -37,19 +37,16 @@ using l10n_util::GetNSString;
   if (_noteNode->is_folder()) {
     TableViewNoteFolderCell* noteCell =
         base::apple::ObjCCastStrict<TableViewNoteFolderCell>(cell);
-    noteCell.folderTitleTextField.text =
-        [self noteTitle];
+    noteCell.folderTitleTextField.text = [self noteTitle];
     if (self.shouldShowTrashIcon) {
       noteCell.folderImageView.image =
           [UIImage imageNamed:vNotesTrashFolderIcon];
     } else {
-      noteCell.folderImageView.image =
-          [UIImage imageNamed:vNotesFolderIcon];
+      noteCell.folderImageView.image = [UIImage imageNamed:vNotesFolderIcon];
     }
     noteCell.noteAccessoryType =
         TableViewNoteFolderAccessoryTypeDisclosureIndicator;
-    noteCell.accessibilityIdentifier =
-        [self noteTitle];
+    noteCell.accessibilityIdentifier = [self noteTitle];
     noteCell.accessibilityTraits |= UIAccessibilityTraitButton;
 
     // Folder items count
@@ -58,10 +55,12 @@ using l10n_util::GetNSString;
     NSString* noteString =
         [GetNSString(IDS_VIVALDI_FOLDER_NOTE) lowercaseString];
     int itemsCount = _noteNode->children().size();
-    noteCell.folderItemsLabel.text = itemsCount == 0 ?
-        GetNSString(IDS_VIVALDI_NOTE_NO_ITEM_COUNT) :
-        [NSString stringWithFormat: @"%d%@%@", itemsCount, @" ",
-            (itemsCount > 1 ? notesString : noteString)];
+    noteCell.folderItemsLabel.text =
+        itemsCount == 0
+            ? GetNSString(IDS_VIVALDI_NOTE_NO_ITEM_COUNT)
+            : [NSString
+                  stringWithFormat:@"%d%@%@", itemsCount, @" ",
+                                   (itemsCount > 1 ? notesString : noteString)];
   } else {
     TableViewNoteCell* noteCell =
         base::apple::ObjCCastStrict<TableViewNoteCell>(cell);

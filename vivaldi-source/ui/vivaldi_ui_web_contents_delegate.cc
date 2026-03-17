@@ -230,10 +230,10 @@ void VivaldiUIWebContentsDelegate::RenderFrameCreated(
   if (window_->GetProfile()->IsOffTheRecord()) {
     PrefService* pref_service =
         window_->GetProfile()->GetOriginalProfile()->GetPrefs();
-    const base::Value::Dict& partition_dict =
+    const base::DictValue& partition_dict =
         pref_service->GetDict(prefs::kPartitionPerHostZoomLevels);
     for (auto partition : partition_dict) {
-      if (const base::Value::Dict* host_dict = partition.second.GetIfDict()) {
+      if (const base::DictValue* host_dict = partition.second.GetIfDict()) {
         // Each entry in host_dict is another dictionary with settings
         if (auto* settings = host_dict->FindDict(::vivaldi::kVivaldiAppId)) {
           const std::optional<double> zoom_level =
@@ -335,7 +335,8 @@ content::WebContents* VivaldiUIWebContentsDelegate::OpenURLFromTab(
   // NEW_BACKGROUND_TAB is used for dragging files into our window, handle that
   // and ignore everything else.
   if (params.disposition == WindowOpenDisposition::NEW_BACKGROUND_TAB) {
-    return window_->browser()->OpenURL(params, std::move(navigation_handle_callback));
+    return window_->browser()->OpenURL(params,
+                                       std::move(navigation_handle_callback));
   }
   // Form submissions in our UI ends up as CURRENT_TAB, so ignore those
   // and others.
@@ -371,7 +372,6 @@ void VivaldiUIWebContentsDelegate::BeforeUnloadFired(
   DCHECK_EQ(source, web_contents());
   *proceed_to_fire_unload = true;
   window_->BeforeUnloadFired(web_contents());
-
 }
 
 void VivaldiUIWebContentsDelegate::BeforeUnloadFired(bool proceed) {}
@@ -379,7 +379,7 @@ void VivaldiUIWebContentsDelegate::BeforeUnloadFired(bool proceed) {}
 blink::mojom::DisplayMode VivaldiUIWebContentsDelegate::GetDisplayMode(
     const content::WebContents* source) {
   return window_->IsFullscreen() ? blink::mojom::DisplayMode::kFullscreen
-                        : blink::mojom::DisplayMode::kBrowser;
+                                 : blink::mojom::DisplayMode::kBrowser;
 }
 
 content::WebContents* VivaldiUIWebContentsDelegate::AddNewContents(
@@ -431,7 +431,7 @@ content::WebContents* VivaldiUIWebContentsDelegate::AddNewContents(
 void VivaldiUIWebContentsDelegate::DraggableRegionsChanged(
     const std::vector<blink::mojom::DraggableRegionPtr>& regions,
     content::WebContents* contents) {
-    window_->DraggableRegionsChanged(regions, contents);
+  window_->DraggableRegionsChanged(regions, contents);
 }
 
 bool VivaldiUIWebContentsDelegate::CanOverscrollContent() {

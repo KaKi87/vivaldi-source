@@ -39,7 +39,7 @@ StateAndLogsImpl::~StateAndLogsImpl() = default;
 void StateAndLogsImpl::OnTrackerInfosUpdated(
     RuleGroup group,
     const ActiveRuleSource& source,
-    base::Value::Dict new_tracker_infos) {
+    base::DictValue new_tracker_infos) {
   auto& tracker_infos = tracker_infos_[group];
   std::erase_if(tracker_infos, [&source](auto& tracker) {
     tracker.second.erase(source.core.id());

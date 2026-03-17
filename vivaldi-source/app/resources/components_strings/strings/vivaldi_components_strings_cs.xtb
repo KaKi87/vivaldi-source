@@ -92,7 +92,6 @@ jej ze seznamu odebrat a znovu přidat.</translation>
 <translation id="4250431568374086873">Spojení s tímto webem není plně zabezpečené</translation>
 <translation id="4265872034478892965">Povoleno správcem</translation>
 <translation id="4305666528087210886">K souboru nelze získat přístup</translation>
-<translation id="4408413947728134509">Položky cookie <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544">Web <ph name="HOST_NAME" /> nepřijal přihlašovací certifikát, případně žádný certifikát nebyl poskytnut.</translation>
 <translation id="4506599922270137252">kontaktovat administrátora systému</translation>
 <translation id="4522570452068850558">Podrobnosti</translation>
@@ -109,7 +108,6 @@ jej ze seznamu odebrat a znovu přidat.</translation>
 <translation id="4943872375798546930">Žádné výsledky</translation>
 <translation id="5017554619425969104">Zkopírovaný text</translation>
 <translation id="5023310440958281426">Zkontrolujte zásady svého správce</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1{(používá se 1)}few{(používají se #)}many{(používá se #)}other{(používá se #)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />zkontrolovat adresu proxy serveru<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64bitové)</translation>
 <translation id="5355557959165512791">Web <ph name="SITE" /> nyní nemůžete navštívit, protože jeho certifikát byl zrušen. Síťové chyby a útoky jsou obvykle dočasné, tato stránka pravděpodobně později bude fungovat.</translation>
@@ -129,7 +127,6 @@ Kontaktujte administrátora systému.</translation>
 <translation id="5810442152076338065">Vaše spojení se serverem <ph name="DOMAIN" /> je šifrováno za použití zastaralé šifrovací sady.</translation>
 <translation id="5838278095973806738">Na tento web byste neměli zadávat citlivé údaje (například hesla nebo čísla platebních karet), protože by je mohli odcizit útočníci.</translation>
 <translation id="5869405914158311789">Tento web není dostupný</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{Používá se 1}few{Používají se #}many{Používá se #}other{Používá se #}}</translation>
 <translation id="5932224571077948991">Stránka obsahuje rušivé nebo zavádějící reklamy</translation>
 <translation id="6051221802930200923">Web <ph name="SITE" /> nyní nemůžete navštívit, protože používá připínání certifikátů. Síťové chyby a útoky jsou obvykle dočasné, tato stránka pravděpodobně později bude fungovat.</translation>
 <translation id="6146055958333702838">Zkontrolujte všechny kabely a restartujte všechny směrovače, modemy a další síťová zařízení,

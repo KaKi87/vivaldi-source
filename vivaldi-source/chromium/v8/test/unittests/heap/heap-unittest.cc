@@ -33,7 +33,7 @@
 #include "src/heap/heap-layout.h"
 #include "src/heap/marking-state-inl.h"
 #include "src/heap/minor-mark-sweep.h"
-#include "src/heap/mutable-page-metadata.h"
+#include "src/heap/mutable-page.h"
 #include "src/heap/remembered-set.h"
 #include "src/heap/safepoint.h"
 #include "src/heap/spaces-inl.h"
@@ -132,7 +132,7 @@ TEST(Heap, OldGenerationSizeFromPhysicalMemory) {
 }
 
 TEST(Heap, LimitsComputationBoundariesClamp) {
-  using Boundaries = Heap::LimitBounds;
+  using Boundaries = HeapLimitBounds;
   Boundaries boundaries;
   boundaries.minimum_old_generation_allocation_limit = 100u;
   boundaries.maximum_old_generation_allocation_limit = 200u;
@@ -149,7 +149,7 @@ TEST(Heap, LimitsComputationBoundariesClamp) {
 }
 
 TEST(Heap, LimitsComputationBoundariesAtLeastAndAtMost) {
-  Heap::LimitBounds boundaries;
+  HeapLimitBounds boundaries;
   boundaries.maximum_old_generation_allocation_limit = 200u;
   boundaries.maximum_global_allocation_limit = 400u;
 
@@ -179,13 +179,13 @@ TEST_F(HeapTest, LimitsComputationBoundariesConstruction) {
   Heap* heap = i_isolate()->heap();
 
   const size_t kSizeMax = std::numeric_limits<size_t>::max();
-  Heap::LimitBounds no_boundaries;
+  HeapLimitBounds no_boundaries;
   EXPECT_EQ(0u, no_boundaries.minimum_old_generation_allocation_limit);
   EXPECT_EQ(0u, no_boundaries.minimum_global_allocation_limit);
   EXPECT_EQ(kSizeMax, no_boundaries.maximum_old_generation_allocation_limit);
   EXPECT_EQ(kSizeMax, no_boundaries.maximum_global_allocation_limit);
 
-  Heap::LimitBounds at_least = Heap::LimitBounds::AtLeastCurrentLimits(heap);
+  HeapLimitBounds at_least = heap->limits()->AtLeastCurrentLimits();
   EXPECT_EQ(heap->OldGenerationAllocationLimitForTesting(),
             at_least.minimum_old_generation_allocation_limit);
   EXPECT_EQ(heap->GlobalAllocationLimitForTesting(),
@@ -193,7 +193,7 @@ TEST_F(HeapTest, LimitsComputationBoundariesConstruction) {
   EXPECT_EQ(kSizeMax, at_least.maximum_old_generation_allocation_limit);
   EXPECT_EQ(kSizeMax, at_least.maximum_global_allocation_limit);
 
-  Heap::LimitBounds at_most = Heap::LimitBounds::AtMostCurrentLimits(heap);
+  HeapLimitBounds at_most = heap->limits()->AtMostCurrentLimits();
   EXPECT_EQ(heap->OldGenerationAllocationLimitForTesting(),
             at_most.maximum_old_generation_allocation_limit);
   EXPECT_EQ(heap->GlobalAllocationLimitForTesting(),
@@ -522,7 +522,7 @@ TEST_F(HeapTest, HeapLayout) {
 
   SafepointScope scope(i_isolate(), kGlobalSafepointForSharedSpaceIsolate);
   OldGenerationMemoryChunkIterator iter(i_isolate()->heap());
-  while (MutablePageMetadata* chunk = iter.next()) {
+  while (MutablePage* chunk = iter.next()) {
     Address address = chunk->ChunkAddress();
     size_t size = chunk->area_end() - address;
     AllocationSpace owner_id = chunk->owner_identity();
@@ -562,7 +562,7 @@ void ShrinkNewSpace(NewSpace* new_space) {
   for (auto it = paged_new_space->begin();
        it != paged_new_space->end() &&
        (paged_new_space->ShouldReleaseEmptyPage());) {
-    PageMetadata* page = *it++;
+    NormalPage* page = *it++;
     if (page->allocated_bytes() == 0) {
       paged_new_space->paged_space()->RemovePageFromSpace(page);
       heap->memory_allocator()->Free(MemoryAllocator::FreeMode::kImmediately,
@@ -578,7 +578,7 @@ void ShrinkNewSpace(NewSpace* new_space) {
     }
   }
   paged_new_space->FinishShrinking();
-  for (PageMetadata* page : *paged_new_space) {
+  for (NormalPage* page : *paged_new_space) {
     // We reset the number of live bytes to zero, as is expected after a GC.
     page->SetLiveBytes(0);
   }
@@ -728,7 +728,7 @@ namespace {
 template <RememberedSetType direction>
 static size_t GetRememberedSetSize(Isolate* isolate, Tagged<HeapObject> obj) {
   size_t count = 0;
-  auto chunk = MutablePageMetadata::FromHeapObject(isolate, obj);
+  auto chunk = MutablePage::FromHeapObject(isolate, obj);
   RememberedSet<direction>::Iterate(
       chunk,
       [&count](MaybeObjectSlot slot) {
@@ -812,8 +812,7 @@ TEST_F(HeapTest, Regress978156) {
   heap->RightTrimArray(*last, last->length() - 1, last->length());
   // 4. Get the last filler on the page.
   Tagged<HeapObject> filler = HeapObject::FromAddress(
-      MutablePageMetadata::FromHeapObject(isolate(), *last)->area_end() -
-      kTaggedSize);
+      MutablePage::FromHeapObject(isolate(), *last)->area_end() - kTaggedSize);
   HeapObject::FromAddress(last->address() + last->Size());
   CHECK(IsFiller(filler));
   // 5. Start incremental marking.
@@ -933,7 +932,7 @@ TEST_F(HeapTest, BlackAllocatedPages) {
   Isolate* iso = isolate();
   ManualGCScope manual_gc_scope(iso);
 
-  auto in_free_list = [](PageMetadata* page, Address address) {
+  auto in_free_list = [](NormalPage* page, Address address) {
     bool found = false;
     page->ForAllFreeListCategories(
         [address, &found](FreeListCategory* category) {
@@ -958,7 +957,7 @@ TEST_F(HeapTest, BlackAllocatedPages) {
   const Address lab_top = heap->allocator()->old_space_allocator()->top();
   ASSERT_EQ(lab_top, next);
 
-  auto* page = PageMetadata::FromAddress(next);
+  auto* page = NormalPage::FromAddress(next);
   const size_t wasted_before_incremental_marking_start = page->wasted_memory();
 
   heap->StartIncrementalMarking(
@@ -977,21 +976,21 @@ TEST_F(HeapTest, BlackAllocatedPages) {
   EXPECT_FALSE(in_free_list(page, next));
 
   // The page allocated before incremental marking is not black.
-  EXPECT_FALSE(page->Chunk()->IsBlackAllocatedPage());
+  EXPECT_FALSE(page->is_black_allocated());
 
   // Allocate a new object on a BLACK_ALLOCATED page.
   arr = iso->factory()->NewFixedArray(1, AllocationType::kOld);
   next = arr->address() + arr->Size();
 
   // Expect the page to be black.
-  page = PageMetadata::FromHeapObject(*arr);
-  EXPECT_TRUE(page->Chunk()->IsBlackAllocatedPage());
+  page = NormalPage::FromHeapObject(*arr);
+  EXPECT_TRUE(page->is_black_allocated());
 
   // Invoke GC.
   InvokeMajorGC();
 
   // The page is not black now.
-  EXPECT_FALSE(page->Chunk()->IsBlackAllocatedPage());
+  EXPECT_FALSE(page->is_black_allocated());
   // After the GC the next free-space object must be in freelist.
   EXPECT_TRUE(in_free_list(page, next));
 }
@@ -1189,7 +1188,7 @@ TEST_F(HeapTest, PrecisePinningFullGCDoesntMoveOldObjectReachableFromHandles) {
 
   Address number_address = number->address();
 
-  i::MutablePageMetadata::FromHeapObject(isolate(), *number)
+  i::MutablePage::FromHeapObject(isolate(), *number)
       ->set_forced_evacuation_candidate_for_testing(true);
 
   InvokeMajorGC();
@@ -1274,7 +1273,7 @@ TEST_F(HeapTest,
   Address number_address = number->address();
 
   for (int i = 0; i < 10; i++) {
-    i::MutablePageMetadata::FromHeapObject(isolate(), *number)
+    i::MutablePage::FromHeapObject(isolate(), *number)
         ->set_forced_evacuation_candidate_for_testing(true);
     InvokeMajorGC();
     CHECK_EQ(number_address, number->address());
@@ -1364,90 +1363,6 @@ TEST_F(HeapTest,
       [this](Tagged<String> object) { InvokeMajorGC(); });
 }
 
-namespace {
-using v8::CrashKey;
-using v8::CrashKeySize;
-using v8::OOMDetails;
-
-class CrashKeyStore {
- public:
-  explicit CrashKeyStore(Isolate* isolate) : isolate_(isolate) {
-    InstallCallbacks();
-  }
-
-  CrashKeyStore(const CrashKeyStore&) = delete;
-  CrashKeyStore& operator=(const CrashKeyStore&) = delete;
-
-  ~CrashKeyStore() { isolate_->SetCrashKeyStringCallbacks({}, {}); }
-
-  const std::string& ValueForKey(const std::string& name) const {
-    auto it = entries_.find(name);
-    CHECK(it != entries_.end());
-    CHECK_NOT_NULL(it->second.get());
-    return it->second->value;
-  }
-
-  bool HasKey(const std::string& name) const {
-    return entries_.find(name) != entries_.end();
-  }
-
-  size_t size() const { return entries_.size(); }
-
-  std::unordered_set<std::string> KeyNames() const {
-    std::unordered_set<std::string> names;
-    names.reserve(entries_.size());
-    for (const auto& [name, unused] : entries_) {
-      static_cast<void>(unused);
-      names.insert(name);
-    }
-    return names;
-  }
-
- private:
-  struct Entry {
-    CrashKeySize size;
-    std::string value;
-  };
-
-  void InstallCallbacks() {
-    isolate_->SetCrashKeyStringCallbacks(
-        [this](const char key[], CrashKeySize size) {
-          return AllocateKey(key, size);
-        },
-        [this](CrashKey crash_key, const std::string_view value) {
-          SetValue(crash_key, value);
-        });
-  }
-
-  CrashKey AllocateKey(const char key[], CrashKeySize size) {
-    auto [it, inserted] = entries_.emplace(key, nullptr);
-    if (inserted || it->second == nullptr) {
-      it->second = std::make_unique<Entry>();
-    }
-    Entry* entry_ptr = it->second.get();
-    entry_ptr->size = size;
-    entry_ptr->value.clear();
-    return static_cast<CrashKey>(entry_ptr);
-  }
-
-  void SetValue(CrashKey crash_key, const std::string_view value) {
-    auto* entry = static_cast<Entry*>(crash_key);
-    bool found = false;
-    for (const auto& [name, entry_holder] : entries_) {
-      if (entry_holder.get() == entry) {
-        found = true;
-        break;
-      }
-    }
-    CHECK(found);
-    entry->value.assign(value.begin(), value.end());
-  }
-
-  Isolate* isolate_;
-  std::unordered_map<std::string, std::unique_ptr<Entry>> entries_;
-};
-}  // anonymous namespace
-
 TEST_F(HeapTest, ReportStatsAsCrashKeys) {
   CrashKeyStore crash_key_store(i_isolate());
 
@@ -1511,12 +1426,13 @@ TEST_F(HeapTest, ReportStatsAsCrashKeys) {
     const size_t bytes = size.value();
 
     if (bytes >= MB) {
-      return std::format("{:.2f}MB", static_cast<double>(bytes) / MB);
+      return absl::StrFormat("%.2fMB", static_cast<double>(bytes) / MB);
     } else if (bytes >= KB) {
-      return std::format("{:.2f}KB", static_cast<double>(bytes) / KB);
+      return absl::StrFormat("%.2fKB", static_cast<double>(bytes) / KB);
     } else {
-      return std::format("{}B", bytes);
+      return absl::StrFormat("%zuB", bytes);
     }
+
   };
 
   const std::vector<std::pair<std::string, ByteSize>>
@@ -1615,11 +1531,11 @@ CrashKeyStore* g_crash_key_store_for_oom = nullptr;
 
 void FatalMemoryErrorCallbackForTest(const char* location,
                                      const OOMDetails& details) {
-  static_cast<void>(location);
-  static_cast<void>(details);
   CHECK_NOT_NULL(g_crash_key_store_for_oom);
-  CHECK_GT(g_crash_key_store_for_oom->size(), 0u);
-  g_crash_key_store_for_oom = nullptr;
+  // Update this number when adding/removing crash keys.
+  CHECK_EQ(g_crash_key_store_for_oom->size(), 41u);
+  CHECK(g_crash_key_store_for_oom->HasKey("v8-oom-stack"));
+  base::OS::PrintError("Reached end of test.\n");
   std::abort();
 }
 }  // anonymous namespace
@@ -1627,12 +1543,10 @@ void FatalMemoryErrorCallbackForTest(const char* location,
 TEST_F(HeapTest, CheckCrashKeysAreReportedInOOM) {
   CrashKeyStore crash_key_store(i_isolate());
   g_crash_key_store_for_oom = &crash_key_store;
+  v8_isolate()->SetOOMErrorHandler(FatalMemoryErrorCallbackForTest);
   EXPECT_DEATH_IF_SUPPORTED(
-      {
-        v8::V8::SetFatalMemoryErrorCallback(FatalMemoryErrorCallbackForTest);
-        heap()->FatalProcessOutOfMemory("CheckCrashKeysAreReportedInOOM");
-      },
-      "");
+      { heap()->FatalProcessOutOfMemory("CheckCrashKeysAreReportedInOOM"); },
+      "Reached end of test.");
 }
 
 }  // namespace internal

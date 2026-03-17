@@ -18,20 +18,6 @@
          flags_ui::kOsCrOS,
      FEATURE_VALUE_TYPE(vivaldi_features::kCssMods)},
 
-     {vivaldi_flag::kDesktopBackgroundInternalName,
-     vivaldi_flag::kDesktopBackgroundName,
-     vivaldi_flag::kDesktopBackgroundDescription,
-     flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
-         flags_ui::kOsCrOS,
-     FEATURE_VALUE_TYPE(vivaldi_features::kDesktopBackgroundImage)},
-
-    {vivaldi_flag::kDnDTilingInternalName,
-     vivaldi_flag::kDnDTilingMenuName,
-     vivaldi_flag::kDnDTilingMenuDescription,
-     flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
-         flags_ui::kOsCrOS,
-     FEATURE_VALUE_TYPE(vivaldi_features::kDnDTiling)},
-
     {vivaldi_flag::kDoubleClickMenuInternalName,
      vivaldi_flag::kDoubleClickMenuName,
      vivaldi_flag::kDoubleClickMenuDescription,
@@ -53,27 +39,12 @@
          flags_ui::kOsCrOS,
      FEATURE_VALUE_TYPE(vivaldi_features::kInternalPageReaderMode)},
 
-    {vivaldi_flag::kLocationOverrideInternalName,
-     vivaldi_flag::kLocationOverrideName,
-     vivaldi_flag::kLocationOverrideDescription,
+    {vivaldi_flag::kLayoutsInternalName,
+     vivaldi_flag::kLayoutsName,
+     vivaldi_flag::kLayoutsDescription,
      flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
          flags_ui::kOsCrOS,
-     FEATURE_VALUE_TYPE(vivaldi_features::kLocationOverride)},
-
-    {vivaldi_flag::kNewPrivacyReportInternalName,
-     vivaldi_flag::kNewPrivacyReportName,
-     vivaldi_flag::kNewPrivacyReportDescription,
-     flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
-         flags_ui::kOsCrOS | flags_ui::kOsAndroid,
-     FEATURE_VALUE_TYPE(vivaldi_features::kNewPrivacyReport)},
-
-
-    {vivaldi_flag::kOpenLinkTiledInternalName,
-     vivaldi_flag::kOpenLinkTiledName,
-     vivaldi_flag::kOpenLinkTiledDescription,
-     flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
-         flags_ui::kOsCrOS,
-     FEATURE_VALUE_TYPE(vivaldi_features::kOpenLinkTiled)},
+     FEATURE_VALUE_TYPE(vivaldi_features::kLayouts)},
 
     {vivaldi_flag::kShowNewSpeedDialDialogInternalName,
      vivaldi_flag::kShowNewSpeedDialDialogName,
@@ -99,13 +70,6 @@
      flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
          flags_ui::kOsCrOS,
      FEATURE_VALUE_TYPE(vivaldi_features::kNoteEditor)},
-
-    {vivaldi_flag::kRestrictPinnedTabInternalName,
-     vivaldi_flag::kRestrictPinnedTabName,
-     vivaldi_flag::kRestrictPinnedTabDescription,
-     flags_ui::kOsMac | flags_ui::kOsWin | flags_ui::kOsLinux |
-         flags_ui::kOsCrOS,
-     FEATURE_VALUE_TYPE(vivaldi_features::kRestrictPinnedTab)},
 
      {vivaldi_flag::kTabsAutoHideName, vivaldi_flag::kTabsAutoHideOption,
       vivaldi_flag::kTabsAutoHideDescription,

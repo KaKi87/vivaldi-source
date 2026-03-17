@@ -8,8 +8,8 @@
 
 #include "menus/main_menu_service_factory.h"
 
-#include "base/task/deferred_sequenced_task_runner.h"
 #include "base/memory/singleton.h"
+#include "base/task/deferred_sequenced_task_runner.h"
 #include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"

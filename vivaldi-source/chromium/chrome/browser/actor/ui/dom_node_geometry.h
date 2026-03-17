@@ -6,30 +6,24 @@
 #define CHROME_BROWSER_ACTOR_UI_DOM_NODE_GEOMETRY_H_
 
 #include "base/types/expected.h"
+#include "base/types/pass_key.h"
 #include "chrome/browser/actor/shared_types.h"
+#include "chrome/browser/actor/ui/dom_node_geometry_types.h"
 #include "components/optimization_guide/proto/features/common_quality_data.pb.h"
 #include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 #include "ui/gfx/geometry/point.h"
 
 namespace actor::ui {
 
-// LINT.IfChange(GetDomNodeResult)
-// This enum is persisted in UMA logs. Do not change or reuse existing values.
-enum class GetDomNodeResult {
-  kSuccess = 0,
-  kNoApcMainFrameData = 1,
-  kNodeNotFoundInApc = 2,
-  kNoGeometry = 3,
-  kOffScreen = 4,
-  kMaxValue = kOffScreen,
-};
-// LINT.ThenChange(//tools/metrics/histograms/metadata/actor/enums.xml:GetDomNodeResult)
-
 class DomNodeGeometry {
  public:
   using NodeGeomMap =
       absl::flat_hash_map<DomNode,
                           optimization_guide::proto::ContentAttributes>;
+
+  DomNodeGeometry(base::PassKey<DomNodeGeometry>, NodeGeomMap map);
+  DomNodeGeometry(base::PassKey<DomNodeGeometry>,
+                  GetDomNodeResult construction_error);
   ~DomNodeGeometry();
 
   static std::unique_ptr<DomNodeGeometry> InitFromApc(
@@ -44,8 +38,6 @@ class DomNodeGeometry {
  private:
   base::expected<gfx::Point, GetDomNodeResult> InternalGetDomNode(
       const DomNode& node) const;
-  explicit DomNodeGeometry(NodeGeomMap map);
-  explicit DomNodeGeometry(GetDomNodeResult construction_error);
 
   std::optional<GetDomNodeResult> init_error_;  // Errors during initialization
   const NodeGeomMap node_map_;

@@ -8,7 +8,6 @@
 #include <string>
 #include <utility>
 
-#include "base/containers/contains.h"
 #include "base/logging.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -26,6 +25,7 @@
 #include "sync/notes/synced_note_tracker.h"
 #include "sync/notes/synced_note_tracker_entity.h"
 #include "sync/vivaldi_hash_util.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_map.h"
 #include "ui/base/models/tree_node_iterator.h"
 
 namespace sync_notes {
@@ -64,9 +64,9 @@ const size_t kMaxNoteTreeDepth = 200;
 // The value must be a list since there is a container using pointers to its
 // elements.
 using UpdatesPerParentUuid =
-    std::unordered_map<base::Uuid,
-                       std::list<syncer::UpdateResponseData>,
-                       base::UuidHash>;
+    absl::flat_hash_map<base::Uuid,
+                        std::list<syncer::UpdateResponseData>,
+                        base::UuidHash>;
 
 // Gets the note node corresponding to a permanent folder identified by
 // |server_defined_unique_tag| or null of the tag is unknown. |notes_model|
@@ -184,8 +184,8 @@ void DeduplicateValidUpdatesByUuid(
     UpdatesPerParentUuid* updates_per_parent_uuid) {
   DCHECK(updates_per_parent_uuid);
 
-  std::unordered_map<base::Uuid, std::list<UpdateResponseData>::iterator,
-                     base::UuidHash>
+  absl::flat_hash_map<base::Uuid, std::list<UpdateResponseData>::iterator,
+                      base::UuidHash>
       uuid_to_update;
 
   for (auto& [parent_uuid, updates] : *updates_per_parent_uuid) {
@@ -317,7 +317,7 @@ NoteModelMerger::RemoteTreeNode& NoteModelMerger::RemoteTreeNode::operator=(
     NoteModelMerger::RemoteTreeNode&&) = default;
 
 void NoteModelMerger::RemoteTreeNode::EmplaceSelfAndDescendantsByUuid(
-    std::unordered_map<base::Uuid, const RemoteTreeNode*, base::UuidHash>*
+    absl::flat_hash_map<base::Uuid, const RemoteTreeNode*, base::UuidHash>*
         uuid_to_remote_node_map) const {
   DCHECK(uuid_to_remote_node_map);
 
@@ -540,21 +540,21 @@ NoteModelMerger::RemoteForest NoteModelMerger::BuildRemoteForest(
 }
 
 // static
-std::unordered_map<base::Uuid, NoteModelMerger::GuidMatch, base::UuidHash>
+absl::flat_hash_map<base::Uuid, NoteModelMerger::GuidMatch, base::UuidHash>
 NoteModelMerger::FindGuidMatchesOrReassignLocal(
     const RemoteForest& remote_forest,
     NoteModelView* notes_model) {
   DCHECK(notes_model);
 
   // Build a temporary lookup table for remote UUIDs.
-  std::unordered_map<base::Uuid, const RemoteTreeNode*, base::UuidHash>
+  absl::flat_hash_map<base::Uuid, const RemoteTreeNode*, base::UuidHash>
       uuid_to_remote_node_map;
   for (const auto& [server_defined_unique_tag, root] : remote_forest) {
     root.EmplaceSelfAndDescendantsByUuid(&uuid_to_remote_node_map);
   }
 
   // Iterate through all local notes to find matches by UUID.
-  std::unordered_map<base::Uuid, NoteModelMerger::GuidMatch, base::UuidHash>
+  absl::flat_hash_map<base::Uuid, NoteModelMerger::GuidMatch, base::UuidHash>
       uuid_to_match_map;
   // Because ReplaceNoteNodeUUID() cannot be used while iterating the local
   // notes model, a temporary list is constructed first to reassign later.

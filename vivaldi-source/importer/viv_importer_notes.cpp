@@ -17,10 +17,10 @@
 #include "chrome/browser/shell_integration.h"
 #include "chrome/common/importer/importer_bridge.h"
 #include "importer/imported_notes_entry.h"
+#include "importer/viv_import_result.h"
 #include "importer/viv_importer.h"
 #include "importer/viv_importer_utils.h"
 #include "importer/viv_opera_reader.h"
-#include "importer/viv_import_result.h"
 #include "ui/base/l10n/l10n_util.h"
 
 class OperaNotesReader : public OperaAdrFileReader {
@@ -31,7 +31,7 @@ class OperaNotesReader : public OperaAdrFileReader {
   OperaNotesReader& operator=(const OperaNotesReader&) = delete;
 
   void AddNote(const std::vector<std::u16string>& current_folder,
-               const base::Value::Dict& entries,
+               const base::DictValue& entries,
                bool is_folder,
                std::u16string* item_name = NULL);
 
@@ -39,7 +39,7 @@ class OperaNotesReader : public OperaAdrFileReader {
 
  protected:
   void HandleEntry(const std::string& category,
-                   const base::Value::Dict& entries) override;
+                   const base::DictValue& entries) override;
 
  private:
   std::vector<std::u16string> current_folder_;
@@ -47,7 +47,7 @@ class OperaNotesReader : public OperaAdrFileReader {
 };
 
 void OperaNotesReader::HandleEntry(const std::string& category,
-                                   const base::Value::Dict& entries) {
+                                   const base::DictValue& entries) {
   if (base::EqualsCaseInsensitiveASCII(category, "folder")) {
     std::u16string foldername;
     AddNote(current_folder_, entries, true, &foldername);
@@ -61,10 +61,9 @@ void OperaNotesReader::HandleEntry(const std::string& category,
 
 void OperaNotesReader::AddNote(
     const std::vector<std::u16string>& current_folder,
-    const base::Value::Dict& entries,
+    const base::DictValue& entries,
     bool is_folder,
     std::u16string* item_name) {
-
   const std::string* url = nullptr;
   if (!is_folder) {
     url = entries.FindString("url");

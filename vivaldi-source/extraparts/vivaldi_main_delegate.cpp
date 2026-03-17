@@ -40,8 +40,7 @@ VivaldiMainDelegate::VivaldiMainDelegate()
 }
 
 #if !BUILDFLAG(IS_ANDROID)
-VivaldiMainDelegate::VivaldiMainDelegate(
-    const StartupTimestamps& timestamps)
+VivaldiMainDelegate::VivaldiMainDelegate(const StartupTimestamps& timestamps)
     : ChromeMainDelegate(timestamps) {}
 #endif
 
@@ -68,8 +67,7 @@ VivaldiMainDelegate::CreateContentBrowserClient() {
 
 std::optional<int> VivaldiMainDelegate::BasicStartupComplete() {
   constexpr const char chromium_version_switch[] = "chromium-version";
-  base::CommandLine& command_line =
-      *base::CommandLine::ForCurrentProcess();
+  base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
 
   if (command_line.HasSwitch(chromium_version_switch)) {
     printf("%s\n", version_info::GetVersionNumber().data());
@@ -86,7 +84,7 @@ std::optional<int> VivaldiMainDelegate::BasicStartupComplete() {
   //!! The kUseAngle switch may be used later. Keep it commented out for now.
   //!!    command_line.AppendSwitchASCII(switches::kUseANGLE,
   //!!                                   gl::kANGLEImplementationOpenGLESName);
-#endif // OEM_MERCEDES_BUILD
+#endif  // OEM_MERCEDES_BUILD
   return ChromeMainDelegateAndroid::BasicStartupComplete();
 #else
 #ifdef VIVALDI_V8_CONTEXT_SNAPSHOT
@@ -105,16 +103,16 @@ std::optional<int> VivaldiMainDelegate::BasicStartupComplete() {
     }
 #else
     path = path.Append(FILE_PATH_LITERAL("vivaldi_v8_context_snapshot.bin"));
-#endif // BUILDFLAG(IS_MAC)
+#endif  // BUILDFLAG(IS_MAC)
 
     base::File file(path, base::File::FLAG_READ | base::File::FLAG_OPEN);
     gin::V8Initializer::LoadV8SnapshotFromFile(
         std::move(file), nullptr,
         gin::V8SnapshotFileType::kWithAdditionalContext);
   }
-#endif // VIVALDI_V8_CONTEXT_SNAPSHOT
+#endif  // VIVALDI_V8_CONTEXT_SNAPSHOT
   return ChromeMainDelegate::BasicStartupComplete();
-#endif // !BUILDFLAG(IS_ANDROID)
+#endif  // !BUILDFLAG(IS_ANDROID)
 }
 
 #if BUILDFLAG(IS_WIN)

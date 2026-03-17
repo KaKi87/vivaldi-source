@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "content/public/browser/render_widget_host_view.h"
 #include "extensions/browser/extension_function.h"
 #include "extensions/schema/web_view_private.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
@@ -46,7 +47,7 @@ class WebViewPrivateGetThumbnailFunction
   ResponseAction Run() override;
   ResponseAction RunImpl(const web_view_private::ThumbnailParams& params);
   void CopyFromBackingStoreComplete(
-      const viz::CopyOutputBitmapWithMetadata& bitmap);
+      const content::CopyFromSurfaceResult& result);
   void ScaleAndEncodeOnWorkerThread(SkBitmap bitmap);
   void SendResult();
 

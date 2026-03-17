@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">Avaa uuteen välilehtinippuun</translation>
 <translation id="1925021887439448749">Syötä oma verkko-osoite</translation>
 <translation id="2038563949887743358">Ota käyttöön ”Käytä työpöytäsivustoa”</translation>
+<translation id="2072027001582274150">Käyttämättömät tai toistuvat välilehdet</translation>
 <translation id="208033313373016095">Verkkosivujen lukunäkymä</translation>
 <translation id="2149973817440762519">Muokkaa kirjanmerkkiä</translation>
 <translation id="2306442503286132111">Kirjanmerkki tallennettu kansioon <ph name="FOLDER_NAME" /></translation>
@@ -46,6 +47,10 @@
 <translation id="385051799172605136">Takaisin</translation>
 <translation id="3987993985790029246">Kopioi linkki</translation>
 <translation id="399014816462153200">Luetut artikkelit:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> välilehti}
+          other {<ph name="TAB_COUNT_MANY" /> välilehteä, <ph name="TAB_COUNT_INCOGNITO" /> yksityistä}}</translation>
+<translation id="408336132633586393">Yksityisikkuna</translation>
 <translation id="4121750346708795461">Käyttämällä sovellusta hyväksyt Vivaldin <ph name="BEGIN_LINK1" />loppukäyttäjän lisenssisopimuksen<ph name="END_LINK1" /> ja <ph name="BEGIN_LINK2" />tietosuojakäytännön<ph name="END_LINK2" />.</translation>
 <translation id="4137746084635924146">Laitteen nykyinen kieli</translation>
 <translation id="4167670741834902166">Uusi yksityisvälilehti</translation>
@@ -55,9 +60,7 @@
 <translation id="4269820728363426813">Kopioi linkin osoite</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Aseta Android-asetuksista näytön lukitus käyttöön<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Salasanahallinta</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {Välilehdet ja ryhmät, joita ei ole käytetty 1 päivään tai pidempään}
-          other {Välilehdet ja ryhmät, joita ei ole käytetty # päivään tai pidempään}}</translation>
+<translation id="441100617989818073">Käyttämättömät tai toistuvat välilehdet ja ryhmät</translation>
 <translation id="451872707440238414">Hae kirjanmerkeistä</translation>
 <translation id="4526803704855831732">Yksityisvälilehdet</translation>
 <translation id="4532845899244822526">Valitse kansio</translation>
@@ -71,6 +74,9 @@ Kosketushaku on ominaisuus, joka on käytettävissä vain kun Google on Vivaldin
 <translation id="4883379392681899581">Poistu yksityistilasta</translation>
 <translation id="4943872375798546930">Ei tuloksia</translation>
 <translation id="49576331685473090">Sisällönesto</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> yksityisvälilehti}
+          other {<ph name="TAB_COUNT_NORMAL" /> yksityisvälilehteä}}</translation>
 <translation id="5079259810715830221">Google-sivuston pyytäessä sivujensa linkkien yksityistä esilatausta Vivaldi salaa ja esilataa sivut evästeittä Googlen palvelimilla. Näin henkilöytesi piilotetaan esiladatulta sivustolta.</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" /> – tallennustila</translation>
 <translation id="5144385790872094440">Jotkin avaamistasi sivuista on esiladattu. Sivut on saatettu esiladata Googlen palvelimien kautta, mikäli ne on avattu Googlen sivustojen tai sovellusten kautta.</translation>
@@ -103,6 +109,7 @@ other {# tiedostoa on ladattu}}</translation>
 <translation id="6909589135458168665">Esilataa sivut</translation>
 <translation id="7029995644714925509">Sivuston pyytäessä sivujensa linkkien yksityistä esilatausta Vivaldi salaa ja esilataa sivut evästeittä Googlen palvelimilla. Näin henkilöytesi piilotetaan esiladatulta sivustolta.</translation>
 <translation id="706339621163631076">Selaimen tietosuojakäytäntö</translation>
+<translation id="7100573672995171864">Mukauta ja hallinnoi Vivaldia</translation>
 <translation id="732145680195464316">Kirjanmerkki tallennettu ohjelmalle <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Lähetä ”Älä jäljitä” ‐pyyntö</translation>
 <translation id="7359002509206457351">Pääsy maksutapoihin</translation>
@@ -124,14 +131,11 @@ other {# tiedostoa on ladattu}}</translation>
 <translation id="8348430946834215779">Käytä HTTPS:ää aina kun mahdollista ja varoita ladattaessa sivuja, jotka eivät tue sitä</translation>
 <translation id="8560602726703398413">Etsi lukulistasi kirjanmerkeistä</translation>
 <translation id="85991616550051997">Avaa kotisivu</translation>
-<translation id="8693232767599693749">Katsotaanko lukutilassa?</translation>
+<translation id="8738163682604285902">Näytetäänkö lukutilassa?</translation>
 <translation id="8820817407110198400">Kirjanmerkit</translation>
 <translation id="9042893549633094279">Yksityisyys ja tietoturva</translation>
 <translation id="9063523880881406963">Poista käytöstä ”Käytä työpöytäsivustoa”</translation>
 <translation id="9080642952018487277">Siirry yksityistilaan</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {Ei käytetty yhteen tai useampaan päivään}
-          other {Ei käytetty # tai useampaan päivään}}</translation>
 <translation id="930124987204876019">Poista historia, evästeet, sivustotiedot, välimuisti…</translation>
 <translation id="961856697154696964">Poista selaustiedot</translation>
 </translationbundle>

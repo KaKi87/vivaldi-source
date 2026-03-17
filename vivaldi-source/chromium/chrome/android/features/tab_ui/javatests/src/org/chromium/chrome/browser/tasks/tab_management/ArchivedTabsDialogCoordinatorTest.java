@@ -56,11 +56,11 @@ import org.chromium.base.Token;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.base.test.util.UserActionTester;
@@ -836,6 +836,7 @@ public class ArchivedTabsDialogCoordinatorTest {
     @Test
     @MediumTest
     @Restriction({DeviceFormFactor.TABLET_OR_DESKTOP, DeviceRestriction.RESTRICTION_TYPE_NON_AUTO})
+    @DisableIf.Device(DeviceFormFactor.DESKTOP) // https://crbug.com/445994927
     // Flaky in automotive, https://crbug.com/462785937
     @Feature({"RenderTest"})
     public void testIphMessageResizedOnTablet() throws IOException {
@@ -863,7 +864,6 @@ public class ArchivedTabsDialogCoordinatorTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_DECLUTTER_ARCHIVE_TAB_GROUPS})
     public void testTabGroupMultiThumbnail_3Tabs_4Tabs_5Tabs() throws IOException {
         ChromeTabbedActivity cta = mCtaTestRule.getActivity();
         when(mTabGroupSyncService.getAllGroupIds())
@@ -884,7 +884,6 @@ public class ArchivedTabsDialogCoordinatorTest {
     @Test
     @MediumTest
     @Feature({"RenderTest"})
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_DECLUTTER_ARCHIVE_TAB_GROUPS})
     public void testTabGroupMultiThumbnail_SelectableBackgroundColor() throws IOException {
         ChromeTabbedActivity cta = mCtaTestRule.getActivity();
         when(mTabGroupSyncService.getAllGroupIds())
@@ -910,7 +909,6 @@ public class ArchivedTabsDialogCoordinatorTest {
 
     @Test
     @MediumTest
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_DECLUTTER_ARCHIVE_TAB_GROUPS})
     public void testCloseAllArchivedTabs_WithSyncedTabGroups() {
         when(mTabGroupSyncService.getAllGroupIds()).thenReturn(new String[] {SYNC_GROUP_ID1});
         SavedTabGroup savedTabGroup =
@@ -946,7 +944,6 @@ public class ArchivedTabsDialogCoordinatorTest {
 
     @Test
     @MediumTest
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_DECLUTTER_ARCHIVE_TAB_GROUPS})
     public void testSelectCloseArchivedTabs_WithSyncedTabGroups_AndUndo() {
         SnackbarManager snackbarManager = mCtaTestRule.getActivity().getSnackbarManager();
         when(mTabGroupSyncService.getAllGroupIds()).thenReturn(new String[] {SYNC_GROUP_ID1});
@@ -1005,7 +1002,6 @@ public class ArchivedTabsDialogCoordinatorTest {
 
     @Test
     @MediumTest
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_DECLUTTER_ARCHIVE_TAB_GROUPS})
     public void testSelectCloseArchivedTabGroup_AndUndo() {
         SnackbarManager snackbarManager = mCtaTestRule.getActivity().getSnackbarManager();
         when(mTabGroupSyncService.getAllGroupIds()).thenReturn(new String[] {SYNC_GROUP_ID1});
@@ -1058,7 +1054,6 @@ public class ArchivedTabsDialogCoordinatorTest {
 
     @Test
     @MediumTest
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_DECLUTTER_ARCHIVE_TAB_GROUPS})
     public void testSelectCloseArchivedTabGroups_AndUndo() {
         SnackbarManager snackbarManager = mCtaTestRule.getActivity().getSnackbarManager();
         when(mTabGroupSyncService.getAllGroupIds())
@@ -1125,7 +1120,6 @@ public class ArchivedTabsDialogCoordinatorTest {
 
     @Test
     @MediumTest
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_DECLUTTER_ARCHIVE_TAB_GROUPS})
     public void testSelectAllCloseArchivedTabs_WithSyncedTabGroups() {
         when(mTabGroupSyncService.getAllGroupIds()).thenReturn(new String[] {SYNC_GROUP_ID1});
         SavedTabGroup savedTabGroup =
@@ -1169,7 +1163,6 @@ public class ArchivedTabsDialogCoordinatorTest {
 
     @Test
     @MediumTest
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_DECLUTTER_ARCHIVE_TAB_GROUPS})
     public void testRestoreAllInactiveTabs_WithSyncedTabGroups() {
         when(mTabGroupSyncService.getAllGroupIds()).thenReturn(new String[] {SYNC_GROUP_ID1});
         SavedTabGroup savedTabGroup =
@@ -1213,7 +1206,6 @@ public class ArchivedTabsDialogCoordinatorTest {
 
     @Test
     @MediumTest
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_DECLUTTER_ARCHIVE_TAB_GROUPS})
     public void testSelectionModeMenuItem_RestoreTabGroups() {
         when(mTabGroupSyncService.getAllGroupIds()).thenReturn(new String[] {SYNC_GROUP_ID1});
         SavedTabGroup savedTabGroup =
@@ -1262,7 +1254,6 @@ public class ArchivedTabsDialogCoordinatorTest {
 
     @Test
     @MediumTest
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_DECLUTTER_ARCHIVE_TAB_GROUPS})
     public void testCloseArchivedTabGroup_PressCloseButton() {
         when(mTabGroupSyncService.getAllGroupIds()).thenReturn(new String[] {SYNC_GROUP_ID1});
         SavedTabGroup savedTabGroup =
@@ -1301,7 +1292,6 @@ public class ArchivedTabsDialogCoordinatorTest {
 
     @Test
     @MediumTest
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_DECLUTTER_ARCHIVE_TAB_GROUPS})
     public void testRestoreArchivedTabGroup_ClickIntoTabGroup() {
         when(mTabGroupSyncService.getAllGroupIds()).thenReturn(new String[] {SYNC_GROUP_ID1});
         SavedTabGroup savedTabGroupInitial =
@@ -1347,7 +1337,6 @@ public class ArchivedTabsDialogCoordinatorTest {
 
     @Test
     @MediumTest
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_DECLUTTER_ARCHIVE_TAB_GROUPS})
     public void testTabListEditorExitSelectableState_OnRemoteGroupDeleted() {
         when(mTabGroupSyncService.getAllGroupIds()).thenReturn(new String[] {SYNC_GROUP_ID1});
         SavedTabGroup savedTabGroup =
@@ -1388,7 +1377,6 @@ public class ArchivedTabsDialogCoordinatorTest {
 
     @Test
     @MediumTest
-    @EnableFeatures({ChromeFeatureList.ANDROID_TAB_DECLUTTER_ARCHIVE_TAB_GROUPS})
     public void testTabListEditorTabGroupTitleUpdated_OnRemoteModification() {
         when(mTabGroupSyncService.getAllGroupIds()).thenReturn(new String[] {SYNC_GROUP_ID1});
         SavedTabGroup savedTabGroup =

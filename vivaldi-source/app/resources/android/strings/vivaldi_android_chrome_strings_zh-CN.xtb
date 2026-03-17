@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">在新标签栈中打开</translation>
 <translation id="1925021887439448749">输入自定义网址</translation>
 <translation id="2038563949887743358">开启“请求切换到桌面版网站”</translation>
+<translation id="2072027001582274150">未使用或重复的标签页</translation>
 <translation id="208033313373016095">阅读器视图</translation>
 <translation id="2149973817440762519">编辑书签</translation>
 <translation id="2306442503286132111">书签已保存至 <ph name="FOLDER_NAME" /> 文件夹</translation>
@@ -46,6 +47,10 @@
 <translation id="385051799172605136">后退</translation>
 <translation id="3987993985790029246">复制链接</translation>
 <translation id="399014816462153200">阅读文章：</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> 个标签页}
+          other {<ph name="TAB_COUNT_MANY" /> 个标签页，<ph name="TAB_COUNT_INCOGNITO" /> 个隐身}}</translation>
+<translation id="408336132633586393">隐身窗口</translation>
 <translation id="4121750346708795461">使用此应用即表示您同意遵守 Vivaldi 的<ph name="BEGIN_LINK1" />最终用户许可协议<ph name="END_LINK1" />和<ph name="BEGIN_LINK2" />隐私政策<ph name="END_LINK2" />。</translation>
 <translation id="4137746084635924146">当前设备所用语言</translation>
 <translation id="4167670741834902166">新建隐身标签</translation>
@@ -55,9 +60,7 @@
 <translation id="4269820728363426813">复制链接地址</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />在安卓设置中开启“屏幕锁定”功能<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">密码管理器</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {标签或标签组已1天或更久未使用}
-          other {标签或标签组已#天或更久未使用}}</translation>
+<translation id="441100617989818073">未使用或重复的标签页和组</translation>
 <translation id="451872707440238414">搜索书签</translation>
 <translation id="4526803704855831732">隐身标签页</translation>
 <translation id="4532845899244822526">选择文件夹</translation>
@@ -71,12 +74,15 @@
 <translation id="4883379392681899581">离开隐身模式</translation>
 <translation id="4943872375798546930">无结果</translation>
 <translation id="49576331685473090">内容拦截器</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> 个隐身标签页}
+          other {<ph name="TAB_COUNT_NORMAL" /> 个隐身标签页}}</translation>
 <translation id="5079259810715830221">当谷歌网站在其页面上要求加密预下载链接内容时，Vivaldi 将通过谷歌服务器加密和预加载页面而不使用 Cookie。这将对预加载页面隐藏您的身份。</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" /> 存储空间</translation>
 <translation id="5144385790872094440">预加载您访问的部分网页。从 Google 网站或应用链接到的网页可能会通过 Google 服务器预加载。</translation>
-<translation id="5186185447130319458">隐身模式</translation>
+<translation id="5186185447130319458">隐身</translation>
 <translation id="5206168361184759344">{FILE_COUNT, plural,
-            =1 {1个文件正在下载…
+            =1 {1个文件正在下载…}
             other {# 个文件正在下载 …}}</translation>
 <translation id="5233638681132016545">新建标签</translation>
 <translation id="5375131951310889874">解读网站上某些关键字无需离开页面，您可以直接即触即搜。只有将谷歌搜索设置为默认搜索引擎时才能使用即触即搜功能。它将单词及其附近的上下文发送到谷歌搜索，返回定义、图片、搜索结果和其他详细信息。
@@ -103,6 +109,7 @@
 <translation id="6909589135458168665">预加载网页</translation>
 <translation id="7029995644714925509">当某个网站在其页面上要求加密预下载链接内容时，Vivaldi 将通过谷歌服务器加密和预加载页面而不使用 Cookie。这将对预加载页面隐藏您的身份。</translation>
 <translation id="706339621163631076">浏览器隐私政策</translation>
+<translation id="7100573672995171864">定制和控制 Vivaldi</translation>
 <translation id="732145680195464316">书签已保存至 <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">发送“不许跟踪”请求</translation>
 <translation id="7359002509206457351">访问付款方式</translation>
@@ -124,14 +131,11 @@
 <translation id="8348430946834215779">尽可能使用 HTTPS，并在加载不支持 HTTPS 的网站前收到警告</translation>
 <translation id="8560602726703398413">您可在书签中找到自己的阅读清单</translation>
 <translation id="85991616550051997">前往首页</translation>
-<translation id="8693232767599693749">查看阅读模式吗？</translation>
+<translation id="8738163682604285902">查看阅读模式？</translation>
 <translation id="8820817407110198400">书签</translation>
 <translation id="9042893549633094279">隐私与安全</translation>
 <translation id="9063523880881406963">关闭“请求切换到桌面版网站”</translation>
 <translation id="9080642952018487277">进入隐身模式</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {1 天或更久未使用}
-          other { # 天或更久未使用}}</translation>
 <translation id="930124987204876019">删除历史记录、Cookie、网站数据、缓存内容…</translation>
 <translation id="961856697154696964">删除浏览数据</translation>
 </translationbundle>

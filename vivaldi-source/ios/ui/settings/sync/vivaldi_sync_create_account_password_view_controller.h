@@ -22,11 +22,12 @@
 
 @end
 
-@interface VivaldiSyncCreateAccountPasswordViewController :
-    SettingsRootTableViewController
+@interface VivaldiSyncCreateAccountPasswordViewController
+    : SettingsRootTableViewController
 
 @property(nonatomic, weak)
-    id<VivaldiSyncCreateAccountPasswordViewControllerDelegate> delegate;
+    id<VivaldiSyncCreateAccountPasswordViewControllerDelegate>
+        delegate;
 
 - (instancetype)initWithModalPageHandler:(id<ModalPageCommands>)modalPageHandler
                                    style:(UITableViewStyle)style

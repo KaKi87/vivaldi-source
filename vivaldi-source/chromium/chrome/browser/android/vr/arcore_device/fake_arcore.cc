@@ -4,7 +4,6 @@
 
 #include "chrome/browser/android/vr/arcore_device/fake_arcore.h"
 
-#include "base/containers/contains.h"
 #include "base/numerics/angle_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "device/vr/public/mojom/anchor_id.h"
@@ -40,13 +39,11 @@ std::optional<ArCore::InitializeResult> FakeArCore::Initialize(
   enabled_features.insert(optional_features.begin(), optional_features.end());
 
   // Fake device does not support depth for now:
-  if (base::Contains(required_features,
-                     device::mojom::XRSessionFeature::DEPTH)) {
+  if (required_features.contains(device::mojom::XRSessionFeature::DEPTH)) {
     return std::nullopt;
   }
 
-  if (base::Contains(optional_features,
-                     device::mojom::XRSessionFeature::DEPTH)) {
+  if (optional_features.contains(device::mojom::XRSessionFeature::DEPTH)) {
     enabled_features.erase(device::mojom::XRSessionFeature::DEPTH);
   }
 
@@ -291,7 +288,7 @@ mojom::XRPlaneDetectionDataPtr FakeArCore::GetDetectedPlanesData() {
 
   result.push_back(
       mojom::XRPlaneData::New(PlaneId(1), mojom::XRPlaneOrientation::HORIZONTAL,
-                              pose, std::move(vertices)));
+                              pose, std::nullopt, std::move(vertices)));
 
   return mojom::XRPlaneDetectionData::New(std::vector<PlaneId>{PlaneId(1)},
                                           std::move(result));

@@ -12,11 +12,12 @@
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
-#include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/collaboration_messaging_tab_data.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_metrics.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/tab_group_action_context_desktop.h"
+#include "chrome/browser/ui/tabs/tab_group_attention_indicator.h"
+#include "chrome/browser/ui/tabs/tab_group_features.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/views/data_sharing/collaboration_controller_delegate_desktop.h"
@@ -124,8 +125,13 @@ void CollaborationMessagingObserver::HandleDirtyTabGroup(
 
   if (Browser* browser = SavedTabGroupUtils::GetBrowserWithTabGroupId(
           local_tab_group_id.value())) {
-    browser->tab_strip_model()->SetTabGroupNeedsAttention(
-        local_tab_group_id.value(), display == MessageDisplayStatus::kDisplay);
+    TabGroup* tab_group =
+        browser->tab_strip_model()->group_model()->GetTabGroup(
+            local_tab_group_id.value());
+    if (tab_group) {
+      tab_group->GetTabGroupFeatures()->attention_indicator()->SetHasAttention(
+          display == MessageDisplayStatus::kDisplay);
+    }
   }
 }
 
@@ -155,10 +161,9 @@ void CollaborationMessagingObserver::HandleChip(PersistentMessage message,
   if (tabs::TabInterface* tab = SavedTabGroupUtils::GetGroupedTab(
           tab_info->local_tab_group_id, tab_info->local_tab_id)) {
     if (display == MessageDisplayStatus::kDisplay) {
-      tab->GetTabFeatures()->collaboration_messaging_tab_data()->SetMessage(
-          message);
+      tab_groups::CollaborationMessagingTabData::From(tab)->SetMessage(message);
     } else {
-      tab->GetTabFeatures()->collaboration_messaging_tab_data()->ClearMessage(
+      tab_groups::CollaborationMessagingTabData::From(tab)->ClearMessage(
           message);
     }
   }

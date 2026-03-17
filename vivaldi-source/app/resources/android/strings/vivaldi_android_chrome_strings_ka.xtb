@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">გახსნა ახალი ჩანართების ნაკრებში</translation>
 <translation id="1925021887439448749">შეიყვანეთ მორგებული ვებ-მისამართი</translation>
 <translation id="2038563949887743358">საიტის სრული ვერსიის მოთხოვნის ჩართვა</translation>
+<translation id="2072027001582274150">გამოუყენებელი, ან დუბლირებული ჩანართები</translation>
 <translation id="208033313373016095">მკითხველის ხედი ვებგვერდებისთვის</translation>
 <translation id="2149973817440762519">სანიშნეს ჩასწორება</translation>
 <translation id="2306442503286132111">სანიშნე შენახულია საქაღალდეში <ph name="FOLDER_NAME" /></translation>
@@ -46,6 +47,10 @@
 <translation id="385051799172605136">უკან</translation>
 <translation id="3987993985790029246">ბმულის კოპირება</translation>
 <translation id="399014816462153200">წაკითხული სტატიები:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> ჩანართი}
+          other {<ph name="TAB_COUNT_MANY" /> ჩანართი, <ph name="TAB_COUNT_INCOGNITO" /> პირადი}}</translation>
+<translation id="408336132633586393">პირადი ფანჯარა</translation>
 <translation id="4121750346708795461">ამ აპლიკაციის გამოყენებით თქვენ ეთანხმებით Vivaldi-ის <ph name="BEGIN_LINK1" />საბოლოო მომხმარებლის სალიცენზიო შეთანხმებას<ph name="END_LINK1" /> და <ph name="BEGIN_LINK2" />კონფიდენციალობის პოლიტიკას<ph name="END_LINK2" />.</translation>
 <translation id="4137746084635924146">მოწყობილობის ამჟამინდელი ენა</translation>
 <translation id="4167670741834902166">ახალი კონფიდენციალური ჩანართი</translation>
@@ -55,9 +60,7 @@
 <translation id="4269820728363426813">ბმულის მისამართის კოპირება</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />ეკრანის დაბლოკვის ჩართვა Android-ის პარამეტრებიდან<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">პაროლების მმართველი</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {ჩანართები და ჯგუფები, რომლებიც 1 ან მეტი დღეა, არ გამოიყენება}
-          other {ჩანართები და ჯგუფები, რომლებიც 1 ან მეტი დღეა, არ გამოიყენება}}</translation>
+<translation id="441100617989818073">გამოუყენებელი, ან დუბლირებული ჩანართები და ჯგუფები</translation>
 <translation id="451872707440238414">სანიშნეებში ძიება</translation>
 <translation id="4526803704855831732">კონფიდენციალური ჩანართები</translation>
 <translation id="4532845899244822526">აირჩიეთ საქაღალდე</translation>
@@ -71,6 +74,9 @@
 <translation id="4883379392681899581">კონფიდენციალური რეჟიმიდან გასვლა</translation>
 <translation id="4943872375798546930">შედეგების გარეშე</translation>
 <translation id="49576331685473090">შემცველობის მბლოკავი</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> პირადი ჩანართი}
+          other {<ph name="TAB_COUNT_NORMAL" /> პირადი ჩანართი}}</translation>
 <translation id="5079259810715830221">როცა Google-ის საიტი გვერდზე არსებული ბმულების წინასწარ ჩატვირთვას მოითხოვს, Vivaldi დაშიფრავს და წინასწარ ჩატვირთავს გვერდებს Google-ის სერვერების გავლით, ქუქიების გარეშე, რათა წინასწარ-ჩატვირთული ვებგვერდისგან თქვენი იდენტიფიკაცია დამალოს.</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" /> საცავი</translation>
 <translation id="5144385790872094440">თქვენ მიერ მონახულებული ზოგიერთი გვერდი წინასწარ ჩატვირთულია. გვერდები შეიძლება წინასწარ იტვირთებოდეს Google-ის სერვერების მეშვეობით, როცა მიბმულია Google საიტთან ან აპთან.</translation>
@@ -103,6 +109,7 @@
 <translation id="6909589135458168665">გვერდების წინასწარ ჩატვირთვა</translation>
 <translation id="7029995644714925509">როცა საიტი გვერდზე არსებული ბმულების წინასწარ ჩატვირთვას მოითხოვს, Vivaldi დაშიფრავს და წინასწარ ჩატვირთავს გვერდებს Google-ის სერვერების გავლით, ქუქიების გარეშე, რათა წინასწარ-ჩატვირთული ვებგვერდისგან თქვენი იდენტიფიკაცია დამალოს.</translation>
 <translation id="706339621163631076">ბრაუზერის კონფიდენციალობის პოლიტიკა</translation>
+<translation id="7100573672995171864">მოირგეთ და მართეთ Vivaldi</translation>
 <translation id="732145680195464316">სანიშნე შენახულია <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">„Do Not Track“ მოთხოვნის გაგზავნა</translation>
 <translation id="7359002509206457351">წვდომა გადახდის მეთოდებზე</translation>
@@ -124,14 +131,11 @@
 <translation id="8348430946834215779">HTTPS-ის გამოყენება, როცა ეს შესაძლებელია და გაფრთხილება იმ საიტების ჩატვირთვამდე, რომლებსაც მისი მხარდაჭერა არ გააჩნია</translation>
 <translation id="8560602726703398413">თქვენი საკითხავი სია სანიშნეებშია</translation>
 <translation id="85991616550051997">საწყის გვერდზე გადასვლა</translation>
-<translation id="8693232767599693749">ნახავთ კითხვის რეჟიმს?</translation>
+<translation id="8738163682604285902">ჩაირთოს კითხვის რეჟიმი?</translation>
 <translation id="8820817407110198400">სანიშნეები</translation>
 <translation id="9042893549633094279">კონფიდენციალობა და უსაფრთხოება</translation>
 <translation id="9063523880881406963">საიტის სრული ვერსიის მოთხოვნის გამორთვა</translation>
 <translation id="9080642952018487277">ინკოგნიტო რეჟიმში გადასვლა</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {არ გამოიყენება 1 ან მეტი დღის განმავლობაში}
-          other {არ გამოიყენება # ან მეტი დღის განმავლობაში}}</translation>
 <translation id="930124987204876019">ისტორიის, ქუქი-ჩანაწერების, საიტის მონაცემების, კეშის წაშლა…</translation>
 <translation id="961856697154696964">ბრაუზერის მონაცემების წაშლა</translation>
 </translationbundle>

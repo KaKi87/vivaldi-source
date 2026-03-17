@@ -19,22 +19,22 @@
 - (instancetype)initWithFrame:(CGRect)rect;
 
 // DELEGATE
-@property (nonatomic, weak) id<VivaldiSpeedDialContainerDelegate> delegate;
+@property(nonatomic, weak) id<VivaldiSpeedDialContainerDelegate> delegate;
 
 // SETTERS
 - (void)configureActionFactory:(BrowserActionFactory*)actionFactory;
 - (void)configureWith:(NSArray*)speedDials
-               parent:(VivaldiSpeedDialItem*)parent
-        faviconLoader:(FaviconLoader*)faviconLoader
-   directMatchService:(direct_match::DirectMatchService*)directMatchService
-          layoutStyle:(VivaldiStartPageLayoutStyle)style
-         layoutColumn:(VivaldiStartPageLayoutColumn)column
-         showAddGroup:(BOOL)showAddGroup
-    frequentlyVisited:(BOOL)frequentlyVisited
-    topSitesAvailable:(BOOL)topSitesAvailable
-     topToolbarHidden:(BOOL)topToolbarHidden
-    verticalSizeClass:(UIUserInterfaceSizeClass)verticalSizeClass
-            wallpaper:(UIImage*)wallpaper;
+                parent:(VivaldiSpeedDialItem*)parent
+         faviconLoader:(FaviconLoader*)faviconLoader
+    directMatchService:(direct_match::DirectMatchService*)directMatchService
+           layoutStyle:(VivaldiStartPageLayoutStyle)style
+          layoutColumn:(VivaldiStartPageLayoutColumn)column
+          showAddGroup:(BOOL)showAddGroup
+     frequentlyVisited:(BOOL)frequentlyVisited
+     topSitesAvailable:(BOOL)topSitesAvailable
+      topToolbarHidden:(BOOL)topToolbarHidden
+     verticalSizeClass:(UIUserInterfaceSizeClass)verticalSizeClass
+             wallpaper:(UIImage*)wallpaper;
 - (void)reloadLayoutWithStyle:(VivaldiStartPageLayoutStyle)style
                  layoutColumn:(VivaldiStartPageLayoutColumn)column;
 - (void)setCurrentPage:(NSInteger)page;

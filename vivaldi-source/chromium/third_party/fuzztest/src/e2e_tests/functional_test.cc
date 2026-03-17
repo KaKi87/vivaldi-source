@@ -803,7 +803,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 
   auto replay_files = ReadFileOrDirectory(out_dir.path().c_str());
   ASSERT_EQ(replay_files.size(), 1) << std_err;
-  auto parsed = IRObject::FromString(replay_files[0].data);
+  auto parsed = ParseIRObject(replay_files[0].data);
   ASSERT_TRUE(parsed) << std_err;
   auto args = parsed->ToCorpus<std::tuple<std::string>>();
   EXPECT_THAT(args, Optional(FieldsAre(StartsWith("Fuzz")))) << std_err;
@@ -826,7 +826,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 
   auto replay_files = ReadFileOrDirectory(out_dir.path().c_str());
   ASSERT_EQ(replay_files.size(), 1) << std_err;
-  auto parsed = IRObject::FromString(replay_files[0].data);
+  auto parsed = ParseIRObject(replay_files[0].data);
   ASSERT_TRUE(parsed) << std_err;
   auto args = parsed->ToCorpus<std::tuple<std::string>>();
   EXPECT_THAT(args, Optional(FieldsAre(StartsWith("Fuzz")))) << std_err;
@@ -984,7 +984,8 @@ class ReplayFile {
   template <typename T>
   ReplayFile(std::in_place_t, const T& corpus) {
     filename_ = dir_.path() / "replay_file";
-    WriteFile(filename_, internal::IRObject::FromCorpus(corpus).ToString());
+    WriteFile(filename_,
+              SerializeIRObject(internal::IRObject::FromCorpus(corpus)));
   }
 
   auto GetReplayEnv() const {
@@ -1037,7 +1038,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
 
   auto replay_files = ReadFileOrDirectory(out_dir.path().c_str());
   ASSERT_EQ(replay_files.size(), 1) << std_err;
-  auto parsed = IRObject::FromString(replay_files[0].data);
+  auto parsed = ParseIRObject(replay_files[0].data);
   ASSERT_TRUE(parsed) << std_err;
   auto args = parsed->ToCorpus<std::tuple<uint8_t, double>>();
   EXPECT_THAT(args, Optional(FieldsAre(10, _))) << std_err;
@@ -1077,7 +1078,7 @@ TEST_F(FuzzingModeCommandLineInterfaceTest, MinimizerFindsSmallerInput) {
 
     auto replay_files = ReadFileOrDirectory(out_dir.path().c_str());
     ASSERT_EQ(replay_files.size(), 1) << std_err;
-    auto parsed = IRObject::FromString(replay_files[0].data);
+    auto parsed = ParseIRObject(replay_files[0].data);
     ASSERT_TRUE(parsed) << std_err;
     auto args = parsed->ToCorpus<std::tuple<std::string>>();
     ASSERT_THAT(args, Optional(FieldsAre(HasSubstr("X"))));
@@ -1263,6 +1264,41 @@ TEST_F(FuzzingModeCommandLineInterfaceTest,
   EXPECT_THAT_LOG(std_err, HasSubstr("Running Centipede command"));
   EXPECT_THAT_LOG(std_err, HasSubstr("FuzzTest.AlwaysPasses"));
   EXPECT_THAT(status, Eq(ExitCode(0)));
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       FailsTestForSetupFailureWithoutCorpusDatabase) {
+#ifndef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP() << "Skipping Centipede-specific test";
+#endif
+  const auto [status_unused, std_out, std_err] = RunWith(
+      {
+          {"fuzz_for", "10s"},
+          {"fuzz", "FaultySetupTest.NoOp"},
+      },
+      {}, absl::Seconds(10), kDefaultTargetBinary);
+  EXPECT_THAT_LOG(std_out, HasSubstr("[  FAILED  ] FaultySetupTest.NoOp"))
+      << "\nstd_err:\n"
+      << std_err;
+}
+
+TEST_F(FuzzingModeCommandLineInterfaceTest,
+       FailsTestForSetupFailureWithCorpusDatabase) {
+#ifndef FUZZTEST_USE_CENTIPEDE
+  GTEST_SKIP() << "Skipping Centipede-specific test";
+#endif
+  TempDir corpus_database;
+  const auto [status_unused, std_out, std_err] = RunWith(
+      {
+          {"corpus_database", corpus_database.path()},
+          {"fuzz_for", "10s"},
+          {"fuzz", "FaultySetupTest.NoOp"},
+          {"execution_id", "some_execution_id"},
+      },
+      {}, absl::Seconds(10), kDefaultTargetBinary);
+  EXPECT_THAT_LOG(std_out, HasSubstr("[  FAILED  ] FaultySetupTest.NoOp"))
+      << "\nstd_err:\n"
+      << std_err;
 }
 
 enum class ExecutionModelParam {
@@ -1926,6 +1962,31 @@ TEST_P(FuzzingModeCrashFindingTest,
 
   EXPECT_THAT(ReadFile(crash_metadata_path),
               Optional(Eq("SETUP FAILURE: SIGABRT")));
+}
+
+TEST_P(FuzzingModeCrashFindingTest, HandlesUnexpectedExit) {
+  TempDir out_dir;
+  const std::string crash_metadata_path = out_dir.path() / "crash_metadata";
+  auto [status, std_out, std_err] =
+      Run("MySuite.UnexpectedlyExits", kDefaultTargetBinary,
+          {{"FUZZTEST_CRASH_METADATA_PATH", crash_metadata_path}});
+
+  EXPECT_THAT(ReadFile(crash_metadata_path), Optional(Eq("unexpected-exit")));
+  ExpectTargetAbort(status, std_err);
+}
+
+TEST_P(FuzzingModeCrashFindingTest,
+       HandlesUnexpectedImmediateExitWithoutCleanup) {
+#ifndef FUZZTEST_USE_CENTIPEDE
+  // We can't intercept `std::_Exit()` from within a process. We can only do it
+  // with Centipede as an external controller.
+  GTEST_SKIP() << "Skipping Centipede-specific test";
+#endif
+  auto [status, std_out, std_err] =
+      Run("MySuite.UnexpectedlyImmediatelyExitsWithoutCleanup");
+  EXPECT_THAT_LOG(std_err,
+                  ContainsRegex(R"re(Failure\s*:\s+unexpected-termination)re"));
+  EXPECT_THAT(status, Ne(ExitCode(0)));
 }
 
 TEST_P(FuzzingModeCrashFindingTest,

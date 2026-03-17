@@ -2,7 +2,6 @@
 <!DOCTYPE translationbundle>
 <translationbundle lang="gd">
 <translation id="1127811143501539442">{DAYS, plural, one {# latha air ais} two {# latha air ais} few {# làithean air ais} other {# latha air ais}}</translation>
-<translation id="1156623771253174079">{MINUTES, plural, one {# mhionaid air ais} two {# mhionaid air ais} few {# mionaidean air ais} other {# mionaid air ais}}</translation>
 <translation id="1368832886055348810">Clì gu deas</translation>
 <translation id="1591184457164800433">{MINUTES, plural, one {# mhionaid agus } two {# mhionaid agus } few {# mionaidean agus } other {# mionaid agus }}</translation>
 <translation id="1752946267035950200">{MINUTES, plural, one {# mhionaid} two {# mhionaid} few {# mionaidean} other {# mionaid}}</translation>

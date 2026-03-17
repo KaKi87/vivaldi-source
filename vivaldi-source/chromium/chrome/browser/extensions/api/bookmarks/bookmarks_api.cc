@@ -36,6 +36,7 @@
 #include "components/bookmarks/browser/bookmark_utils.h"
 #include "components/bookmarks/common/bookmark_metrics.h"
 #include "components/bookmarks/managed/managed_bookmark_service.h"
+#include "components/url_formatter/url_fixer.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/web_contents.h"
@@ -59,6 +60,22 @@ using bookmarks::ManagedBookmarkService;
 
 namespace extensions {
 
+namespace {
+
+// Bookmarks are created or updated via `chrome.bookmarks` extension API on the
+// bookmarks webui page.
+// However, the URLs specified by users may contain certain content that we
+// intend to fix. For example, replacing the scheme `about://` with `chrome://`.
+// After these URLs are fixed, their behavior will be fully consistent with that
+// of the bookmark bar, and this prevents `DCHECK` assertion failure caused by
+// parsing the `about://` scheme.
+// See https://crbug.com/402056130
+GURL FixupURL(const std::string& url_string) {
+  return url_formatter::FixupURL(url_string);
+}
+
+}  // namespace
+
 using api::bookmarks::BookmarkTreeNode;
 using api::bookmarks::CreateDetails;
 using content::BrowserContext;
@@ -80,7 +97,7 @@ BookmarkEventRouter::~BookmarkEventRouter() {
 
 void BookmarkEventRouter::DispatchEvent(events::HistogramValue histogram_value,
                                         const std::string& event_name,
-                                        base::Value::List event_args) {
+                                        base::ListValue event_args) {
   EventRouter* event_router = EventRouter::Get(browser_context_);
   if (event_router) {
     event_router->BroadcastEvent(std::make_unique<extensions::Event>(
@@ -543,6 +560,7 @@ ExtensionFunction::ResponseValue BookmarksRemoveFunctionBase::RunOnReady() {
     }
     return NoArguments();
   }
+  // End Vivaldi
 
   ManagedBookmarkService* managed = GetManagedBookmarkService();
   if (!bookmarks_helpers::RemoveNode(model, managed, id, is_recursive(),
@@ -706,7 +724,7 @@ const BookmarkNode* BookmarksCreateFunction::CreateBookmarkNode(
 
   const BookmarkNode* node;
   if (url_string.length()) {
-    node = model->AddNewURL(parent, index, title, url, vivaldi_meta.map());
+    node = model->AddNewURL(parent, index, title, FixupURL(url_string), vivaldi_meta.map());
   } else {
     node = model->AddFolder(parent, index, title, vivaldi_meta.map());
     model->SetDateFolderModified(parent, base::Time::Now());
@@ -833,7 +851,7 @@ ExtensionFunction::ResponseValue BookmarksUpdateFunction::RunOnReady() {
         params->changes.thumbnail.has_value()) {
       return Error(kVivaldiReservedApiError);
     }
-  }
+  } // End Vivaldi
 
   // Optional.
   std::string url_string;
@@ -877,16 +895,18 @@ ExtensionFunction::ResponseValue BookmarksUpdateFunction::RunOnReady() {
       return Error("partner is not a valid GUID" + *params->changes.partner);
     }
   }
+  // End Vivaldi
 
   if (has_title) {
     model->SetTitle(node, title,
                     bookmarks::metrics::BookmarkEditSource::kExtension);
   }
   if (!url.is_empty()) {
-    model->SetURL(node, url,
+    model->SetURL(node, FixupURL(url_string),
                   bookmarks::metrics::BookmarkEditSource::kExtension);
   }
 
+  // Vivaldi
   vivaldi_bookmark_kit::CustomMetaInfo vivaldi_meta;
   const BookmarkNode::MetaInfoMap *old_meta_info = node->GetMetaInfoMap();
   if (old_meta_info) {
@@ -914,6 +934,7 @@ ExtensionFunction::ResponseValue BookmarksUpdateFunction::RunOnReady() {
     vivaldi_meta.SetDisplayUrl(GURL());
   }
   model->SetNodeMetaInfoMap(node, *vivaldi_meta.map());
+  // End Vivaldi
 
   BookmarkTreeNode tree_node = bookmarks_helpers::GetBookmarkTreeNode(
       GetBookmarkModel(), GetManagedBookmarkService(), node,

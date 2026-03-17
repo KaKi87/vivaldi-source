@@ -51,7 +51,7 @@
 <translation id="176587472219019965">&amp;Nytt vindu</translation>
 <translation id="1769104665586091481">Åpne lenken i nytt &amp;vindu</translation>
 <translation id="1779468444204342338">Minimum</translation>
-<translation id="1805822111539868586">Undersøk utvidelsesvinduer</translation>
+<translation id="1805822111539868586">Inspiser visninger</translation>
 <translation id="1815083418640426271">Lim inn som ren tekst</translation>
 <translation id="1828901632669367785">Skriv ut med systemvindu...</translation>
 <translation id="1843048149176045210">Kopier nedlastingslenke</translation>
@@ -303,7 +303,6 @@
 <translation id="5624959475330585145">Spør før bruk av usikre tilkoblinger</translation>
 <translation id="5638309510554459422">Finn utvidelser og temaer i <ph name="BEGIN_LINK" />Chrome Nettmarked<ph name="END_LINK" /></translation>
 <translation id="5677928146339483299">Blokkert</translation>
-<translation id="5707185214361380026">Kunne ikke laste inn utvidelse fra:</translation>
 <translation id="5713171467967533494">Åpne i Vivaldi-nettleseren</translation>
 <translation id="5746169159649715125">Lagre som PDF</translation>
 <translation id="5747809636523347288">Lim inn og gå til <ph name="URL" /></translation>

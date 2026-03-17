@@ -7,25 +7,28 @@ package org.chromium.chrome.browser.feed;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundImageType.CHROME_COLOR;
-import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundImageType.IMAGE_FROM_DISK;
+import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType.CHROME_COLOR;
+import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType.IMAGE_FROM_DISK;
 
 import android.app.Activity;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Matrix;
+import android.graphics.Point;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -48,15 +51,14 @@ import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.robolectric.Robolectric;
 import org.robolectric.annotation.Config;
-import org.robolectric.shadows.ShadowLog;
 import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.ActivityState;
 import org.chromium.base.ApplicationStatus;
-import org.chromium.base.Callback;
 import org.chromium.base.LocaleUtils;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
@@ -70,6 +72,7 @@ import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.ntp.NewTabPageLaunchOrigin;
 import org.chromium.chrome.browser.ntp.cards.SignInPromo;
 import org.chromium.chrome.browser.ntp_customization.NtpCustomizationConfigManager;
+import org.chromium.chrome.browser.ntp_customization.policy.NtpCustomizationPolicyManager;
 import org.chromium.chrome.browser.ntp_customization.theme.NtpBackgroundImageCoordinator;
 import org.chromium.chrome.browser.ntp_customization.theme.upload_image.BackgroundImageInfo;
 import org.chromium.chrome.browser.preferences.Pref;
@@ -119,7 +122,7 @@ import java.util.function.Supplier;
     ChromeFeatureList.FEED_CONTAINMENT,
     ChromeFeatureList.FEED_HEADER_REMOVAL
 })
-@EnableFeatures({ChromeFeatureList.UNO_PHASE_2_FOLLOW_UP, SigninFeatures.ENABLE_SEAMLESS_SIGNIN})
+@EnableFeatures({SigninFeatures.ENABLE_SEAMLESS_SIGNIN})
 public class FeedSurfaceCoordinatorTest {
     private static final @SurfaceType int SURFACE_TYPE = SurfaceType.NEW_TAB_PAGE;
     private static final long SURFACE_CREATION_TIME_NS = 1234L;
@@ -211,16 +214,17 @@ public class FeedSurfaceCoordinatorTest {
     @Mock private PrivacyPreferencesManagerImpl mPrivacyPreferencesManager;
     @Mock private Tracker mTracker;
     @Mock private ScrollableContainerDelegate mScrollableContainerDelegate;
-    @Mock ObservableSupplier<Integer> mTabStripHeightSupplier;
     @Mock private EdgeToEdgeController mEdgeToEdgeController;
     @Captor private ArgumentCaptor<EdgeToEdgePadAdjuster> mEdgePadAdjusterCaptor;
 
     @Rule public final MockitoRule mMockitoRule = MockitoJUnit.rule();
 
+    private final SettableNonNullObservableSupplier<Integer> mTabStripHeightSupplier =
+            ObservableSuppliers.createNonNull(0);
     private FeedSurfaceMediator mMediatorSpy;
     private int mTabStripHeight;
-    private final ObservableSupplierImpl<EdgeToEdgeController> mEdgeToEdgeSupplier =
-            new ObservableSupplierImpl<>();
+    private final SettableMonotonicObservableSupplier<EdgeToEdgeController> mEdgeToEdgeSupplier =
+            ObservableSuppliers.createMonotonic();
 
     @Before
     @SuppressWarnings("DirectInvocationOnMock")
@@ -278,7 +282,7 @@ public class FeedSurfaceCoordinatorTest {
         ApplicationStatus.onStateChangeForTesting(mActivity, ActivityState.CREATED);
 
         mTabStripHeight = mActivity.getResources().getDimensionPixelSize(R.dimen.tab_strip_height);
-        when(mTabStripHeightSupplier.get()).thenReturn(mTabStripHeight);
+        mTabStripHeightSupplier.set(mTabStripHeight);
 
         mCoordinator = createCoordinator(mRecyclerView);
 
@@ -288,10 +292,10 @@ public class FeedSurfaceCoordinatorTest {
         mCoordinator.setMediatorForTesting(mMediatorSpy);
 
         // Print logs to stdout.
-        ShadowLog.stream = System.out;
 
         mBitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888);
-        mBackgroundImageInfo = new BackgroundImageInfo(new Matrix(), new Matrix());
+        mBackgroundImageInfo =
+                new BackgroundImageInfo(new Matrix(), new Matrix(), new Point(), new Point());
     }
 
     @After
@@ -469,10 +473,6 @@ public class FeedSurfaceCoordinatorTest {
 
     @Test
     public void testTabStripHeightChangeCallback() {
-        ArgumentCaptor<Callback<Integer>> captor = ArgumentCaptor.forClass(Callback.class);
-        verify(mTabStripHeightSupplier).addObserver(captor.capture());
-        Callback<Integer> tabStripHeightChangeCallback = captor.getValue();
-        tabStripHeightChangeCallback.onResult(mTabStripHeight);
         assertEquals(
                 "Top padding of root view should be updated when tab strip height changes.",
                 mTabStripHeight,
@@ -518,7 +518,7 @@ public class FeedSurfaceCoordinatorTest {
     public void testSetBackground_withImageFromDisk_delegatesToView() {
         mCoordinator.setBackgroundImageCoordinatorForTesting(mBackgroundImageCoordinator);
         NtpCustomizationConfigManager configManager = NtpCustomizationConfigManager.getInstance();
-        configManager.setBackgroundImageTypeForTesting(CHROME_COLOR);
+        configManager.setBackgroundTypeForTesting(CHROME_COLOR);
 
         configManager.onUploadedImageSelected(mBitmap, mBackgroundImageInfo);
 
@@ -526,6 +526,20 @@ public class FeedSurfaceCoordinatorTest {
         verify(mBackgroundImageCoordinator)
                 .setBackground(eq(mBitmap), eq(mBackgroundImageInfo), eq(IMAGE_FROM_DISK));
         configManager.resetForTesting();
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_V2)
+    public void testSetBackground_disabledByPolicy() {
+        assertNotNull(mCoordinator.getNtpBackgroundImageCoordinatorForTesting());
+        mCoordinator.destroy();
+
+        NtpCustomizationPolicyManager policyManager = mock(NtpCustomizationPolicyManager.class);
+        NtpCustomizationPolicyManager.setInstanceForTesting(policyManager);
+        when(policyManager.isNtpCustomBackgroundEnabled()).thenReturn(false);
+
+        mCoordinator = createCoordinator(mRecyclerView);
+        assertNull(mCoordinator.getNtpBackgroundImageCoordinatorForTesting());
     }
 
     @Test
@@ -583,6 +597,15 @@ public class FeedSurfaceCoordinatorTest {
         // After the delay, RecyclerView should be visible again, and the snapshot overlay gone.
         assertEquals(View.VISIBLE, recyclerView.getVisibility());
         assertEquals(View.GONE, snapshotOverlay.getVisibility());
+    }
+
+    @Test
+    @EnableFeatures(ChromeFeatureList.NEW_TAB_PAGE_CUSTOMIZATION_V2)
+    @Config(qualifiers = "sw600dp")
+    public void testNtpCustomizationButtonCreated() {
+        assertNotNull(
+                "NTP customization button should be created.",
+                mCoordinator.getNtpCustomizationButtonForTesting());
     }
 
     private boolean hasStreamBound() {

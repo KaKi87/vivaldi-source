@@ -26,8 +26,7 @@ class WebState;
 @property(nonatomic, weak) id<VivaldiReaderModeConsumer> consumer;
 
 // Initializes with the preference service.
-- (instancetype)initWithBrowser:(Browser*)browser
-    NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithBrowser:(Browser*)browser NS_DESIGNATED_INITIALIZER;
 
 // Default initializer not available.
 - (instancetype)init NS_UNAVAILABLE;

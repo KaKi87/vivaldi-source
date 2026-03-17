@@ -31,13 +31,12 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(NewTabButtonMenuModel, kNewSplitView);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(NewTabButtonMenuModel,
                                       kCreateNewTabGroup);
 
-NewTabButton::NewTabButton(TabStripController* tab_strip,
-                           PressedCallback callback,
+NewTabButton::NewTabButton(PressedCallback callback,
                            const gfx::VectorIcon& icon,
                            Edge fixed_flat_edge,
                            Edge animated_flat_edge,
                            BrowserWindowInterface* browser)
-    : TabStripControlButton(tab_strip,
+    : TabStripControlButton(browser,
                             std::move(callback),
                             icon,
                             fixed_flat_edge,
@@ -83,10 +82,8 @@ NewTabButtonMenuModel::NewTabButtonMenuModel(BrowserWindowInterface* browser)
   SetElementIdentifierAt(GetIndexOfCommandId(IDC_CREATE_NEW_TAB_GROUP).value(),
                          kCreateNewTabGroup);
 
-  if (base::FeatureList::IsEnabled(features::kSideBySide)) {
-    AddSeparator(ui::NORMAL_SEPARATOR);
-    AddNewSplitTabItem();
-  }
+  AddSeparator(ui::NORMAL_SEPARATOR);
+  AddNewSplitTabItem();
 }
 
 NewTabButtonMenuModel::~NewTabButtonMenuModel() = default;

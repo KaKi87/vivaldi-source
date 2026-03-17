@@ -17,8 +17,7 @@
 - (instancetype)initWithCoder:(NSCoder*)aDecoder NS_UNAVAILABLE;
 
 //// DELEGATE
-@property (nonatomic,weak)
-  id<NoteFolderSelectionHeaderViewDelegate> delegate;
+@property(nonatomic, weak) id<NoteFolderSelectionHeaderViewDelegate> delegate;
 
 @end
 

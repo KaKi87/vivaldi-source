@@ -12,7 +12,6 @@
 #include "chrome/browser/background/glic/glic_background_mode_manager.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/glic/glic_pref_names.h"
-#include "chrome/browser/glic/host/glic.mojom-data-view.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/public/glic_instance.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
@@ -33,9 +32,8 @@
 #include "chrome/browser/ui/browser_element_identifiers.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
+#include "chrome/browser/ui/views/glic/glic_button_interface.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
-#include "chrome/browser/ui/views/tabs/glic_button.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_action_container.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_switches.h"
@@ -72,7 +70,7 @@ using policy::PolicyTest;
 
 namespace glic {
 
-class GlicButton;
+class GlicButtonInterface;
 
 namespace {
 
@@ -232,7 +230,7 @@ class GlicPolicyTest : public PolicyTest {
       profile_2_ =
           &profiles::testing::CreateProfileSync(profile_manager, new_path);
 #endif  // BUILDFLAG(IS_CHROMEOS)
-      ForceSigninAndModelExecutionCapability(profile_2_);
+      ForceSigninAndGlicCapability(profile_2_);
     }
   }
 
@@ -248,9 +246,8 @@ class GlicPolicyTest : public PolicyTest {
     profile_2_ = nullptr;
   }
 
-  GlicButton* GetGlicButtonForBrowser(Browser* browser) {
-    return BrowserElementsViews::From(browser)->GetViewAs<glic::GlicButton>(
-        kGlicButtonElementId);
+  views::LabelButton* GetGlicButtonForBrowser(Browser* browser) {
+    return glic::GlicButtonInterface::FromBrowser(browser);
   }
 
   void SetGlicPolicy(

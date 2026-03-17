@@ -17,13 +17,15 @@ source_set("ui") {
     ":controller",
     "//base",
     "//chrome/app/vector_icons",
+    "//chrome/browser/actor",
     "//chrome/browser/actor/resources:grit_grit",
+    "//chrome/browser/actor/ui",
     "//chrome/browser/ui",
     "//chrome/common",
     "//content/public/browser",
     "//ui/views",
   ]
-  if (enable_glic) {
+  if (enable_glic) { # Vivaldi keep disabled
     deps += [ "//chrome/browser/glic" ]
   }
 }
@@ -39,7 +41,7 @@ source_set("controller") {
     "//ui/base/unowned_user_data",
     "//ui/views",
   ]
-  if (enable_glic) {
+  if (enable_glic) { # Vivaldi keep disabled
     deps += [
       "//chrome/browser/glic",
       "//chrome/browser/glic:mojo_bindings",
@@ -56,13 +58,14 @@ source_set("controller_impl") {
     "//base",
     "//chrome/browser/actor",
     "//chrome/browser/actor/resources:grit",
+    "//chrome/browser/actor/ui",
     "//chrome/browser/ui",
     "//chrome/browser/ui/tabs:tab_strip",
     "//chrome/browser/ui/views/interaction",
     "//ui/base",
     "//ui/views",
   ]
-  if (enable_glic) {
+  if (enable_glic) { # Vivaldi keep disabled
     deps += [
       "//chrome/browser/glic",
       "//chrome/browser/glic:mojo_bindings",
@@ -86,7 +89,7 @@ source_set("unit_tests") {
     "//chrome/test:test_support",
     "//testing/gtest",
   ]
-  if (enable_glic) {
+  if (enable_glic) { # Vivaldi keep disabled
     deps += [
       "//chrome/browser/glic/test_support",
       "//chrome/browser/ui/tabs:glic",
@@ -112,8 +115,9 @@ source_set("interactive_ui_tests") {
     "//ui/base/interaction:test_support",
     "//ui/events:test_support",
   ]
-  if (enable_glic) {
+  if (enable_glic) { # Vivaldi keep disabled
     deps += [
+      "//chrome/browser/glic:interactive_ui_tests",
       "//chrome/browser/glic/test_support",
       "//chrome/browser/ui/tabs:glic",
     ]

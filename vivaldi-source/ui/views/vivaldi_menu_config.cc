@@ -9,8 +9,8 @@ namespace vivaldi {
 void OverrideMenuConfig(views::MenuConfig* config) {
   // Commented out for ch126. minimum_text_item_height does not make a
   // difference, but item_vertical_margin does (using default value is best).
-  //config->minimum_text_item_height = 20;
-  //config->item_vertical_margin = 1;
+  // config->minimum_text_item_height = 20;
+  // config->item_vertical_margin = 1;
 }
 
 }  // namespace vivaldi

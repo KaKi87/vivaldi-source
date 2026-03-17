@@ -8,12 +8,12 @@
 #include "components/update_client/crx_update_item.h"
 
 #if !BUILDFLAG(IS_LINUX)
+#include "app/vivaldi_resources.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "components/infobars/content/content_infobar_manager.h"
-#include "ui/vivaldi_infobar_delegate.h"
 #include "ui/base/l10n/l10n_util.h"
-#include "app/vivaldi_resources.h"
+#include "ui/vivaldi_infobar_delegate.h"
 #endif
 
 namespace drm_helper {
@@ -67,8 +67,7 @@ void DRMContentTabHelper::OnEvent(const update_client::CrxUpdateItem& item) {
   // For non-linux platforms, we want to handle tab reloading here (CDM gets to
   // be used).
   if (item.id == kWidevineComponentID) {
-    if (item.state ==
-        update_client::ComponentState::kUpdated) {
+    if (item.state == update_client::ComponentState::kUpdated) {
       LOG(INFO) << "DRMContentTabHelper: Informing widevine was updated.";
       HandleModuleUpdated();
       return;
@@ -97,7 +96,8 @@ void DRMContentTabHelper::HandleModuleUpdated() {
       spawn_params.button_labels[VivaldiInfoBarDelegate::BUTTON_OK] =
           l10n_util::GetStringUTF16(IDS_VIVALDI_RELOAD);
 
-      VivaldiInfoBarDelegate::CreateForVivaldi(infobar_manager, std::move(spawn_params));
+      VivaldiInfoBarDelegate::CreateForVivaldi(infobar_manager,
+                                               std::move(spawn_params));
     }
   }
 

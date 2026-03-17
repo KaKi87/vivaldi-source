@@ -428,19 +428,6 @@ TEST_F(AutofillPopupControllerImplTest,
                   .ShouldIgnoreMouseObservedOutsideItemBoundsCheck());
 }
 
-// Tests that the popup controller queries the view for its screen location.
-TEST_F(AutofillPopupControllerImplTest, GetPopupScreenLocationCallsView) {
-  ShowSuggestions(manager(), {SuggestionType::kComposeResumeNudge});
-
-  using PopupScreenLocation = AutofillClient::PopupScreenLocation;
-  constexpr gfx::Rect kSampleRect = gfx::Rect(123, 234);
-  EXPECT_CALL(*client().popup_view(), GetPopupScreenLocation)
-      .WillOnce(Return(PopupScreenLocation{.bounds = kSampleRect}));
-  EXPECT_THAT(
-      client().suggestion_controller(manager()).GetPopupScreenLocation(),
-      Optional(Field(&PopupScreenLocation::bounds, kSampleRect)));
-}
-
 // Tests that Compose saved state notification popup gets hidden after 2
 // seconds, but not after 1 second.
 TEST_F(AutofillPopupControllerImplTest,
@@ -477,6 +464,22 @@ TEST_F(AutofillPopupControllerImplTest,
   ShowSuggestions(manager(), {SuggestionType::kAddressEntry});
 
   EXPECT_CALL(*client().popup_view(), HasFocus).WillOnce(Return(true));
+  EXPECT_CALL(*client().popup_view(), Hide).Times(0);
+  client().suggestion_controller(manager()).Hide(
+      SuggestionHidingReason::kFocusChanged);
+
+  Mock::VerifyAndClearExpectations(client().popup_view());
+}
+
+// Tests that focus loss does not hide the popup if the
+// `AutofillSuggestionsIgnoreFocusLoss` parameter is set to `true`.
+TEST_F(AutofillPopupControllerImplTest,
+       PopupDoesNotHideOnFocusLossIfParameterIsSet) {
+  ShowSuggestions(manager(), {SuggestionType::kFillAutofillAi},
+                  AutofillSuggestionTriggerSource::kFormControlElementClicked,
+                  AutofillSuggestionsIgnoreFocusLoss(true));
+
+  ON_CALL(*client().popup_view(), HasFocus).WillByDefault(Return(false));
   EXPECT_CALL(*client().popup_view(), Hide).Times(0);
   client().suggestion_controller(manager()).Hide(
       SuggestionHidingReason::kFocusChanged);
@@ -1041,8 +1044,8 @@ class AutofillPopupControllerImplTestAccessibility
 
  protected:
   content::ScopedAccessibilityModeOverride accessibility_mode_override_;
-  MockAxPlatformNodeDelegate mock_ax_platform_node_delegate_;
-  MockAxPlatformNode mock_ax_platform_node_;
+  NiceMock<MockAxPlatformNodeDelegate> mock_ax_platform_node_delegate_;
+  NiceMock<MockAxPlatformNode> mock_ax_platform_node_;
   ui::AXTreeID test_tree_id_ = ui::AXTreeID::CreateNewAXTreeID();
 };
 

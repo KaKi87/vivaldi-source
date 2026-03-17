@@ -2,8 +2,8 @@
 
 #include "base/callback_list.h"
 #include "base/functional/bind.h"
-#include "content/public/browser/web_contents_delegate.h"
 #include "components/content/vivaldi_postponed_calls.h"
+#include "content/public/browser/web_contents_delegate.h"
 
 namespace content {
 
@@ -43,7 +43,7 @@ void WebContentsDelegate::CanDownload(const GURL& url,
         std::move(callback).Run(false);
       },
       url, request_method, std::move(callback)));
-#endif // IS_ANDROID
+#endif  // IS_ANDROID
 }
 
 ::vivaldi::VivaldiPostponedCalls*

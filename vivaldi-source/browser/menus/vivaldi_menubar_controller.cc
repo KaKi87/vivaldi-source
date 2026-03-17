@@ -621,7 +621,9 @@ views::MenuItemView* MenubarController::GetVivaldiSiblingMenu(
     views::MenuItemView* menu,
     const gfx::Point& screen_point,
     gfx::Rect* rect,
+    bool* has_mnemonics,
     views::MenuAnchorPosition* anchor) {
+  *has_mnemonics = true;
   for (const MenubarMenuEntry& e : state_.siblings) {
     if (e.rect.Contains(screen_point)) {
       if (e.id == active_menu_id_) {
@@ -664,9 +666,8 @@ views::MenuItemView* MenubarController::GetNextSiblingMenu(
       index--;
     }
   }
-  *has_mnemonics = true;
   return GetVivaldiSiblingMenu(nullptr, state_.siblings.at(index).rect.origin(),
-                               rect, anchor);
+                               rect, has_mnemonics, anchor);
 }
 
 void MenubarController::OnHover(const std::string& url) {

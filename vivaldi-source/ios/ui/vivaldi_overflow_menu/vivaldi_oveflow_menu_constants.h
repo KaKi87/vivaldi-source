@@ -19,7 +19,7 @@ extern NSString* vOverflowReload;
 extern NSString* vOverflowStop;
 extern NSString* vOverflowNewTab;
 extern NSString* vOverflowNewPrivateTab;
-extern NSString* vOverflowNewWindow; // iPad only.
+extern NSString* vOverflowNewWindow;  // iPad only.
 
 extern NSString* vOverflowAddTo;
 extern NSString* vOverflowEdit;

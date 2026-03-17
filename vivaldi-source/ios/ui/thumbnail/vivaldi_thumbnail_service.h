@@ -12,7 +12,7 @@ using bookmarks::BookmarkModel;
 @class VivaldiSpeedDialItem;
 
 // Class responsible for storing, updating and returning speed dial thumbnails.
-@interface VivaldiThumbnailService: NSObject
+@interface VivaldiThumbnailService : NSObject
 
 #pragma mark - Setters
 /// Stores the thumbnail to new directory. When Replace is true, it overrides
@@ -35,6 +35,8 @@ using bookmarks::BookmarkModel;
 - (BOOL)shouldMigrateForSDItem:(VivaldiSpeedDialItem*)item;
 /// Returns the thumbnail for SD item from legacy or new directory.
 - (UIImage*)thumbnailForSDItem:(VivaldiSpeedDialItem*)item;
+/// Returns whether the SD item has a locally stored thumbnail.
+- (BOOL)hasLocalThumbnailForSDItem:(VivaldiSpeedDialItem*)item;
 
 @end
 

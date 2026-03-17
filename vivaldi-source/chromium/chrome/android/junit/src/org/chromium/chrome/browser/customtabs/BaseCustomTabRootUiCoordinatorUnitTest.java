@@ -37,9 +37,10 @@ import org.chromium.base.CallbackUtils;
 import org.chromium.base.FakeTimeTestRule;
 import org.chromium.base.TimeUtils;
 import org.chromium.base.UnownedUserDataHost;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplier;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.Features.DisableFeatures;
@@ -65,6 +66,7 @@ import org.chromium.chrome.browser.flags.ActivityType;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.fullscreen.BrowserControlsManager;
 import org.chromium.chrome.browser.fullscreen.FullscreenManager;
+import org.chromium.chrome.browser.incognito.reauth.IncognitoReauthManager;
 import org.chromium.chrome.browser.lifecycle.ActivityLifecycleDispatcher;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.share.ShareDelegate;
@@ -110,14 +112,12 @@ public final class BaseCustomTabRootUiCoordinatorUnitTest {
 
     @Rule public FakeTimeTestRule mFakeTimeTestRule = new FakeTimeTestRule();
 
-    @Mock private ObservableSupplier<ShareDelegate> mShareDelegateSupplier;
-    @Mock private ActivityTabProvider mTabProvider;
     @Mock private CustomTabActivityTabProvider mCustomTabProvider;
-    @Mock private ObservableSupplier<BookmarkModel> mBookmarkModelSupplier;
-    @Mock private ObservableSupplier<TabBookmarker> mTabBookmarkerSupplier;
-    @Mock private ObservableSupplier<TabModelSelector> mTabModelSelectorSupplier;
 
-    @Mock private ObservableSupplierImpl<EphemeralTabCoordinator> mEphemeralTabCoordinatorSupplier;
+    @Mock
+    private SettableMonotonicObservableSupplier<EphemeralTabCoordinator>
+            mEphemeralTabCoordinatorSupplier;
+
     @Mock private BrowserControlsManager mBrowserControlsManager;
 
     @Mock
@@ -127,19 +127,15 @@ public final class BaseCustomTabRootUiCoordinatorUnitTest {
     @Mock private ActivityWindowAndroid mWindowAndroid;
     @Mock private OneshotSupplier<ChromeAndroidTask> mChromeAndroidTask;
     @Mock private ActivityLifecycleDispatcher mActivityLifecycleDispatcher;
-    @Mock private ObservableSupplier<LayoutManagerImpl> mLayoutManagerSupplier;
     @Mock private MenuOrKeyboardActionController mMenuOrKeyboardActionController;
     @Mock private Supplier<Integer> mActivityThemeColorSupplier;
-    @Mock private ObservableSupplier<ModalDialogManager> mModalDialogManagerSupplier;
     @Mock private AppMenuBlocker mAppMenuBlocker;
     @Mock private BooleanSupplier mSupportsAppMenuSupplier;
     @Mock private BooleanSupplier mSupportsFindInPage;
     @Mock private Supplier<TabCreatorManager> mTabCreatorManagerSupplier;
     @Mock private FullscreenManager mFullscreenManager;
-    @Mock private ObservableSupplier<CompositorViewHolder> mCompositorViewHolderSupplier;
     @Mock private Supplier<TabContentManager> mTabContentManagerSupplier;
     @Mock private Supplier<SnackbarManager> mSnackbarManagerSupplier;
-    @Mock private ObservableSupplierImpl<EdgeToEdgeController> mEdgeToEdgeControllerSupplier;
     @Mock private Supplier<Boolean> mIsInOverviewModeSupplier;
     @Mock private AppMenuDelegate mAppMenuDelegate;
     @Mock private StatusBarColorProvider mStatusBarColorProvider;
@@ -161,7 +157,24 @@ public final class BaseCustomTabRootUiCoordinatorUnitTest {
     @Mock private IdentityManager mIdentityManager;
     @Mock private Supplier<BrowserServicesThemeColorProvider> mBrowserServicesColorProviderSupplier;
 
-    private ObservableSupplierImpl<Profile> mProfileSupplier;
+    private final MonotonicObservableSupplier<ShareDelegate> mShareDelegateSupplier =
+            ObservableSuppliers.alwaysNull();
+    private final MonotonicObservableSupplier<BookmarkModel> mBookmarkModelSupplier =
+            ObservableSuppliers.alwaysNull();
+    private final MonotonicObservableSupplier<TabBookmarker> mTabBookmarkerSupplier =
+            ObservableSuppliers.alwaysNull();
+    private final MonotonicObservableSupplier<TabModelSelector> mTabModelSelectorSupplier =
+            ObservableSuppliers.alwaysNull();
+    private final MonotonicObservableSupplier<ModalDialogManager> mModalDialogManagerSupplier =
+            ObservableSuppliers.alwaysNull();
+    private final MonotonicObservableSupplier<CompositorViewHolder> mCompositorViewHolderSupplier =
+            ObservableSuppliers.alwaysNull();
+    private final SettableMonotonicObservableSupplier<EdgeToEdgeController>
+            mEdgeToEdgeControllerSupplier = ObservableSuppliers.createMonotonic();
+    private final ActivityTabProvider mActivityTabProvider = new ActivityTabProvider();
+    private SettableMonotonicObservableSupplier<Profile> mProfileSupplier;
+    private final SettableMonotonicObservableSupplier<LayoutManagerImpl> mLayoutManagerSupplier =
+            ObservableSuppliers.createMonotonic();
     private AppCompatActivity mActivity;
     private BaseCustomTabRootUiCoordinator mBaseCustomTabRootUiCoordinator;
 
@@ -171,6 +184,7 @@ public final class BaseCustomTabRootUiCoordinatorUnitTest {
 
         // Setup the shopping service.
         CommerceFeatureUtilsJni.setInstanceForTesting(mCommerceFeatureUtilsJniMock);
+        IncognitoReauthManager.setIsIncognitoReauthFeatureAvailableForTesting(false);
         doReturn(false).when(mCommerceFeatureUtilsJniMock).isShoppingListEligible(anyLong());
 
         ShoppingServiceFactoryJni.setInstanceForTesting(mShoppingServiceFactoryJniMock);
@@ -185,15 +199,15 @@ public final class BaseCustomTabRootUiCoordinatorUnitTest {
         IdentityServicesProvider.setInstanceForTests(mIdentityServicesProvider);
         when(mIdentityServicesProvider.getIdentityManager(any())).thenReturn(mIdentityManager);
         when(mFullscreenManager.getPersistentFullscreenModeSupplier())
-                .thenReturn(new ObservableSupplierImpl<Boolean>(false));
+                .thenReturn(ObservableSuppliers.alwaysFalse());
 
-        mProfileSupplier = new ObservableSupplierImpl();
+        mProfileSupplier = ObservableSuppliers.createMonotonic();
 
         mBaseCustomTabRootUiCoordinator =
                 new BaseCustomTabRootUiCoordinator(
                         mActivity,
                         mShareDelegateSupplier,
-                        mTabProvider,
+                        mActivityTabProvider,
                         mCustomTabProvider,
                         mProfileSupplier,
                         mBookmarkModelSupplier,
@@ -311,6 +325,11 @@ public final class BaseCustomTabRootUiCoordinatorUnitTest {
 
     @Test
     public void testCreateMismatchNotificationChecker() {
+        // No profile
+        assertNull(
+                "Should NOT create checker for no profile",
+                mBaseCustomTabRootUiCoordinator.createMismatchNotificationChecker("app-id"));
+
         HistogramWatcher freCompletedRecentlyWatcher =
                 HistogramWatcher.newSingleRecordWatcher(
                         "Signin.CctAccountMismatchNoticeSuppressed",
@@ -371,11 +390,5 @@ public final class BaseCustomTabRootUiCoordinatorUnitTest {
                 "Should NOT create checker for an OTR session",
                 mBaseCustomTabRootUiCoordinator.createMismatchNotificationChecker("app-id"));
         mismatchNoticeSuppressedWatcher.assertExpected();
-
-        // No profile
-        mProfileSupplier.set(null);
-        assertNull(
-                "Should NOT create checker for no profile",
-                mBaseCustomTabRootUiCoordinator.createMismatchNotificationChecker("app-id"));
     }
 }

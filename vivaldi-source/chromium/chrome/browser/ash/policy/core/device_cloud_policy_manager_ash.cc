@@ -44,7 +44,6 @@
 #include "chrome/browser/ash/policy/uploading/status_uploader.h"
 #include "chrome/browser/ash/policy/uploading/system_log_uploader.h"
 #include "chrome/browser/browser_process.h"
-#include "chrome/common/chrome_features.h"
 #include "chrome/common/pref_names.h"
 #include "chromeos/ash/components/install_attributes/install_attributes.h"
 #include "chromeos/ash/components/system/statistics_provider.h"
@@ -89,6 +88,7 @@ DeviceCloudPolicyManagerAsh::DeviceCloudPolicyManagerAsh(
           dm_protocol::kChromeDevicePolicyType,
           std::string(),
           std::move(device_store),
+          /*extension_install_store=*/nullptr,
           task_runner,
           base::BindRepeating(&content::GetNetworkConnectionTracker)),
       device_store_(static_cast<DeviceCloudPolicyStoreAsh*>(store())),
@@ -267,9 +267,7 @@ void DeviceCloudPolicyManagerAsh::StartConnection(
     metric_reporting_manager_ = reporting::MetricReportingManager::Create(
         managed_session_service_.get());
     os_updates_reporter_ = reporting::OsUpdatesReporter::Create();
-    if (base::FeatureList::IsEnabled(features::kEventBasedLogUpload)) {
-      event_based_log_manager_ = std::make_unique<EventBasedLogManager>();
-    }
+    event_based_log_manager_ = std::make_unique<EventBasedLogManager>();
   }
 
   NotifyConnected();

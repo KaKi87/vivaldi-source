@@ -54,6 +54,12 @@ AX_TEST_F(
     'FaceGazeTest',
     'GestureDetectorUpdatesStateAfterToggleGestureInfoForSettingsEvent',
     async function() {
+      // There is a race of when gesture handler starts and when
+      // mockAccessibilityPrivate is set. Restart gesture handler to ensure
+      // that `start()` is called with mockAccessibilityPrivate.
+      this.getGestureHandler().stop();
+      this.getGestureHandler().start();
+
       await this.configureFaceGaze(new Config());
 
       // Tests that GestureDetector updates its state after a
@@ -70,6 +76,12 @@ AX_TEST_F(
     'FaceGazeTest',
     'GestureDetectorSendsGestureInfoAfterToggleGestureInfoForSettingsEvent',
     async function() {
+      // There is a race of when gesture handler starts and when
+      // mockAccessibilityPrivate is set. Restart gesture handler to ensure
+      // that `start()` is called with mockAccessibilityPrivate.
+      this.getGestureHandler().stop();
+      this.getGestureHandler().start();
+
       const gestureToMacroName =
           new Map()
               .set(FacialGesture.BROW_INNER_UP, MacroName.MOUSE_CLICK_RIGHT)
@@ -1307,74 +1319,63 @@ AX_TEST_F('FaceGazeTest', 'KeyEvents', async function() {
   assertEquals(KeyCode.MEDIA_PLAY_PAUSE, keyEvents[13].keyCode);
 });
 
-// TODO(b/345059065): Test is flaky.
-AX_TEST_F('FaceGazeTest', 'DISABLED_ClosesCameraStream', async function() {
-  await this.getFaceGaze().cameraStreamReadyPromise_;
-  let win = chrome.extension.getViews().find(
-      view => view.location.href.includes('camera_stream.html'));
-  assertTrue(!!win);
-  this.getFaceGaze().onFaceGazeDisabled();
-  await this.getFaceGaze().cameraStreamClosedPromise_;
-  win = chrome.extension.getViews().find(
-      view => view.location.href.includes('camera_stream.html'));
-  assertFalse(!!win);
-});
-
 // TODO(crbug.com/348603598): Test is flaky.
-AX_TEST_F('FaceGazeTest', 'DISABLED_ToggleFaceGazeGesturesShort', async function() {
-  const gestureToMacroName =
-      new Map()
-          .set(FacialGesture.JAW_OPEN, MacroName.TOGGLE_FACEGAZE)
-          .set(FacialGesture.BROW_INNER_UP, MacroName.MOUSE_CLICK_LEFT);
-  const gestureToConfidence = new Map()
-                                  .set(FacialGesture.JAW_OPEN, 0.3)
-                                  .set(FacialGesture.BROW_INNER_UP, 0.3);
-  const config = new Config()
-                     .withMouseLocation({x: 600, y: 400})
-                     .withBindings(gestureToMacroName, gestureToConfidence)
-                     .withRepeatDelayMs(1);
-  await this.configureFaceGaze(config);
+AX_TEST_F(
+    'FaceGazeTest', 'DISABLED_ToggleFaceGazeGesturesShort', async function() {
+      const gestureToMacroName =
+          new Map()
+              .set(FacialGesture.JAW_OPEN, MacroName.TOGGLE_FACEGAZE)
+              .set(FacialGesture.BROW_INNER_UP, MacroName.MOUSE_CLICK_LEFT);
+      const gestureToConfidence = new Map()
+                                      .set(FacialGesture.JAW_OPEN, 0.3)
+                                      .set(FacialGesture.BROW_INNER_UP, 0.3);
+      const config = new Config()
+                         .withMouseLocation({x: 600, y: 400})
+                         .withBindings(gestureToMacroName, gestureToConfidence)
+                         .withRepeatDelayMs(1);
+      await this.configureFaceGaze(config);
 
-  // Toggle (pause) FaceGaze.
-  result = new MockFaceLandmarkerResult().addGestureWithConfidence(
-      MediapipeFacialGesture.JAW_OPEN, 0.9);
-  this.processFaceLandmarkerResult(
-      result, /*triggerMouseControllerInterval=*/ false);
-  assertTrue(this.getGestureHandler().paused_);
+      // Toggle (pause) FaceGaze.
+      result = new MockFaceLandmarkerResult().addGestureWithConfidence(
+          MediapipeFacialGesture.JAW_OPEN, 0.9);
+      this.processFaceLandmarkerResult(
+          result, /*triggerMouseControllerInterval=*/ false);
+      assertTrue(this.getGestureHandler().paused_);
 
-  // Try to perform left click.
-  result =
-      new MockFaceLandmarkerResult()
-          .addGestureWithConfidence(MediapipeFacialGesture.JAW_OPEN, 0)
-          .addGestureWithConfidence(MediapipeFacialGesture.BROW_INNER_UP, 0.9);
-  this.processFaceLandmarkerResult(
-      result, /*triggerMouseControllerInterval=*/ false);
+      // Try to perform left click.
+      result = new MockFaceLandmarkerResult()
+                   .addGestureWithConfidence(MediapipeFacialGesture.JAW_OPEN, 0)
+                   .addGestureWithConfidence(
+                       MediapipeFacialGesture.BROW_INNER_UP, 0.9);
+      this.processFaceLandmarkerResult(
+          result, /*triggerMouseControllerInterval=*/ false);
 
-  // No click should be performed.
-  this.assertNumMouseEvents(0);
+      // No click should be performed.
+      this.assertNumMouseEvents(0);
 
-  // Toggle (resume) FaceGaze and release mouse click gesture.
-  result =
-      new MockFaceLandmarkerResult()
-          .addGestureWithConfidence(MediapipeFacialGesture.JAW_OPEN, 0.9)
-          .addGestureWithConfidence(MediapipeFacialGesture.BROW_INNER_UP, 0);
-  this.processFaceLandmarkerResult(
-      result, /*triggerMouseControllerInterval=*/ false);
-  assertFalse(this.getGestureHandler().paused_);
-  // No click should be performed.
-  this.assertNumMouseEvents(0);
+      // Toggle (resume) FaceGaze and release mouse click gesture.
+      result =
+          new MockFaceLandmarkerResult()
+              .addGestureWithConfidence(MediapipeFacialGesture.JAW_OPEN, 0.9)
+              .addGestureWithConfidence(
+                  MediapipeFacialGesture.BROW_INNER_UP, 0);
+      this.processFaceLandmarkerResult(
+          result, /*triggerMouseControllerInterval=*/ false);
+      assertFalse(this.getGestureHandler().paused_);
+      // No click should be performed.
+      this.assertNumMouseEvents(0);
 
-  // Perform left click now that FaceGaze has resumed.
-  result =
-      new MockFaceLandmarkerResult()
-          .addGestureWithConfidence(MediapipeFacialGesture.JAW_OPEN, 0)
-          .addGestureWithConfidence(MediapipeFacialGesture.BROW_INNER_UP, 0.9);
-  this.processFaceLandmarkerResult(
-      result, /*triggerMouseControllerInterval=*/ false);
+      // Perform left click now that FaceGaze has resumed.
+      result = new MockFaceLandmarkerResult()
+                   .addGestureWithConfidence(MediapipeFacialGesture.JAW_OPEN, 0)
+                   .addGestureWithConfidence(
+                       MediapipeFacialGesture.BROW_INNER_UP, 0.9);
+      this.processFaceLandmarkerResult(
+          result, /*triggerMouseControllerInterval=*/ false);
 
-  // Synthetic mouse events should have been sent.
-  this.assertNumMouseEvents(2);
-});
+      // Synthetic mouse events should have been sent.
+      this.assertNumMouseEvents(2);
+    });
 
 AX_TEST_F('FaceGazeTest', 'ToggleFaceGazeGesturesLong', async function() {
   const gestureToMacroName =
@@ -1391,10 +1392,8 @@ AX_TEST_F('FaceGazeTest', 'ToggleFaceGazeGesturesLong', async function() {
   await this.configureFaceGaze(config);
 
   // Trigger a key down.
-  let result =
-      new MockFaceLandmarkerResult()
-          .addGestureWithConfidence(
-              MediapipeFacialGesture.EYE_SQUINT_LEFT, 0.9);
+  let result = new MockFaceLandmarkerResult().addGestureWithConfidence(
+      MediapipeFacialGesture.EYE_SQUINT_LEFT, 0.9);
   this.processFaceLandmarkerResult(
       result, /*triggerMouseControllerInterval=*/ false);
 
@@ -1443,10 +1442,8 @@ AX_TEST_F('FaceGazeTest', 'ToggleFaceGazeGesturesLong', async function() {
   this.assertNumKeyEvents(2);
 
   // Confirm that long actions work as expected.
-  result =
-      new MockFaceLandmarkerResult()
-          .addGestureWithConfidence(
-              MediapipeFacialGesture.EYE_SQUINT_LEFT, 0.9);
+  result = new MockFaceLandmarkerResult().addGestureWithConfidence(
+      MediapipeFacialGesture.EYE_SQUINT_LEFT, 0.9);
   this.processFaceLandmarkerResult(
       result, /*triggerMouseControllerInterval=*/ false);
 
@@ -2517,7 +2514,8 @@ AX_TEST_F('FaceGazeTest', 'ValidTimeDurationGestureDetected', async function() {
   // Set min duration very short so actions with any duration should be
   // recognized. It is possible for a gesture to execute so quickly during a
   // test that the duration appears to be 0 ms, so set the min duration
-  // threshold to -1 to ensure gestures with duration of 0 ms are recognized.
+  // threshold to -1 to ensure gestures with duration of 0 ms are
+  // recognized.
   const config = new Config()
                      .withMouseLocation({x: 600, y: 400})
                      .withBindings(gestureToMacroName, gestureToConfidence)
@@ -2548,8 +2546,8 @@ AX_TEST_F('FaceGazeTest', 'ValidTimeDurationGestureDetected', async function() {
   assertEquals(1, gestureHandler.gestureTimer_.gestureStart_.size);
   this.assertNumMouseEvents(2);
 
-  // Check that the start times are cleared if no gestures are detected at any
-  // confidence levels.
+  // Check that the start times are cleared if no gestures are detected at
+  // any confidence levels.
   result = new MockFaceLandmarkerResult();
   this.processFaceLandmarkerResult(result);
   assertEquals(0, gestureHandler.gestureTimer_.gestureStart_.size);
@@ -3004,4 +3002,121 @@ AX_TEST_F('FaceGazeTest', 'PrecisionRightClickMouseEvents', async function() {
   assertEquals(
       chrome.accessibilityPrivate.SyntheticMouseEventButton.RIGHT,
       mouseEvents[1].mouseButton);
+});
+
+AX_TEST_F('FaceGazeTest', 'InvalidResult', async function() {
+  const config = new Config();
+  await this.configureFaceGaze(config);
+
+  assertNullOrUndefined(this.getBubbleText());
+
+  // Send an invalid result.
+  let result = new MockFaceLandmarkerResult().invalidate();
+  this.processFaceLandmarkerResult(result, false);
+  assertEquals(
+      `Can’t access camera. Turn on camera and make sure it isn’t blocked.`,
+      this.getBubbleText());
+
+  // Send a valid result.
+  result = new MockFaceLandmarkerResult().addGestureWithConfidence(
+      MediapipeFacialGesture.MOUTH_PUCKER, 0.2);
+  this.processFaceLandmarkerResult(result, false);
+  assertEquals(this.getDefaultBubbleText(), this.getBubbleText());
+});
+
+// Verifies that FaceGaze can handle scenarios where the camera is muted, which
+// happens when the screen has been locked for a short amount of time, and then
+// unmuted, which happens when the user signs back in.
+AX_TEST_F('FaceGazeTest', 'CameraMutedAndUnmuted', async function() {
+  // The test only works for MV3 service worker.
+  assertTrue(isRunningInServiceWorker());
+
+  const config = new Config();
+  await this.configureFaceGaze(config);
+
+  // Simulate a "muted" message from offscreen doc when the camera is muted.
+  Messenger.instance.handleMessage_(
+      {command: OffscreenCommandType.FACEGAZE_SW_ON_TRACK_MUTED});
+  assertEquals(
+      `Camera unavailable. Make sure you are signed in and camera is on.`,
+      this.getBubbleText());
+
+  // Simulate "unmuted" message from offscreen doc when the camera is unmuted.
+  Messenger.instance.handleMessage_(
+      {command: OffscreenCommandType.FACEGAZE_SW_ON_TRACK_UNMUTED});
+  assertEquals(this.getDefaultBubbleText(), this.getBubbleText());
+});
+
+// Verifies that FaceGaze can handle cases where no camera is available.
+AX_TEST_F('FaceGazeTest', 'NoCamera', async function() {
+  // The test only works for MV3 service worker.
+  assertTrue(isRunningInServiceWorker());
+
+  // Use mocked setTimeout.
+  await Messenger.send(OffscreenCommandType.FACEGAZE_MOCK_TIMEOUT_FOR_TEST);
+
+  // Pretend that there is no available camera.
+  await Messenger.send(OffscreenCommandType.FACEGAZE_MOCK_NO_CAMERA_FOR_TEST);
+
+  // Verify initial state.
+  assertEquals(
+      10,
+      await Messenger.send(
+          OffscreenCommandType.FACEGAZE_GET_CAMERA_RETRIES_FOR_TEST));
+
+  let bubbleUpdatePromise = Messenger.waitForHandled(
+      OffscreenCommandType.FACEGAZE_SW_UPDATE_BUBBLE_REMAINING_RETRIES);
+
+  // Attempt to connect to the webcam. This should cause a message to appear
+  // in the UI and queue up another attempt.
+  await Messenger.send(
+      OffscreenCommandType.FACEGAZE_CONNECT_TO_WEB_CAM_FOR_TEST);
+
+  await bubbleUpdatePromise;
+  assertEquals(
+      'Trying to connect to camera. Face control will turn off in 10 seconds.',
+      this.getBubbleText());
+  assertEquals(
+      9,
+      await Messenger.send(
+          OffscreenCommandType.FACEGAZE_GET_CAMERA_RETRIES_FOR_TEST));
+
+  bubbleUpdatePromise = Messenger.waitForHandled(
+      OffscreenCommandType.FACEGAZE_SW_UPDATE_BUBBLE_REMAINING_RETRIES);
+  // Pretend that the timeout has elapsed so that we try to reconnect to the
+  // webcam.
+  await Messenger.send(
+      OffscreenCommandType.FACEGAZE_MOCK_RUN_LATEST_TIMEOUT_FOR_TEST);
+
+  await bubbleUpdatePromise;
+  assertEquals(
+      'Trying to connect to camera. Face control will turn off in 9 seconds.',
+      this.getBubbleText());
+  assertEquals(
+      8,
+      await Messenger.send(
+          OffscreenCommandType.FACEGAZE_GET_CAMERA_RETRIES_FOR_TEST));
+
+  // Mock out the setPref API.
+  let latestPref;
+  let latestValue;
+  chrome.settingsPrivate = {};
+  chrome.settingsPrivate.setPref = (pref, value) => {
+    latestPref = pref;
+    latestValue = value;
+  };
+
+  const setPrefPromise =
+      Messenger.waitForHandled(OffscreenCommandType.FACEGAZE_SW_SET_PREF);
+
+  // Pretend that we've exhausted our retry limit. The next failed attempt
+  // will cause FaceGaze to be turned off.
+  await Messenger.send(
+      OffscreenCommandType.FACEGAZE_SET_CAMERA_RETRIES_FOR_TEST, {retries: 0});
+  await Messenger.send(
+      OffscreenCommandType.FACEGAZE_MOCK_RUN_LATEST_TIMEOUT_FOR_TEST);
+
+  await setPrefPromise;
+  assertEquals('settings.a11y.face_gaze.enabled', latestPref);
+  assertFalse(latestValue);
 });

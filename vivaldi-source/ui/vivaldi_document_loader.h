@@ -19,13 +19,12 @@ class VivaldiDocumentLoader : protected content::WebContentsDelegate,
                         const extensions::Extension* extension);
   ~VivaldiDocumentLoader() override;
 
-  content::WebContents* GetWebContents() {return vivaldi_web_contents_.get();}
+  content::WebContents* GetWebContents() { return vivaldi_web_contents_.get(); }
 
   // Load the document into |vivaldi_web_contents_|
   void Load();
 
  private:
-
   // content::WebContentsDelegate overrides.
   bool ShouldSuppressDialogs(content::WebContents* source) override;
 

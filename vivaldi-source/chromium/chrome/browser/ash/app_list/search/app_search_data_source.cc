@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "chrome/browser/ash/app_list/search/app_search_data_source.h"
 
 #include <algorithm>
@@ -15,6 +10,7 @@
 
 #include "ash/constants/web_app_id_constants.h"
 #include "ash/public/cpp/app_list/internal_app_id_constants.h"
+#include "base/compiler_specific.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/clock.h"
@@ -33,6 +29,7 @@
 #include "components/services/app_service/public/cpp/app_types.h"
 #include "components/services/app_service/public/cpp/app_update.h"
 #include "components/services/app_service/public/cpp/types_util.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 
 using ::ash::string_matching::FuzzyTokenizedStringMatch;
 using ::ash::string_matching::TokenizedString;
@@ -69,7 +66,7 @@ constexpr bool kStripDiacritics = true;
 //    -1 if the app is not a default app.
 int GetDefaultAppRank(const std::string& app_id) {
   for (size_t i = 0; i < std::size(ranked_default_app_ids); ++i) {
-    if (app_id == ranked_default_app_ids[i]) {
+    if (app_id == UNSAFE_TODO(ranked_default_app_ids[i])) {
       return i;
     }
   }
@@ -88,7 +85,7 @@ void MaybeAddResult(SearchProvider::Results* results,
 
   seen_or_filtered_apps->insert(app_result->app_id());
 
-  std::unordered_set<std::string> duplicate_app_ids;
+  absl::flat_hash_set<std::string> duplicate_app_ids;
   if (!extensions::util::GetEquivalentInstalledArcApps(
           app_result->profile(), app_result->app_id(), &duplicate_app_ids)) {
     results->emplace_back(std::move(app_result));
@@ -96,7 +93,7 @@ void MaybeAddResult(SearchProvider::Results* results,
   }
 
   for (const auto& duplicate_app_id : duplicate_app_ids) {
-    if (seen_or_filtered_apps->count(duplicate_app_id)) {
+    if (seen_or_filtered_apps->contains(duplicate_app_id)) {
       return;
     }
   }
@@ -105,8 +102,9 @@ void MaybeAddResult(SearchProvider::Results* results,
 
   // Add duplicate ids in order to filter them if they appear down the
   // list.
-  seen_or_filtered_apps->insert(duplicate_app_ids.begin(),
-                                duplicate_app_ids.end());
+  seen_or_filtered_apps->insert(
+      std::make_move_iterator(duplicate_app_ids.begin()),
+      std::make_move_iterator(duplicate_app_ids.end()));
 }
 
 // Linearly maps |score| to the range [min, max].

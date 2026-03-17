@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Gestionar fuentes de bloqueo de anuncios</translation>
 <translation id="1577761519530347814">Sincronizar contraseñas almacenadas de sitios web</translation>
 <translation id="1620921465699122417">Introduce el texto a traducir</translation>
+<translation id="1624621765073396937">Deslizar para cerrar pestaña</translation>
 <translation id="1631998297781042533">Sitios más visitados</translation>
 <translation id="1644574205037202324">Historial</translation>
 <translation id="1655816024544228768">Deportes</translation>
@@ -106,6 +107,7 @@
 <translation id="2330644510603114741">Comportamiento de las pestañas</translation>
 <translation id="233493642829799329">Cambiar esto puede recargar algunas de tus pestañas</translation>
 <translation id="2336309953058658733">Vaciar papelera</translation>
+<translation id="2336679896177818431">Abrir el administrador de pestañas deslizando hacia arriba o abajo la barra de direcciones</translation>
 <translation id="2359808026110333948">Continuar</translation>
 <translation id="2386793615875593361">1 seleccionada</translation>
 <translation id="2387049655823108978">Sincronizar pestañas abiertas en otros dispositivos</translation>
@@ -127,6 +129,7 @@
 <translation id="261264557609353020">Página de inicio</translation>
 <translation id="2619628557366098325">Portugués (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">Sistema</translation>
+<translation id="2638305832232696831">Activar el gesto de deslizamiento sobre la barra de direcciones</translation>
 <translation id="2653659639078652383">Enviar</translation>
 <translation id="2666092431469916601">Arriba</translation>
 <translation id="2677862276555105603">Anuncio
@@ -153,6 +156,7 @@ bloqueado</translation>
 <translation id="2862504765180635001">¡Sentimos que no estés satisfecho/a!</translation>
 <translation id="2878511608894704031">Eliminar todos</translation>
 <translation id="2884735088411646852">Orden</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (Bloquea varios contenidos no deseados)</translation>
 <translation id="2898963176829412617">Carpeta nueva…</translation>
 <translation id="2918704853620385162">Abrir una nueva pestaña al cerrar la última pestaña</translation>
 <translation id="2924890236896835588">Nombre del grupo</translation>
@@ -172,6 +176,7 @@ bloqueado</translation>
 <translation id="3142562627629111859">Nuevo grupo</translation>
 <translation id="3157931365184549694">Restablecer</translation>
 <translation id="3159285901314605198">Imagen de fondo</translation>
+<translation id="317084213044777332">Configurar como buscador por defecto</translation>
 <translation id="3177673846235066154">El servidor rechazó tus credenciales.</translation>
 <translation id="3180057018690062250">Transmisión</translation>
 <translation id="3180358318770512945">Paternidad</translation>
@@ -496,6 +501,7 @@ bloqueado</translation>
 <translation id="6946395294519639514">Con los paneles puedes tener tus herramientas básicas al alcance del dedo, en la barra lateral del navegador.</translation>
 <translation id="6951435330868954105">Gestionar ajustes predeterminados</translation>
 <translation id="6951948201878750661">Toca para seleccionar este color</translation>
+<translation id="6954630860045222581">Mostrar panel</translation>
 <translation id="6967884871145366229">Gestionar ajustes de privacidad</translation>
 <translation id="6973630695168034713">Carpetas</translation>
 <translation id="7000227144065890583">URL de sugerencias</translation>
@@ -593,6 +599,7 @@ bloqueado</translation>
 <translation id="8066170816074394954">Error del servidor.</translation>
 <translation id="8076492880354921740">Pestañas</translation>
 <translation id="8077675488769462025">Pestañas inactivas</translation>
+<translation id="8079925180539182073">El buscador por defecto no puede eliminarse.</translation>
 <translation id="8112996065264879835">El código no coincide.
         Has llegado al límite de intentos incorrectos. Por favor, solicita un nuevo código mediante la opción de reenvío.</translation>
 <translation id="8131740175452115882">Confirmar</translation>
@@ -638,6 +645,7 @@ bloqueado</translation>
 <translation id="856439694359429369">Toca para ver más opciones o toca dos veces para abrir.</translation>
 <translation id="8591818185775466306">Eliminar <ph name="ITEM_TYPE" /></translation>
 <translation id="8605953154325672921">Nombre de usuario solicitado</translation>
+<translation id="861259508026988871">Añadir como buscador</translation>
 <translation id="8675578805254882416">Obteniendo</translation>
 <translation id="8677007239430848917">Añade tu primera nota seleccionando el icono +</translation>
 <translation id="8684294196284714094">¿Configurar Vivaldi como tu navegador predeterminado?</translation>

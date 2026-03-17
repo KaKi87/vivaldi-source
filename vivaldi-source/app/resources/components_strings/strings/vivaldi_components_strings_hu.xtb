@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Kapcsolatod a webhellyel nem teljesen biztonságos</translation>
 <translation id="4265872034478892965">A rendszergazda engedélyezte</translation>
 <translation id="4305666528087210886">A fájlhoz nem sikerült hozzáférni</translation>
-<translation id="4408413947728134509"><ph name="NUM_COOKIES" /> cookie</translation>
 <translation id="4432688616882109544">A(z) <ph name="HOST_NAME" /> nem fogadta el az Ön bejelentkezési tanúsítványát, vagy nem talált ilyet.</translation>
 <translation id="4506599922270137252">Kapcsolatfelvétel a rendszergazdával</translation>
 <translation id="4522570452068850558">Részletek</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Nincs találat</translation>
 <translation id="5017554619425969104">Vágólapra másolt szöveg</translation>
 <translation id="5023310440958281426">Ellenőrizze rendszergazdai házirendjeit</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 van használatban)} other {(# van használatban)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />A proxy címének ellenőrzése<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 bites)</translation>
 <translation id="5216942107514965959">Utolsó látogatás ma</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Ne írj be semmilyen bizalmas adatot (például jelszót vagy hitelkártyaadatot) a webhelyen, mivel a támadók ellophatják.</translation>
 <translation id="5863515189965725638">IBAN szerkesztése</translation>
 <translation id="5869405914158311789">A webhely nem érhető el</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{1 van használatban}other{# van használatban}}</translation>
 <translation id="5932224571077948991">A webhely tolakodó vagy félrevezető reklámokat jelenít meg</translation>
 <translation id="6051221802930200923">Pillanatnyilag nem tudod felkeresni a(z) <ph name="SITE" /> webhelyet, mivel a webhely tanúsítványrögzítést használ. A hálózati hibák és támadások rendszerint átmenetiek, ezért az említett oldal működése később valószínűleg helyreáll.</translation>
 <translation id="6146055958333702838">Ellenőrizze a kábeleket, majd indítsa újra a routert, modemet vagy más

@@ -33,7 +33,6 @@ namespace {
 static const char kSwitchPreviousVersion[] = "previous-version";
 }
 
-
 namespace installer {
 
 namespace {
@@ -177,8 +176,8 @@ base::expected<void, InstallStatus> UnpackAndMaybePatchChromeArchive(
     }
     base::Version previous_version;
     if (cmd_line.HasSwitch(kSwitchPreviousVersion)) {
-      previous_version = base::Version(
-          cmd_line.GetSwitchValueASCII(kSwitchPreviousVersion));
+      previous_version =
+          base::Version(cmd_line.GetSwitchValueASCII(kSwitchPreviousVersion));
     }
 
     std::unique_ptr<ArchivePatchHelper> archive_helper(
@@ -199,7 +198,7 @@ base::expected<void, InstallStatus> UnpackAndMaybePatchChromeArchive(
       // The delta patch archive is invalid or missing, so bail out here.
       LOG(ERROR) << "Cannot patch Vivaldi without a valid (delta) archive.";
       installer_state.WriteInstallerResult(
-        INVALID_ARCHIVE, IDS_INSTALL_INVALID_ARCHIVE_BASE, NULL);
+          INVALID_ARCHIVE, IDS_INSTALL_INVALID_ARCHIVE_BASE, NULL);
       return base::unexpected(INVALID_ARCHIVE);
     }
   }

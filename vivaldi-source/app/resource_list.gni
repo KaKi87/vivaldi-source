@@ -106,6 +106,7 @@ if(!is_ios) {
       "//vivaldi/app/resources/locale/vivaldi_locale_strings.grd",
       {
         have_strings_flag = false
+        use_strings_target = true
       },
     ],
     [
@@ -113,6 +114,7 @@ if(!is_ios) {
       "//vivaldi/app/resources/platform_locale_settings/vivaldi_platform_locale_settings.grd",
       {
         have_strings_flag = false
+        use_strings_target = true
         pak_file_prefix="platform_locale_settings_"
         add_mobile_locales = true
       },
@@ -198,6 +200,7 @@ ANDROID_VIVALDI_RESOURCE_LIST = [
       source = "android_chrome_strings.grd"
       vivaldi_translation_dir_setting = "strings"
       string_file_prefix="android_chrome_strings_"
+      java_grd_name = true
     },
   ],
   [
@@ -212,10 +215,11 @@ ANDROID_VIVALDI_RESOURCE_LIST = [
       source = "browser_ui_strings.grd"
       vivaldi_translation_dir_setting = "strings"
       string_file_prefix="browser_ui_strings_"
+      java_grd_name = true
     },
   ],
   [
-    "//components/permissions/android:permissions_strings_grd",
+    "//components/permissions/android:permissions_strings_grd__grit",
     "//vivaldi/app/resources/android-permissions/vivaldi_android_permissions_strings.grd",
     {
       have_strings_flag = true
@@ -241,6 +245,7 @@ ANDROID_VIVALDI_RESOURCE_LIST = [
       source = "java/strings/android_chrome_tab_ui_strings.grd"
       vivaldi_translation_dir_setting = "strings"
       string_file_prefix="android_chrome_tab_ui_strings_"
+      java_grd_name = true
     },
   ],
   [
@@ -255,6 +260,7 @@ ANDROID_VIVALDI_RESOURCE_LIST = [
       source = "android_webapps_strings.grd"
       vivaldi_translation_dir_setting = "strings"
       string_file_prefix="android_webapps_strings_"
+      java_grd_name = true
     },
   ],
   [
@@ -269,6 +275,7 @@ ANDROID_VIVALDI_RESOURCE_LIST = [
       source = "java/strings/android_content_strings.grd"
       vivaldi_translation_dir_setting = "strings"
       string_file_prefix="android_content_strings_"
+      java_grd_name = true
     },
   ],
   [
@@ -283,6 +290,7 @@ ANDROID_VIVALDI_RESOURCE_LIST = [
       source = "java/strings/android_ui_strings.grd"
       vivaldi_translation_dir_setting = "strings"
       string_file_prefix="android_ui_strings_"
+      java_grd_name = true
     },
   ],
 ]

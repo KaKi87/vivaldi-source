@@ -12,11 +12,13 @@ import androidx.preference.CheckBoxPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
 
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.settings.ChromeBaseSettingsFragment;
+import org.chromium.chrome.browser.settings.search.ChromeBaseSearchIndexProvider;
 import org.chromium.chrome.browser.tracing.TracingController;
 import org.chromium.components.browser_ui.settings.ChromeBaseCheckBoxPreference;
 import org.chromium.components.browser_ui.settings.EmbeddableSettingsPage;
@@ -38,8 +40,8 @@ public class TracingCategoriesSettings extends ChromeBaseSettingsFragment
 
     // Non-translated strings:
     private static final String MSG_CATEGORY_SELECTION_TITLE = "Select categories";
-    private final ObservableSupplier<String> mPageTitle =
-            new ObservableSupplierImpl<>(MSG_CATEGORY_SELECTION_TITLE);
+    private final NonNullObservableSupplier<String> mPageTitle =
+            ObservableSuppliers.createNonNull(MSG_CATEGORY_SELECTION_TITLE);
 
     private static final String SELECT_ALL_KEY = "select-all";
     private static final String SELECT_ALL_TITLE = "Select all";
@@ -83,7 +85,7 @@ public class TracingCategoriesSettings extends ChromeBaseSettingsFragment
     }
 
     @Override
-    public ObservableSupplier<String> getPageTitle() {
+    public MonotonicObservableSupplier<String> getPageTitle() {
         return mPageTitle;
     }
 
@@ -133,4 +135,9 @@ public class TracingCategoriesSettings extends ChromeBaseSettingsFragment
     public @AnimationType int getAnimationType() {
         return AnimationType.PROPERTY;
     }
+
+    public static final ChromeBaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+            new ChromeBaseSearchIndexProvider(
+                    TracingCategoriesSettings.class.getName(),
+                    ChromeBaseSearchIndexProvider.INDEX_OPT_OUT);
 }

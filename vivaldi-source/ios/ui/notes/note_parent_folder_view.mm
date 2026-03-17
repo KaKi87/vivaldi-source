@@ -38,13 +38,13 @@ CGSize rightChevronSize = CGSizeMake(12.0, 12.0);
 UIEdgeInsets rightChevronPadding = UIEdgeInsetsMake(0, 12, 0, 0);
 }  // namespace
 
-@interface NoteParentFolderView()
+@interface NoteParentFolderView ()
 // Label for the folder view, i.e. - "PARENT FOLDER"
-@property (nonatomic,weak) UILabel* titleLabel;
+@property(nonatomic, weak) UILabel* titleLabel;
 // Label for the folder name.
-@property (nonatomic,weak) UILabel* folderNameLabel;
+@property(nonatomic, weak) UILabel* folderNameLabel;
 // Imageview for the folder icon
-@property (nonatomic,weak) UIImageView* folderIconView;
+@property(nonatomic, weak) UIImageView* folderIconView;
 
 @end
 
@@ -66,7 +66,6 @@ UIEdgeInsets rightChevronPadding = UIEdgeInsetsMake(0, 12, 0, 0);
 
 #pragma mark - SET UP UI COMPONENTS
 - (void)setUpUI {
-
   // Title label
   UILabel* titleLabel = [[UILabel alloc] init];
   _titleLabel = titleLabel;
@@ -87,9 +86,9 @@ UIEdgeInsets rightChevronPadding = UIEdgeInsetsMake(0, 12, 0, 0);
   containerView.userInteractionEnabled = YES;
 
   // Set up a tap gesture for folder selection
-  UITapGestureRecognizer* tapGesture =
-    [[UITapGestureRecognizer alloc] initWithTarget:self
-                                       action:@selector(handleParentFolderTap)];
+  UITapGestureRecognizer* tapGesture = [[UITapGestureRecognizer alloc]
+      initWithTarget:self
+              action:@selector(handleParentFolderTap)];
   [containerView addGestureRecognizer:tapGesture];
   tapGesture.numberOfTapsRequired = 1;
 
@@ -103,8 +102,7 @@ UIEdgeInsets rightChevronPadding = UIEdgeInsetsMake(0, 12, 0, 0);
   containerView.accessibilityTraits |= UIAccessibilityTraitButton;
 
   // Folder Icon
-  UIImageView* folderIconView =
-    ImageViewForImageNamed(vNotesFolderIcon);
+  UIImageView* folderIconView = ImageViewForImageNamed(vNotesFolderIcon);
   _folderIconView = folderIconView;
   folderIconView.contentMode = UIViewContentModeScaleAspectFit;
   folderIconView.backgroundColor = UIColor.clearColor;
@@ -133,7 +131,7 @@ UIEdgeInsets rightChevronPadding = UIEdgeInsetsMake(0, 12, 0, 0);
 
   // Right Chevron for the folder selection
   UIImageView* rightChevron =
-    ImageViewForImageNamed(vNoteFolderSelectionChevron);
+      ImageViewForImageNamed(vNoteFolderSelectionChevron);
   rightChevron.contentMode = UIViewContentModeScaleAspectFit;
   rightChevron.backgroundColor = UIColor.clearColor;
 
@@ -145,12 +143,11 @@ UIEdgeInsets rightChevronPadding = UIEdgeInsetsMake(0, 12, 0, 0);
                   padding:rightChevronPadding
                      size:rightChevronSize];
   [rightChevron centerYInSuperview];
-
 }
 
 #pragma mark - PRIVATE
 /// Triggers when folder view is tapped.
-- (void) handleParentFolderTap {
+- (void)handleParentFolderTap {
   if (self.delegate)
     [self.delegate didTapParentFolder];
 }
@@ -160,8 +157,7 @@ UIEdgeInsets rightChevronPadding = UIEdgeInsetsMake(0, 12, 0, 0);
 - (void)setParentFolderAttributesWithItem:(const vivaldi::NoteNode*)item {
   if (item)
     self.folderNameLabel.text = base::SysUTF16ToNSString(item->GetTitle());
-  self.folderIconView.image =
-    [UIImage imageNamed:vNotesFolderIcon];
+  self.folderIconView.image = [UIImage imageNamed:vNotesFolderIcon];
 }
 
 @end

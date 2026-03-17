@@ -554,9 +554,9 @@ class TextureFormatTest : public DawnTest {
             mIsUnorm16TextureFormatsSupported = true;
             requiredFeatures.push_back(wgpu::FeatureName::Unorm16TextureFormats);
         }
-        if (SupportsFeatures({wgpu::FeatureName::Snorm16TextureFormats})) {
+        if (SupportsFeatures({wgpu::FeatureName::TextureFormatsTier1})) {
             mIsSnorm16TextureFormatsSupported = true;
-            requiredFeatures.push_back(wgpu::FeatureName::Snorm16TextureFormats);
+            requiredFeatures.push_back(wgpu::FeatureName::TextureFormatsTier1);
         }
         return requiredFeatures;
     }
@@ -583,11 +583,15 @@ TEST_P(TextureFormatTest, RG8Unorm) {
 
 // Test the R16Unorm format
 TEST_P(TextureFormatTest, R16Unorm) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     DoUnormTest<uint16_t>({wgpu::TextureFormat::R16Unorm, 2, TextureComponentType::Float, 1});
 }
 
 // Test the RG16Unorm format
 TEST_P(TextureFormatTest, RG16Unorm) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
     DoUnormTest<uint16_t>({wgpu::TextureFormat::RG16Unorm, 4, TextureComponentType::Float, 2});
 }
 
@@ -776,7 +780,7 @@ TEST_P(TextureFormatTest, RGBA32Float) {
 TEST_P(TextureFormatTest, R16Float) {
     // TODO(https://crbug.com/swiftshader/147) Rendering INFINITY isn't handled correctly by
     // swiftshader
-    DAWN_SUPPRESS_TEST_IF(IsVulkan() && IsSwiftshader() || IsANGLE() || IsWebGPUOnSwiftshader());
+    DAWN_SUPPRESS_TEST_IF(IsVulkan() && IsSwiftshader() || IsANGLE());
 
     DoFloat16Test({wgpu::TextureFormat::R16Float, 2, TextureComponentType::Float, 1});
 }
@@ -785,7 +789,7 @@ TEST_P(TextureFormatTest, R16Float) {
 TEST_P(TextureFormatTest, RG16Float) {
     // TODO(https://crbug.com/swiftshader/147) Rendering INFINITY isn't handled correctly by
     // swiftshader
-    DAWN_SUPPRESS_TEST_IF(IsVulkan() && IsSwiftshader() || IsANGLE() || IsWebGPUOnSwiftshader());
+    DAWN_SUPPRESS_TEST_IF(IsVulkan() && IsSwiftshader() || IsANGLE());
 
     DoFloat16Test({wgpu::TextureFormat::RG16Float, 4, TextureComponentType::Float, 2});
 }
@@ -794,13 +798,17 @@ TEST_P(TextureFormatTest, RG16Float) {
 TEST_P(TextureFormatTest, RGBA16Float) {
     // TODO(https://crbug.com/swiftshader/147) Rendering INFINITY isn't handled correctly by
     // swiftshader
-    DAWN_SUPPRESS_TEST_IF(IsVulkan() && IsSwiftshader() || IsANGLE() || IsWebGPUOnSwiftshader());
+    DAWN_SUPPRESS_TEST_IF(IsVulkan() && IsSwiftshader() || IsANGLE());
 
     DoFloat16Test({wgpu::TextureFormat::RGBA16Float, 8, TextureComponentType::Float, 4});
 }
 
 // Test the RGBA8Unorm format
 TEST_P(TextureFormatTest, RGBA8UnormSrgb) {
+    // TODO(crbug.com/473890413): [Capture] validation error: attachment state of pipeline not
+    // compatible with pass.
+    DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
+
     uint8_t maxValue = std::numeric_limits<uint8_t>::max();
     std::vector<uint8_t> textureData = {0, 1, maxValue, 64, 35, 68, 152, 168};
 
@@ -825,6 +833,10 @@ TEST_P(TextureFormatTest, BGRA8UnormSrgb) {
     // BGRA8UnormSrgb is unsupported in Compatibility mode
     DAWN_TEST_UNSUPPORTED_IF(IsCompatibilityMode());
 
+    // TODO(crbug.com/473890413): [Capture] validation error: attachment state of pipeline not
+    // compatible with pass.
+    DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
+
     uint8_t maxValue = std::numeric_limits<uint8_t>::max();
     std::vector<uint8_t> textureData = {0, 1, maxValue, 64, 35, 68, 152, 168};
 
@@ -845,7 +857,7 @@ TEST_P(TextureFormatTest, BGRA8UnormSrgb) {
                           uncompressedData, textureData);
 }
 
-// Test the RGB10A2Unorm format
+// Test the RGB10A2Uint format
 TEST_P(TextureFormatTest, RGB10A2Uint) {
     auto MakeRGB10A2 = [](uint32_t r, uint32_t g, uint32_t b, uint32_t a) -> uint32_t {
         DAWN_ASSERT((r & 0x3FF) == r);
@@ -874,6 +886,9 @@ TEST_P(TextureFormatTest, RGB10A2Uint) {
 
 // Test the RGB10A2Unorm format
 TEST_P(TextureFormatTest, RGB10A2Unorm) {
+    // TODO(crbug.com/40238674): Fails on Pixel 10 for both vulkan and gles.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec() && (IsOpenGLES() || IsVulkan()));
+
     auto MakeRGB10A2 = [](uint32_t r, uint32_t g, uint32_t b, uint32_t a) -> uint32_t {
         DAWN_ASSERT((r & 0x3FF) == r);
         DAWN_ASSERT((g & 0x3FF) == g);
@@ -906,8 +921,6 @@ TEST_P(TextureFormatTest, RG11B10Ufloat) {
     DAWN_TEST_UNSUPPORTED_IF(!IsRG11B10UfloatRenderableSupported());
     // TODO(crbug.com/388318201): expected: 0xf87e0000, actual: 0xfffff800
     DAWN_SUPPRESS_TEST_IF(IsD3D11());
-    // TODO(crbug.com/440123094): expected: 0xf87e0000, actual: 0x003ff800
-    DAWN_SUPPRESS_TEST_IF(IsWebGPUOnSwiftshader());
 
     constexpr uint32_t kFloat11Zero = 0;
     constexpr uint32_t kFloat11Infinity = 0x7C0;

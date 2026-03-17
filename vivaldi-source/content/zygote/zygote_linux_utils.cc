@@ -9,4 +9,4 @@ bool Zygote::UsingFlatpakSandbox() const {
   return sandbox_flags_ & sandbox::policy::SandboxLinux::kFlatpak;
 }
 
-} // namespace content
+}  // namespace content

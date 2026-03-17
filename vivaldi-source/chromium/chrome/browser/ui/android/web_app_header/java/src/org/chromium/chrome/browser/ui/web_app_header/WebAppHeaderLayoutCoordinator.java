@@ -26,9 +26,10 @@ import androidx.core.graphics.Insets;
 
 import org.chromium.base.Callback;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.NullableObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplier;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.blink.mojom.DisplayMode;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -54,6 +55,7 @@ import org.chromium.components.browser_ui.widget.animation.CancelAwareAnimatorLi
 import org.chromium.components.browser_ui.widget.scrim.ScrimManager;
 import org.chromium.components.embedder_support.util.Origin;
 import org.chromium.components.url_formatter.UrlFormatter;
+import org.chromium.components.webapps.WebappsUtils;
 import org.chromium.content_public.browser.NavigationHandle;
 import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.display.DisplayAndroid;
@@ -67,6 +69,7 @@ import org.chromium.url.GURL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -97,7 +100,7 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
     private @Nullable MenuButtonCoordinator mMenuButtonCoordinator;
     private final ViewStub mViewStub;
     private final DesktopWindowStateManager mDesktopWindowStateManager;
-    private final ObservableSupplier<@Nullable Tab> mTabSupplier;
+    private final NullableObservableSupplier<Tab> mTabSupplier;
     private final ScrimManager mScrimManager;
     private final ThemeColorProvider mThemeColorProvider;
     private final IncognitoStateProvider mIncognitoStateProvider;
@@ -106,7 +109,9 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
     private int mUIControlsMinWidthPx;
     private int mAppHeaderUnoccludedWidthPx;
     private final Callback<Integer> mOnUnoccludedWidthCallback;
-    private final ObservableSupplierImpl<Boolean> mControlsEnabledSupplier;
+    private final SettableNonNullObservableSupplier<Boolean> mControlsEnabledSupplier =
+            ObservableSuppliers.createNonNull(true);
+
     private final TokenHolder mDisabledControlsHolder;
     private boolean mShowButtons;
     private long mLastButtonVisibilityChangeTime;
@@ -119,8 +124,7 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
     private final Runnable mRequestRenderRunnable;
     private final Activity mActivity;
     private final boolean mIsTWA;
-    private final ObservableSupplierImpl<MenuButtonState> mMenuButtonStateSupplier =
-            new ObservableSupplierImpl<>();
+    private final Supplier<MenuButtonState> mMenuButtonStateSupplier;
     private @Nullable View mMenuButtonContainer;
     private final @Nullable String mClientPackageName;
     private @Nullable ChromeImageButton mToggleButtonView;
@@ -139,7 +143,7 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
             Activity activity,
             ViewStub viewStub,
             DesktopWindowStateManager desktopWindowStateManager,
-            ObservableSupplier<@Nullable Tab> tabSupplier,
+            NullableObservableSupplier<Tab> tabSupplier,
             ThemeColorProvider themeColorProvider,
             BrowserServicesIntentDataProvider browserServicesIntentDataProvider,
             ScrimManager scrimManager,
@@ -159,7 +163,6 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
         mIsTWA = browserServicesIntentDataProvider.isTrustedWebActivity();
         mDisplayMode = browserServicesIntentDataProvider.getResolvedDisplayMode();
         mHistoryDelegate = historyDelegate;
-        mControlsEnabledSupplier = new ObservableSupplierImpl<>(true);
         mDisabledControlsHolder = new TokenHolder(this::updateControlsEnabledState);
         mScrimManager = scrimManager;
         mSetHeaderAsOverlayCallback = setHeaderAsOverlayCallback;
@@ -179,7 +182,7 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
         buttonState.darkBadgeIcon = R.drawable.badge_update_dark;
         buttonState.lightBadgeIcon = R.drawable.badge_update_light;
         buttonState.adaptiveBadgeIcon = R.drawable.badge_update;
-        mMenuButtonStateSupplier.set(buttonState);
+        mMenuButtonStateSupplier = ObservableSuppliers.createNonNull(buttonState);
 
         mClientPackageName = clientPackageName;
 
@@ -252,8 +255,18 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
         onAndroidControlsVisibilityChanged(
                 mBrowserControlsStateProvider.getAndroidControlsVisibility());
 
-        if (mIsTWA && ChromeFeatureList.sAndroidTwaOriginDisplay.isEnabled()) {
-            mAppOriginView = (TextView) mView.findViewById(R.id.origin);
+        if (mIsTWA
+                && ChromeFeatureList.sAndroidTwaOriginDisplay.isEnabled()
+                && mClientPackageName != null) {
+            // Show origin only for TWA Installer installed apps.
+            WebappsUtils.isTwaInstallerPackage(
+                    mClientPackageName,
+                    (isTwaInstallerPackage) -> {
+                        if (isTwaInstallerPackage) {
+                            assert mView != null;
+                            mAppOriginView = (TextView) mView.findViewById(R.id.origin);
+                        }
+                    });
         }
 
         mMediator.getUnoccludedWidthSupplier().addObserver(mOnUnoccludedWidthCallback);
@@ -264,6 +277,8 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
         if (mDisplayMode == DisplayMode.WINDOW_CONTROLS_OVERLAY) {
             initWCOControls();
         }
+
+        initMenuButton();
 
         // Determine width of initialized UI controls.
         mUIControlsMinWidthPx = calculateUIControlsMinWidth();
@@ -282,7 +297,7 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
                     @SuppressLint("ClickableViewAccessibility")
                     @Override
                     public boolean onTouch(View v, MotionEvent event) {
-                        if (event.getAction() == MotionEvent.ACTION_DOWN) return false;
+                        if (event.getAction() != MotionEvent.ACTION_UP) return false;
                         assert mMediator != null;
                         mMediator.setUserToggleHeaderAsOverlay(
                                 !mMediator.getUserToggleHeaderAsOverlay());
@@ -346,7 +361,7 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
                             if (mMediator != null) mMediator.refreshTab(ignoreCache);
                         },
                         mTabSupplier,
-                        new ObservableSupplierImpl<>(),
+                        ObservableSuppliers.alwaysFalse(),
                         mControlsEnabledSupplier,
                         mThemeColorProvider,
                         mIncognitoStateProvider,
@@ -369,7 +384,18 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
                         mHistoryDelegate,
                         /* isWebApp= */ true);
 
-        if (mIsTWA && ChromeFeatureList.sAndroidWebAppMenuButton.isEnabled()) {
+        mMediator.setOnButtonBottomInsetChanged(this::onButtonBottomInsetChanged);
+    }
+
+    private void initMenuButton() {
+        assert mView != null;
+        assert mMenuButtonContainer == null;
+        assert mMenuButtonCoordinator == null;
+        if (!mIsTWA) return;
+        if (mDisplayMode == DisplayMode.MINIMAL_UI
+                || (ChromeFeatureList.sAndroidTwaOriginDisplay.isEnabled()
+                        && (mDisplayMode == DisplayMode.STANDALONE
+                                || mDisplayMode == DisplayMode.WINDOW_CONTROLS_OVERLAY))) {
             mMenuButtonContainer = mView.findViewById(R.id.web_app_menu_button_wrapper);
             mMenuButtonContainer.setVisibility(View.VISIBLE);
 
@@ -393,7 +419,6 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
                             /* visibilityDelegate= */ null,
                             /* isWebApp= */ true);
         }
-        mMediator.setOnButtonBottomInsetChanged(this::onButtonBottomInsetChanged);
     }
 
     private void onUnoccludedWidthChanged(int newUnoccludedWidthPx) {
@@ -449,13 +474,18 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
     List<Rect> collectControlPositions() {
         assert mView != null;
 
+        View relativeLayout = mView.findViewById(R.id.web_app_header_relative);
         final var areas = new ArrayList<Rect>();
         if (mReloadButtonCoordinator != null && mReloadButtonCoordinator.isVisible()) {
-            areas.add(mReloadButtonCoordinator.getHitRect());
+            Rect rect = mReloadButtonCoordinator.getHitRect();
+            mView.offsetDescendantRectToMyCoords(relativeLayout, rect);
+            areas.add(rect);
         }
 
         if (mBackButtonCoordinator != null && mBackButtonCoordinator.isVisible()) {
-            areas.add(mBackButtonCoordinator.getHitRect());
+            Rect rect = mBackButtonCoordinator.getHitRect();
+            mView.offsetDescendantRectToMyCoords(relativeLayout, rect);
+            areas.add(rect);
         }
 
         // getHitRect() provides coordinates relative to its parent View. Use
@@ -463,8 +493,6 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
         View rightAlignedWrapper = mView.findViewById(R.id.right_aligned_wrapper);
         if (mMenuButtonCoordinator != null && mMenuButtonCoordinator.isVisible()) {
             Rect rect = mMenuButtonCoordinator.getHitRect();
-            View menuDescendent = mView.findViewById(R.id.menu_button_wrapper);
-            mView.offsetDescendantRectToMyCoords(menuDescendent, rect);
             mView.offsetDescendantRectToMyCoords(rightAlignedWrapper, rect);
             areas.add(rect);
         }
@@ -563,6 +591,10 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
         if (mMenuButtonCoordinator != null) {
             mMenuButtonCoordinator.setBackgroundInsets(Insets.of(0, 0, 0, bottomInset));
         }
+
+        if (mAppOriginView != null) {
+            mAppOriginView.setPadding(0, 0, 0, bottomInset);
+        }
     }
 
     /**
@@ -654,21 +686,22 @@ public class WebAppHeaderLayoutCoordinator extends EmptyTabObserver
     @Override
     public void onDidFinishNavigationInPrimaryMainFrame(
             Tab tab, NavigationHandle navigationHandle) {
-        if (mAppOriginView == null) return;
-        if (mBrowserServicesIntentDataProvider == null
-                || mBrowserServicesIntentDataProvider.getAllTrustedWebActivityOrigins() == null)
+        if (mAppOriginView == null || mBrowserServicesIntentDataProvider == null) {
             return;
+        }
+        Set<Origin> origins = mBrowserServicesIntentDataProvider.getAllTrustedWebActivityOrigins();
+        if (origins == null) {
+            return;
+        }
         GURL origin = navigationHandle.getUrl().getOrigin();
-        boolean isTWAOrigin =
-                mBrowserServicesIntentDataProvider
-                        .getAllTrustedWebActivityOrigins()
-                        .contains(Origin.create(origin.getSpec()));
+        String originSpec = origin.getSpec();
+        boolean isTWAOrigin = origins.contains(Origin.create(originSpec));
         // If the origin is not new or does not belong to the TWA, do nothing.
-        if ((mAppOrigin != null && mAppOrigin.equals(origin.getSpec())) || !isTWAOrigin) {
+        if ((mAppOrigin != null && mAppOrigin.equals(originSpec)) || !isTWAOrigin) {
             return;
         }
 
-        mAppOrigin = origin.getSpec();
+        mAppOrigin = originSpec;
         String domain = UrlFormatter.formatUrlForDisplayOmitSchemePathAndTrivialSubdomains(origin);
         mAppOriginView.setText(domain);
         setTextThemeColor();

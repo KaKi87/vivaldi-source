@@ -15,8 +15,7 @@ namespace vivaldi {
 // There is one VivaldiTranslateAgent per RenderView.
 class VivaldiTranslateAgent : public translate::TranslateAgent {
  public:
-  VivaldiTranslateAgent(content::RenderFrame* render_frame,
-                        int world_id);
+  VivaldiTranslateAgent(content::RenderFrame* render_frame, int world_id);
   ~VivaldiTranslateAgent() override;
   VivaldiTranslateAgent(const VivaldiTranslateAgent&) = delete;
   VivaldiTranslateAgent& operator=(const VivaldiTranslateAgent&) = delete;

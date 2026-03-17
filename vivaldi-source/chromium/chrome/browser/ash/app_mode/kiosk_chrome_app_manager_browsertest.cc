@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "chrome/browser/ash/app_mode/kiosk_chrome_app_manager.h"
 
 #include <stddef.h>
@@ -20,6 +15,7 @@
 #include "base/check.h"
 #include "base/check_deref.h"
 #include "base/command_line.h"
+#include "base/compiler_specific.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
@@ -59,7 +55,7 @@
 #include "content/public/test/test_utils.h"
 #include "extensions/browser/sandboxed_unpacker.h"
 #include "extensions/common/extension.h"
-#include "extensions/common/mojom/manifest.mojom-data-view.h"
+#include "extensions/common/mojom/manifest.mojom-shared.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -90,11 +86,11 @@ scoped_refptr<extensions::Extension> MakeKioskApp(
     const std::string& version,
     const std::string& id,
     const std::string& required_platform_version) {
-  auto value = base::Value::Dict()
+  auto value = base::DictValue()
                    .Set("name", name)
                    .Set("version", version)
                    .SetByDottedPath("app.background.scripts",
-                                    base::Value::List().Append("main.js"))
+                                    base::ListValue().Append("main.js"))
                    .Set("kiosk_enabled", true);
   if (!required_platform_version.empty()) {
     value.SetByDottedPath("kiosk.required_platform_version",
@@ -262,15 +258,15 @@ class ChromeAppKioskAppManagerTest : public InProcessBrowserTest {
         local_state, KioskChromeAppManager::kKioskDictionaryName);
     dict_update->Set(
         KioskAppDataBase::kKeyApps,
-        base::Value::Dict()
+        base::DictValue()
             .SetByDottedPath(app_id + ".name", app_name)
             .SetByDottedPath(app_id + ".icon", icon_path.MaybeAsASCII())
             .SetByDottedPath(app_id + ".required_platform_version",
                              required_platform_version));
 
     // Make the app appear in device settings.
-    auto device_local_accounts = base::Value::List().Append(
-        base::Value::Dict()
+    auto device_local_accounts = base::ListValue().Append(
+        base::DictValue()
             // Fake an account id. Note this needs to match
             // GenerateKioskAppAccountId in kiosk_chrome_app_manager.cc to make
             // SetAutoLaunchApp work with the existing app entry created here.
@@ -308,7 +304,7 @@ class ChromeAppKioskAppManagerTest : public InProcessBrowserTest {
 
     // Check data is cached in local state correctly.
     PrefService* local_state = g_browser_process->local_state();
-    const base::Value::Dict& dict =
+    const base::DictValue& dict =
         local_state->GetDict(KioskChromeAppManager::kKioskDictionaryName);
 
     const std::string name_key = "apps." + app_id + ".name";
@@ -489,10 +485,9 @@ IN_PROC_BROWSER_TEST_F(ChromeAppKioskAppManagerTest, ClearAppData) {
   SetExistingApp("app_1", "Cached App1 Name", "red16x16.png", "");
 
   PrefService* local_state = g_browser_process->local_state();
-  const base::Value::Dict& dict =
+  const base::DictValue& dict =
       local_state->GetDict(KioskChromeAppManager::kKioskDictionaryName);
-  const base::Value::Dict* apps_dict =
-      dict.FindDict(KioskAppDataBase::kKeyApps);
+  const base::DictValue* apps_dict = dict.FindDict(KioskAppDataBase::kKeyApps);
   EXPECT_TRUE(apps_dict);
   EXPECT_TRUE(apps_dict->contains("app_1"));
 
@@ -901,12 +896,13 @@ IN_PROC_BROWSER_TEST_F(ChromeAppKioskAppManagerTest,
   };
 
   for (size_t i = 0; i < std::size(kTestCases); ++i) {
-    scoped_refptr<extensions::Extension> app = MakeKioskApp(
-        "App Name", "1.0", kAppId, kTestCases[i].required_platform_version);
-    EXPECT_EQ(kTestCases[i].expected_compliant,
-              manager()->IsPlatformCompliantWithApp(app.get()))
+    scoped_refptr<extensions::Extension> app =
+        MakeKioskApp("App Name", "1.0", kAppId,
+                     UNSAFE_TODO(kTestCases[i]).required_platform_version);
+    UNSAFE_TODO(EXPECT_EQ(kTestCases[i].expected_compliant,
+                          manager()->IsPlatformCompliantWithApp(app.get())))
         << "Test case: " << i << ", required_platform_version="
-        << kTestCases[i].required_platform_version;
+        << UNSAFE_TODO(kTestCases[i]).required_platform_version;
   }
 
   // If an app is not auto launched with zero delay, it is always compliant.
@@ -914,11 +910,11 @@ IN_PROC_BROWSER_TEST_F(ChromeAppKioskAppManagerTest,
   for (size_t i = 0; i < std::size(kTestCases); ++i) {
     scoped_refptr<extensions::Extension> app =
         MakeKioskApp("App Name", "1.0", kNoneAutoLaucnhedAppId,
-                     kTestCases[i].required_platform_version);
+                     UNSAFE_TODO(kTestCases[i]).required_platform_version);
     EXPECT_TRUE(manager()->IsPlatformCompliantWithApp(app.get()))
         << "Test case for non auto launch app: " << i
         << ", required_platform_version="
-        << kTestCases[i].required_platform_version;
+        << UNSAFE_TODO(kTestCases[i]).required_platform_version;
   }
 }
 

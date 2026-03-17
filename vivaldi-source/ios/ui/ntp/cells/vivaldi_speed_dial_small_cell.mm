@@ -12,8 +12,7 @@
 
 namespace {
 // Padding for title label. In order - Top, Left, Bottom, Right
-const UIEdgeInsets titleLabelPadding =
-    UIEdgeInsetsMake(0.f, 4.f, 0.f, 4.f);
+const UIEdgeInsets titleLabelPadding = UIEdgeInsetsMake(0.f, 4.f, 0.f, 4.f);
 const CGFloat titleLabelBottomPadding = 6.f;
 
 // Padding for favicon fallback label
@@ -29,30 +28,30 @@ const CGFloat titleLabelMaskViewHeight = 10.f;
 const CGFloat titleLabelMaskBottomPaddingiPad = 6.f;
 const CGFloat titleLabelMaskViewHeightiPad = 10.f;
 const CGSize faviconMaskSizeiPad = CGSizeMake(26.f, 26.f);
-}
+}  // namespace
 
-@interface VivaldiSpeedDialSmallCell()
+@interface VivaldiSpeedDialSmallCell ()
 // The title label for the speed dial URL item.
-@property(nonatomic,weak) UILabel* titleLabel;
+@property(nonatomic, weak) UILabel* titleLabel;
 // The title label mask for preview purpose
-@property(nonatomic,weak) UIView* titleLabelMaskView;
+@property(nonatomic, weak) UIView* titleLabelMaskView;
 // Imageview for the favicon.
-@property(nonatomic,weak) UIImageView* faviconView;
+@property(nonatomic, weak) UIImageView* faviconView;
 // The fallback label when there's no favicon available.
-@property(nonatomic,weak) UILabel* fallbackFaviconLabel;
+@property(nonatomic, weak) UILabel* fallbackFaviconLabel;
 // Bottom constraint for title label
-@property(nonatomic,strong) NSLayoutConstraint* titleLabelBottomConstraint;
+@property(nonatomic, strong) NSLayoutConstraint* titleLabelBottomConstraint;
 // Bottom constraint for title label mask for iPhone
-@property(nonatomic,strong) NSLayoutConstraint* titleLabelMaskBottomConstraint;
+@property(nonatomic, strong) NSLayoutConstraint* titleLabelMaskBottomConstraint;
 // Bottom constraint for title label mask for iPad
-@property(nonatomic,strong) NSLayoutConstraint*
-  titleLabelMaskBottomConstraintiPad;
+@property(nonatomic, strong)
+    NSLayoutConstraint* titleLabelMaskBottomConstraintiPad;
 // Height constraint for title label mask
-@property(nonatomic,strong) NSLayoutConstraint* titleLabelMaskHeightConstraint;
+@property(nonatomic, strong) NSLayoutConstraint* titleLabelMaskHeightConstraint;
 // Constraint for favicon width
-@property(nonatomic,strong) NSLayoutConstraint* faviconWidthConstraint;
+@property(nonatomic, strong) NSLayoutConstraint* faviconWidthConstraint;
 // Constraint for favicon height
-@property(nonatomic,strong) NSLayoutConstraint* faviconHeightConstraint;
+@property(nonatomic, strong) NSLayoutConstraint* faviconHeightConstraint;
 @end
 
 @implementation VivaldiSpeedDialSmallCell
@@ -64,7 +63,7 @@ const CGSize faviconMaskSizeiPad = CGSizeMake(26.f, 26.f);
 @synthesize titleLabelBottomConstraint = _titleLabelBottomConstraint;
 @synthesize titleLabelMaskBottomConstraint = _titleLabelMaskBottomConstraint;
 @synthesize titleLabelMaskBottomConstraintiPad =
-  _titleLabelMaskBottomConstraintiPad;
+    _titleLabelMaskBottomConstraintiPad;
 @synthesize titleLabelMaskHeightConstraint = _titleLabelMaskHeightConstraint;
 @synthesize faviconWidthConstraint = _faviconWidthConstraint;
 @synthesize faviconHeightConstraint = _faviconHeightConstraint;
@@ -88,29 +87,24 @@ const CGSize faviconMaskSizeiPad = CGSizeMake(26.f, 26.f);
   self.fallbackFaviconLabel.text = nil;
 }
 
-
 #pragma mark - SET UP UI COMPONENTS
 - (void)setUpUI {
-
   self.layer.cornerRadius = vSpeedDialItemCornerRadius;
   self.clipsToBounds = true;
   self.layer.borderColor = UIColor.clearColor.CGColor;
   // Add drop shadow to parent
-  [self
-    addShadowWithBackground: [UIColor colorNamed:
-                              vNTPSpeedDialCellBackgroundColor]
-                     offset: vSpeedDialItemShadowOffset
-                shadowColor: [UIColor colorNamed:vSpeedDialItemShadowColor]
-                     radius: vSpeedDialItemShadowRadius
-                    opacity: vSpeedDialItemShadowOpacity
-  ];
-  self.backgroundColor =
-    [UIColor colorNamed: vNTPSpeedDialCellBackgroundColor];
+  [self addShadowWithBackground:[UIColor
+                                    colorNamed:vNTPSpeedDialCellBackgroundColor]
+                         offset:vSpeedDialItemShadowOffset
+                    shadowColor:[UIColor colorNamed:vSpeedDialItemShadowColor]
+                         radius:vSpeedDialItemShadowRadius
+                        opacity:vSpeedDialItemShadowOpacity];
+  self.backgroundColor = [UIColor colorNamed:vNTPSpeedDialCellBackgroundColor];
 
   // Container view to hold the labels and image views.
-  UIView *container = [UIView new];
+  UIView* container = [UIView new];
   container.backgroundColor =
-    [UIColor colorNamed: vNTPSpeedDialCellBackgroundColor];
+      [UIColor colorNamed:vNTPSpeedDialCellBackgroundColor];
   container.layer.cornerRadius = vSpeedDialItemCornerRadius;
   container.clipsToBounds = true;
   [self addSubview:container];
@@ -119,11 +113,11 @@ const CGSize faviconMaskSizeiPad = CGSizeMake(26.f, 26.f);
   // Favicon view container
   UIView* faviconContainerView = [UIView new];
   faviconContainerView.backgroundColor = UIColor.clearColor;
-  [container addSubview: faviconContainerView];
-  [faviconContainerView anchorTop: container.topAnchor
-                          leading: container.leadingAnchor
-                           bottom: nil
-                         trailing: container.trailingAnchor];
+  [container addSubview:faviconContainerView];
+  [faviconContainerView anchorTop:container.topAnchor
+                          leading:container.leadingAnchor
+                           bottom:nil
+                         trailing:container.trailingAnchor];
 
   // Favicon view
   UIImageView* faviconView = [[UIImageView alloc] initWithImage:nil];
@@ -132,14 +126,12 @@ const CGSize faviconMaskSizeiPad = CGSizeMake(26.f, 26.f);
   _faviconView.backgroundColor = UIColor.clearColor;
   _faviconView.layer.cornerRadius = vSpeedDialFaviconCornerRadius;
   _faviconView.clipsToBounds = true;
-  [faviconContainerView addSubview: _faviconView];
+  [faviconContainerView addSubview:_faviconView];
   [_faviconView centerInSuperview];
-  self.faviconWidthConstraint =
-    [faviconView.widthAnchor
-     constraintEqualToConstant:vSpeedDialItemFaviconSizeSmallLayout.width];
-  self.faviconHeightConstraint =
-    [faviconView.heightAnchor
-     constraintEqualToConstant:vSpeedDialItemFaviconSizeSmallLayout.height];
+  self.faviconWidthConstraint = [faviconView.widthAnchor
+      constraintEqualToConstant:vSpeedDialItemFaviconSizeSmallLayout.width];
+  self.faviconHeightConstraint = [faviconView.heightAnchor
+      constraintEqualToConstant:vSpeedDialItemFaviconSizeSmallLayout.height];
   [self.faviconWidthConstraint setActive:YES];
   [self.faviconHeightConstraint setActive:YES];
 
@@ -147,9 +139,9 @@ const CGSize faviconMaskSizeiPad = CGSizeMake(26.f, 26.f);
   UILabel* fallbackFaviconLabel = [[UILabel alloc] init];
   _fallbackFaviconLabel = fallbackFaviconLabel;
   fallbackFaviconLabel.textColor =
-    [UIColor colorNamed:vNTPSpeedDialDomainTextColor];
+      [UIColor colorNamed:vNTPSpeedDialDomainTextColor];
   fallbackFaviconLabel.font =
-    [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+      [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
   fallbackFaviconLabel.numberOfLines = 0;
   fallbackFaviconLabel.textAlignment = NSTextAlignmentCenter;
 
@@ -166,15 +158,14 @@ const CGSize faviconMaskSizeiPad = CGSizeMake(26.f, 26.f);
   titleLabel.textAlignment = NSTextAlignmentCenter;
 
   [container addSubview:_titleLabel];
-  [_titleLabel anchorTop: faviconContainerView.bottomAnchor
-                 leading: container.leadingAnchor
-                  bottom: nil
-                trailing: container.trailingAnchor
-                 padding: titleLabelPadding];
-  self.titleLabelBottomConstraint =
-    [titleLabel.bottomAnchor
-     constraintEqualToAnchor:container.bottomAnchor
-     constant:-titleLabelBottomPadding];
+  [_titleLabel anchorTop:faviconContainerView.bottomAnchor
+                 leading:container.leadingAnchor
+                  bottom:nil
+                trailing:container.trailingAnchor
+                 padding:titleLabelPadding];
+  self.titleLabelBottomConstraint = [titleLabel.bottomAnchor
+      constraintEqualToAnchor:container.bottomAnchor
+                     constant:-titleLabelBottomPadding];
 
   // Title label mask, used for preview only
   UIView* titleLabelMaskView = [UIView new];
@@ -184,36 +175,31 @@ const CGSize faviconMaskSizeiPad = CGSizeMake(26.f, 26.f);
   titleLabelMaskView.clipsToBounds = true;
 
   [container addSubview:titleLabelMaskView];
-  [titleLabelMaskView anchorTop: faviconContainerView.bottomAnchor
-                        leading: container.leadingAnchor
-                         bottom: nil
-                       trailing: container.trailingAnchor
-                        padding: titleLabelMaskViewPadding];
+  [titleLabelMaskView anchorTop:faviconContainerView.bottomAnchor
+                        leading:container.leadingAnchor
+                         bottom:nil
+                       trailing:container.trailingAnchor
+                        padding:titleLabelMaskViewPadding];
   titleLabelMaskView.hidden = YES;
 
   // Height constraint for preview mask.
-  self.titleLabelMaskHeightConstraint =
-    [titleLabelMaskView.heightAnchor
-     constraintEqualToConstant:titleLabelMaskViewHeight];
+  self.titleLabelMaskHeightConstraint = [titleLabelMaskView.heightAnchor
+      constraintEqualToConstant:titleLabelMaskViewHeight];
   [self.titleLabelMaskHeightConstraint setActive:YES];
 
   // Bottom constraints for iPhone and iPad preview mask.
-  self.titleLabelMaskBottomConstraint =
-    [titleLabelMaskView.bottomAnchor
-     constraintEqualToAnchor:container.bottomAnchor
-     constant:-titleLabelMaskBottomPadding];
+  self.titleLabelMaskBottomConstraint = [titleLabelMaskView.bottomAnchor
+      constraintEqualToAnchor:container.bottomAnchor
+                     constant:-titleLabelMaskBottomPadding];
 
-  self.titleLabelMaskBottomConstraintiPad =
-    [titleLabelMaskView.bottomAnchor
-     constraintEqualToAnchor:container.bottomAnchor
-     constant:-titleLabelMaskBottomPaddingiPad];
+  self.titleLabelMaskBottomConstraintiPad = [titleLabelMaskView.bottomAnchor
+      constraintEqualToAnchor:container.bottomAnchor
+                     constant:-titleLabelMaskBottomPaddingiPad];
 }
-
 
 #pragma mark - SETTERS
 
-- (void)configureCellWith:(VivaldiSpeedDialItem*)item
-                 isTablet:(BOOL)isTablet {
+- (void)configureCellWith:(VivaldiSpeedDialItem*)item isTablet:(BOOL)isTablet {
   self.titleLabel.text = item.title;
 
   if (isTablet) {
@@ -233,7 +219,7 @@ const CGSize faviconMaskSizeiPad = CGSizeMake(26.f, 26.f);
   }
 
   _fallbackFaviconLabel.font =
-    [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
+      [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
 
   // Activate title label constraint and deactivate mask.
   [self.titleLabelBottomConstraint setActive:YES];
@@ -268,20 +254,19 @@ const CGSize faviconMaskSizeiPad = CGSizeMake(26.f, 26.f);
     [self.titleLabelMaskBottomConstraint setActive:YES];
     [self.titleLabelMaskBottomConstraintiPad setActive:NO];
     self.faviconWidthConstraint.constant =
-      vSpeedDialItemFaviconSizeSmallLayout.width;
+        vSpeedDialItemFaviconSizeSmallLayout.width;
     self.faviconHeightConstraint.constant =
-      vSpeedDialItemFaviconSizeSmallLayout.height;
+        vSpeedDialItemFaviconSizeSmallLayout.height;
     self.titleLabelMaskHeightConstraint.constant = titleLabelMaskViewHeight;
   }
-
 
   self.faviconView.backgroundColor = UIColor.vSystemGray03;
   self.titleLabelMaskView.hidden = NO;
   self.titleLabelMaskView.backgroundColor =
-    [UIColor.vSystemGray03 colorWithAlphaComponent:0.4];
+      [UIColor.vSystemGray03 colorWithAlphaComponent:0.4];
 }
 
-#pragma mark: PRIVATE
+#pragma mark : PRIVATE
 
 - (void)showFallbackFavicon:(VivaldiSpeedDialItem*)sdItem {
   if (sdItem.isInternalPage) {
@@ -292,11 +277,10 @@ const CGSize faviconMaskSizeiPad = CGSizeMake(26.f, 26.f);
     self.fallbackFaviconLabel.hidden = NO;
     self.faviconView.image = nil;
     self.faviconView.backgroundColor =
-        [UIColor colorNamed: vSearchbarBackgroundColor];
-    NSString *firstLetter = [[sdItem.host substringToIndex:1] uppercaseString];
+        [UIColor colorNamed:vSearchbarBackgroundColor];
+    NSString* firstLetter = [[sdItem.host substringToIndex:1] uppercaseString];
     self.fallbackFaviconLabel.text = firstLetter;
   }
 }
-
 
 @end

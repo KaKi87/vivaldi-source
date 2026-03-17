@@ -5,8 +5,8 @@
 #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
 
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/tab_search_feature.h"
 #include "chrome/browser/ui/tabs/features.h"
-#include "chrome/browser/ui/ui_features.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/pref_names.h"
 #include "components/pref_registry/pref_registry_syncable.h"
@@ -31,25 +31,30 @@ bool GetDefaultTabSearchRightAligned() {
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(prefs::kTabSearchRightAligned,
                                 GetDefaultTabSearchRightAligned());
-  registry->RegisterBooleanPref(
-      prefs::kVerticalTabsEnabled, false,
-      user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+  registry->RegisterBooleanPref(prefs::kVerticalTabsEnabled, false);
 }
 
-bool GetTabSearchTrailingTabstrip(const Profile* profile) {
-  if (features::HasTabSearchToolbarButton()) {
-    return true;
+TabSearchPosition GetTabSearchPosition(const Profile* profile) {
+  if (tabs::IsVerticalTabsFeatureEnabled() &&
+      profile->GetPrefs()->GetBoolean(prefs::kVerticalTabsEnabled)) {
+    return TabSearchPosition::kVerticalTabstrip;
+  }
+
+  static const bool has_tab_search_toolbar_button =
+      features::HasTabSearchToolbarButton();
+  if (has_tab_search_toolbar_button) {
+    return TabSearchPosition::kToolbarButton;
   }
 
   // If this pref has already been read, we need to return the same value.
   if (!g_tab_search_trailing_tabstrip_at_startup.has_value()) {
     g_tab_search_trailing_tabstrip_at_startup =
-        profile && CanShowTabSearchPositionSetting()
-            ? profile->GetPrefs()->GetBoolean(prefs::kTabSearchRightAligned)
-            : GetDefaultTabSearchRightAligned();
+        GetDefaultTabSearchRightAligned();
   }
 
-  return g_tab_search_trailing_tabstrip_at_startup.value();
+  return g_tab_search_trailing_tabstrip_at_startup.value()
+             ? TabSearchPosition::kTrailingHorizontalTabstrip
+             : TabSearchPosition::kLeadingHorizontalTabstrip;
 }
 
 void SetTabSearchRightAlignedForTesting(bool is_right_aligned) {

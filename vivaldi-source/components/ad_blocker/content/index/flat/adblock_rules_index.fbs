@@ -76,10 +76,23 @@ table ContentInjectionRuleForDomain {
   allow_for_domain: bool;
 }
 
-table ContentInjectionRulesNode {
+table ContentInjectionRulesTreeNode {
   rules: [ContentInjectionRuleForDomain];
-  first_child_node_index: uint;
+  first_child_node_index: uint = null;
   subdomains: [string];
+}
+
+table ContentInjectionRuleRegex {
+  regex: string;
+  rules: [ContentInjectionRuleForDomain];
+}
+
+table ContentInjectionRulesTreeRoot {
+  hostnames_index: uint;
+  entities_index: uint;
+  rules: [ContentInjectionRuleForDomain];
+  nodes: [ContentInjectionRulesTreeNode];
+  regexes: [ContentInjectionRuleRegex];
 }
 
 table RulesIndex {
@@ -108,8 +121,7 @@ table RulesIndex {
   headers_received_map: RulesMap;
 
   default_stylesheet : string;
-  content_injection_rule_tree_root_index: uint;
-  content_injection_rules_tree : [ContentInjectionRulesNode];
+  content_injection_rules_tree: ContentInjectionRulesTreeRoot;
 }
 
 root_type RulesIndex;

@@ -15,6 +15,7 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/logging.h"
+#include "base/memory/memory_pressure_listener.h"
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/field_trial.h"
 #include "base/process/process.h"
@@ -58,6 +59,7 @@
 #include "services/network/network_service.h"
 #include "services/network/public/cpp/features.h"
 #include "services/network/public/cpp/network_service_buildflags.h"
+#include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/mojom/network_change_manager.mojom.h"
 #include "services/network/public/mojom/network_service.mojom.h"
 #include "services/network/public/mojom/network_service_test.mojom.h"
@@ -90,8 +92,9 @@ STATIC_ASSERT_ENUM(
 
 void CrashResolveHost(const std::string& host_to_crash,
                       const std::string& host) {
-  if (host_to_crash == host)
+  if (host_to_crash == host) {
     base::Process::TerminateCurrentProcessImmediately(1);
+  }
 }
 
 class SimpleCacheEntry : public network::mojom::SimpleCacheEntry {
@@ -494,11 +497,10 @@ class NetworkServiceTestHelper::NetworkServiceTestImpl
     std::move(callback).Run();
   }
 
-  void SimulateNetworkChange(network::mojom::ConnectionType type,
+  void SimulateNetworkChange(net::NetworkChangeNotifier::ConnectionType type,
                              SimulateNetworkChangeCallback callback) override {
     DCHECK(!net::NetworkChangeNotifier::CreateIfNeeded());
-    net::NetworkChangeNotifier::NotifyObserversOfNetworkChangeForTests(
-        net::NetworkChangeNotifier::ConnectionType(type));
+    net::NetworkChangeNotifier::NotifyObserversOfNetworkChangeForTests(type);
     std::move(callback).Run();
   }
 
@@ -712,6 +714,7 @@ class NetworkServiceTestHelper::NetworkServiceTestImpl
         base::MakeRefCounted<network::MojoBackendFileOperationsFactory>(
             std::move(factory)),
         path, 64 * 1024 * 1024, reset_mode, net::NetLog::Get(),
+        /*cache_encryption_delegate=*/nullptr,
         base::BindOnce(&NetworkServiceTestImpl::OnCacheCreated,
                        weak_factory_.GetWeakPtr(), std::move(callback)));
     DCHECK_EQ(result.net_error, net::ERR_IO_PENDING);
@@ -803,6 +806,15 @@ class NetworkServiceTestHelper::NetworkServiceTestImpl
     std::move(callback).Run(enabled);
   }
 
+#if BUILDFLAG(IS_MAC)
+  void SetUseMockURLSessionURLLoaderForTesting(
+      bool use_mock_url_session_url_loader) override {
+    network::NetworkService::GetNetworkServiceForTesting()
+        ->SetUseMockURLSessionURLLoaderForTesting(
+            use_mock_url_session_url_loader);
+  }
+#endif
+
  private:
   void OnMemoryPressure(
       base::MemoryPressureLevel memory_pressure_level) override {
@@ -834,7 +846,7 @@ class NetworkServiceTestHelper::NetworkServiceTestImpl
   std::unique_ptr<net::MockCertVerifier> mock_cert_verifier_;
   std::unique_ptr<net::ScopedTransportSecurityStateSource>
       transport_security_state_source_;
-  std::optional<base::SyncMemoryPressureListenerRegistration>
+  std::optional<base::MemoryPressureListenerRegistration>
       memory_pressure_listener_registration_;
   base::MemoryPressureLevel latest_memory_pressure_level_ =
       base::MEMORY_PRESSURE_LEVEL_NONE;

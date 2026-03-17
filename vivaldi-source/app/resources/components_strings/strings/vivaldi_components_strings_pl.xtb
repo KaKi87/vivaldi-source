@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Twoje połączenie z tą witryną nie jest w pełni bezpieczne</translation>
 <translation id="4265872034478892965">Dozwolone przez administratora</translation>
 <translation id="4305666528087210886">Nie udało się uzyskać dostępu do pliku</translation>
-<translation id="4408413947728134509">Ciasteczka (<ph name="NUM_COOKIES" />)</translation>
 <translation id="4432688616882109544">Serwer <ph name="HOST_NAME" /> nie zaakceptował lub nie otrzymał Twojego certyfikatu logowania.</translation>
 <translation id="4506599922270137252">Skontaktuj się z administratorem systemu</translation>
 <translation id="4522570452068850558">Szczegóły</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Brak wyników</translation>
 <translation id="5017554619425969104">Skopiowany tekst</translation>
 <translation id="5023310440958281426">Sprawdź zasady administratora</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1{(w użyciu: 1)}few{(w użyciu: #)}many{(w użyciu: #)}other{(w użyciu: #)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Sprawdź adres serwera proxy<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bit)</translation>
 <translation id="5216942107514965959">Ostatnio odwiedzona dzisiaj</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Nie podawaj żadnych informacji poufnych (takich jak hasła czy karty kredytowe) w tej witrynie, bo osoby atakujące będą mogły je wykraść.</translation>
 <translation id="5863515189965725638">Edytuj IBAN</translation>
 <translation id="5869405914158311789">Ta strona jest nieosiągalna</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{W użyciu: 1}few{W użyciu: #}many{W użyciu: #}other{W użyciu: #}}</translation>
 <translation id="5932224571077948991">Na tej stronie wyświetlają się uciążliwe lub wprowadzające w błąd reklamy</translation>
 <translation id="6051221802930200923">Nie możesz teraz otworzyć strony <ph name="SITE" />, ponieważ stosuje ona przypinanie certyfikatów. Błędy sieciowe i ataki są zazwyczaj tymczasowe, więc prawdopodobnie strona będzie dostępna później.</translation>
 <translation id="6146055958333702838">Sprawdź wszystkie przewody i uruchom ponownie wszelkie używane routery, modemy

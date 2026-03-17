@@ -11,7 +11,7 @@
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-@interface VivaldiAppearanceSettingsCoordinator ()<
+@interface VivaldiAppearanceSettingsCoordinator () <
     VivaldiHostingControllerPresentationDelegate> {
   // The browser where the settings are being displayed.
   Browser* _browser;
@@ -19,9 +19,10 @@
 // The parent view controller where this view is presented. This can be
 // different than the baseViewController. This aligns with the active window
 // from where currently active root modal view controller is presented.
-@property (nonatomic, strong) UIViewController* presentingViewController;
+@property(nonatomic, strong) UIViewController* presentingViewController;
 // View provider class for the appearance settings.
-@property(nonatomic, strong) VivaldiAppearanceSettingsViewProvider* viewProvider;
+@property(nonatomic, strong)
+    VivaldiAppearanceSettingsViewProvider* viewProvider;
 // View controller for the appearance setting.
 @property(nonatomic, strong) UIViewController* viewController;
 // Mediator class for the appearance settings
@@ -36,7 +37,7 @@
 - (instancetype)initWithBaseNavigationController:
                     (UINavigationController*)navigationController
                         presentingViewController:
-              (UIViewController*)presentingViewController
+                            (UIViewController*)presentingViewController
                                          browser:(Browser*)browser {
   self = [super initWithBaseViewController:navigationController
                                    browser:browser];
@@ -56,11 +57,10 @@
 
 - (void)start {
   self.viewProvider = [[VivaldiAppearanceSettingsViewProvider alloc] init];
-  self.viewController =
-      [self.viewProvider
-          makeViewControllerWithPresentingViewControllerTrait:
-              self.presentingViewController.traitCollection
-                    presentationDelegate:self];
+  self.viewController = [self.viewProvider
+      makeViewControllerWithPresentingViewControllerTrait:
+          self.presentingViewController.traitCollection
+                                     presentationDelegate:self];
   self.viewController.title =
       l10n_util::GetNSString(IDS_VIVALDI_IOS_APPEARANCE_SETTING_TITLE);
   self.viewController.navigationItem.largeTitleDisplayMode =
@@ -93,6 +93,5 @@
   DCHECK_EQ(self.viewController, hostingController);
   [self stop];
 }
-
 
 @end

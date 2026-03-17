@@ -4,6 +4,9 @@
 
 package J;
 
+import javax.annotation.processing.Generated;
+
+@Generated("JNI Zero")
 public class N {
   // Original name: org.jni_zero.SampleForAnnotationProcessor#bar
   public static native Object M$zHpGqF(Object sample);
@@ -74,6 +77,7 @@ public class N {
       Object convertedString,
       Object convertedStrings,
       Object optionalString,
+      Object funcType,
       Object tStruct,
       Object structs,
       Object obj,

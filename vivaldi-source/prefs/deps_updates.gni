@@ -13,3 +13,12 @@ update_target("//chrome/browser:browser") {
 update_target("//components/history/core/browser:browser") {
   deps += [ "//vivaldi/prefs:prefs_strings" ]
 }
+
+
+update_target("//chrome/browser/prefs:impl") {
+  if (is_win || is_mac || is_linux) {
+    deps -= [
+      "//chrome/browser/ui/startup/default_browser_prompt",
+    ]
+  }
+}

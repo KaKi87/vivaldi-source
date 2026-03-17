@@ -4,7 +4,6 @@
 
 #include <memory>
 
-#include "base/memory/memory_pressure_monitor.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -34,8 +33,7 @@
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
-#include "chrome/browser/ui/views/tabs/glic_button.h"
+#include "chrome/browser/ui/views/tabs/glic/tab_strip_glic_button.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_action_container.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_switches.h"
@@ -74,12 +72,6 @@ class GlicWindowControllerUiTest : public test::InteractiveGlicTest {
   GlicWindowControllerUiTest() {
     base::CommandLine::ForCurrentProcess()->AppendSwitch(
         ::switches::kGlicHostLogging);
-    features_.InitWithFeaturesAndParameters(
-        {{features::kTabstripComboButton, {}},
-         {features::kGlicActor, {}},
-         {features::kGlicActorUi,
-          {{features::kGlicActorUiTaskIconName, "true"}}}},
-        {});
     TrackFloatingGlicInstance();
   }
   ~GlicWindowControllerUiTest() override = default;
@@ -151,8 +143,9 @@ IN_PROC_BROWSER_TEST_F(GlicWindowControllerUiTest, ShowAndCloseDetachedWidget) {
 
 IN_PROC_BROWSER_TEST_F(GlicWindowControllerUiTest, DoNotCrashOnBrowserClose) {
   RunTestSequence(OpenGlicFloatingWindow());
+  ui_test_utils::BrowserDestroyedObserver observer(browser());
   chrome::CloseAllBrowsers();
-  ui_test_utils::WaitForBrowserToClose();
+  observer.Wait();
 }
 
 IN_PROC_BROWSER_TEST_F(GlicWindowControllerUiTest, DoNotCrashWhenReopening) {
@@ -780,10 +773,11 @@ IN_PROC_BROWSER_TEST_F(GlicWindowControllerUiTest, PermanentlyDeleteProfile) {
   EXPECT_TRUE(service1->IsWindowShowing());
 
   // Delete the second profile
+  ui_test_utils::BrowserDestroyedObserver observer(browser1);
   profile_manager->GetDeleteProfileHelper().MaybeScheduleProfileForDeletion(
       browser1->profile()->GetPath(), base::DoNothing(),
       ProfileMetrics::DELETE_PROFILE_USER_MANAGER);
-  ui_test_utils::WaitForBrowserToClose(browser1);
+  observer.Wait();
 
   EXPECT_FALSE(service1->IsWindowShowing());
 }
@@ -849,10 +843,10 @@ IN_PROC_BROWSER_TEST_F(GlicWindowControllerUnloadOnCloseTest, UnloadOnClose) {
                   CloseGlicWindow(), CheckWebUiContentsExist(false));
 }
 
-class GlicWindowControllerWithMemoryPressureUiTest
+class GlicWindowControllerWithDelayedPreloadingUiTest
     : public GlicWindowControllerUiTest {
  public:
-  GlicWindowControllerWithMemoryPressureUiTest() {
+  GlicWindowControllerWithDelayedPreloadingUiTest() {
     features_.InitWithFeaturesAndParameters(
         /*enabled_features=*/
         {{features::kGlicWarming,
@@ -860,28 +854,25 @@ class GlicWindowControllerWithMemoryPressureUiTest
            {features::kGlicWarmingJitterMs.name, "0"}}}},
         /*disabled_features=*/{});
   }
-  ~GlicWindowControllerWithMemoryPressureUiTest() override = default;
+  ~GlicWindowControllerWithDelayedPreloadingUiTest() override = default;
 
   void SetUp() override {
     // This will temporarily disable preloading to ensure that we don't load the
     // web client before we've initialized the embedded test server and can set
     // the correct URL.
-    GlicProfileManager::ForceMemoryPressureForTesting(
-        base::MEMORY_PRESSURE_LEVEL_CRITICAL);
+    GlicProfileManager::SetPrewarmingEnabledForTesting(false);
     GlicWindowControllerUiTest::SetUp();
   }
 
   void TearDown() override {
     GlicWindowControllerUiTest::TearDown();
-    GlicProfileManager::ForceMemoryPressureForTesting(std::nullopt);
+    GlicProfileManager::SetPrewarmingEnabledForTesting(true);
   }
 
  protected:
-  auto ResetMemoryPressure() {
-    return Do([]() {
-      GlicProfileManager::ForceMemoryPressureForTesting(
-          base::MEMORY_PRESSURE_LEVEL_NONE);
-    });
+  auto ResetPreloading() {
+    return Do(
+        []() { GlicProfileManager::SetPrewarmingEnabledForTesting(true); });
   }
 
   auto TryPreload() {
@@ -902,11 +893,12 @@ class GlicWindowControllerWithMemoryPressureUiTest
   base::test::ScopedFeatureList features_;
 };
 
-IN_PROC_BROWSER_TEST_F(GlicWindowControllerWithMemoryPressureUiTest, Preload) {
+IN_PROC_BROWSER_TEST_F(GlicWindowControllerWithDelayedPreloadingUiTest,
+                       Preload) {
   // TODO(crbug.com/411100559): Wait for preload completion rather than assuming
   // that it will finish before the next step in the sequence.
   RunTestSequence(
-      ResetMemoryPressure(), TryPreload(), CheckWarmed(),
+      ResetPreloading(), TryPreload(), CheckWarmed(),
       PressButton(kGlicButtonElementId),
       InAnyContext(
           WaitForShow(kGlicViewElementId).SetMustRemainVisible(false)));

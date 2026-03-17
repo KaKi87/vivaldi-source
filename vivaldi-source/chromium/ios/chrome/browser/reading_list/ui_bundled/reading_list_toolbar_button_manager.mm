@@ -14,12 +14,14 @@
 #import "ios/chrome/grit/ios_strings.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 
+// Vivaldi
+#import "app/vivaldi_apptools.h"
+// End Vivaldi
+
 namespace {
 
 // Size of the delete symbol.
 const CGFloat kSymbolSize = 22;
-// Horizontal margin between the buttons and their container.
-const CGFloat kButtonHorizontalMargin = 4;
 
 // Returns the title to use for the "Mark" button for `state`.
 NSString* GetMarkButtonTitleForSelectionState(ReadingListSelectionState state) {
@@ -35,64 +37,28 @@ NSString* GetMarkButtonTitleForSelectionState(ReadingListSelectionState state) {
   }
 }
 
-// Returns a new button to be used in UIBarButtonItem. UIButton have to be used
-// instead of relying on UIBarButtonItem to allow the width to be limited.
-UIButton* CreateButton(NSString* title) {
-  UIButton* button = [[UIButton alloc] init];
-  [button setTitle:title forState:UIControlStateNormal];
-  if (@available(iOS 26, *)) {
-    [button setTitleColor:[UIColor colorNamed:kSolidBlackColor]
-                 forState:UIControlStateNormal];
-  } else {
-    [button setTitleColor:[UIColor colorNamed:kBlueColor]
-                 forState:UIControlStateNormal];
-  }
-  button.translatesAutoresizingMaskIntoConstraints = NO;
-  [button
-      setContentCompressionResistancePriority:UILayoutPriorityDefaultHigh
-                                      forAxis:UILayoutConstraintAxisHorizontal];
-  // Using those requires the configuration to not be set.
-  button.titleLabel.numberOfLines = 1;
-  button.titleLabel.adjustsFontSizeToFitWidth = YES;
-
-  return button;
-}
-
-// Returns a container for the button, adding horizontal margins. The
-// configuration of the button cannot be used as it would prevent the
-// adjustsFontSizeToFitWidth from working.
-UIView* ContainerForButton(UIView* button) {
-  UIView* container = [[UIView alloc] init];
-  container.translatesAutoresizingMaskIntoConstraints = NO;
-  [container addSubview:button];
-  [NSLayoutConstraint activateConstraints:@[
-    [button.leadingAnchor constraintEqualToAnchor:container.leadingAnchor
-                                         constant:kButtonHorizontalMargin],
-    [button.topAnchor constraintEqualToAnchor:container.topAnchor],
-    [container.trailingAnchor constraintEqualToAnchor:button.trailingAnchor
-                                             constant:kButtonHorizontalMargin],
-    [container.bottomAnchor constraintEqualToAnchor:button.bottomAnchor],
-  ]];
-  return container;
-}
-
 }  // namespace
 
 @interface ReadingListToolbarButtonManager ()
 
 // The possible button items that may be returned by the `-buttonItems`.
-@property(nonatomic, strong, readonly) UIBarButtonItem* editButton;
+@property(nonatomic, strong, readonly) UIBarButtonItem* selectButton;
 @property(nonatomic, strong, readonly) UIBarButtonItem* deleteButton;
 @property(nonatomic, strong, readonly) UIBarButtonItem* deleteAllReadButton;
-@property(nonatomic, strong, readonly) UIBarButtonItem* cancelButton;
+@property(nonatomic, strong, readonly) UIBarButtonItem* exitEditButton;
 @property(nonatomic, strong, readonly) UIBarButtonItem* markButton;
+@property(nonatomic, strong, readonly) UIBarButtonItem* closeButton;
+@property(nonatomic, strong, readonly) UIBarButtonItem* selectAllButton;
+@property(nonatomic, strong, readonly) UIBarButtonItem* deselectAllButton;
 
 // Whether the corresponding button items should be returned in `-buttonItems`.
-@property(nonatomic, readonly) BOOL shouldShowEditButton;
+@property(nonatomic, readonly) BOOL shouldShowSelectButton;
 @property(nonatomic, readonly) BOOL shouldShowDeleteButton;
 @property(nonatomic, readonly) BOOL shouldShowDeleteAllReadButton;
-@property(nonatomic, readonly) BOOL shouldShowCancelButton;
+@property(nonatomic, readonly) BOOL shouldShowExitEditButton;
 @property(nonatomic, readonly) BOOL shouldShowMarkButton;
+@property(nonatomic, readonly) BOOL shouldShowCloseButton;
+@property(nonatomic, readonly) BOOL shouldShowDeselectAllButton;
 
 @end
 
@@ -100,20 +66,7 @@ UIView* ContainerForButton(UIView* button) {
   // The button items corresponding to the current state.
   NSMutableArray<UIBarButtonItem*>* _buttonItems;
   NSMutableArray<NSLayoutConstraint*>* _allButtonWidthConstraints;
-  UIButton* _editInnerButton;
-  UIButton* _deleteAllReadInnerButton;
-  UIButton* _markInnerButton;
 }
-
-@synthesize selectionState = _selectionState;
-@synthesize hasReadItems = _hasReadItems;
-@synthesize editing = _editing;
-@synthesize commandHandler = _commandHandler;
-@synthesize editButton = _editButton;
-@synthesize deleteButton = _deleteButton;
-@synthesize deleteAllReadButton = _deleteAllReadButton;
-@synthesize cancelButton = _cancelButton;
-@synthesize markButton = _markButton;
 
 - (instancetype)init {
   if ((self = [super init])) {
@@ -121,14 +74,31 @@ UIView* ContainerForButton(UIView* button) {
 
     _selectionState = ReadingListSelectionState::NONE;
 
-    _editInnerButton =
-        CreateButton(l10n_util::GetNSString(IDS_IOS_READING_LIST_EDIT_BUTTON));
-    UIView* editContainer = ContainerForButton(_editInnerButton);
-    [_allButtonWidthConstraints
-        addObject:[editContainer.widthAnchor
-                      constraintLessThanOrEqualToConstant:0]];
-    _editButton = [[UIBarButtonItem alloc] initWithCustomView:editContainer];
-    _editInnerButton.accessibilityIdentifier = kReadingListToolbarEditButtonID;
+    _selectButton = [[UIBarButtonItem alloc]
+        initWithTitle:l10n_util::GetNSString(IDS_IOS_READING_LIST_SELECT_BUTTON)
+                style:UIBarButtonItemStylePlain
+               target:nil
+               action:@selector(enterReadingListEditMode)];
+    _selectButton.accessibilityIdentifier =
+        kReadingListNavigationBarSelectButtonID;
+
+    _selectAllButton = [[UIBarButtonItem alloc]
+        initWithTitle:l10n_util::GetNSString(
+                          IDS_IOS_READING_LIST_SELECT_ALL_BUTTON)
+                style:UIBarButtonItemStylePlain
+               target:nil
+               action:@selector(selectAllReadingListItems)];
+    _selectAllButton.accessibilityIdentifier =
+        kReadingListNavigationBarSelectAllButtonID;
+
+    _deselectAllButton = [[UIBarButtonItem alloc]
+        initWithTitle:l10n_util::GetNSString(
+                          IDS_IOS_READING_LIST_DESELECT_ALL_BUTTON)
+                style:UIBarButtonItemStylePlain
+               target:nil
+               action:@selector(deselectAllReadingListItems)];
+    _deselectAllButton.accessibilityIdentifier =
+        kReadingListNavigationBarDeselectAllButtonID;
 
     _deleteButton = [[UIBarButtonItem alloc]
         initWithImage:DefaultSymbolWithPointSize(kDeleteActionSymbol,
@@ -139,39 +109,37 @@ UIView* ContainerForButton(UIView* button) {
     _deleteButton.accessibilityIdentifier = kReadingListToolbarDeleteButtonID;
     _deleteButton.tintColor = [UIColor colorNamed:kRedColor];
 
-    _deleteAllReadInnerButton = CreateButton(
-        l10n_util::GetNSString(IDS_IOS_READING_LIST_DELETE_ALL_READ_BUTTON));
-    [_deleteAllReadInnerButton setTitleColor:[UIColor colorNamed:kRedColor]
-                                    forState:UIControlStateNormal];
-    UIView* deleteAllReadContainer =
-        ContainerForButton(_deleteAllReadInnerButton);
-    [_allButtonWidthConstraints
-        addObject:[deleteAllReadContainer.widthAnchor
-                      constraintLessThanOrEqualToConstant:0]];
-    _deleteAllReadButton =
-        [[UIBarButtonItem alloc] initWithCustomView:deleteAllReadContainer];
-    _deleteAllReadInnerButton.accessibilityIdentifier =
-        kReadingListToolbarDeleteAllReadButtonID;
-
-    _cancelButton = [[UIBarButtonItem alloc]
-        initWithImage:DefaultCloseButtonForToolbar()
+    _deleteAllReadButton = [[UIBarButtonItem alloc]
+        initWithTitle:l10n_util::GetNSString(
+                          IDS_IOS_READING_LIST_DELETE_ALL_READ_BUTTON)
                 style:UIBarButtonItemStylePlain
                target:nil
-               action:@selector(exitReadingListEditMode)];
-    _cancelButton.accessibilityIdentifier = kReadingListToolbarCancelButtonID;
+               action:@selector(deleteAllReadReadingListItems)];
+    _deleteAllReadButton.accessibilityIdentifier =
+        kReadingListToolbarDeleteAllReadButtonID;
+    _deleteAllReadButton.tintColor = [UIColor colorNamed:kRedColor];
 
-    _markInnerButton =
-        CreateButton(GetMarkButtonTitleForSelectionState(self.selectionState));
-    [_markInnerButton addTarget:self
-                         action:@selector(markButtonWasTapped)
-               forControlEvents:UIControlEventTouchUpInside];
-    UIView* markContainer = ContainerForButton(_markInnerButton);
-    [_allButtonWidthConstraints
-        addObject:[markContainer.widthAnchor
-                      constraintLessThanOrEqualToConstant:0]];
-    _markButton = [[UIBarButtonItem alloc] initWithCustomView:markContainer];
-    _markButton.action = @selector(markButtonWasTapped);
-    _markInnerButton.accessibilityIdentifier = kReadingListToolbarMarkButtonID;
+    _exitEditButton = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                             target:nil
+                             action:@selector(exitReadingListEditMode)];
+    _exitEditButton.accessibilityIdentifier =
+        kReadingListNavigationBarExitEditButtonID;
+
+    _markButton = [[UIBarButtonItem alloc]
+        initWithTitle:GetMarkButtonTitleForSelectionState(self.selectionState)
+                style:UIBarButtonItemStylePlain
+               target:self
+               action:@selector(markButtonWasTapped)];
+    _markButton.accessibilityIdentifier = kReadingListToolbarMarkButtonID;
+
+    _closeButton =
+        [[UIBarButtonItem alloc] initWithImage:DefaultCloseButtonForToolbar()
+                                         style:UIBarButtonItemStylePlain
+                                        target:nil
+                                        action:@selector(dismissButtonTapped)];
+    _closeButton.accessibilityIdentifier =
+        kReadingListNavigationBarCloseButtonID;
   }
   return self;
 }
@@ -221,9 +189,7 @@ UIView* ContainerForButton(UIView* button) {
   if (!_editing) {
     return;
   }
-  [_markInnerButton
-      setTitle:GetMarkButtonTitleForSelectionState(_selectionState)
-      forState:UIControlStateNormal];
+  self.markButton.title = GetMarkButtonTitleForSelectionState(_selectionState);
 }
 
 - (BOOL)buttonItemsUpdated {
@@ -238,14 +204,15 @@ UIView* ContainerForButton(UIView* button) {
     return;
   }
   _commandHandler = commandHandler;
-  [_editInnerButton addTarget:_commandHandler
-                       action:@selector(enterReadingListEditMode)
-             forControlEvents:UIControlEventTouchUpInside];
+  self.selectButton.target = _commandHandler;
   self.deleteButton.target = _commandHandler;
-  [_deleteAllReadInnerButton addTarget:_commandHandler
-                                action:@selector(deleteAllReadReadingListItems)
-                      forControlEvents:UIControlEventTouchUpInside];
-  self.cancelButton.target = _commandHandler;
+  self.deleteAllReadButton.target = _commandHandler;
+  self.exitEditButton.target = _commandHandler;
+
+  if (vivaldi::IsVivaldiRunning()) {
+    self.closeButton.target = _commandHandler;
+  } // End Vivaldi
+
 }
 
 - (BOOL)shouldShowEditButton {
@@ -269,12 +236,20 @@ UIView* ContainerForButton(UIView* button) {
   return showDeleteAllReadButton;
 }
 
-- (BOOL)shouldShowCancelButton {
+- (BOOL)shouldShowExitEditButton {
   return self.editing;
 }
 
 - (BOOL)shouldShowMarkButton {
   return self.editing;
+}
+
+- (BOOL)shouldShowCloseButton {
+  return !self.editing;
+}
+
+- (BOOL)shouldShowDeselectAllButton {
+  return self.allSelected;
 }
 
 #pragma mark - Public
@@ -284,9 +259,36 @@ UIView* ContainerForButton(UIView* button) {
     return _buttonItems;
   }
   _buttonItems = [[NSMutableArray alloc] init];
-  if (self.shouldShowEditButton) {
-    [_buttonItems addObject:self.editButton];
-  }
+
+  if (vivaldi::IsVivaldiRunning()) {
+    // Keep the trailing action on the right to match other Vivaldi panels
+    // (for example, History/Translate use left action + flexible space +
+    // trailing action).
+    if (self.shouldShowEditButton) {
+      [_buttonItems addObject:[UIBarButtonItem flexibleSpaceItem]];
+      [_buttonItems addObject:self.selectButton];
+      return _buttonItems;
+    }
+
+    UIBarButtonItem* selectStateButton = self.shouldShowDeselectAllButton
+                                             ? self.deselectAllButton
+                                             : self.selectAllButton;
+    if (self.shouldShowDeleteButton) {
+      [_buttonItems addObject:self.deleteButton];
+    } else if (self.shouldShowDeleteAllReadButton) {
+      [_buttonItems addObject:self.deleteAllReadButton];
+    }
+
+    [_buttonItems addObject:[UIBarButtonItem flexibleSpaceItem]];
+    [_buttonItems addObject:selectStateButton];
+
+    if (self.shouldShowMarkButton) {
+      [_buttonItems addObject:[UIBarButtonItem flexibleSpaceItem]];
+      [_buttonItems addObject:self.markButton];
+    }
+    return _buttonItems;
+  } // End Vivaldu
+
   if (self.shouldShowDeleteButton) {
     [_buttonItems addObject:self.deleteButton];
   }
@@ -296,11 +298,36 @@ UIView* ContainerForButton(UIView* button) {
   if (self.shouldShowMarkButton) {
     [_buttonItems addObject:self.markButton];
   }
-  if (self.shouldShowCancelButton) {
-    [_buttonItems addObject:self.cancelButton];
-  }
   _buttonItems = [self itemsWithSpacer:_buttonItems];
   return _buttonItems;
+}
+
+- (UIBarButtonItem*)buttonTopRight {
+  if (self.shouldShowCloseButton) {
+    return self.closeButton;
+  } else {
+    return self.exitEditButton;
+  }
+}
+
+- (UIBarButtonItem*)buttonTopLeft {
+
+  if (vivaldi::IsVivaldiRunning()) {
+    // In Vivaldi, selection controls are shown in the bottom toolbar.
+    return nil;
+  } // End Vivaldi
+
+  if (!self.hasItems) {
+    return nil;
+  }
+  if (self.shouldShowEditButton) {
+    return self.selectButton;
+  } else {
+    if (self.shouldShowDeselectAllButton) {
+      return self.deselectAllButton;
+    }
+    return self.selectAllButton;
+  }
 }
 
 - (ActionSheetCoordinator*)

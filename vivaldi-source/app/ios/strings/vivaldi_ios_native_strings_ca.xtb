@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Gestiona les fonts de bloqueig d'anuncis</translation>
 <translation id="1577761519530347814">Sincronitza les contrasenyes de llocs web desades</translation>
 <translation id="1620921465699122417">Introdueix text a traduir</translation>
+<translation id="1624621765073396937">Llisca per tancar la pestanya</translation>
 <translation id="1631998297781042533">Llocs populars</translation>
 <translation id="1644574205037202324">Historial</translation>
 <translation id="1655816024544228768">Esport</translation>
@@ -106,6 +107,7 @@
 <translation id="2330644510603114741">Comportament de les pestanyes</translation>
 <translation id="233493642829799329">Aquest canvi pot fer que algunes pestanyes es tornin a carregar</translation>
 <translation id="2336309953058658733">Buida la paperera</translation>
+<translation id="2336679896177818431">Obre el commutador quan llisquis amunt o avall a la barra d'adreces</translation>
 <translation id="2359808026110333948">Continua</translation>
 <translation id="2386793615875593361">1 seleccionada</translation>
 <translation id="2387049655823108978">Sincronitza les pestanyes obertes a altres dispositius</translation>
@@ -127,6 +129,7 @@
 <translation id="261264557609353020">Pàgina d'inici</translation>
 <translation id="2619628557366098325">Portuguès (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">Sistema</translation>
+<translation id="2638305832232696831">Activa el gest de lliscar a la barra d'adreces</translation>
 <translation id="2653659639078652383">Envia</translation>
 <translation id="2666092431469916601">Superior</translation>
 <translation id="2677862276555105603">Anunci
@@ -153,6 +156,7 @@ bloquejat</translation>
 <translation id="2862504765180635001">Sentim sentir això!</translation>
 <translation id="2878511608894704031">Suprimeix-ho tot</translation>
 <translation id="2884735088411646852">Ordena</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (Bloqueja diverses molèsties)</translation>
 <translation id="2898963176829412617">Nova carpeta…</translation>
 <translation id="2918704853620385162">Obre una pestanya nova en tancar l'última</translation>
 <translation id="2924890236896835588">Nom del grup</translation>
@@ -172,6 +176,7 @@ bloquejat</translation>
 <translation id="3142562627629111859">Nou grup</translation>
 <translation id="3157931365184549694">Restableix</translation>
 <translation id="3159285901314605198">Imatge de fons</translation>
+<translation id="317084213044777332">Estableix com a cerca predeterminada</translation>
 <translation id="3177673846235066154">El servidor ha refusat les teves credencials.</translation>
 <translation id="3180057018690062250">Emissió</translation>
 <translation id="3180358318770512945">Criança</translation>
@@ -594,6 +599,7 @@ bloquejat</translation>
 <translation id="8066170816074394954">Error del servidor.</translation>
 <translation id="8076492880354921740">Pestanyes</translation>
 <translation id="8077675488769462025">Pestanyes inactives</translation>
+<translation id="8079925180539182073">El motor de cerca predeterminat no es pot suprimir.</translation>
 <translation id="8112996065264879835">Aquest codi no coincideix amb el que t'hem enviat.
         Has arribat al màxim d'intents. Si us plau, demana un altre codi mitjançant l'opció reenviar a sota.</translation>
 <translation id="8131740175452115882">Confirma</translation>
@@ -639,6 +645,7 @@ bloquejat</translation>
 <translation id="856439694359429369">Toca per més opcions o toca dues vegades per obrir.</translation>
 <translation id="8591818185775466306">Suprimeix <ph name="ITEM_TYPE" /></translation>
 <translation id="8605953154325672921">És necessari un nom d'usuari</translation>
+<translation id="861259508026988871">Afegeix com a motor de cerca</translation>
 <translation id="8675578805254882416">Recuperant</translation>
 <translation id="8677007239430848917">Afegeix la teva primera nota prement la icona "+" a sota</translation>
 <translation id="8684294196284714094">Preparat per fer de Vivaldi el navegador predeterminat?</translation>

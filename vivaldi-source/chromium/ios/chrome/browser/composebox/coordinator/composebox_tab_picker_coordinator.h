@@ -12,15 +12,25 @@
 #import "ios/web/public/web_state.h"
 
 @protocol ComposeboxTabPickerCommands;
+@protocol ComposeboxDebuggerLogger;
+@class ComposeboxTheme;
 
 // Responsible for processing the selection of tab picker.
 @protocol ComposeboxTabPickerSelectionDelegate
 
-// Returns the associated IDs for currently attached tabs.
-- (std::set<web::WebStateID>)webStateIDsForAttachedTabs;
+// Returns the associated IDs for all currently attached tabs.
+- (std::set<web::WebStateID>)allAttachedWebStateIDs;
+
+// Returns the associated IDs for currently attached tabs from the current web
+// state context. Tabs attached from different web states (not visible in the
+// tab picker) will be excluded.
+- (std::set<web::WebStateID>)attachedWebStateIDsInCurrentContext;
 
 // Returns the number of non-tab attachments.
 - (NSUInteger)nonTabAttachmentCount;
+
+// Returns the max number of tab attachments.
+- (NSUInteger)maxTabAttachmentCount;
 
 // Attaches the selected tabs. `cachedWebStateIDs` contains the IDs of the
 // tabs that have their content cached.
@@ -35,11 +45,18 @@
 @interface ComposeboxTabPickerCoordinator
     : ChromeCoordinator <ComposeboxTabsAttachmentDelegate>
 
+- (instancetype)initWithBaseViewController:(UIViewController*)viewController
+                                   browser:(Browser*)browser
+                                     theme:(ComposeboxTheme*)theme;
+
 // Returns `YES` if the coordinator is started.
 @property(nonatomic, readonly) BOOL started;
 
 // Delegate for tab selection actions.
 @property(nonatomic, weak) id<ComposeboxTabPickerSelectionDelegate> delegate;
+
+// Delegate for logging events
+@property(nonatomic, weak) id<ComposeboxDebuggerLogger> debugLogger;
 
 // Handler for composebox tab picker commands.
 @property(nonatomic, weak) id<ComposeboxTabPickerCommands>

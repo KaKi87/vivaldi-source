@@ -24,7 +24,7 @@ bool IsCreatedByExtension(const TemplateURL* template_url) {
          template_url->type() == TemplateURL::OMNIBOX_API_EXTENSION;
 }
 
-}
+}  // namespace
 
 namespace vivaldi {
 
@@ -171,7 +171,7 @@ void TemplateURLService::ResetTemplateURL(
     if (url == default_search_provider_[i])
       prefs_->SetString(vivaldi::VivaldiGetDefaultProviderGuidPrefForType(
                             DefaultSearchType(i)),
-          data.sync_guid);
+                        data.sync_guid);
   }
 
   // Re-add a disabled version of the prepopulated turl. Sync will pick this up
@@ -201,47 +201,40 @@ std::array<DefaultSearchManager, TemplateURLService::kDefaultSearchTypeCount>
 TemplateURLService::VivaldiGetDefaultSearchManagers(
     PrefService* prefs,
     search_engines::SearchEngineChoiceService* search_engine_choice_service,
-    TemplateURLPrepopulateData::Resolver& prepopulate_data_resolver
-  ) {
+    TemplateURLPrepopulateData::Resolver& prepopulate_data_resolver) {
   return {
       {{prefs, search_engine_choice_service, prepopulate_data_resolver,
         DefaultSearchManager::kDefaultSearchProviderDataPrefName,
         base::BindRepeating(&TemplateURLService::ApplyDefaultSearchChange,
                             base::Unretained(this),
-                            TemplateURLService::kDefaultSearchMain)
-       },
+                            TemplateURLService::kDefaultSearchMain)},
        {prefs, search_engine_choice_service, prepopulate_data_resolver,
         DefaultSearchManager::kDefaultPrivateSearchProviderDataPrefName,
         base::BindRepeating(&TemplateURLService::ApplyDefaultSearchChange,
-                            base::Unretained(this), kDefaultSearchPrivate)
-       },
+                            base::Unretained(this), kDefaultSearchPrivate)},
        {prefs, search_engine_choice_service, prepopulate_data_resolver,
         DefaultSearchManager::kDefaultSearchFieldProviderDataPrefName,
         base::BindRepeating(&TemplateURLService::ApplyDefaultSearchChange,
-                            base::Unretained(this), kDefaultSearchField)
-       },
+                            base::Unretained(this), kDefaultSearchField)},
        {prefs, search_engine_choice_service, prepopulate_data_resolver,
         DefaultSearchManager::kDefaultPrivateSearchFieldProviderDataPrefName,
         base::BindRepeating(&TemplateURLService::ApplyDefaultSearchChange,
-                            base::Unretained(this), kDefaultSearchFieldPrivate)
-       },
+                            base::Unretained(this),
+                            kDefaultSearchFieldPrivate)},
        {prefs, search_engine_choice_service, prepopulate_data_resolver,
         DefaultSearchManager::kDefaultSpeeddialsSearchProviderDataPrefName,
         base::BindRepeating(&TemplateURLService::ApplyDefaultSearchChange,
-                            base::Unretained(this), kDefaultSearchSpeeddials)
-       },
+                            base::Unretained(this), kDefaultSearchSpeeddials)},
        {prefs, search_engine_choice_service, prepopulate_data_resolver,
         DefaultSearchManager::
             kDefaultSpeeddialsPrivateSearchProviderDataPrefName,
         base::BindRepeating(&TemplateURLService::ApplyDefaultSearchChange,
                             base::Unretained(this),
-                            kDefaultSearchSpeeddialsPrivate)
-       },
+                            kDefaultSearchSpeeddialsPrivate)},
        {prefs, search_engine_choice_service, prepopulate_data_resolver,
         DefaultSearchManager::kDefaultImageSearchProviderDataPrefName,
         base::BindRepeating(&TemplateURLService::ApplyDefaultSearchChange,
-                            base::Unretained(this), kDefaultSearchImage)}
-      },
+                            base::Unretained(this), kDefaultSearchImage)}},
   };
 }
 

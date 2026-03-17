@@ -7,13 +7,14 @@
 #import "base/time/time.h"
 #import "components/lens/lens_overlay_invocation_source.h"
 #import "components/search_engines/util.h"
-#import "ios/chrome/browser/first_run/ui_bundled/first_run_util.h"
+#import "ios/chrome/browser/first_run/public/first_run_util.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_color_palette.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_feature.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_image_background_trait.h"
 #import "ios/chrome/browser/ntp/ui_bundled/new_tab_page_trait.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "third_party/omnibox_proto/chrome_aim_entry_point.pb.h"
+#import "third_party/omnibox_proto/model_mode.pb.h"
 
 bool ShouldShowTopOfFeedSyncPromo() {
   // Checks the flag and ensures that the user is not in first run.

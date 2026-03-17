@@ -11,7 +11,7 @@
 #import "ios/reader_mode/reader_mode_controller.h"
 #import "ios/ui/settings/reader_mode/vivaldi_reader_mode_prefs.h"
 #import "ios/web/public/web_state.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 @interface VivaldiReaderModeMediator () {
   std::unique_ptr<PrefChangeRegistrar> _prefChangeRegistrar;
@@ -97,7 +97,7 @@
     // Ensure controllers have Browser to present UI from.
     ReaderModeController::SetBrowser(_browser);
     ReaderModeController* controller =
-      ReaderModeController::FromWebState(webState);
+        ReaderModeController::FromWebState(webState);
     if (controller) {
       bool readerModeEnabled = controller->IsReaderModeEnabled();
       [self.consumer setReaderModeEnabled:readerModeEnabled];
@@ -109,17 +109,17 @@
 
 - (int)getCurrentFontSize {
   return [VivaldiReaderModePrefs
-              getReaderModeFontSizeWithPrefService:_prefService];
+      getReaderModeFontSizeWithPrefService:_prefService];
 }
 
 - (NSString*)getCurrentFontFamily {
   return [VivaldiReaderModePrefs
-              getReaderModeFontFamilyWithPrefService:_prefService];
+      getReaderModeFontFamilyWithPrefService:_prefService];
 }
 
 - (NSString*)getCurrentTheme {
-    return [VivaldiReaderModePrefs
-              getReaderModeThemeWithPrefService:_prefService];
+  return
+      [VivaldiReaderModePrefs getReaderModeThemeWithPrefService:_prefService];
 }
 
 - (void)setCurrentFontSize:(int)fontSize {
@@ -161,7 +161,7 @@
   }
   ReaderModeController::SetBrowser(_browser);
   ReaderModeController* controller =
-    ReaderModeController::FromWebState(webState);
+      ReaderModeController::FromWebState(webState);
   if (!controller || !controller->IsReaderModeEnabled()) {
     return;
   }
@@ -185,7 +185,7 @@
   }
 
   ReaderModeController* controller =
-    ReaderModeController::FromWebState(webState);
+      ReaderModeController::FromWebState(webState);
   if (!controller) {
     return;
   }
@@ -229,7 +229,7 @@
   if (webState) {
     // Apply the font family through controller
     ReaderModeController* controller =
-      ReaderModeController::FromWebState(webState);
+        ReaderModeController::FromWebState(webState);
     if (controller) {
       controller->SetFontFamily([family UTF8String]);
     }

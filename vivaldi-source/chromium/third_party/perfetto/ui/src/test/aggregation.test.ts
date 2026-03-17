@@ -41,7 +41,8 @@ test('sched', async () => {
   // Now test sorting.
   const hdr = page
     .getByRole('columnheader')
-    .filter({has: page.getByText('Avg Wall duration', {exact: true})});
+    .filter({has: page.getByText('CPU Time', {exact: true})})
+    .filter({has: page.getByText('AVG', {exact: true})});
   await hdr.hover();
 
   // Press the sort button to sort ascending.
@@ -54,7 +55,7 @@ test('sched', async () => {
 
   const hdrCount = page
     .getByRole('columnheader')
-    .filter({has: page.getByText('Occurrences', {exact: true})});
+    .filter({has: page.getByText('Count', {exact: true})});
   await hdrCount.hover();
 
   // Press the sort button to sort ascending on this column.
@@ -64,7 +65,15 @@ test('sched', async () => {
 
 test('gpu counter', async () => {
   await page.keyboard.press('Escape');
-  const gpuTrack = pth.locateTrack('Gpu 0 Frequency');
+  const gpuGroup = pth.locateTrack('GPU');
+  await gpuGroup.scrollIntoViewIfNeeded();
+  await pth.toggleTrackGroup(gpuGroup);
+  const gpuFreqGroup = pth.locateTrack('GPU/GPU Frequency', gpuGroup);
+  await pth.toggleTrackGroup(gpuFreqGroup);
+  const gpuTrack = pth.locateTrack(
+    'GPU/GPU Frequency/Gpu 0 Frequency',
+    gpuFreqGroup,
+  );
   const coords = assertExists(await gpuTrack.boundingBox());
   await page.mouse.move(600, coords.y + 10);
   await page.mouse.down();

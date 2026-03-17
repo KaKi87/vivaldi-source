@@ -143,7 +143,15 @@ IN_PROC_BROWSER_TEST_P(WatermarkBrowserTest, WatermarkShownAfterNavigation) {
   ShowAndVerifyUi();
 }
 
-IN_PROC_BROWSER_TEST_P(WatermarkBrowserTest, WatermarkClearedAfterNavigation) {
+// TODO(crbug.com/40261456): Flakily fails on Windows
+#if BUILDFLAG(IS_WIN)
+#define MAYBE_WatermarkClearedAfterNavigation \
+  DISABLED_WatermarkClearedAfterNavigation
+#else
+#define MAYBE_WatermarkClearedAfterNavigation WatermarkClearedAfterNavigation
+#endif
+IN_PROC_BROWSER_TEST_P(WatermarkBrowserTest,
+                       MAYBE_WatermarkClearedAfterNavigation) {
   ASSERT_TRUE(SetWatermark(GetParam().watermark_text));
 
   // Navigating away from a watermarked page should clear the watermark if no
@@ -227,9 +235,7 @@ class FakeRealTimeUrlLookupService
 
 class WatermarkBrowserNavigationTest : public InProcessBrowserTest {
  public:
-  WatermarkBrowserNavigationTest() {
-    scoped_feature_list_.InitAndEnableFeature(features::kSideBySide);
-  }
+  WatermarkBrowserNavigationTest() = default;
   WatermarkBrowserNavigationTest(const WatermarkBrowserNavigationTest&) =
       delete;
   WatermarkBrowserNavigationTest& operator=(
@@ -282,7 +288,6 @@ class WatermarkBrowserNavigationTest : public InProcessBrowserTest {
   test::ScopedPrewarmFeatureList scoped_prewarm_feature_list_{
       test::ScopedPrewarmFeatureList::PrewarmState::kDisabled};
   base::CallbackListSubscription create_services_subscription_;
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(WatermarkBrowserNavigationTest, Apply_NoWatermark) {

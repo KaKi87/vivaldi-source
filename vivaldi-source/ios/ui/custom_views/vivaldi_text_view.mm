@@ -17,13 +17,13 @@ namespace {
 // In order - Top, Leading, Bottom, Trailing
 const UIEdgeInsets deleteTextButtonPadding =
     UIEdgeInsetsMake(0.0, 8.0, 12.0, 12.0);
-}
+}  // namespace
 
-@interface VivaldiTextView()<UITextViewDelegate>
+@interface VivaldiTextView () <UITextViewDelegate>
 // The textview that backs the view
-@property(nonatomic,weak) UITextView* textView;
+@property(nonatomic, weak) UITextView* textView;
 // Textview text clear button
-@property(nonatomic,weak) UIButton* deleteTextButton;
+@property(nonatomic, weak) UIButton* deleteTextButton;
 
 @end
 
@@ -47,7 +47,7 @@ const UIEdgeInsets deleteTextButtonPadding =
   // Textview
   UITextView* textView = [UITextView new];
   _textView = textView;
-  [textView setDelegate: self];
+  [textView setDelegate:self];
   textView.adjustsFontForContentSizeCategory = YES;
   textView.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
   textView.backgroundColor = UIColor.clearColor;
@@ -61,8 +61,7 @@ const UIEdgeInsets deleteTextButtonPadding =
   // Delete Text Button
   UIButton* deleteTextButton = [UIButton new];
   _deleteTextButton = deleteTextButton;
-  [deleteTextButton setImage:[UIImage
-                              systemImageNamed:vTextfieldDeleteIcon]
+  [deleteTextButton setImage:[UIImage systemImageNamed:vTextfieldDeleteIcon]
                     forState:UIControlStateNormal];
   [deleteTextButton setTintColor:UIColor.vSystemGray];
   [deleteTextButton addTarget:self
@@ -79,19 +78,20 @@ const UIEdgeInsets deleteTextButtonPadding =
 }
 
 #pragma mark - ACTIONS
-/// Remove the text from the textview and hide the delete button when delete button is tapped.
+/// Remove the text from the textview and hide the delete button when delete
+/// button is tapped.
 - (void)handleDeleteTextButtonTap {
   self.textView.text = nil;
   [self hideDeleteTextButton];
 }
 
--(void)textViewDidBeginEditing:(UITextView *)textView {
+- (void)textViewDidBeginEditing:(UITextView*)textView {
   if ([self.textView hasText] && self.deleteTextButton.alpha == 0) {
     [self showDeleteTextButton];
   }
 }
 
--(void)textViewDidEndEditing:(UITextView *)textView {
+- (void)textViewDidEndEditing:(UITextView*)textView {
   [self hideDeleteTextButton];
 }
 
@@ -108,16 +108,18 @@ const UIEdgeInsets deleteTextButtonPadding =
 
 /// Make delete button visible.
 - (void)showDeleteTextButton {
-  [UIView animateWithDuration:0.3 animations:^{
-    [self.deleteTextButton setAlpha:1.0];
-  }];
+  [UIView animateWithDuration:0.3
+                   animations:^{
+                     [self.deleteTextButton setAlpha:1.0];
+                   }];
 }
 
 /// Make delete button hidden.
 - (void)hideDeleteTextButton {
-  [UIView animateWithDuration:0.3 animations:^{
-    [self.deleteTextButton setAlpha:0];
-  }];
+  [UIView animateWithDuration:0.3
+                   animations:^{
+                     [self.deleteTextButton setAlpha:0];
+                   }];
 }
 
 #pragma mark - SETTERS

@@ -17,7 +17,7 @@ import androidx.annotation.DrawableRes;
 import androidx.annotation.StringRes;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
@@ -36,16 +36,10 @@ import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.theme.ThemeUtils;
 import org.chromium.chrome.browser.ui.theme.BrandedColorScheme;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
-import org.chromium.components.browser_ui.site_settings.ContentSettingsResources;
-import org.chromium.components.browser_ui.site_settings.SiteSettingsUtil;
 import org.chromium.components.browser_ui.util.DrawableUtils;
-import org.chromium.components.content_settings.ContentSetting;
-import org.chromium.components.content_settings.ContentSettingsType;
-import org.chromium.components.content_settings.CookieBlocking3pcdStatus;
 import org.chromium.components.content_settings.CookieControlsBridge;
 import org.chromium.components.content_settings.CookieControlsObserver;
 import org.chromium.components.metrics.OmniboxEventProtos.OmniboxEventProto.PageClassification;
-import org.chromium.components.page_info.PageInfoController;
 import org.chromium.components.permissions.PermissionDialogController;
 import org.chromium.components.search_engines.TemplateUrlService;
 import org.chromium.components.search_engines.TemplateUrlService.TemplateUrlServiceObserver;
@@ -64,19 +58,17 @@ import org.vivaldi.browser.common.TemplateUrlServiceObserverHelper;
 /** Contains the controller logic of the Status component. */
 @NullMarked
 public class StatusMediator
-        implements PermissionDialogController.Observer,
-                TemplateUrlServiceObserver,
+        implements TemplateUrlServiceObserver,
                 MerchantTrustSignalsCoordinator.OmniboxIconController,
                 CookieControlsObserver,
-                SearchEngineUtils.SearchEngineIconObserver {
-    private static final int PERMISSION_ICON_DEFAULT_DISPLAY_TIMEOUT_MS = 8500;
-    public static final String PERMISSION_ICON_TIMEOUT_MS_PARAM = "PermissionIconTimeoutMs";
+                SearchEngineUtils.SearchEngineIconObserver,
+                PermissionStatusHandler.Delegate {
 
     static final String COOKIE_CONTROLS_ICON = "COOKIE_CONTROLS_ICON";
 
     private final PropertyModel mModel;
     private final OneshotSupplier<TemplateUrlService> mTemplateUrlServiceSupplier;
-    private final ObservableSupplier<Profile> mProfileSupplier;
+    private final MonotonicObservableSupplier<Profile> mProfileSupplier;
     private final @Nullable Supplier<MerchantTrustSignalsCoordinator>
             mMerchantTrustSignalsCoordinatorSupplier;
     private boolean mUrlHasFocus;
@@ -104,10 +96,9 @@ public class StatusMediator
     private final LocationBarDataProvider mLocationBarDataProvider;
     private final UrlBarEditingTextStateProvider mUrlBarEditingTextStateProvider;
 
-    private final PermissionDialogController mPermissionDialogController;
-    private final Handler mPermissionTaskHandler = new Handler();
+    private final PermissionStatusHandler mPermissionStatusHandler;
+    private final Handler mIconTaskHandler = new Handler();
     private final Handler mStoreIconHandler = new Handler();
-    private @ContentSettingsType.EnumType int mLastPermission = ContentSettingsType.DEFAULT;
     private final PageInfoIphController mPageInfoIphController;
     private final WindowAndroid mWindowAndroid;
 
@@ -120,7 +111,6 @@ public class StatusMediator
     private @Nullable CookieControlsBridge mCookieControlsBridge;
     private @Nullable SearchEngineUtils mSearchEngineUtils;
     private @Nullable StatusIconResource mSearchEngineIcon;
-    private int mBlockingStatus3pcd;
     private int mLastTabId;
     private boolean mCurrentTabCrashed;
     private Drawable mDefaultStatusBackground;
@@ -155,7 +145,7 @@ public class StatusMediator
             LocationBarDataProvider locationBarDataProvider,
             PermissionDialogController permissionDialogController,
             OneshotSupplier<TemplateUrlService> templateUrlServiceSupplier,
-            ObservableSupplier<Profile> profileSupplier,
+            MonotonicObservableSupplier<Profile> profileSupplier,
             PageInfoIphController pageInfoIphController,
             WindowAndroid windowAndroid,
             @Nullable Supplier<MerchantTrustSignalsCoordinator>
@@ -182,8 +172,16 @@ public class StatusMediator
         mShowStatusIconWhenUrlFocused = mIsTablet;
         mModel.set(StatusProperties.INCOGNITO_BADGE_VISIBLE, false);
 
-        mPermissionDialogController = permissionDialogController;
-        mPermissionDialogController.addObserver(this);
+        mPermissionStatusHandler =
+                new PermissionStatusHandler(
+                        context,
+                        locationBarDataProvider,
+                        permissionDialogController,
+                        pageInfoIphController,
+                        profileSupplier,
+                        windowAndroid,
+                        this,
+                        mIconTaskHandler);
 
         mProfileSupplier.addObserver(
                 p -> {
@@ -213,9 +211,9 @@ public class StatusMediator
             mSearchEngineUtils = null;
         }
 
-        mPermissionTaskHandler.removeCallbacksAndMessages(null);
-        mPermissionDialogController.removeObserver(this);
+        mPermissionStatusHandler.destroy();
         mStoreIconHandler.removeCallbacksAndMessages(null);
+        mIconTaskHandler.removeCallbacksAndMessages(null);
         if (mMerchantTrustSignalsCoordinatorSupplier != null
                 && mMerchantTrustSignalsCoordinatorSupplier.get() != null) {
             mMerchantTrustSignalsCoordinatorSupplier.get().setOmniboxIconController(null);
@@ -425,6 +423,7 @@ public class StatusMediator
         if (newVisibility) {
             mModel.set(StatusProperties.VERBOSE_STATUS_TEXT_STRING_RES, statusText);
         }
+        mModel.set(StatusProperties.VERBOSE_STATUS_TEXT_VISIBLE, newVisibility);
 
         applyStatusIconAndTooltipProperties(
                 mModel.get(StatusProperties.SHOW_STATUS_ICON), newVisibility);
@@ -493,6 +492,12 @@ public class StatusMediator
                         .isIncognitoNewTabPageCurrentlyVisible();
     }
 
+    @Override
+    public void showPermissionIcon(PermissionIconResource icon) {
+        mModel.set(StatusProperties.STATUS_ICON_RESOURCE, icon);
+        mModel.set(StatusProperties.STATUS_ICON_DESCRIPTION_RES, icon.getContentDescriptionRes());
+    }
+
     /**
      * Update selection of icon presented on the location bar.
      *
@@ -509,14 +514,16 @@ public class StatusMediator
      *       </ul>
      * </ul>
      */
-    void updateLocationBarIcon(@IconTransitionType int transitionType) {
-        // Reset the last saved permission.
-        mLastPermission = ContentSettingsType.DEFAULT;
+    @Override
+    public void updateLocationBarIcon(@IconTransitionType int transitionType) {
         // Reset the store icon status.
         mIsStoreIconShowing = false;
 
         // No need to proceed further if we've already updated it for the search engine icon.
-        if (maybeUpdateStatusIconForSearchEngineIcon()) return;
+        if (maybeUpdateStatusIconForSearchEngineIcon()) {
+            mPermissionStatusHandler.reset(/* shouldDismissNativePrompt= */ true);
+            return;
+        }
 
         int icon = 0;
         int tint = 0;
@@ -527,6 +534,7 @@ public class StatusMediator
 
         if (mLocationBarDataProvider.getPageClassification(/* prefetch= */ false)
                 == PageClassification.ANDROID_HUB_VALUE) {
+            mPermissionStatusHandler.reset(/* shouldDismissNativePrompt= */ false);
             // Show the status icon primarily for incognito since it is defaulted off there.
             setStatusIconShown(/* show= */ true);
             icon = R.drawable.ic_arrow_back_24dp;
@@ -536,6 +544,7 @@ public class StatusMediator
                     mModel.get(StatusProperties.SHOW_STATUS_ICON),
                     mModel.get(StatusProperties.VERBOSE_STATUS_TEXT_VISIBLE));
         } else if (mUrlHasFocus) {
+            mPermissionStatusHandler.reset(/* shouldDismissNativePrompt= */ true);
             if (mShowStatusIconWhenUrlFocused) {
                 icon =
                         mUrlBarTextIsSearch
@@ -543,6 +552,8 @@ public class StatusMediator
                                 : R.drawable.ic_globe_24dp;
                 tint = mNavigationIconTintRes;
             }
+        } else if (mPermissionStatusHandler.isClapperQuietIconShowing()) {
+            return;
         } else if (mSecurityIconRes != 0) {
             mIsSecurityViewShown = true;
             icon = mSecurityIconRes;
@@ -550,7 +561,7 @@ public class StatusMediator
             toast = R.string.menu_page_info;
         } else { // Vivaldi Ref. VAB-8031 and BUG_VAB-8713
             icon = mLocationBarDataProvider.isIncognito() ?
-                    R.drawable.new_privatetab_24dp : R.drawable.ic_search;
+                    R.drawable.new_privatetab_24dp : R.drawable.ic_search_24dp;
         }
 
         // If the icon is missing, fallback to the info icon.
@@ -567,6 +578,11 @@ public class StatusMediator
         mModel.set(
                 StatusProperties.STATUS_ACCESSIBILITY_DOUBLE_TAP_DESCRIPTION_RES,
                 doubleTapDescriptionRes);
+    }
+
+    @VisibleForTesting
+    public PermissionStatusHandler getPermissionStatusHandler() {
+        return mPermissionStatusHandler;
     }
 
     /**
@@ -610,7 +626,7 @@ public class StatusMediator
 
         if (mSearchEngineIcon == null) {
             return new StatusIconResource(
-                    R.drawable.ic_search,
+                    R.drawable.ic_search_24dp,
                     ThemeUtils.getThemedToolbarIconTintRes(mBrandedColorScheme));
         }
 
@@ -663,63 +679,17 @@ public class StatusMediator
 
     public void onIncognitoStateChanged() {}
 
-    // PermissionDialogController.Observer interface
-    @Override
-    public void onDialogResult(
-            WindowAndroid window,
-            @ContentSettingsType.EnumType int[] permissions,
-            @ContentSetting int result) {
-        if (window != mWindowAndroid) {
-            return;
-        }
-        @ContentSettingsType.EnumType
-        int permission = SiteSettingsUtil.getHighestPriorityPermission(permissions);
-        // The permission is not available in the settings page. Do not show an icon.
-        if (permission == ContentSettingsType.DEFAULT) return;
-        resetCustomIconsStatus();
-        mLastPermission = permission;
-
-        boolean isIncognitoBranded = mLocationBarDataProvider.isIncognitoBranded();
-        Drawable permissionDrawable =
-                ContentSettingsResources.getIconForOmnibox(
-                        mContext, mLastPermission, result, isIncognitoBranded);
-        PermissionIconResource permissionIconResource =
-                new PermissionIconResource(permissionDrawable, isIncognitoBranded);
-        permissionIconResource.setTransitionType(IconTransitionType.ROTATE);
-        // We only want to notify the IPH controller after the icon transition is finished.
-        // IPH is controlled by the FeatureEngagement system through finch with a field trial
-        // testing configuration.
-        permissionIconResource.setAnimationFinishedCallback(this::startIph);
-        // Set the timer to switch the icon back afterwards.
-        mPermissionTaskHandler.removeCallbacksAndMessages(null);
-        mModel.set(StatusProperties.STATUS_ICON_RESOURCE, permissionIconResource);
-        mModel.set(
-                StatusProperties.STATUS_ICON_DESCRIPTION_RES,
-                ContentSettingsResources.getPermissionResultAnnouncementForScreenReader(
-                        mLastPermission, result));
-        Runnable finishIconAnimation = () -> updateLocationBarIcon(IconTransitionType.ROTATE);
-        mPermissionTaskHandler.postDelayed(
-                finishIconAnimation, PERMISSION_ICON_DEFAULT_DISPLAY_TIMEOUT_MS);
-    }
-
     // CookieControlsObserver interface
     @Override
     public void onHighlightCookieControl(boolean shouldHighlight) {
         if (shouldHighlight) {
             animateCookieControlsIcon(
                     () -> {
-                        if (mBlockingStatus3pcd == CookieBlocking3pcdStatus.NOT_IN3PCD) {
-                            mPageInfoIphController.showCookieControlsIph(
-                                    getIphTimeout(), R.string.cookie_controls_iph_message);
-                        }
+                        mPageInfoIphController.showCookieControlsIph(
+                                mPermissionStatusHandler.getIphTimeoutMs(),
+                                R.string.cookie_controls_iph_message);
                     });
         }
-    }
-
-    @Override
-    public void onStatusChanged(
-            int cookieControlsState, int enforcement, int blockingStatus, long expiration) {
-        mBlockingStatus3pcd = blockingStatus;
     }
 
     private void animateCookieControlsIcon(Runnable onAnimationFinished) {
@@ -752,17 +722,11 @@ public class StatusMediator
                 });
 
         // Set the timer to switch the icon back afterwards.
-        mPermissionTaskHandler.removeCallbacksAndMessages(null);
+        mIconTaskHandler.removeCallbacksAndMessages(null);
         mModel.set(StatusProperties.STATUS_ICON_RESOURCE, permissionIconResource);
-        mPermissionTaskHandler.postDelayed(
+        mIconTaskHandler.postDelayed(
                 () -> updateLocationBarIcon(IconTransitionType.ROTATE),
-                PERMISSION_ICON_DEFAULT_DISPLAY_TIMEOUT_MS);
-    }
-
-    private void startIph() {
-        Profile profile = mProfileSupplier.get();
-        if (profile == null) return;
-        mPageInfoIphController.onPermissionDialogShown(profile, getIphTimeout());
+                PermissionStatusHandler.PERMISSION_ICON_DEFAULT_DISPLAY_TIMEOUT_MS);
     }
 
     void setStoreIconController() {
@@ -793,7 +757,8 @@ public class StatusMediator
         storeIconResource.setAnimationFinishedCallback(
                 () -> {
                     if (canShowIph) {
-                        mPageInfoIphController.showStoreIconIph(getIphTimeout(), stringId);
+                        mPageInfoIphController.showStoreIconIph(
+                                mPermissionStatusHandler.getIphTimeoutMs(), stringId);
                     }
                 });
         mModel.set(StatusProperties.STATUS_ICON_RESOURCE, storeIconResource);
@@ -801,35 +766,29 @@ public class StatusMediator
                 () -> {
                     updateLocationBarIcon(IconTransitionType.ROTATE);
                 },
-                PERMISSION_ICON_DEFAULT_DISPLAY_TIMEOUT_MS);
+                PermissionStatusHandler.PERMISSION_ICON_DEFAULT_DISPLAY_TIMEOUT_MS);
         mIsStoreIconShowing = true;
     }
 
     // Reset all customized icons' status to avoid different icons' conflicts.
     @VisibleForTesting
-    void resetCustomIconsStatus() {
-        mPermissionTaskHandler.removeCallbacksAndMessages(null);
-        mLastPermission = ContentSettingsType.DEFAULT;
-        mStoreIconHandler.removeCallbacksAndMessages(null);
-        mIsStoreIconShowing = false;
-    }
-
-    /**
-     * @return A timeout for the IPH bubble. The bubble is shown after the permission icon animation
-     *     finishes and should disappear when it animates out.
-     */
-    private int getIphTimeout() {
-        return PERMISSION_ICON_DEFAULT_DISPLAY_TIMEOUT_MS - (2 * StatusView.ICON_ROTATION_DURATION_MS);
+    @Override
+    public void resetCustomIconsStatus() {
+        mPermissionStatusHandler.reset(/* shouldDismissNativePrompt= */ true);
+        resetEmbeddedIconHandlers();
     }
 
     /** Notifies that the page info was opened. */
     void onPageInfoOpened() {
-        resetCustomIconsStatus();
+        mPermissionStatusHandler.onPageInfoOpened();
+        resetEmbeddedIconHandlers();
         updateLocationBarIcon(IconTransitionType.CROSSFADE);
     }
 
-    public int getLastPermission() {
-        return mLastPermission;
+    private void resetEmbeddedIconHandlers() {
+        mStoreIconHandler.removeCallbacksAndMessages(null);
+        mIconTaskHandler.removeCallbacksAndMessages(null);
+        mIsStoreIconShowing = false;
     }
 
     boolean isStoreIconShowing() {
@@ -841,8 +800,9 @@ public class StatusMediator
      *     user clicks the omnibox icon.
      */
     ChromePageInfoHighlight getPageInfoHighlight() {
-        if (mLastPermission != PageInfoController.NO_HIGHLIGHTED_PERMISSION) {
-            return ChromePageInfoHighlight.forPermission(mLastPermission);
+        ChromePageInfoHighlight highlight = mPermissionStatusHandler.getPageInfoHighlight();
+        if (highlight != null) {
+            return highlight;
         } else if (mIsStoreIconShowing) {
             return ChromePageInfoHighlight.forStoreInfo(true);
         } else {

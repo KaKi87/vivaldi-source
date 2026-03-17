@@ -25,7 +25,7 @@
 @synthesize baseNavigationController = _baseNavigationController;
 
 - (instancetype)initWithBaseNavigationController:
-                          (UINavigationController*)navigationController
+                    (UINavigationController*)navigationController
                                          browser:(Browser*)browser {
   self = [super initWithBaseViewController:navigationController
                                    browser:browser];
@@ -40,27 +40,24 @@
 #pragma mark - ChromeCoordinator
 
 - (void)start {
-  self.viewController =
-      [[VivaldiSearchEngineSettingsViewController alloc]
-                         initWithBrowser:self.browser];
+  self.viewController = [[VivaldiSearchEngineSettingsViewController alloc]
+      initWithBrowser:self.browser];
   self.viewController.title =
       l10n_util::GetNSString(IDS_IOS_SEARCH_ENGINE_SETTING_TITLE);
   self.viewController.navigationItem.largeTitleDisplayMode =
       UINavigationItemLargeTitleDisplayModeNever;
 
-  self.mediator =
-      [[VivaldiSearchEngineSettingsMediator alloc]
-          initWithProfile:self.browser->GetProfile()];
+  self.mediator = [[VivaldiSearchEngineSettingsMediator alloc]
+      initWithProfile:self.browser->GetProfile()];
   self.mediator.consumer = self.viewController;
   self.viewController.delegate = self.mediator;
   self.viewController.presentationDelegate = self;
 
   // Add Done button
-  UIBarButtonItem* doneItem =
-      [[UIBarButtonItem alloc]
-          initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-              target:self
-                  action:@selector(handleDoneButtonTap)];
+  UIBarButtonItem* doneItem = [[UIBarButtonItem alloc]
+      initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                           target:self
+                           action:@selector(handleDoneButtonTap)];
   self.viewController.navigationItem.rightBarButtonItem = doneItem;
 
   [self.baseNavigationController pushViewController:self.viewController
@@ -83,8 +80,13 @@
 
 #pragma mark - VivaldiSearchEngineSettingsViewControllerPresentationDelegate
 - (void)searchEngineSettingsViewControllerWasRemoved:
-      (VivaldiSearchEngineSettingsViewController*)controller {
+    (VivaldiSearchEngineSettingsViewController*)controller {
   DCHECK_EQ(self.viewController, controller);
+  if (self.delegate) {
+    [self.delegate vivaldiSearchEngineSettingsCoordinatorWasRemoved:self];
+    return;
+  }
+
   [self stop];
 }
 

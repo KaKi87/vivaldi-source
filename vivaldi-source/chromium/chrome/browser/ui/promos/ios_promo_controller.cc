@@ -5,6 +5,7 @@
 #include "chrome/browser/ui/promos/ios_promo_controller.h"
 
 #include "base/functional/bind.h"
+#include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_window.h"
@@ -14,8 +15,12 @@
 #include "chrome/browser/ui/promos/ios_promos_utils.h"
 #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/common/pref_names.h"
+#include "components/desktop_to_mobile_promos/features.h"
 #include "components/desktop_to_mobile_promos/promos_types.h"
 #include "components/feature_engagement/public/feature_constants.h"
+#include "components/prefs/pref_service.h"
+#include "components/sync_device_info/device_info.h"
 #include "ui/views/widget/widget.h"
 
 using desktop_to_mobile_promos::PromoType;
@@ -35,6 +40,10 @@ const base::Feature& FeatureForIOSPromoType(PromoType promo_type) {
       return feature_engagement::kIPHiOSEnhancedBrowsingDesktopFeature;
     case PromoType::kLens:
       return feature_engagement::kIPHiOSLensPromoDesktopFeature;
+    case PromoType::kTabGroups:
+      return feature_engagement::kIPHiOSTabGroupsDesktopFeature;
+    case PromoType::kPriceTracking:
+      return feature_engagement::kIPHiOSPriceTrackingDesktopFeature;
   }
 }
 
@@ -63,6 +72,13 @@ IOSPromoController* IOSPromoController::From(
 }
 
 void IOSPromoController::OnPromoTriggered(PromoType promo_type) {
+  // TODO(crbug.com/485862381): Remove once check is integrated with user
+  // education system.
+  PrefService* local_state = g_browser_process->local_state();
+  if (local_state && !local_state->GetBoolean(prefs::kPromotionsEnabled)) {
+    return;
+  }
+
   BrowserWindow* window = browser_->window();
   // Don't show the promo if the toolbar is not visible.
   if (!window || !window->IsToolbarVisible()) {
@@ -75,22 +91,9 @@ void IOSPromoController::OnPromoTriggered(PromoType promo_type) {
     return;
   }
 
-  // Don't show the promo if the user has a recent active Android device.
-  if (ios_promos_utils::IsUserActiveOnAndroid(browser_->profile())) {
-    return;
-  }
-
-  // Do not show the promo if the user does not meet one of the two
-  // conditions:
-  // 1. Does not have Chrome installed on any iOS device
-  // 2. Is active for no more than 16 days in the last 28
-  IOSPromoTriggerService* service =
-      IOSPromoTriggerServiceFactory::GetForProfile(browser_->profile());
-  if (!service) {
-    return;
-  }
-  const syncer::DeviceInfo* device = service->GetIOSDeviceToRemind();
-  if (device && ios_promos_utils::IsUserActiveOnIOS(browser_->profile())) {
+  if (GetMobilePromoOnDesktopForcePromoType() ==
+          IOSPromoBubbleForceType::kNoOverride &&
+      !ShouldShowPromo(promo_type)) {
     return;
   }
 
@@ -100,4 +103,63 @@ void IOSPromoController::OnPromoTriggered(PromoType promo_type) {
     user_education_interface->MaybeShowFeaturePromo(
         FeatureForIOSPromoType(promo_type));
   }
+}
+
+// Returns true if the promo should be shown based on user eligibility criteria.
+// Only show the promo if the user meets one of the two conditions:
+// 1. kMobilePromoOnDesktop is enabled AND has a "not very active" iOS device
+// 2. kMobilePromoOnDesktopWithQRCode is enabled AND does not have Chrome
+// installed on any iOS device
+bool IOSPromoController::ShouldShowPromo(PromoType promo_type) {
+  // Don't show the promo if the user has a recent active Android device.
+  if (ios_promos_utils::IsUserActiveOnAndroid(browser_->profile())) {
+    return false;
+  }
+
+  MobilePromoOnDesktopPromoType feature_type;
+  switch (promo_type) {
+    case PromoType::kPassword:
+      feature_type = MobilePromoOnDesktopPromoType::kAutofillPromo;
+      break;
+    case PromoType::kEnhancedBrowsing:
+      feature_type = MobilePromoOnDesktopPromoType::kESBPromo;
+      break;
+    case PromoType::kLens:
+      feature_type = MobilePromoOnDesktopPromoType::kLensPromo;
+      break;
+    case PromoType::kTabGroups:
+      feature_type = MobilePromoOnDesktopPromoType::kTabGroups;
+      break;
+    case PromoType::kPriceTracking:
+      feature_type = MobilePromoOnDesktopPromoType::kPriceTracking;
+      break;
+    case PromoType::kAddress:
+    case PromoType::kPayment:
+      // These promos are not yet supported in this flow.
+      return false;
+  }
+
+  IOSPromoTriggerService* service =
+      IOSPromoTriggerServiceFactory::GetForProfile(browser_->profile());
+  if (!service) {
+    return false;
+  }
+  const syncer::DeviceInfo* device = service->GetIOSDeviceToRemind();
+
+  // Check if user is eligible for Reminder type promo.
+  if (device && !ios_promos_utils::IsUserActiveOnIOS(browser_->profile()) &&
+      device->desktop_to_ios_promo_receiving_enabled() &&
+      MobilePromoOnDesktopTypeEnabled(
+          feature_type, desktop_to_mobile_promos::BubbleType::kReminder)) {
+    return true;
+  }
+
+  // Check if user is eligible for QRCode type promo.
+  if (!device &&
+      MobilePromoOnDesktopTypeEnabled(
+          feature_type, desktop_to_mobile_promos::BubbleType::kQRCode)) {
+    return true;
+  }
+
+  return false;
 }

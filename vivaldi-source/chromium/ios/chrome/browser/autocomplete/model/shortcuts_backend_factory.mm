@@ -23,7 +23,12 @@ scoped_refptr<ShortcutsBackend> CreateShortcutsBackend(ProfileIOS* profile,
                                                        bool suppress_db) {
   scoped_refptr<ShortcutsBackend> shortcuts_backend(new ShortcutsBackend(
       ios::TemplateURLServiceFactory::GetForProfile(profile),
+#if defined(VIVALDI_BUILD)
+      std::make_unique<ios::UIThreadSearchTermsData>(
+          profile->GetOriginalProfile()),
+#else
       std::make_unique<ios::UIThreadSearchTermsData>(),
+#endif  // End Vivaldi
       ios::HistoryServiceFactory::GetForProfile(
           profile, ServiceAccessType::EXPLICIT_ACCESS),
       profile->GetStatePath().Append(kShortcutsDatabaseName), suppress_db));

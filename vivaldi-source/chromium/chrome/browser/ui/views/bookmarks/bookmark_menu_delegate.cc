@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 
+#include "base/containers/fixed_flat_set.h"
 #include "base/containers/to_vector.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/feature_list.h"
@@ -59,6 +60,7 @@
 #include "ui/base/window_open_disposition.h"
 #include "ui/base/window_open_disposition_utils.h"
 #include "ui/color/color_id.h"
+#include "ui/gfx/image/image_skia_operations.h"
 #include "ui/menus/simple_menu_model.h"
 #include "ui/resources/grit/ui_resources.h"
 #include "ui/views/accessibility/view_accessibility.h"
@@ -104,8 +106,27 @@ size_t SubmenuIndexOf(const MenuItemView* parent, const views::View* child) {
 ui::ImageModel GetFaviconForNode(BookmarkModel* model,
                                  const BookmarkNode* node) {
   const gfx::Image& image = model->GetFavicon(node);
-  return image.IsEmpty() ? favicon::GetDefaultFaviconModel()
-                         : ui::ImageModel::FromImage(image);
+  if (image.IsEmpty()) {
+    return favicon::GetDefaultFaviconModel();
+  }
+
+  // Only URL nodes reach here. Folders would have returned empty above.
+  DCHECK(node->is_url());
+  if (favicon::ShouldThemifyFavicon(node->url())) {
+    gfx::ImageSkia favicon_skia = *image.ToImageSkia();
+    return ui::ImageModel::FromImageGenerator(
+        base::BindRepeating(
+            [](const gfx::ImageSkia& favicon,
+               const ui::ColorProvider* provider) {
+              SkColor favicon_color = provider->GetColor(ui::kColorMenuIcon);
+              return gfx::ImageSkiaOperations::CreateColorMask(favicon,
+                                                               favicon_color);
+            },
+            favicon_skia),
+        image.Size());
+  }
+
+  return ui::ImageModel::FromImage(image);
 }
 
 // The current behavior is that the menu gets closed (see MenuController) after
@@ -196,10 +217,10 @@ class BookmarkModelDropObserver : public BookmarkMergedSurfaceServiceObserver {
 };
 
 int IsInvalidDragOrDropCommand(int command_id) {
-  std::unordered_set<int> invalid_command_ids = {
-      IDC_SHOW_BOOKMARK_SIDE_PANEL, IDC_BOOKMARK_BAR_OPEN_ALL,
-      IDC_BOOKMARK_BAR_OPEN_ALL_NEW_TAB_GROUP};
-  return invalid_command_ids.contains(command_id);
+  static constexpr auto kInvalidCommandIds = base::MakeFixedFlatSet<int>(
+      {IDC_SHOW_BOOKMARK_SIDE_PANEL, IDC_BOOKMARK_BAR_OPEN_ALL,
+       IDC_BOOKMARK_BAR_OPEN_ALL_NEW_TAB_GROUP});
+  return kInvalidCommandIds.contains(command_id);
 }
 
 DEFINE_LOCAL_ELEMENT_IDENTIFIER_VALUE(kOpenAllCommandSeperator);
@@ -304,6 +325,14 @@ BookmarkMenuDelegate::BookmarkMenuDelegate(Browser* browser,
       location_(location) {
   bookmark_merged_service_observation_.Observe(
       GetBookmarkMergedSurfaceService());
+  if (vivaldi::IsVivaldiRunning()) {
+    // We do not always use BookmarkMenuDelegate::BuildFullMenu (like for
+    // bookmark bar menus) so we need to do an init here as well. Also note that
+    // in the main menu the bookmark menu delegate settings may differ from the
+    // state in the root menu item.
+    menu_uses_mnemonics_ = profile_->GetPrefs()->GetBoolean(
+        vivaldiprefs::kBookmarksUnderlineMenuLetter);
+  }
 }
 
 BookmarkMenuDelegate::~BookmarkMenuDelegate() {
@@ -320,10 +349,9 @@ void BookmarkMenuDelegate::BuildFullMenu(MenuItemView* parent) {
   menu_uses_mnemonics_ = parent_menu_item_->GetRootMenuItem()->has_mnemonics();
 
   if (vivaldi::IsVivaldiRunning()) {
-    // The menu has been set up to be able to show mnemonics in the controller.
-    // If we want to display those we should not escape ampersands. Ampersands
-    // are escaped by setting 'menu_uses_mnemonics_' to true.
-    menu_uses_mnemonics_ = !profile_->GetPrefs()->GetBoolean(
+    // Override the value in case this is the bookmark menu that lives inside
+    // the main menu. The root menu item can hold the wrong value then.
+    menu_uses_mnemonics_ = profile_->GetPrefs()->GetBoolean(
         vivaldiprefs::kBookmarksUnderlineMenuLetter);
   } // Vivaldi
 
@@ -992,6 +1020,21 @@ void BookmarkMenuDelegate::DidRemoveBookmarks() {
 
   std::vector<raw_ref<MenuItemView>> updated_menus =
       GetAndUpdateStaleMenuArtifacts();
+
+  // Update "open all" commands. Only the root menu (menu_) can have these
+  // commands since they're only added to direct children of the bookmark bar.
+  if (menu_ &&
+      base::FeatureList::IsEnabled(features::kTabGroupMenuImprovements)) {
+    const auto iter = menu_id_to_node_map_.find(menu_->GetCommand());
+    if (iter != menu_id_to_node_map_.end()) {
+      if (const BookmarkParentFolder* folder =
+              iter->second.GetIfBookmarkFolder()) {
+        UpdateOpenAllCommands(menu_, *folder);
+        updated_menus.emplace_back(*menu_);
+      }
+    }
+  }
+
   for (raw_ref<MenuItemView> updated_menu : updated_menus) {
     updated_menu->ChildrenChanged();
   }
@@ -1195,12 +1238,22 @@ void BookmarkMenuDelegate::BuildMenuForFolderAt(
   std::vector<const BookmarkNode*> nodes =
       GetBookmarkMergedSurfaceService()->GetUnderlyingNodes(folder);
   CHECK(!nodes.empty());
+  if (vivaldi::IsVivaldiRunning()) {
+    MenuItemView* child_menu_item = parent_menu->AddMenuItemAt(
+                      index, GetAndIncrementNextMenuID(),
+                      MaybeEscapeLabel(nodes[0]->GetTitle()), std::u16string(),
+                      std::u16string(), ui::ImageModel(), icon,
+                      MenuItemView::Type::kSubMenu, ui::NORMAL_SEPARATOR);
+    child_menu_item->VivaldiSetHasMnemonics(menu_uses_mnemonics_);
+    AddMenuToMaps(child_menu_item, BookmarkFolderOrURL(folder));
+  } else {
   AddMenuToMaps(parent_menu->AddMenuItemAt(
                     index, GetAndIncrementNextMenuID(),
                     MaybeEscapeLabel(nodes[0]->GetTitle()), std::u16string(),
                     std::u16string(), ui::ImageModel(), icon,
                     MenuItemView::Type::kSubMenu, ui::NORMAL_SEPARATOR),
                 BookmarkFolderOrURL(folder));
+  }
 }
 
 void BookmarkMenuDelegate::BuildMenuForURLAt(const BookmarkNode* node,
@@ -1226,6 +1279,7 @@ void BookmarkMenuDelegate::BuildMenuForURLAt(const BookmarkNode* node,
           GetAndIncrementNextMenuID(),
           MaybeEscapeLabel(node->GetTitle()), icon, MenuItemView::Type::kNormal);
     }
+    child_menu_item->VivaldiSetHasMnemonics(menu_uses_mnemonics_);
     AddMenuToMaps(child_menu_item, BookmarkFolderOrURL(node));
   } else {
   MenuItemView* child_menu_item = parent_menu->AddMenuItemAt(
@@ -1342,14 +1396,9 @@ void BookmarkMenuDelegate::AddMenuToMaps(MenuItemView* menu,
 
 std::u16string BookmarkMenuDelegate::MaybeEscapeLabel(
     const std::u16string& label) {
-  if (vivaldi::IsVivaldiRunning() && !menu_uses_mnemonics_) {
-    // Special test to prevent underlining a space.
-    char16_t c = ui::GetMnemonic(label);
-    if (c == ' ') {
-      return ui::EscapeMenuLabelAmpersands(label);
-    }
+  if (vivaldi::IsVivaldiRunning()) {
+    return label;
   }
-
   return menu_uses_mnemonics_ ? ui::EscapeMenuLabelAmpersands(label) : label;
 }
 

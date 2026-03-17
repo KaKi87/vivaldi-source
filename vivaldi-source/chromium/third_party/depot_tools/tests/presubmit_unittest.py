@@ -625,7 +625,7 @@ class PresubmitUnittest(PresubmitTestsBase):
                                            gerrit_obj=None,
                                            verbose=False))
         expected = (r'Running post upload checks \.\.\.\n')
-        self.assertRegexpMatches(sys.stdout.getvalue(), expected)
+        self.assertRegex(sys.stdout.getvalue(), expected)
 
     def testDoPostUploadExecuterWarning(self):
         path = os.path.join(self.fake_root_dir, 'PRESUBMIT.py')
@@ -645,7 +645,7 @@ class PresubmitUnittest(PresubmitTestsBase):
             '??\n'
             '\n', sys.stdout.getvalue())
 
-    def testDoPostUploadExecuterWarning(self):
+    def testDoPostUploadExecuterError(self):
         path = os.path.join(self.fake_root_dir, 'PRESUBMIT.py')
         os.path.isfile.side_effect = lambda f: f == path
         os.listdir.return_value = ['PRESUBMIT.py']
@@ -662,7 +662,7 @@ class PresubmitUnittest(PresubmitTestsBase):
                     '\*\* Post Upload Hook Messages \*\*\n'
                     '!!\n'
                     '\n')
-        self.assertRegexpMatches(sys.stdout.getvalue(), expected)
+        self.assertRegex(sys.stdout.getvalue(), expected)
 
     def testDoPresubmitChecksNoWarningsOrErrors(self):
         haspresubmit_path = os.path.join(self.fake_root_dir, 'haspresubmit',
@@ -915,7 +915,8 @@ def CheckChangeOnCommit(input_api, output_api):
         random.randint.return_value = 0
 
         change = self.ExampleChange(extra_lines=['STORY=http://tracker/123'])
-        with mock.patch('sys.stdin', StringIO('y\n')):
+        with mock.patch('sys.stdin', StringIO('y\n')), \
+            mock.patch('gclient_utils.IsEnvCog', return_value=False):
             self.assertEqual(
                 1,
                 presubmit.DoPresubmitChecks(
@@ -934,6 +935,41 @@ def CheckChangeOnCommit(input_api, output_api):
                 'Was the presubmit check useful? If not, run "git cl presubmit -v"\n'
                 'to figure out which PRESUBMIT.py was run, then run "git blame"\n'
                 'on the file to figure out who to ask for help.\n')
+            self.assertEqual(sys.stdout.getvalue(), text)
+
+    def testDoDefaultPresubmitChecksAndFeedbackCog(self):
+        always_fail_presubmit_script = ("""\n
+def CheckChangeOnUpload(input_api, output_api):
+  return [output_api.PresubmitError("!!")]
+def CheckChangeOnCommit(input_api, output_api):
+  raise Exception("Test error")
+""")
+
+        os.path.isfile.return_value = False
+        os.listdir.side_effect = (
+            lambda d: [] if d == self.fake_root_dir else ['PRESUBMIT.py'])
+        random.randint.return_value = 0
+
+        change = self.ExampleChange(extra_lines=['STORY=http://tracker/123'])
+        with mock.patch('sys.stdin', StringIO('y\n')), \
+            mock.patch('gclient_utils.IsEnvCog', return_value=True):
+            self.assertEqual(
+                1,
+                presubmit.DoPresubmitChecks(
+                    change=change,
+                    committing=False,
+                    verbose=True,
+                    default_presubmit=always_fail_presubmit_script,
+                    may_prompt=False,
+                    gerrit_obj=None,
+                    json_output=None))
+            text = (
+                RUNNING_PY_CHECKS_TEXT + 'Warning, no PRESUBMIT.py found.\n'
+                'Running default presubmit script.\n'
+                '** Presubmit ERRORS: 1 **\n!!\n\n'
+                'There were presubmit errors.\n'
+                'Was the presubmit check useful? If not, view the file\'s\n'
+                'blame on Code Search to figure out who to ask for help.\n')
             self.assertEqual(sys.stdout.getvalue(), text)
 
     def ExampleChange(self, extra_lines=None):
@@ -3058,6 +3094,7 @@ the current line as well!
         pylintrc = os.path.join(_ROOT, 'pylintrc-2.7')
         env = {str('PYTHONPATH'): str('')}
         if sys.platform == 'win32':
+            input_api.is_windows = True
             pylint += '.bat'
 
         results = presubmit_canned_checks.RunPylint(input_api,
@@ -3264,7 +3301,7 @@ the current line as well!
         for result in results:
             result.handle()
         if expected_output:
-            self.assertRegexpMatches(sys.stdout.getvalue(), expected_output)
+            self.assertRegex(sys.stdout.getvalue(), expected_output)
         else:
             self.assertEqual(sys.stdout.getvalue(), expected_output)
         sys.stdout.truncate(0)

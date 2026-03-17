@@ -26,11 +26,6 @@
 #include "pdf/pdf_features.h"
 #endif  // BUILDFLAG(ENABLE_PDF)
 
-#include "app/vivaldi_apptools.h"
-#include "extensions/common/constants.h"
-#include "ui/content/vivaldi_tab_check.h"
-#include "extensions/browser/guest_view/web_view/web_view_guest.h"
-
 namespace extensions {
 
 void StreamsPrivateAPI::SendExecuteMimeTypeHandlerEvent(
@@ -70,14 +65,6 @@ void StreamsPrivateAPI::SendExecuteMimeTypeHandlerEvent(
   MimeTypesHandler* handler = MimeTypesHandler::GetHandler(extension);
   if (!handler->HasPlugin())
     return;
-
-  if (vivaldi::IsVivaldiRunning() &&
-      VivaldiTabCheck::IsVivaldiTab(web_contents) &&
-      extension->id() == extension_misc::kPdfExtensionId) {
-    // A Vivaldi tab that shows PDF should not be treated as embedded to make
-    // PDF zoom changes propagate back to Vivaldi UI, VB-48934.
-    embedded = false;
-  }
 
   // If the mime handler uses MimeHandlerViewGuest, the MimeHandlerViewGuest
   // will take ownership of the stream.

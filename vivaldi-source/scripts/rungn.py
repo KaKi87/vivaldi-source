@@ -243,7 +243,7 @@ if args.refresh or not args.args:
   produce_ide = not args.no_ide and ide_kind != "None" and not is_builder
   if produce_ide and not ide_kind:
     if platform.system() == "Windows":
-      ide_kind = "vs2019"
+      ide_kind = "vs2022"
     elif platform.system()== "Darwin":
       ide_kind = "xcode"
     else:

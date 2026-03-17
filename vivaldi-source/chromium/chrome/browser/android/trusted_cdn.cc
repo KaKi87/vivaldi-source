@@ -19,17 +19,16 @@
 #include "chrome/browser/tab/jni_headers/TrustedCdn_jni.h"
 
 using base::android::ConvertUTF8ToJavaString;
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
 using content::WebContents;
 
-TrustedCdn::TrustedCdn(JNIEnv* env, const JavaParamRef<jobject>& obj)
-    : jobj_(env, obj) {}
+TrustedCdn::TrustedCdn() = default;
 
 TrustedCdn::~TrustedCdn() = default;
 
 void TrustedCdn::SetWebContents(JNIEnv* env,
-                                const JavaParamRef<jobject>& jweb_contents) {
+                                const JavaRef<jobject>& jweb_contents) {
   web_contents_ = WebContents::FromJavaWebContents(jweb_contents);
 }
 
@@ -57,9 +56,8 @@ base::android::ScopedJavaLocalRef<jobject> TrustedCdn::GetPublisherUrl(
       embedder_support::GetPublisherURL(web_contents_->GetPrimaryMainFrame()));
 }
 
-static jlong JNI_TrustedCdn_Init(JNIEnv* env,
-                                 const JavaParamRef<jobject>& obj) {
-  return reinterpret_cast<intptr_t>(new TrustedCdn(env, obj));
+static int64_t JNI_TrustedCdn_Init(JNIEnv* env) {
+  return reinterpret_cast<intptr_t>(new TrustedCdn());
 }
 
 DEFINE_JNI(TrustedCdn)

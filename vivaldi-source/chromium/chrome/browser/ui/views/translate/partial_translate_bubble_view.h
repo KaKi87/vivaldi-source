@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_TRANSLATE_PARTIAL_TRANSLATE_BUBBLE_VIEW_H_
 #define CHROME_BROWSER_UI_VIEWS_TRANSLATE_PARTIAL_TRANSLATE_BUBBLE_VIEW_H_
 
-#include <map>
 #include <memory>
 #include <string>
 
@@ -63,7 +62,7 @@ class PartialTranslateBubbleView : public LocationBarBubbleDelegateView,
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kSourceLanguageDoneButton);
   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kErrorMessage);
 
-  PartialTranslateBubbleView(views::View* anchor_view,
+  PartialTranslateBubbleView(views::BubbleAnchor anchor,
                              std::unique_ptr<PartialTranslateBubbleModel> model,
                              content::WebContents* web_contents,
                              base::OnceClosure on_closing);

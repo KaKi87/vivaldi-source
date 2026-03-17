@@ -8,24 +8,25 @@
 
 #import "base/strings/string_util.h"
 #import "base/strings/sys_string_conversions.h"
+#import "base/strings/utf_string_conversions.h"
 #import "components/search_engines/template_url.h"
 #import "components/search_engines/template_url_data.h"
 #import "components/search_engines/template_url_service.h"
-#import "ios/chrome/browser/browser_container/ui_bundled/browser_edit_menu_utils.h"
-#import "ios/chrome/browser/browser_container/ui_bundled/edit_menu_alert_delegate.h"
+#import "ios/chrome/browser/browser_content/ui_bundled/browser_edit_menu_utils.h"
+#import "ios/chrome/browser/browser_content/ui_bundled/edit_menu_alert_delegate.h"
 #import "ios/chrome/browser/search_engines/model/template_url_service_factory.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
-#import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_swift.h"
 #import "ios/search/vivaldi_add_search_engine_java_script_feature.h"
-#import "ios/web/public/web_state.h"
-#import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
-#import "ui/base/l10n/l10n_util.h"
-#import "base/strings/utf_string_conversions.h"
 #import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_coordinator.h"
+#import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_swift.h"
+#import "ios/web/public/web_state.h"
+#import "ui/base/l10n/l10n_util.h"
+#import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 namespace {
 using MenuItemsBlock = void (^)(NSArray<UIMenuElement*>* items);
+constexpr NSTimeInterval kSearchableFormRequestTimeoutSeconds = 1.5;
 
 NSValue* KeyForWebState(web::WebState* web_state) {
   return [NSValue valueWithPointer:web_state];
@@ -39,9 +40,9 @@ class SearchableFormObserver
   SearchableFormObserver(const SearchableFormObserver&) = delete;
   SearchableFormObserver& operator=(const SearchableFormObserver&) = delete;
 
-  void OnFocusedSearchableForm(
-      web::WebState* web_state,
-      std::optional<vivaldi::SearchableFormData> data) override;
+  void OnFocusedSearchableForm(web::WebState* web_state,
+                               std::optional<vivaldi::SearchableFormData> data,
+                               std::optional<int64_t> request_id) override;
 
  private:
   VivaldiAddSearchEngineMediator* owner_;
@@ -50,12 +51,22 @@ class SearchableFormObserver
 NSString* vMenuIdentifier = @"vivaldi.menu.addsearchengine";
 }  // namespace
 
-//VivaldiSearchEngineEditorCoordinatorDelegate
+@interface VivaldiPendingFocusedSearchableFormRequest : NSObject
+@property(nonatomic, copy) MenuItemsBlock completion;
+@property(nonatomic, assign) int64_t requestID;
+@end
+
+@implementation VivaldiPendingFocusedSearchableFormRequest
+@end
+
+// VivaldiSearchEngineEditorCoordinatorDelegate
 @interface VivaldiAddSearchEngineMediator ()
 @property(nonatomic, assign) Browser* browser;
 @property(nonatomic, weak) id<EditMenuAlertDelegate> alertDelegate;
 @property(nonatomic, strong)
-    NSMapTable<NSValue*, NSMutableArray*>* pendingRequests;
+    NSMapTable<NSValue*,
+               NSMutableArray<VivaldiPendingFocusedSearchableFormRequest*>*>*
+        pendingRequests;
 @property(nonatomic, strong)
     VivaldiSearchEngineEditorCoordinator* vivaldiSearchEditorCoordinator;
 
@@ -63,28 +74,44 @@ NSString* vMenuIdentifier = @"vivaldi.menu.addsearchengine";
 @property(nonatomic, weak) UIViewController* baseViewController;
 
 - (void)handleSearchableForm:(std::optional<vivaldi::SearchableFormData>)data
-                   webState:(web::WebState*)webState;
+                    webState:(web::WebState*)webState
+                   requestID:(std::optional<int64_t>)requestID;
+- (void)buildDeferredMenuWithBuilder:(id<UIMenuBuilder>)builder
+                          inWebState:(web::WebState*)webState;
+- (int64_t)enqueueCompletion:(MenuItemsBlock)completion
+                 forWebState:(web::WebState*)webState;
+- (VivaldiPendingFocusedSearchableFormRequest*)dequeueCompletionForWebState:
+    (web::WebState*)webState;
+- (VivaldiPendingFocusedSearchableFormRequest*)
+    dequeueCompletionForWebState:(web::WebState*)webState
+                       requestID:(int64_t)requestID;
+- (void)resolveCompletionForWebState:(web::WebState*)webState
+                           requestID:(int64_t)requestID
+                           withItems:(NSArray<UIMenuElement*>*)items;
+- (void)scheduleTimeoutForRequestID:(int64_t)requestID
+                           webState:(web::WebState*)webState;
 @end
 
 @implementation VivaldiAddSearchEngineMediator {
   std::unique_ptr<SearchableFormObserver> observer_;
+  int64_t nextRequestID_;
 }
 
 - (instancetype)initWithBaseViewController:(UIViewController*)baseViewController
                                    browser:(Browser*)browser
-                             alertDelegate:(id<EditMenuAlertDelegate>)alertDelegate {
+                             alertDelegate:
+                                 (id<EditMenuAlertDelegate>)alertDelegate {
   if ((self = [super init])) {
     _baseViewController = baseViewController;
     _browser = browser;
     _alertDelegate = alertDelegate;
-    _pendingRequests =
-        [NSMapTable strongToStrongObjectsMapTable];
+    _pendingRequests = [NSMapTable strongToStrongObjectsMapTable];
+    nextRequestID_ = 1;
     observer_ = std::make_unique<SearchableFormObserver>(self);
     vivaldi::VivaldiAddSearchEngineJavaScriptFeature::GetInstance()
         ->AddObserver(observer_.get());
   }
   return self;
-
 }
 
 - (void)dealloc {
@@ -97,70 +124,63 @@ NSString* vMenuIdentifier = @"vivaldi.menu.addsearchengine";
 
 - (void)buildEditMenuWithBuilder:(id<UIMenuBuilder>)builder
                       inWebState:(web::WebState*)webState {
-  if (!webState || !self.browser) {
-    return;
-  }
-
-  __weak __typeof(self) weakSelf = self;
-  UIDeferredMenuElement* deferred =
-      [UIDeferredMenuElement
-          elementWithProvider:^(void (^completion)(NSArray<UIMenuElement*>*)) {
-            [weakSelf enqueueCompletion:completion forWebState:webState];
-            bool dispatched =
-                vivaldi::VivaldiAddSearchEngineJavaScriptFeature::GetInstance()
-                    ->RequestFocusedSearchFormData(webState);
-            if (!dispatched) {
-              [weakSelf resolveNextCompletionForWebState:webState withItems:@[]];
-            }
-          }];
-
-  UIMenu* addSearchMenu =
-      [UIMenu menuWithTitle:@""
-                      image:nil
-                 identifier:vMenuIdentifier
-                    options:UIMenuOptionsDisplayInline
-                   children:@[ deferred ]];
-  [builder insertChildMenu:addSearchMenu
-      atEndOfMenuForIdentifier:UIMenuRoot];
+  [self buildDeferredMenuWithBuilder:builder inWebState:webState];
 }
 
 - (void)buildSelectionlessEditMenuWithBuilder:(id<UIMenuBuilder>)builder
-                               inWebState:(web::WebState*)webState {
+                                   inWebState:(web::WebState*)webState {
+  [self buildDeferredMenuWithBuilder:builder inWebState:webState];
+}
+
+- (void)buildDeferredMenuWithBuilder:(id<UIMenuBuilder>)builder
+                          inWebState:(web::WebState*)webState {
   if (!webState || !self.browser) {
     return;
   }
 
   __weak __typeof(self) weakSelf = self;
-  UIDeferredMenuElement* deferred =
-      [UIDeferredMenuElement
-          elementWithProvider:^(void (^completion)(NSArray<UIMenuElement*>*)) {
-            [weakSelf enqueueCompletion:completion forWebState:webState];
-            bool dispatched =
-                vivaldi::VivaldiAddSearchEngineJavaScriptFeature::GetInstance()
-                    ->RequestFocusedSearchFormData(webState);
-            if (!dispatched) {
-              [weakSelf resolveNextCompletionForWebState:webState withItems:@[]];
-            }
-          }];
+  UIDeferredMenuElement* deferred = [UIDeferredMenuElement
+      elementWithProvider:^(void (^completion)(NSArray<UIMenuElement*>*)) {
+        int64_t requestID = [weakSelf enqueueCompletion:completion
+                                            forWebState:webState];
+        bool dispatched =
+            vivaldi::VivaldiAddSearchEngineJavaScriptFeature::GetInstance()
+                ->RequestFocusedSearchFormData(webState, requestID);
+        if (!dispatched) {
+          [weakSelf resolveCompletionForWebState:webState
+                                       requestID:requestID
+                                       withItems:@[]];
+          return;
+        }
+        [weakSelf scheduleTimeoutForRequestID:requestID webState:webState];
+      }];
 
-  UIMenu* addSearchMenu =
-      [UIMenu menuWithTitle:@""
-                      image:nil
-                 identifier:vMenuIdentifier
-                    options:UIMenuOptionsDisplayInline
-                   children:@[ deferred ]];
-  [builder insertChildMenu:addSearchMenu
-      atEndOfMenuForIdentifier:UIMenuRoot];
+  UIMenu* addSearchMenu = [UIMenu menuWithTitle:@""
+                                          image:nil
+                                     identifier:vMenuIdentifier
+                                        options:UIMenuOptionsDisplayInline
+                                       children:@[ deferred ]];
+  [builder insertChildMenu:addSearchMenu atEndOfMenuForIdentifier:UIMenuRoot];
 }
 
 #pragma mark - Observer callback
 
 - (void)handleSearchableForm:(std::optional<vivaldi::SearchableFormData>)data
-                   webState:(web::WebState*)webState {
-  MenuItemsBlock block = [self dequeueCompletionForWebState:webState];
-  if (!block) {
+                    webState:(web::WebState*)webState
+                   requestID:(std::optional<int64_t>)requestID {
+  VivaldiPendingFocusedSearchableFormRequest* pendingRequest = nil;
+  if (requestID) {
+    pendingRequest = [self dequeueCompletionForWebState:webState
+                                              requestID:*requestID];
+  } else {
+    pendingRequest = [self dequeueCompletionForWebState:webState];
+  }
+
+  if (!pendingRequest) {
     return;
   }
+
+  MenuItemsBlock block = pendingRequest.completion;
   if (!data) {
     block(@[]);
     return;
@@ -188,37 +208,93 @@ NSString* vMenuIdentifier = @"vivaldi.menu.addsearchengine";
 
 #pragma mark - Pending completions
 
-- (void)enqueueCompletion:(MenuItemsBlock)completion
-               forWebState:(web::WebState*)webState {
+- (int64_t)enqueueCompletion:(MenuItemsBlock)completion
+                 forWebState:(web::WebState*)webState {
+  const int64_t requestID = nextRequestID_++;
   NSValue* key = KeyForWebState(webState);
-  NSMutableArray* queue = [self.pendingRequests objectForKey:key];
+  NSMutableArray<VivaldiPendingFocusedSearchableFormRequest*>* queue =
+      [self.pendingRequests objectForKey:key];
   if (!queue) {
     queue = [[NSMutableArray alloc] init];
     [self.pendingRequests setObject:queue forKey:key];
   }
-  [queue addObject:[completion copy]];
+  VivaldiPendingFocusedSearchableFormRequest* request =
+      [[VivaldiPendingFocusedSearchableFormRequest alloc] init];
+  request.requestID = requestID;
+  request.completion = [completion copy];
+  [queue addObject:request];
+  return requestID;
 }
 
-- (MenuItemsBlock)dequeueCompletionForWebState:(web::WebState*)webState {
+- (VivaldiPendingFocusedSearchableFormRequest*)dequeueCompletionForWebState:
+    (web::WebState*)webState {
   NSValue* key = KeyForWebState(webState);
-  NSMutableArray* queue = [self.pendingRequests objectForKey:key];
+  NSMutableArray<VivaldiPendingFocusedSearchableFormRequest*>* queue =
+      [self.pendingRequests objectForKey:key];
   if (!queue || !queue.count) {
     return nil;
   }
-  MenuItemsBlock block = [queue firstObject];
+  VivaldiPendingFocusedSearchableFormRequest* request = [queue firstObject];
   [queue removeObjectAtIndex:0];
   if (!queue.count) {
     [self.pendingRequests removeObjectForKey:key];
   }
-  return block;
+  return request;
 }
 
-- (void)resolveNextCompletionForWebState:(web::WebState*)webState
-                                withItems:(NSArray<UIMenuElement*>*)items {
-  MenuItemsBlock block = [self dequeueCompletionForWebState:webState];
-  if (block) {
-    block(items);
+- (VivaldiPendingFocusedSearchableFormRequest*)
+    dequeueCompletionForWebState:(web::WebState*)webState
+                       requestID:(int64_t)requestID {
+  NSValue* key = KeyForWebState(webState);
+  NSMutableArray<VivaldiPendingFocusedSearchableFormRequest*>* queue =
+      [self.pendingRequests objectForKey:key];
+  if (!queue || !queue.count) {
+    return nil;
   }
+
+  NSUInteger index = [queue indexOfObjectPassingTest:^BOOL(
+                                VivaldiPendingFocusedSearchableFormRequest* obj,
+                                NSUInteger idx, BOOL* stop) {
+    return obj.requestID == requestID;
+  }];
+  if (index == NSNotFound) {
+    return nil;
+  }
+
+  VivaldiPendingFocusedSearchableFormRequest* request =
+      [queue objectAtIndex:index];
+  [queue removeObjectAtIndex:index];
+  if (!queue.count) {
+    [self.pendingRequests removeObjectForKey:key];
+  }
+  return request;
+}
+
+- (void)resolveCompletionForWebState:(web::WebState*)webState
+                           requestID:(int64_t)requestID
+                           withItems:(NSArray<UIMenuElement*>*)items {
+  VivaldiPendingFocusedSearchableFormRequest* request =
+      [self dequeueCompletionForWebState:webState requestID:requestID];
+  if (request && request.completion) {
+    request.completion(items);
+  }
+}
+
+- (void)scheduleTimeoutForRequestID:(int64_t)requestID
+                           webState:(web::WebState*)webState {
+  __weak __typeof(self) weakSelf = self;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                               (int64_t)(kSearchableFormRequestTimeoutSeconds *
+                                         NSEC_PER_SEC)),
+                 dispatch_get_main_queue(), ^{
+                   VivaldiPendingFocusedSearchableFormRequest* request =
+                       [weakSelf dequeueCompletionForWebState:webState
+                                                    requestID:requestID];
+                   if (!request || !request.completion) {
+                     return;
+                   }
+                   request.completion(@[]);
+                 });
 }
 
 #pragma mark - Context menu flow helpers
@@ -239,8 +315,7 @@ NSString* vMenuIdentifier = @"vivaldi.menu.addsearchengine";
   }
   service->Load();
 
-  const std::string template_spec =
-      base::SysNSStringToUTF8(templateURL);
+  const std::string template_spec = base::SysNSStringToUTF8(templateURL);
   const GURL template_gurl(template_spec);
   if (!template_gurl.is_valid()) {
     return;
@@ -266,7 +341,7 @@ NSString* vMenuIdentifier = @"vivaldi.menu.addsearchengine";
   }
   base::TrimWhitespaceASCII(display_name, base::TRIM_ALL, &display_name);
   if (display_name.empty()) {
-    display_name = "Custom search"; // todo tommi, translatable string
+    display_name = "Custom search";  // todo tommi, translatable string
   }
 
   VivaldiSearchEngineEditorItem* item =
@@ -277,15 +352,16 @@ NSString* vMenuIdentifier = @"vivaldi.menu.addsearchengine";
   [self presentAddSearchEngineEditorWithItem:item];
 }
 
-- (void)presentAddSearchEngineEditorWithItem:(VivaldiSearchEngineEditorItem*)item {
-  self.vivaldiSearchEditorCoordinator =
-      [[VivaldiSearchEngineEditorCoordinator alloc]
-          initWithBaseViewController:self.baseViewController
-                             browser:self.browser
-                          entryPoint:VivaldiSearchEngineEditorEntryPointContextMenu
-                         entryReason:VivaldiSearchEngineEditorEntryReasonAdd
-                                item:item
-                         allowsCancel:YES];
+- (void)presentAddSearchEngineEditorWithItem:
+    (VivaldiSearchEngineEditorItem*)item {
+  self.vivaldiSearchEditorCoordinator = [[VivaldiSearchEngineEditorCoordinator
+      alloc]
+      initWithBaseViewController:self.baseViewController
+                         browser:self.browser
+                      entryPoint:VivaldiSearchEngineEditorEntryPointContextMenu
+                     entryReason:VivaldiSearchEngineEditorEntryReasonAdd
+                            item:item
+                    allowsCancel:YES];
   [self.vivaldiSearchEditorCoordinator start];
 }
 
@@ -295,8 +371,9 @@ namespace {
 
 void SearchableFormObserver::OnFocusedSearchableForm(
     web::WebState* web_state,
-    std::optional<vivaldi::SearchableFormData> data) {
-  [owner_ handleSearchableForm:data webState:web_state];
+    std::optional<vivaldi::SearchableFormData> data,
+    std::optional<int64_t> request_id) {
+  [owner_ handleSearchableForm:data webState:web_state requestID:request_id];
 }
 
 }  // namespace

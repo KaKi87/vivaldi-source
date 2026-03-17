@@ -9,7 +9,6 @@
 
     /* Please check whether multidevice_setup/ui_page.html needs to be */
     /* updated when below css vars are changed. */
-    /* TODO(crbug.com/1202135): Move equall custom vars here. */
     html {
       --oobe-adaptive-dialog-buttons-horizontal-padding: clamp(20px,
         calc(var(--oobe-adaptive-dialog-width) * 0.035), 40px);
@@ -32,7 +31,7 @@
         var(--oobe-adaptive-dialog-content-padding);
 
       /* Fonts vars */
-      --oobe-header-font-family: "Google Sans", Roboto, sans-serif;
+      --oobe-header-font-family: 'Google Sans', Roboto, sans-serif;
 
       --oobe-radio-card-label-font-size: 18px;
       --oobe-modal-dialog-header-font-size: 15px;
@@ -48,6 +47,7 @@
       --oobe-radio-card-label-line-height: 24px;
       /* Fonts vars end */
     }
+
     html.jelly-enabled {
       --oobe-adaptive-dialog-header-top-padding: 0px;
     }

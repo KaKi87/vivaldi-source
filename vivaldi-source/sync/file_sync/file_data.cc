@@ -8,7 +8,6 @@ SyncedFileData::~SyncedFileData() = default;
 SyncedFileData::SyncedFileData(SyncedFileData&&) = default;
 SyncedFileData& SyncedFileData::operator=(SyncedFileData&&) = default;
 
-
 bool SyncedFileData::IsUnreferenced() const {
   bool unreferenced = true;
   for (auto& references_for_type : local_references) {
@@ -27,4 +26,4 @@ void SyncedFileData::RunPendingCallbacks() {
 
   pending_callbacks.clear();
 }
-}
+}  // namespace file_sync

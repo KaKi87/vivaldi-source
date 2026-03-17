@@ -12,6 +12,7 @@
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
+#include "base/notreached.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "chrome/app/vector_icons/vector_icons.h"
@@ -54,6 +55,7 @@
 #include "ui/views/layout/flex_layout.h"
 #include "ui/views/layout/flex_layout_types.h"
 #include "ui/views/layout/layout_types.h"
+#include "ui/views/metadata/view_factory.h"
 #include "ui/views/vector_icons.h"
 #include "ui/views/view.h"
 #include "ui/views/view_class_properties.h"
@@ -76,8 +78,6 @@
 #include "ui/base/win/shell.h"
 #include "ui/views/win/hwnd_util.h"
 #endif  // BUILDFLAG(IS_WIN)
-
-#include "app/vivaldi_apptools.h"
 
 namespace task_manager {
 namespace {
@@ -235,12 +235,18 @@ gfx::Size TaskManagerView::CalculatePreferredSize(
 }
 
 bool TaskManagerView::AcceleratorPressed(const ui::Accelerator& accelerator) {
-  if (!vivaldi::IsVivaldiRunning()) {
-  const bool is_valid_modifier =
-      accelerator.modifiers() == ui::EF_CONTROL_DOWN ||
-      accelerator.modifiers() == (ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN);
-  DCHECK(is_valid_modifier);
-  DCHECK_EQ(ui::VKEY_W, accelerator.key_code());
+  switch (accelerator.modifiers()) {
+    case ui::EF_CONTROL_DOWN:
+    case ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN:
+      CHECK_EQ(ui::VKEY_W, accelerator.key_code());
+      break;
+#if BUILDFLAG(IS_WIN)
+    case ui::EF_ALT_DOWN:
+      CHECK_EQ(ui::VKEY_F4, accelerator.key_code());
+      break;
+#endif
+    default:
+      NOTREACHED();
   }
 
   GetWidget()->Close();
@@ -710,11 +716,9 @@ void TaskManagerView::Init() {
   AddAccelerator(ui::Accelerator(ui::VKEY_W, ui::EF_CONTROL_DOWN));
   AddAccelerator(
       ui::Accelerator(ui::VKEY_W, ui::EF_CONTROL_DOWN | ui::EF_SHIFT_DOWN));
-
-
-  if (vivaldi::IsVivaldiRunning()) {
-    AddAccelerator(ui::Accelerator(ui::VKEY_F4, ui::EF_ALT_DOWN));
-  }
+#if BUILDFLAG(IS_WIN)
+  AddAccelerator(ui::Accelerator(ui::VKEY_F4, ui::EF_ALT_DOWN));
+#endif
 }
 
 void TaskManagerView::InitAlwaysOnTopState() {
@@ -746,7 +750,7 @@ void TaskManagerView::RetrieveSavedAlwaysOnTopState() {
     return;
   }
 
-  const base::Value::Dict& dictionary =
+  const base::DictValue& dictionary =
       g_browser_process->local_state()->GetDict(GetWindowName());
   is_always_on_top_ = dictionary.FindBool("always_on_top").value_or(false);
 }

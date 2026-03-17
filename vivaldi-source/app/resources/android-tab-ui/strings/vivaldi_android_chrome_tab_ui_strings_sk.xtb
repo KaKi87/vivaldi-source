@@ -1,15 +1,49 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="sk">
+<translation id="1062777154504442433">Nové zoskupenie listov</translation>
+<translation id="1329584516321524826">Aktualizovaný práve teraz</translation>
+<translation id="149054111719651807">{NUM_MINS, plural,
+          =1 {Vytvorená <ph name="NUM_MINS_ONE" /> pred minútou}
+          other {Vytvorená <ph name="NUM_MINS_MANY" /> pred niekoľkými minútami}
+        }</translation>
+<translation id="1625440863545383011">Odobrať list a ponechať zoskupenie</translation>
 <translation id="2330212241471632770">{TABS_COUNT,plural,
           =1 {Uložiť list ako záložku}
           few {Uložiť listy ako záložky}
           many {Uložiť listy ako záložky}
           other {Uložiť listy ako záložky}}</translation>
+<translation id="2498435670446402865">Premenovať skupinu listov</translation>
+<translation id="2753877351161418426">{NUM_HOURS, plural,
+          =1 {Aktualizovaná <ph name="NUM_HOURS_ONE" /> pred hodinou}
+          other {Aktualizovaná <ph name="NUM_HOURS_MANY" /> pred niekoľkými hodinami}
+        }</translation>
+<translation id="2776817246640326047">{NUM_HOURS, plural,
+          =1 {Vytvorená <ph name="NUM_HOURS_ONE" /> pred hodinou}
+          other {Vytvorená <ph name="NUM_HOURS_MANY" /> pred niekoľkými hodinami}
+        }</translation>
 <translation id="2947471979790858922">Vaša aktivita na týchto súkromných listov bude z tohto zariadenia odstránená</translation>
-<translation id="3870643923290313246">{INCOGNITO_TABS_COUNT, plural,
-        =1 {Zatvorené listy nájdete v časti Nedávne listy v hlavnej ponuke Vivaldi. Vaše súkromné listy nebudú k dispozícii.}
-        other {Vaše zatvorené listy nájdete v časti Nedávne listy v hlavnej ponuke Vivaldi. Vaše # súkromné listy nebudú k dispozícií.}}</translation>
+<translation id="3298614730029636660">Ponechať zoskupenie</translation>
+<translation id="354698175756845966">Upraviť farbu zoskupenia</translation>
+<translation id="4009732926939031387">{NUM_DAYS, plural,
+          =1 {Vytvorená <ph name="NUM_DAYS_ONE" /> pred jedným dňom}
+          other {Vytvorená <ph name="NUM_DAYS_MANY" /> pred niekoľkými dňami}
+        }</translation>
+<translation id="4453940245650019914">{NUM_DAYS, plural,
+          =1 {Aktualizovaná <ph name="NUM_DAYS_ONE" /> pred jedným dňom}
+          other {Aktualizovaná <ph name="NUM_DAYS_MANY" /> pred niekoľkými dňami}
+        }</translation>
+<translation id="4686942373615810936">Vytvorené práve teraz</translation>
+<translation id="4870911314065352661">Zatvoriť všetky listy?</translation>
 <translation id="4871187110787939393">Zavrieť všetky súkromné listy?</translation>
 <translation id="5494920125229734069">Vybrať všetko</translation>
+<translation id="6807841890213931603">Odobrať list a zmazať zoskupenie</translation>
+<translation id="750227952939161636">Vaše zoskupenia listov sa automaticky ukladajú a aktualizujú na všetkých zariadeniach, na ktorých ste prihlásený</translation>
+<translation id="7640137753339219124">Vymazať zoskupenie</translation>
+<translation id="7653857400289671414">Vaše zoskupenia listov sa automaticky ukladajú</translation>
+<translation id="7825973332242257878">Skupiny listov</translation>
+<translation id="8440938071054361204">Upraviť názov zoskupenia</translation>
+<translation id="8602902357364871325">Zavrieť zoskupenie</translation>
+<translation id="8851621822786801079">Odobrať zo zoskupenia</translation>
+<translation id="8887921976452567404">Zatvorené listy a skupiny môžete znovu otvoriť v časti Nedávne listy a v časti Skupiny listov.</translation>
 </translationbundle>

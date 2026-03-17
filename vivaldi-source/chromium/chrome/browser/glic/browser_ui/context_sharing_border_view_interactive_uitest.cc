@@ -10,7 +10,6 @@
 #include "build/build_config.h"
 #include "cc/test/pixel_test_utils.h"
 #include "chrome/browser/actor/actor_keyed_service.h"
-#include "chrome/browser/actor/actor_policy_checker.h"
 #include "chrome/browser/actor/actor_task_metadata.h"
 #include "chrome/browser/actor/actor_test_util.h"
 #include "chrome/browser/actor/ui/actor_ui_tab_controller.h"
@@ -25,15 +24,15 @@
 #include "chrome/browser/ui/tabs/public/tab_features.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
+#include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
-#include "chrome/browser/ui/views/tabs/glic_button.h"
+#include "chrome/browser/ui/views/tabs/glic/tab_strip_glic_button.h"
 #include "chrome/common/chrome_features.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chrome/test/interaction/interactive_browser_test.h"
 #include "chrome/test/interaction/webcontents_interaction_test_util.h"
-#include "components/tabs/public/split_tab_visual_data.h"
+#include "components/split_tabs/split_tab_visual_data.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/test/browser_task_environment.h"
 #include "content/public/test/browser_test.h"
@@ -230,6 +229,9 @@ class ContextSharingBorderViewUiTestBase : public test::InteractiveGlicTest {
     } else {
       disabled_features += ",UiGpuRasterization";
     }
+    if (!enabled_features.empty()) {
+      enabled_features += ",";
+    }
 
     features_.InitFromCommandLine(enabled_features, disabled_features);
   }
@@ -260,7 +262,13 @@ class ContextSharingBorderViewUiTestBase : public test::InteractiveGlicTest {
     RunTestSequence(
         // See https://crrev.com/c/6373789: the glic window is in detach mode by
         // default.
-        OpenGlicWindow(GlicWindowMode::kDetached),
+        OpenGlic(), Do([this]() {
+          if (base::FeatureList::IsEnabled(features::kGlicMultiInstance)) {
+            if (auto* instance = GetGlicInstanceImpl()) {
+              instance->OnInteractionModeChange(mojom::WebClientMode::kAudio);
+            }
+          }
+        }),
         ExecuteJsAt(test::kGlicContentsElementId,
                     kContextAccessIndicatorCheckBox, kClickFn));
   }
@@ -655,7 +663,7 @@ IN_PROC_BROWSER_TEST_F(ContextSharingBorderViewUiTest, FocusedTabDestroyed) {
 
 // TODO(crbug.com/430097333): Wayland doesn't support programmatic window
 // activation. Re-enable when activation is supported.
-#if BUILDFLAG(IS_OZONE_WAYLAND)
+#if BUILDFLAG(SUPPORTS_OZONE_WAYLAND)
 #define MAYBE_FocusedWindowChange DISABLED_FocusedWindowChange
 #else
 #define MAYBE_FocusedWindowChange FocusedWindowChange
@@ -982,8 +990,16 @@ class ContextSharingBorderViewWithActorGlowUiTest
   base::test::ScopedFeatureList features_;
 };
 
+// TODO(https://crbug.com/478360939): Fix the flakiness.
+#if BUILDFLAG(IS_LINUX)
+#define MAYBE_ActorGlowShowsBorderWhenIndicatorIsOff \
+  DISABLED_ActorGlowShowsBorderWhenIndicatorIsOff
+#else
+#define MAYBE_ActorGlowShowsBorderWhenIndicatorIsOff \
+  ActorGlowShowsBorderWhenIndicatorIsOff
+#endif
 IN_PROC_BROWSER_TEST_F(ContextSharingBorderViewWithActorGlowUiTest,
-                       ActorGlowShowsBorderWhenIndicatorIsOff) {
+                       MAYBE_ActorGlowShowsBorderWhenIndicatorIsOff) {
   auto* border = browser()
                      ->window()
                      ->AsBrowserView()
@@ -1000,10 +1016,10 @@ IN_PROC_BROWSER_TEST_F(ContextSharingBorderViewWithActorGlowUiTest,
   auto* actor_keyed_service =
       actor::ActorKeyedService::Get(browser()->profile());
   ASSERT_TRUE(actor_keyed_service);
-  actor_keyed_service->GetPolicyChecker().SetActOnWebForTesting(true);
 
   // Create a new task.
-  const actor::TaskId task_id = actor_keyed_service->CreateTask();
+  const actor::TaskId task_id =
+      actor_keyed_service->CreateTask(actor::NoEnterprisePolicyChecker());
   actor_keyed_service->GetTask(task_id)->AddTab(
       browser()->GetActiveTabInterface()->GetHandle(), base::DoNothing());
 
@@ -1064,10 +1080,10 @@ IN_PROC_BROWSER_TEST_F(
   auto* actor_keyed_service =
       actor::ActorKeyedService::Get(browser()->profile());
   ASSERT_TRUE(actor_keyed_service);
-  actor_keyed_service->GetPolicyChecker().SetActOnWebForTesting(true);
 
   // Create a new task.
-  const actor::TaskId task_id = actor_keyed_service->CreateTask();
+  const actor::TaskId task_id =
+      actor_keyed_service->CreateTask(actor::NoEnterprisePolicyChecker());
   actor_keyed_service->GetTask(task_id)->AddTab(
       browser()->GetActiveTabInterface()->GetHandle(), base::DoNothing());
 
@@ -1401,20 +1417,7 @@ IN_PROC_BROWSER_TEST_F(ContextSharingBorderViewUiTest, MinimizeRestore) {
   EXPECT_TRUE(border->IsShowing());
 }
 
-class ContextSharingBorderViewSideBySideUiTest
-    : public ContextSharingBorderViewUiTest {
- public:
-  ContextSharingBorderViewSideBySideUiTest() {
-    feature_list_.InitAndEnableFeature(features::kSideBySide);
-  }
-  ~ContextSharingBorderViewSideBySideUiTest() override = default;
-
- protected:
-  base::test::ScopedFeatureList feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(ContextSharingBorderViewSideBySideUiTest,
-                       BasicVisiblity) {
+IN_PROC_BROWSER_TEST_F(ContextSharingBorderViewUiTest, BasicVisiblity) {
   if (base::FeatureList::IsEnabled(features::kGlicMultiInstance)) {
     // TODO(b/453696965): Broken in multi-instance.
     GTEST_SKIP() << "Skipping for kGlicMultiInstance";

@@ -156,6 +156,77 @@ TEST_P(ImmediateDataTests, BasicRenderPipeline) {
     EXPECT_PIXEL_RGBA8_EQ(utils::RGBA8(51, 102, 153, 255), renderPass.color, 0, 0);
 }
 
+// Test that SetImmediates works in RenderBundle.
+TEST_P(ImmediateDataTests, SetImmediatesInRenderBundle) {
+    wgpu::RenderPipeline pipeline = CreateRenderPipeline();
+    utils::BasicRenderPass renderPass = utils::CreateBasicRenderPass(device, kRTSize, kRTSize);
+
+    // rgba8unorm: {0.1, 0.3, 0.5} + {0.1 diff} => {0.2, 0.4, 0.6} => {51, 102, 153, 255}
+    std::array<float, 4> immediateData = {0.1, 0.3, 0.5, 0.1};
+
+    wgpu::RenderBundleEncoderDescriptor bundleDesc;
+    bundleDesc.colorFormatCount = 1;
+    bundleDesc.colorFormats = &renderPass.colorFormat;
+    wgpu::RenderBundleEncoder bundleEncoder = device.CreateRenderBundleEncoder(&bundleDesc);
+
+    bundleEncoder.SetPipeline(pipeline);
+    bundleEncoder.SetBindGroup(0, CreateBindGroup());
+    bundleEncoder.SetImmediates(0, immediateData.data(), immediateData.size() * sizeof(float));
+    bundleEncoder.Draw(3);
+    wgpu::RenderBundle bundle = bundleEncoder.Finish();
+
+    wgpu::CommandEncoder commandEncoder = device.CreateCommandEncoder();
+    wgpu::RenderPassEncoder renderPassEncoder =
+        commandEncoder.BeginRenderPass(&renderPass.renderPassInfo);
+    renderPassEncoder.ExecuteBundles(1, &bundle);
+    renderPassEncoder.End();
+    wgpu::CommandBuffer commands = commandEncoder.Finish();
+    queue.Submit(1, &commands);
+
+    EXPECT_PIXEL_RGBA8_EQ(utils::RGBA8(51, 102, 153, 255), renderPass.color, 0, 0);
+}
+
+// Test that SetImmediates works after ExecuteBundles.
+TEST_P(ImmediateDataTests, SetImmediatesAfterExecuteBundles) {
+    wgpu::RenderPipeline pipeline = CreateRenderPipeline();
+    utils::BasicRenderPass renderPass = utils::CreateBasicRenderPass(device, kRTSize, kRTSize);
+
+    // Bundle sets immediate data to {0.6, 0.7, 0.8, 0.9}
+    std::array<float, 4> bundleImmediateData = {0.6, 0.7, 0.8, 0.9};
+    wgpu::RenderBundleEncoderDescriptor bundleDesc;
+    bundleDesc.colorFormatCount = 1;
+    bundleDesc.colorFormats = &renderPass.colorFormat;
+    wgpu::RenderBundleEncoder bundleEncoder = device.CreateRenderBundleEncoder(&bundleDesc);
+    bundleEncoder.SetPipeline(pipeline);
+    bundleEncoder.SetBindGroup(0, CreateBindGroup());
+    bundleEncoder.SetImmediates(0, bundleImmediateData.data(),
+                                bundleImmediateData.size() * sizeof(float));
+    bundleEncoder.Draw(3);
+    wgpu::RenderBundle bundle = bundleEncoder.Finish();
+
+    wgpu::CommandEncoder commandEncoder = device.CreateCommandEncoder();
+    wgpu::RenderPassEncoder renderPassEncoder =
+        commandEncoder.BeginRenderPass(&renderPass.renderPassInfo);
+
+    // Execute bundle. This should set the immediate data to {0.6, 0.7, 0.8, 0.9}.
+    renderPassEncoder.ExecuteBundles(1, &bundle);
+
+    // Set immediate data to {0.1, 0.3, 0.5, 0.1}.
+    // rgba8unorm: {0.1, 0.3, 0.5} + {0.1 diff} => {0.2, 0.4, 0.6} => {51, 102, 153, 255}
+    std::array<float, 4> immediateData = {0.1, 0.3, 0.5, 0.1};
+    renderPassEncoder.SetImmediates(0, immediateData.data(), immediateData.size() * sizeof(float));
+    // ExecuteBundles clears the current pipeline, so we need to set it again.
+    renderPassEncoder.SetPipeline(pipeline);
+    renderPassEncoder.SetBindGroup(0, CreateBindGroup());
+    renderPassEncoder.Draw(3);
+    renderPassEncoder.End();
+
+    wgpu::CommandBuffer commands = commandEncoder.Finish();
+    queue.Submit(1, &commands);
+
+    EXPECT_PIXEL_RGBA8_EQ(utils::RGBA8(51, 102, 153, 255), renderPass.color, 0, 0);
+}
+
 // ImmediateData has been uploaded successfully.
 TEST_P(ImmediateDataTests, BasicComputePipeline) {
     std::array<uint32_t, 4> immediateData = {25, 128, 240, 255};
@@ -171,47 +242,6 @@ TEST_P(ImmediateDataTests, BasicComputePipeline) {
     queue.Submit(1, &commands);
 
     EXPECT_BUFFER_U32_RANGE_EQ(immediateData.data(), mStorageBuffer, 0, immediateData.size());
-}
-
-// ImmediateData range should be initialized to 0.
-TEST_P(ImmediateDataTests, ImmediateDataInitialization) {
-    // Render pipeline
-    {
-        wgpu::RenderPipeline pipeline = CreateRenderPipeline();
-        utils::BasicRenderPass renderPass = utils::CreateBasicRenderPass(device, kRTSize, kRTSize);
-
-        // rgba8unorm: {0.0, 0.4, 0.6} + {0.0 diff} => {0.0, 0.4, 0.6} => {0, 102, 153, 255}
-        std::array<float, 2> immediateData = {0.4, 0.6};
-        wgpu::CommandEncoder commandEncoder = device.CreateCommandEncoder();
-        wgpu::RenderPassEncoder renderPassEncoder =
-            commandEncoder.BeginRenderPass(&renderPass.renderPassInfo);
-        renderPassEncoder.SetImmediates(4, immediateData.data(), 8);
-        renderPassEncoder.SetPipeline(CreateRenderPipeline());
-        renderPassEncoder.SetBindGroup(0, CreateBindGroup());
-        renderPassEncoder.Draw(3);
-        renderPassEncoder.End();
-        wgpu::CommandBuffer commands = commandEncoder.Finish();
-        queue.Submit(1, &commands);
-
-        EXPECT_PIXEL_RGBA8_EQ(utils::RGBA8(0, 102, 153, 255), renderPass.color, 0, 0);
-    }
-
-    // Compute Pipeline
-    {
-        std::array<uint32_t, 2> immediateData = {128, 240};
-        wgpu::CommandEncoder commandEncoder = device.CreateCommandEncoder();
-        wgpu::ComputePassEncoder computePassEncoder = commandEncoder.BeginComputePass();
-        computePassEncoder.SetPipeline(CreateComputePipeline());
-        computePassEncoder.SetImmediates(4, immediateData.data(), 8);
-        computePassEncoder.SetBindGroup(0, CreateBindGroup());
-        computePassEncoder.DispatchWorkgroups(1);
-        computePassEncoder.End();
-        wgpu::CommandBuffer commands = commandEncoder.Finish();
-        queue.Submit(1, &commands);
-
-        std::array<uint32_t, 4> expected = {0, 128, 240, 0};
-        EXPECT_BUFFER_U32_RANGE_EQ(expected.data(), mStorageBuffer, 0, immediateData.size());
-    }
 }
 
 // SetImmediates with offset on immediate data range.
@@ -322,6 +352,9 @@ TEST_P(ImmediateDataTests, SetImmediatesMultipleTimes) {
 // Test that clamp frag depth(supported by internal immediate constants)
 // works fine when shaders have user immediate data
 TEST_P(ImmediateDataTests, UsingImmediateDataDontAffectClampFragDepth) {
+    // TODO(crbug.com/473870505): [Capture] support depth/stencil and multi-planar textures.
+    DAWN_SUPPRESS_TEST_IF(IsCaptureReplayCheckingEnabled());
+
     wgpu::ShaderModule module = utils::CreateShaderModule(device, R"(
         var<immediate> constants: vec4f;
         @vertex fn vs() -> @builtin(position) vec4f {
@@ -476,13 +509,91 @@ TEST_P(ImmediateDataTests, SetImmediatesWithPipelineSwitch) {
     }
 }
 
+// Test that SetImmediates works with multiple ExecuteBundles calls.
+TEST_P(ImmediateDataTests, SetImmediatesInMultipleExecuteBundles) {
+    wgpu::RenderPipeline pipeline = CreateRenderPipeline();
+    utils::BasicRenderPass renderPass = utils::CreateBasicRenderPass(device, kRTSize, kRTSize);
+
+    wgpu::RenderBundleEncoderDescriptor bundleDesc;
+    bundleDesc.colorFormatCount = 1;
+    bundleDesc.colorFormats = &renderPass.colorFormat;
+
+    // Bundle 1
+    std::array<float, 4> data1 = {0.6, 0.7, 0.8, 0.1};
+    wgpu::RenderBundleEncoder bundleEncoder1 = device.CreateRenderBundleEncoder(&bundleDesc);
+    bundleEncoder1.SetPipeline(pipeline);
+    bundleEncoder1.SetBindGroup(0, CreateBindGroup());
+    bundleEncoder1.SetImmediates(0, data1.data(), data1.size() * sizeof(float));
+    bundleEncoder1.Draw(3);
+    wgpu::RenderBundle bundle1 = bundleEncoder1.Finish();
+
+    // Bundle 2
+    // Use values that avoid rounding ambiguity.
+    // rgba8unorm: {0.1, 0.3, 0.5} + {0.1 diff} => {0.2, 0.4, 0.6} => {51, 102, 153, 255}
+    std::array<float, 4> data2 = {0.1, 0.3, 0.5, 0.1};
+    wgpu::RenderBundleEncoder bundleEncoder2 = device.CreateRenderBundleEncoder(&bundleDesc);
+    bundleEncoder2.SetPipeline(pipeline);
+    bundleEncoder2.SetBindGroup(0, CreateBindGroup());
+    bundleEncoder2.SetImmediates(0, data2.data(), data2.size() * sizeof(float));
+    bundleEncoder2.Draw(3);
+    wgpu::RenderBundle bundle2 = bundleEncoder2.Finish();
+
+    wgpu::CommandEncoder commandEncoder = device.CreateCommandEncoder();
+    wgpu::RenderPassEncoder renderPassEncoder =
+        commandEncoder.BeginRenderPass(&renderPass.renderPassInfo);
+
+    renderPassEncoder.ExecuteBundles(1, &bundle1);
+    renderPassEncoder.ExecuteBundles(1, &bundle2);
+
+    renderPassEncoder.End();
+    wgpu::CommandBuffer commands = commandEncoder.Finish();
+    queue.Submit(1, &commands);
+
+    EXPECT_PIXEL_RGBA8_EQ(utils::RGBA8(51, 102, 153, 255), renderPass.color, 0, 0);
+}
+
+// Test that RenderBundle immediate state is not affected by previous SetImmediates state in
+// RenderPass.
+TEST_P(ImmediateDataTests, BundlesDontCarePreviousImmediatesState) {
+    wgpu::RenderPipeline pipeline = CreateRenderPipeline();
+    utils::BasicRenderPass renderPass = utils::CreateBasicRenderPass(device, kRTSize, kRTSize);
+
+    // Bundle
+    std::array<float, 4> bundleData = {0.1, 0.3, 0.5, 0.1};
+    wgpu::RenderBundleEncoderDescriptor bundleDesc;
+    bundleDesc.colorFormatCount = 1;
+    bundleDesc.colorFormats = &renderPass.colorFormat;
+    wgpu::RenderBundleEncoder bundleEncoder = device.CreateRenderBundleEncoder(&bundleDesc);
+    bundleEncoder.SetPipeline(pipeline);
+    bundleEncoder.SetBindGroup(0, CreateBindGroup());
+    bundleEncoder.SetImmediates(0, bundleData.data(), bundleData.size() * sizeof(float));
+    bundleEncoder.Draw(3);
+    wgpu::RenderBundle bundle = bundleEncoder.Finish();
+
+    wgpu::CommandEncoder commandEncoder = device.CreateCommandEncoder();
+    wgpu::RenderPassEncoder renderPassEncoder =
+        commandEncoder.BeginRenderPass(&renderPass.renderPassInfo);
+
+    std::array<float, 4> dataA = {0.6, 0.7, 0.8, 0.1};
+    renderPassEncoder.SetImmediates(0, dataA.data(), dataA.size() * sizeof(float));
+    renderPassEncoder.SetPipeline(pipeline);
+    renderPassEncoder.SetBindGroup(0, CreateBindGroup());
+
+    // Execute Bundle (should draw with 0.{0.1, 0.3, 0.5, 0.1}})
+    renderPassEncoder.ExecuteBundles(1, &bundle);
+    renderPassEncoder.End();
+    wgpu::CommandBuffer commands = commandEncoder.Finish();
+    queue.Submit(1, &commands);
+
+    EXPECT_PIXEL_RGBA8_EQ(utils::RGBA8(51, 102, 153, 255), renderPass.color, 0, 0);
+}
+
 DAWN_INSTANTIATE_TEST(ImmediateDataTests,
                       D3D11Backend(),
                       D3D12Backend(),
                       MetalBackend(),
-                      VulkanBackend()
-                      // TODO(crbug.com/440123094): Fix limits and Add WebGPUBackend.
-);
+                      VulkanBackend(),
+                      WebGPUBackend());
 
 }  // anonymous namespace
 }  // namespace dawn

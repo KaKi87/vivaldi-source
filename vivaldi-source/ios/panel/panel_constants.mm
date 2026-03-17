@@ -2,7 +2,6 @@
 
 #import "ios/panel/panel_constants.h"
 
-
 #pragma mark - ICONS
 
 NSString* vPanelBookmarks = @"vivaldi_bookmark_panel";

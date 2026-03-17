@@ -120,6 +120,10 @@
             "description": "This is a popup window."
           },
           {
+            "name": "mail-composer",
+            "description": "This is a mail composer window"
+          },
+          {
             "name": "devtools",
             "description": "This is a devtools window."
           }
@@ -130,10 +134,6 @@
         "type": "string",
         "description": "Relative position of mouse to this window.",
         "enum": [
-          {
-            "name": "away",
-            "description": "The mouse cursor is not inside any of the hot-rects"
-          },
           {
             "name": "left"
           },
@@ -250,10 +250,10 @@
       {
         "name": "create",
         "type": "function",
-        "description": "Create a window with additional Vivaldi specific properties.",
+        "description": "Create a window with additional Vivaldi specific properties. Ie. |popup.html| or |window.html|.",
         "parameters": [
           {
-            "name": "url",
+            "name": "windowUrl",
             "type": "string",
             "description": "Url to page to show as the full window UI of the new window."
           },
@@ -595,6 +595,22 @@
           {
             "name": "params",
             "$ref": "HotSpotStatus"
+          }
+        ]
+      },
+      {
+        "name": "onFullscreenMenubarVisibilityChanged",
+        "type": "function",
+        "description": "Fired when the macOS menu bar is shown/hidden in fullscreen.",
+        "parameters": [
+          {
+            "type": "integer",
+            "name": "windowId"
+          },
+          {
+            "type": "boolean",
+            "name": "visible",
+            "description": "MacOS menubar is visible or not."
           }
         ]
       }

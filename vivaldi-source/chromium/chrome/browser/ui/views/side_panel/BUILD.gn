@@ -50,6 +50,8 @@ source_set("side_panel") {
     "side_panel_animation_coordinator.h",
     "side_panel_animation_ids.cc",
     "side_panel_animation_ids.h",
+    "side_panel_animation_perf_reporter.cc",
+    "side_panel_animation_perf_reporter.h",
     "side_panel_content_proxy.cc",
     "side_panel_content_proxy.h",
     "side_panel_coordinator.cc",
@@ -86,12 +88,12 @@ source_set("side_panel") {
     "side_panel_web_ui_view.cc",
     "side_panel_web_ui_view.h",
   ]
-  if (enable_glic) {
+  if (enable_glic) { # Vivaldi keep disabled
     sources += [
       "glic/glic_legacy_side_panel_coordinator.cc",
       "glic/glic_legacy_side_panel_coordinator.h",
-      "glic/glic_side_panel_coordinator.cc",
-      "glic/glic_side_panel_coordinator.h",
+      "glic/glic_side_panel_coordinator_impl.cc",
+      "glic/glic_side_panel_coordinator_impl.h",
     ]
   }
   public_deps = [
@@ -210,7 +212,7 @@ source_set("side_panel") {
     deps += [ "//chrome/common/extensions/api" ]
   }
 
-  if (enable_glic) {
+  if (enable_glic) { # Vivaldi keep disabled
     deps += [ "//chrome/browser/glic" ]
   }
 

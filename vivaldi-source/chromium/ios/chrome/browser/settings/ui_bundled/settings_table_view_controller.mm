@@ -81,7 +81,7 @@
 #import "ios/chrome/browser/settings/ui_bundled/autofill/autofill_profile_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/bandwidth/bandwidth_management_table_view_controller.h"
 #import "ios/chrome/browser/settings/ui_bundled/button_catalog_view_controller.h"
-#import "ios/chrome/browser/settings/ui_bundled/bwg/coordinator/bwg_settings_coordinator.h"
+#import "ios/chrome/browser/settings/ui_bundled/bwg/coordinator/gemini_settings_coordinator.h"
 #import "ios/chrome/browser/settings/ui_bundled/cells/enhanced_safe_browsing_inline_promo_item.h"
 #import "ios/chrome/browser/settings/ui_bundled/cells/settings_check_item.h"
 #import "ios/chrome/browser/settings/ui_bundled/cells/settings_image_detail_text_item.h"
@@ -117,15 +117,15 @@
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/profile/profile_manager_ios.h"
 #import "ios/chrome/browser/shared/model/utils/first_run_util.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
 #import "ios/chrome/browser/shared/public/commands/popup_menu_commands.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/settings_commands.h"
 #import "ios/chrome/browser/shared/public/commands/show_signin_command.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/public/features/system_flags.h"
-#import "ios/chrome/browser/shared/ui/symbols/buildflags.h"
+#import "ios/chrome/browser/shared/ui/buildflags.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_icon_item.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_image_item.h"
@@ -137,7 +137,7 @@
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
-#import "ios/chrome/browser/signin/model/avatar_provider.h"
+#import "ios/chrome/browser/signin/model/avatar/avatar_provider.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service_factory.h"
 #import "ios/chrome/browser/signin/model/identity_manager_factory.h"
@@ -194,7 +194,7 @@ NSString* const kDevViewSourceKey = @"DevViewSource";
 
 // Returns the branded version of the Google Services symbol.
 UIImage* GetBrandedGoogleServicesSymbol() {
-#if BUILDFLAG(IOS_USE_BRANDED_SYMBOLS)
+#if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
   return CustomSettingsRootMulticolorSymbol(kGoogleIconSymbol);
 #else
   return DefaultSettingsRootSymbol(kGearshape2Symbol);
@@ -203,10 +203,10 @@ UIImage* GetBrandedGoogleServicesSymbol() {
 
 // Returns the branded version of the Gemini symbol.
 UIImage* GetBrandedGeminiSymbol() {
-#if BUILDFLAG(IOS_USE_BRANDED_SYMBOLS)
-  return CustomSettingsRootSymbol(kGeminiBrandedLogoImage);
+#if BUILDFLAG(IOS_USE_BRANDED_ASSETS)
+  return CustomSettingsRootSymbol(kGeminiBrandedLogoSymbol);
 #else
-  return DefaultSettingsRootSymbol(kGeminiNonBrandedLogoImage);
+  return DefaultSettingsRootSymbol(kGeminiNonBrandedLogoSymbol);
 #endif
 }
 
@@ -231,12 +231,14 @@ struct EnhancedSafeBrowsingActivePromoData
     // Vivaldi
     UIAdaptivePresentationControllerDelegate,
     VivaldiSyncCoordinatorDelegate,
+    VivaldiAddressBarSettingsCoordinatorDelegate,
+    VivaldiSearchEngineSettingsCoordinatorDelegate,
     VivaldiFeedbackViewDelegate,
     // End Vivaldi
 
     AddressBarPreferenceCoordinatorDelegate,
     BooleanObserver,
-    BWGSettingsCoordinatorDelegate,
+    GeminiSettingsCoordinatorDelegate,
     ContentSettingsCoordinatorDelegate,
     DiscoverFeedVisibilityObserver,
     DownloadsSettingsCoordinatorDelegate,
@@ -284,8 +286,8 @@ struct EnhancedSafeBrowsingActivePromoData
   SettingsCheckItem* _safetyCheckItem;
   SigninCoordinator* _signinAndHistorySyncCoordinator;
 
-  // BWG settings coordinator.
-  BWGSettingsCoordinator* _BWGSettingsCoordinator;
+  // Gemini settings coordinator.
+  GeminiSettingsCoordinator* _geminiSettingsCoordinator;
 
   // Content settings coordinator.
   ContentSettingsCoordinator* _contentSettingsCoordinator;
@@ -508,6 +510,9 @@ struct EnhancedSafeBrowsingActivePromoData
 
 - (void)viewDidLoad {
   [super viewDidLoad];
+  if (_settingsAreDismissed) {
+    return;
+  }
 
   self.tableView.accessibilityIdentifier = kSettingsTableViewId;
 
@@ -538,6 +543,10 @@ struct EnhancedSafeBrowsingActivePromoData
 
 - (void)viewIsAppearing:(BOOL)animated {
   [super viewIsAppearing:animated];
+  if (_settingsAreDismissed) {
+    return;
+  }
+
   // Update the `_safetyCheckItem` icon when returning to this view controller.
   [self updateSafetyCheckItemTrailingIcon];
   if (!IsVivaldiRunning()) {
@@ -554,13 +563,15 @@ struct EnhancedSafeBrowsingActivePromoData
     [self updateBWGNewIPHBadge];
   }
 
-  if ([self shouldShowNotificationsSettings]) {
-    [self updateNotificationsDetailText];
-  }
+  [self updateNotificationsDetailText];
 }
 
 - (void)viewDidAppear:(BOOL)animated {
   [super viewDidAppear:animated];
+  if (_settingsAreDismissed) {
+    return;
+  }
+
   [self maybeShowSigninIPH];
 }
 
@@ -635,11 +646,9 @@ struct EnhancedSafeBrowsingActivePromoData
   }
 
   if (!IsVivaldiRunning()) {
-  if ([self shouldShowNotificationsSettings]) {
-    _notificationsItem = [self notificationsItem];
-    [model addItem:_notificationsItem
-        toSectionWithIdentifier:SettingsSectionIdentifierAdvanced];
-  }
+  _notificationsItem = [self notificationsItem];
+  [model addItem:_notificationsItem
+      toSectionWithIdentifier:SettingsSectionIdentifierAdvanced];
   [model addItem:[self voiceSearchDetailItem]
       toSectionWithIdentifier:SettingsSectionIdentifierAdvanced];
   [model addItem:[self safetyCheckDetailItem]
@@ -655,6 +664,10 @@ struct EnhancedSafeBrowsingActivePromoData
       toSectionWithIdentifier:SettingsSectionIdentifierAdvanced];
   // Info Section
   [model addSectionWithIdentifier:SettingsSectionIdentifierInfo];
+  if (ShouldShowSafariDataImportEntryPoint(_profile->GetPrefs())) {
+    [model addItem:[self safariDataImportSettingsDetailItem]
+        toSectionWithIdentifier:SettingsSectionIdentifierInfo];
+  }
   [model addItem:[self vivaldiShareFeedbackDetailItem]
       toSectionWithIdentifier:SettingsSectionIdentifierInfo];
   [model addItem:[self aboutChromeDetailItem]
@@ -717,11 +730,14 @@ struct EnhancedSafeBrowsingActivePromoData
 #if BUILDFLAG(CHROMIUM_BRANDING) && !defined(NDEBUG)
   [model addItem:[self viewSourceSwitchItem]
       toSectionWithIdentifier:SettingsSectionIdentifierDebug];
-  [model addItem:[self tableViewCatalogDetailItem]
-      toSectionWithIdentifier:SettingsSectionIdentifierDebug];
-  [model addItem:[self buttonCatalogDetailItem]
-      toSectionWithIdentifier:SettingsSectionIdentifierDebug];
 #endif  // BUILDFLAG(CHROMIUM_BRANDING) && !defined(NDEBUG)
+
+  if (experimental_flags::ShouldShowCatalogItems()) {
+    [model addItem:[self tableViewCatalogDetailItem]
+        toSectionWithIdentifier:SettingsSectionIdentifierDebug];
+    [model addItem:[self buttonCatalogDetailItem]
+        toSectionWithIdentifier:SettingsSectionIdentifierDebug];
+  }
   } // End Vivaldi
 
 }
@@ -1103,8 +1119,6 @@ struct EnhancedSafeBrowsingActivePromoData
   _safetyCheckItem.leadingIconBackgroundColor =
       [UIColor colorNamed:kBlue500Color];
   _safetyCheckItem.leadingIconTintColor = UIColor.whiteColor;
-  _safetyCheckItem.leadingIconCornerRadius =
-      kColorfulBackgroundSymbolCornerRadius;
   _safetyCheckItem.accessibilityIdentifier = kSettingsSafetyCheckCellId;
   // Check if an issue state should be shown for updates.
   if (!IsAppUpToDate() && PreviousSafetyCheckIssueFound()) {
@@ -1237,16 +1251,20 @@ struct EnhancedSafeBrowsingActivePromoData
                          text:l10n_util::GetNSString(
                                   IDS_IOS_SETTINGS_SAFARI_IMPORT_TITLE)
                    detailText:nil
+
+#if defined(VIVALDI_BUILD)
+                       symbol:[UIImage imageNamed:vSafariSetting]
+#else
                        symbol:DefaultSettingsRootSymbol(kSaveImageActionSymbol)
+#endif //End Vivaldi
+
         symbolBackgroundColor:[UIColor colorNamed:kGrey400Color]
       accessibilityIdentifier:kSettingsSafariDataImportSettingsCellId];
 }
 
 - (TableViewItem*)tabsSettingsDetailItem {
-  NSString* title = l10n_util::GetNSString(
-      IsAutoOpenRemoteTabGroupsSettingsFeatureEnabled()
-          ? IDS_IOS_TABS_AND_TAB_GROUPS_MANAGEMENT_SETTINGS
-          : IDS_IOS_TABS_MANAGEMENT_SETTINGS);
+  NSString* title =
+      l10n_util::GetNSString(IDS_IOS_TABS_AND_TAB_GROUPS_MANAGEMENT_SETTINGS);
   return [self detailItemWithType:SettingsItemTypeTabs
                              text:title
                        detailText:nil
@@ -1345,6 +1363,8 @@ struct EnhancedSafeBrowsingActivePromoData
   return viewSourceItem;
 }
 
+#endif  // BUILDFLAG(CHROMIUM_BRANDING) && !defined(NDEBUG)
+
 - (TableViewDetailIconItem*)tableViewCatalogDetailItem {
   return [self detailItemWithType:SettingsItemTypeTableCellCatalog
                              text:@"TableView Cell Catalog"
@@ -1362,8 +1382,6 @@ struct EnhancedSafeBrowsingActivePromoData
             symbolBackgroundColor:[UIColor colorNamed:kGrey400Color]
           accessibilityIdentifier:nil];
 }
-
-#endif  // BUILDFLAG(CHROMIUM_BRANDING) && !defined(NDEBUG)
 
 #pragma mark Item Constructors
 
@@ -1529,7 +1547,6 @@ struct EnhancedSafeBrowsingActivePromoData
           [[AutofillProfileTableViewController alloc] initWithBrowser:_browser];
       break;
     case SettingsItemTypeNotifications:
-      CHECK([self shouldShowNotificationsSettings]);
       base::RecordAction(base::UserMetricsAction("Settings.Notifications"));
       [self showNotifications];
       break;
@@ -1576,8 +1593,8 @@ struct EnhancedSafeBrowsingActivePromoData
     case SettingsItemTypeSafariDataImport: {
       CHECK(ShouldShowSafariDataImportEntryPoint(_profile->GetPrefs()));
       base::RecordAction(base::UserMetricsAction("Settings.SafariImport"));
-      id<ApplicationCommands> handler = HandlerForProtocol(
-          _browser->GetCommandDispatcher(), ApplicationCommands);
+      id<SceneCommands> handler =
+          HandlerForProtocol(_browser->GetCommandDispatcher(), SceneCommands);
       [handler displaySafariDataImportFromEntryPoint:
                    SafariDataImportEntryPoint::kSetting
                                        withUIHandler:self];
@@ -1613,7 +1630,7 @@ struct EnhancedSafeBrowsingActivePromoData
       break;
     case SettingsItemTypeBWGSettings:
       base::RecordAction(base::UserMetricsAction("Settings.BWGSettings"));
-      [self showBWGSettings];
+      [self showGeminiSettings];
       // Sets the "new" IPH badge shown count to max so it's not shown again.
       GetApplicationContext()->GetLocalState()->SetInteger(
           prefs::kBWGSettingsNewBadgeShownCount, INT_MAX);
@@ -1774,15 +1791,15 @@ struct EnhancedSafeBrowsingActivePromoData
   _tabsCoordinator = nil;
 }
 
-// Show BWG settings.
-- (void)showBWGSettings {
+// Show Gemini settings.
+- (void)showGeminiSettings {
   // Stop the coordinator before restarting it, if it exists.
-  [_BWGSettingsCoordinator stop];
-  _BWGSettingsCoordinator = [[BWGSettingsCoordinator alloc]
+  [_geminiSettingsCoordinator stop];
+  _geminiSettingsCoordinator = [[GeminiSettingsCoordinator alloc]
       initWithBaseNavigationController:self.navigationController
                                browser:_browser];
-  _BWGSettingsCoordinator.delegate = self;
-  [_BWGSettingsCoordinator start];
+  _geminiSettingsCoordinator.delegate = self;
+  [_geminiSettingsCoordinator start];
 }
 
 - (void)showContentSettings {
@@ -1994,10 +2011,8 @@ struct EnhancedSafeBrowsingActivePromoData
 #if BUILDFLAG(CHROMIUM_BRANDING) && !defined(NDEBUG)
   return YES;
 #else
-  if (experimental_flags::IsMemoryDebuggingEnabled()) {
-    return YES;
-  }
-  return NO;
+  return experimental_flags::IsMemoryDebuggingEnabled() ||
+         experimental_flags::ShouldShowCatalogItems();
 #endif  // BUILDFLAG(CHROMIUM_BRANDING) && !defined(NDEBUG)
 }
 
@@ -2020,8 +2035,9 @@ struct EnhancedSafeBrowsingActivePromoData
   syncer::SyncService* syncService =
       SyncServiceFactory::GetForProfile(_profile);
   CHECK(syncService, base::NotFatalUntil::M151);
-  identityAccountItem.shouldDisplayError =
-      GetAccountErrorUIInfo(syncService) != nil;
+  if (GetAccountErrorUIInfo(syncService) != nil) {
+    identityAccountItem.detailImage = TableViewAccountDetailImage::kError;
+  }
 }
 
 - (void)reloadAccountCell {
@@ -2053,9 +2069,11 @@ struct EnhancedSafeBrowsingActivePromoData
   }
 
   UITableViewCell* accountCell = nil;
-  for (UITableViewCell* cell in [self.tableView visibleCells]) {
-    if ([cell isKindOfClass:[TableViewAccountCell class]]) {
-      accountCell = cell;
+  for (NSIndexPath* visibleIndexPath in self.tableView
+           .indexPathsForVisibleRows) {
+    if ([self.tableViewModel itemTypeForIndexPath:visibleIndexPath] ==
+        SettingsItemTypeAccount) {
+      accountCell = [self.tableView cellForRowAtIndexPath:visibleIndexPath];
       break;
     }
   }
@@ -2105,7 +2123,7 @@ struct EnhancedSafeBrowsingActivePromoData
 
 // Check if the default search engine is managed by policy.
 - (BOOL)isDefaultSearchEngineManagedByPolicy {
-  const base::Value::Dict& dict = _profile->GetPrefs()->GetDict(
+  const base::DictValue& dict = _profile->GetPrefs()->GetDict(
       DefaultSearchManager::kDefaultSearchProviderDataPrefName);
 
   if (dict.FindBoolByDottedPath(DefaultSearchManager::kDisabledByPolicy) ||
@@ -2117,7 +2135,7 @@ struct EnhancedSafeBrowsingActivePromoData
 
 // Returns the text to be displayed by the managed Search Engine item.
 - (NSString*)managedSearchEngineDetailText {
-  const base::Value::Dict& dict = _profile->GetPrefs()->GetDict(
+  const base::DictValue& dict = _profile->GetPrefs()->GetDict(
       DefaultSearchManager::kDefaultSearchProviderDataPrefName);
   if (dict.FindBoolByDottedPath(DefaultSearchManager::kDisabledByPolicy)) {
     // Default search engine is disabled by policy.
@@ -2202,8 +2220,6 @@ struct EnhancedSafeBrowsingActivePromoData
 // Updates the state of the Safety Check notifications button based on whether
 // the user has Safety Check notifications enabled.
 - (void)updateSafetyCheckNotificationsButtonState {
-  CHECK(IsSafetyCheckNotificationsEnabled());
-
   // Safety Check notifications are controlled by app-wide notification
   // settings, not profile-specific ones. No Gaia ID is required below in
   // `GetMobileNotificationPermissionStatusForClient()`.
@@ -2255,11 +2271,6 @@ struct EnhancedSafeBrowsingActivePromoData
                                browser:_browser];
   _downloadsSettingsCoordinator.delegate = self;
   [_downloadsSettingsCoordinator start];
-}
-
-// Returns YES if the Notifications settings should show.
-- (BOOL)shouldShowNotificationsSettings {
-  return base::FeatureList::IsEnabled(kNotificationSettingsMenuItem);
 }
 
 // Records that the user has reached the impression limit for the enhanced safe
@@ -2463,13 +2474,16 @@ struct EnhancedSafeBrowsingActivePromoData
 
 - (void)settingsWillBeDismissed {
   CHECK(!_settingsAreDismissed, base::NotFatalUntil::M151);
+  if (_settingsAreDismissed) {
+    return;
+  }
 
   // Remove Enhanced Safe Browsing Promo.
   [self removeEnhancedSafeBrowsingPromoFETDataIfNeeded];
 
   // Stop children coordinators.
-  [_BWGSettingsCoordinator stop];
-  _BWGSettingsCoordinator = nil;
+  [_geminiSettingsCoordinator stop];
+  _geminiSettingsCoordinator = nil;
 
   [_contentSettingsCoordinator stop];
   _contentSettingsCoordinator = nil;
@@ -2507,8 +2521,10 @@ struct EnhancedSafeBrowsingActivePromoData
   _vivaldiSyncCoordinator = nil;
   [_vivaldiGeneralSettingsCoordinator stop];
   _vivaldiGeneralSettingsCoordinator = nil;
+  _vivaldiSearchEngineSettingsCoordinator.delegate = nil;
   [_vivaldiSearchEngineSettingsCoordinator stop];
   _vivaldiSearchEngineSettingsCoordinator = nil;
+  _vivaldiAddressBarSettingsCoordinator.delegate = nil;
   [_vivaldiAddressBarSettingsCoordinator stop];
   _vivaldiAddressBarSettingsCoordinator = nil;
   _appIconActionsBridge = nil;
@@ -2762,13 +2778,13 @@ struct EnhancedSafeBrowsingActivePromoData
   }
 }
 
-#pragma mark - BWGSettingsCoordinatorDelegate
+#pragma mark - GeminiSettingsCoordinatorDelegate
 
-- (void)BWGSettingsCoordinatorViewControllerWasRemoved:
-    (BWGSettingsCoordinator*)coordinator {
-  CHECK_EQ(_BWGSettingsCoordinator, coordinator, base::NotFatalUntil::M151);
-  [_BWGSettingsCoordinator stop];
-  _BWGSettingsCoordinator = nil;
+- (void)geminiSettingsCoordinatorViewControllerWasRemoved:
+    (GeminiSettingsCoordinator*)coordinator {
+  CHECK_EQ(_geminiSettingsCoordinator, coordinator, base::NotFatalUntil::M151);
+  [_geminiSettingsCoordinator stop];
+  _geminiSettingsCoordinator = nil;
 }
 
 #pragma mark - ContentSettingsCoordinatorDelegate
@@ -2932,8 +2948,7 @@ struct EnhancedSafeBrowsingActivePromoData
     (PushNotificationClientId)clientID {
   [self updateNotificationsDetailText];
 
-  if (IsSafetyCheckNotificationsEnabled() &&
-      clientID == PushNotificationClientId::kSafetyCheck) {
+  if (clientID == PushNotificationClientId::kSafetyCheck) {
     [self updateSafetyCheckNotificationsButtonState];
   }
 }
@@ -2986,6 +3001,22 @@ struct EnhancedSafeBrowsingActivePromoData
   DCHECK_EQ(_vivaldiSyncCoordinator, coordinator);
   [_vivaldiSyncCoordinator stop];
   _vivaldiSyncCoordinator = nil;
+}
+
+- (void)vivaldiSearchEngineSettingsCoordinatorWasRemoved:
+    (VivaldiSearchEngineSettingsCoordinator*)coordinator {
+  DCHECK_EQ(_vivaldiSearchEngineSettingsCoordinator, coordinator);
+  _vivaldiSearchEngineSettingsCoordinator.delegate = nil;
+  [_vivaldiSearchEngineSettingsCoordinator stop];
+  _vivaldiSearchEngineSettingsCoordinator = nil;
+}
+
+- (void)vivaldiAddressBarSettingsCoordinatorWasRemoved:
+    (VivaldiAddressBarSettingsCoordinator*)coordinator {
+  DCHECK_EQ(_vivaldiAddressBarSettingsCoordinator, coordinator);
+  _vivaldiAddressBarSettingsCoordinator.delegate = nil;
+  [_vivaldiAddressBarSettingsCoordinator stop];
+  _vivaldiAddressBarSettingsCoordinator = nil;
 }
 
 - (void)addVivaldiSigninSection {
@@ -3042,6 +3073,7 @@ struct EnhancedSafeBrowsingActivePromoData
       [[VivaldiSearchEngineSettingsCoordinator alloc]
           initWithBaseNavigationController:self.navigationController
               browser:_browser];
+  _vivaldiSearchEngineSettingsCoordinator.delegate = self;
   [_vivaldiSearchEngineSettingsCoordinator start];
 }
 
@@ -3068,6 +3100,7 @@ struct EnhancedSafeBrowsingActivePromoData
       [[VivaldiAddressBarSettingsCoordinator alloc]
           initWithBaseNavigationController:self.navigationController
                                    browser:_browser];
+  _vivaldiAddressBarSettingsCoordinator.delegate = self;
   [_vivaldiAddressBarSettingsCoordinator start];
 }
 

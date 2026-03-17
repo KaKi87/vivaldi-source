@@ -277,7 +277,7 @@
 <translation id="5256861893479663409">ყველა საიტზე</translation>
 <translation id="5260334392110301220">ჭკვიანი ბრჭყალები</translation>
 <translation id="5269977353971873915">ბეჭდვს შეცდომა</translation>
-<translation id="5284445933715251131">გადმოწერა {} ({}%)</translation>
+<translation id="5284445933715251131">გადმოწერის გაგრძელება</translation>
 <translation id="52912272896845572">პირადი გასაღების ფაილი არასწორია.</translation>
 <translation id="5302932258331363306">შენაცვლებების ჩვენება</translation>
 <translation id="5317780077021120954">შენახვა</translation>
@@ -303,7 +303,6 @@
 <translation id="5624959475330585145">კითხვა დაუცველი კავშირის გამოყენებამდე</translation>
 <translation id="5638309510554459422">იპოვეთ გაფართოებები და თემები <ph name="BEGIN_LINK" />Chrome Web Store<ph name="END_LINK" />-ში</translation>
 <translation id="5677928146339483299">დაბლოკილია</translation>
-<translation id="5707185214361380026">შეცდომა გაფართოების ჩატვირთვისას ბმულიდან:</translation>
 <translation id="5713171467967533494">Vivaldi-ის ბრაუზერში გახსნა</translation>
 <translation id="5746169159649715125">PDF-ის სახით შენახვა</translation>
 <translation id="5747809636523347288">ჩასმა და &amp;გადასვლა ბმულზე <ph name="URL" /></translation>

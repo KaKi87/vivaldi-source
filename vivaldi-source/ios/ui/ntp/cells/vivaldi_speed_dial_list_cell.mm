@@ -12,10 +12,8 @@
 
 namespace {
 // Padding for labels. In order - Top, Left, Bottom, Right
-const UIEdgeInsets faviconPadding =
-    UIEdgeInsetsMake(0.f, 12.f, 0.f, 0.f);
-const UIEdgeInsets labelStackPadding =
-    UIEdgeInsetsMake(4.f, 12.f, 4.f, 8.f);
+const UIEdgeInsets faviconPadding = UIEdgeInsetsMake(0.f, 12.f, 0.f, 0.f);
+const UIEdgeInsets labelStackPadding = UIEdgeInsetsMake(4.f, 12.f, 4.f, 8.f);
 const UIEdgeInsets titleLabelMaskViewPadding =
     UIEdgeInsetsMake(6.f, 10.f, 0.f, 40.f);
 const UIEdgeInsets urlLabelMaskViewPadding =
@@ -23,21 +21,21 @@ const UIEdgeInsets urlLabelMaskViewPadding =
 // Padding for favicon fallback label
 const UIEdgeInsets faviconFallbackLabelPadding =
     UIEdgeInsetsMake(2.f, 2.f, 2.f, 2.f);
-}
+}  // namespace
 
-@interface VivaldiSpeedDialListCell()
+@interface VivaldiSpeedDialListCell ()
 // The title label for the speed dial.
-@property(nonatomic,weak) UILabel* titleLabel;
+@property(nonatomic, weak) UILabel* titleLabel;
 // The title label mask for preview purpose
-@property(nonatomic,weak) UIView* titleLabelMaskView;
+@property(nonatomic, weak) UIView* titleLabelMaskView;
 // The url label for the speed dial.
-@property(nonatomic,weak) UILabel* urlLabel;
+@property(nonatomic, weak) UILabel* urlLabel;
 // The url label mask for preview purpose
-@property(nonatomic,weak) UIView* urlLabelMaskView;
+@property(nonatomic, weak) UIView* urlLabelMaskView;
 // Imageview for the favicon.
-@property(nonatomic,weak) UIImageView* faviconView;
+@property(nonatomic, weak) UIImageView* faviconView;
 // The fallback label when there's no favicon available.
-@property(nonatomic,weak) UILabel* fallbackFaviconLabel;
+@property(nonatomic, weak) UILabel* fallbackFaviconLabel;
 @end
 
 @implementation VivaldiSpeedDialListCell
@@ -70,29 +68,24 @@ const UIEdgeInsets faviconFallbackLabelPadding =
   self.fallbackFaviconLabel.text = nil;
 }
 
-
 #pragma mark - SET UP UI COMPONENTS
 - (void)setUpUI {
-
   self.layer.cornerRadius = vSpeedDialItemCornerRadius;
   self.clipsToBounds = true;
   self.layer.borderColor = UIColor.clearColor.CGColor;
   // Add drop shadow to parent
-  [self
-    addShadowWithBackground: [UIColor colorNamed:
-                              vNTPSpeedDialCellBackgroundColor]
-                     offset: vSpeedDialItemShadowOffset
-                shadowColor: [UIColor colorNamed:vSpeedDialItemShadowColor]
-                     radius: vSpeedDialItemShadowRadius
-                    opacity: vSpeedDialItemShadowOpacity
-  ];
-  self.backgroundColor =
-    [UIColor colorNamed: vNTPSpeedDialCellBackgroundColor];
+  [self addShadowWithBackground:[UIColor
+                                    colorNamed:vNTPSpeedDialCellBackgroundColor]
+                         offset:vSpeedDialItemShadowOffset
+                    shadowColor:[UIColor colorNamed:vSpeedDialItemShadowColor]
+                         radius:vSpeedDialItemShadowRadius
+                        opacity:vSpeedDialItemShadowOpacity];
+  self.backgroundColor = [UIColor colorNamed:vNTPSpeedDialCellBackgroundColor];
 
   // Container view to hold the labels and image views.
-  UIView *container = [UIView new];
+  UIView* container = [UIView new];
   container.backgroundColor =
-    [UIColor colorNamed: vNTPSpeedDialCellBackgroundColor];
+      [UIColor colorNamed:vNTPSpeedDialCellBackgroundColor];
   container.layer.cornerRadius = vSpeedDialItemCornerRadius;
   container.clipsToBounds = true;
   [self addSubview:container];
@@ -105,22 +98,22 @@ const UIEdgeInsets faviconFallbackLabelPadding =
   faviconView.backgroundColor = UIColor.clearColor;
   faviconView.layer.cornerRadius = vSpeedDialFaviconCornerRadius;
   faviconView.clipsToBounds = true;
-  [container addSubview: faviconView];
-  [faviconView anchorTop: nil
-                 leading: container.leadingAnchor
-                  bottom: nil
-                trailing: nil
-                 padding: faviconPadding
-                    size: vSpeedDialItemFaviconSizeListLayout];
+  [container addSubview:faviconView];
+  [faviconView anchorTop:nil
+                 leading:container.leadingAnchor
+                  bottom:nil
+                trailing:nil
+                 padding:faviconPadding
+                    size:vSpeedDialItemFaviconSizeListLayout];
   [faviconView centerYInSuperview];
 
   // Fallback favicon label
   UILabel* fallbackFaviconLabel = [[UILabel alloc] init];
   _fallbackFaviconLabel = fallbackFaviconLabel;
   fallbackFaviconLabel.textColor =
-    [UIColor colorNamed:vNTPSpeedDialDomainTextColor];
+      [UIColor colorNamed:vNTPSpeedDialDomainTextColor];
   fallbackFaviconLabel.font =
-    [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
+      [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
   fallbackFaviconLabel.numberOfLines = 0;
   fallbackFaviconLabel.textAlignment = NSTextAlignmentCenter;
 
@@ -147,21 +140,19 @@ const UIEdgeInsets faviconFallbackLabelPadding =
   urlLabel.textAlignment = NSTextAlignmentLeft;
 
   // Website title and url label stack
-  UIStackView *labelStack = [[UIStackView alloc] initWithArrangedSubviews:@[
-    titleLabel, urlLabel
-  ]];
+  UIStackView* labelStack =
+      [[UIStackView alloc] initWithArrangedSubviews:@[ titleLabel, urlLabel ]];
   labelStack.axis = UILayoutConstraintAxisVertical;
   labelStack.distribution = UIStackViewDistributionFillEqually;
   labelStack.spacing = 0;
 
-  [container addSubview: labelStack];
-  [labelStack anchorTop: nil
-                leading: faviconView.trailingAnchor
-                 bottom: nil
-               trailing: container.trailingAnchor
-                padding: labelStackPadding];
+  [container addSubview:labelStack];
+  [labelStack anchorTop:nil
+                leading:faviconView.trailingAnchor
+                 bottom:nil
+               trailing:container.trailingAnchor
+                padding:labelStackPadding];
   [labelStack centerYInSuperview];
-
 
   // Title label mask, used for preview only
   UIView* titleLabelMaskView = [UIView new];
@@ -171,11 +162,11 @@ const UIEdgeInsets faviconFallbackLabelPadding =
   titleLabelMaskView.clipsToBounds = true;
 
   [container addSubview:titleLabelMaskView];
-  [titleLabelMaskView anchorTop: faviconView.topAnchor
-                        leading: faviconView.trailingAnchor
-                         bottom: nil
-                       trailing: container.trailingAnchor
-                        padding: titleLabelMaskViewPadding];
+  [titleLabelMaskView anchorTop:faviconView.topAnchor
+                        leading:faviconView.trailingAnchor
+                         bottom:nil
+                       trailing:container.trailingAnchor
+                        padding:titleLabelMaskViewPadding];
   titleLabelMaskView.hidden = YES;
 
   // URL label mask, used for preview only
@@ -186,17 +177,17 @@ const UIEdgeInsets faviconFallbackLabelPadding =
   urlLabelMaskView.clipsToBounds = true;
 
   [container addSubview:urlLabelMaskView];
-  [urlLabelMaskView anchorTop: titleLabelMaskView.bottomAnchor
-                      leading: titleLabelMaskView.leadingAnchor
-                       bottom: faviconView.bottomAnchor
-                     trailing: titleLabelMaskView.trailingAnchor
-                      padding: urlLabelMaskViewPadding];
+  [urlLabelMaskView anchorTop:titleLabelMaskView.bottomAnchor
+                      leading:titleLabelMaskView.leadingAnchor
+                       bottom:faviconView.bottomAnchor
+                     trailing:titleLabelMaskView.trailingAnchor
+                      padding:urlLabelMaskViewPadding];
   urlLabelMaskView.hidden = YES;
 
   [titleLabelMaskView.heightAnchor
-    constraintEqualToAnchor:urlLabelMaskView.heightAnchor].active = YES;
+      constraintEqualToAnchor:urlLabelMaskView.heightAnchor]
+      .active = YES;
 }
-
 
 #pragma mark - SETTERS
 
@@ -228,10 +219,10 @@ const UIEdgeInsets faviconFallbackLabelPadding =
   self.titleLabelMaskView.backgroundColor = UIColor.vSystemGray03;
   self.urlLabelMaskView.hidden = NO;
   self.urlLabelMaskView.backgroundColor =
-    [UIColor.vSystemGray03 colorWithAlphaComponent:0.4];
+      [UIColor.vSystemGray03 colorWithAlphaComponent:0.4];
 }
 
-#pragma mark: PRIVATE
+#pragma mark : PRIVATE
 
 - (void)showFallbackFavicon:(VivaldiSpeedDialItem*)sdItem {
   if (sdItem.isInternalPage) {
@@ -242,8 +233,8 @@ const UIEdgeInsets faviconFallbackLabelPadding =
     self.fallbackFaviconLabel.hidden = NO;
     self.faviconView.image = nil;
     self.faviconView.backgroundColor =
-        [UIColor colorNamed: vSearchbarBackgroundColor];
-    NSString *firstLetter = [[sdItem.host substringToIndex:1] uppercaseString];
+        [UIColor colorNamed:vSearchbarBackgroundColor];
+    NSString* firstLetter = [[sdItem.host substringToIndex:1] uppercaseString];
     self.fallbackFaviconLabel.text = firstLetter;
   }
 }

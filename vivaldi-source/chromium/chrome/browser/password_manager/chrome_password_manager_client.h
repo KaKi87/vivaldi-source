@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_PASSWORD_MANAGER_CHROME_PASSWORD_MANAGER_CLIENT_H_
 #define CHROME_BROWSER_PASSWORD_MANAGER_CHROME_PASSWORD_MANAGER_CLIENT_H_
 
-#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -447,7 +446,8 @@ class ChromePasswordManagerClient
   // autofill::AutofillManager::Observer:
   void OnFieldTypesDetermined(autofill::AutofillManager& manager,
                               autofill::FormGlobalId form_id,
-                              FieldTypeSource source) override;
+                              FieldTypeSource source,
+                              bool small_forms_were_parsed) override;
 
   password_manager::ContentPasswordManagerDriverFactory* GetDriverFactory()
       const;

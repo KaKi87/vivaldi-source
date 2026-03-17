@@ -59,8 +59,20 @@ void IwaTestServerConfigurator::SetServedUpdateManifestResponse(
                         std::move(head), json_content, status);
 }
 
+void IwaTestServerConfigurator::SetServedUpdateManifestResponse(
+    const GURL& update_manifest_url,
+    net::HttpStatusCode http_status,
+    std::string_view json_content) {
+  network::mojom::URLResponseHeadPtr head =
+      network::CreateURLResponseHead(http_status);
+  head->mime_type = "application/json";
+  network::URLLoaderCompletionStatus status;
+  factory_->AddResponse(update_manifest_url, std::move(head),
+                        std::string(json_content), status);
+}
+
 // static
-base::Value::Dict IwaTestServerConfigurator::CreateForceInstallPolicyEntry(
+base::DictValue IwaTestServerConfigurator::CreateForceInstallPolicyEntry(
     const web_package::SignedWebBundleId& web_bundle_id,
     const std::optional<UpdateChannel>& update_channel,
     const std::optional<IwaVersion>& pinned_version,

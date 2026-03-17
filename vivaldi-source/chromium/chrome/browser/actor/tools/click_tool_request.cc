@@ -7,7 +7,7 @@
 #include <optional>
 
 #include "chrome/browser/actor/tools/tool_request_visitor_functor.h"
-#include "chrome/common/actor.mojom.h"
+#include "chrome/common/actor.mojom-shared.h"
 #include "content/public/browser/render_widget_host.h"
 #include "third_party/blink/public/common/input/web_mouse_event.h"
 
@@ -17,8 +17,8 @@ using ::tabs::TabHandle;
 
 ClickToolRequest::ClickToolRequest(TabHandle tab_handle,
                                    const PageTarget& target,
-                                   MouseClickType type,
-                                   MouseClickCount count)
+                                   mojom::ClickType type,
+                                   mojom::ClickCount count)
     : PageToolRequest(tab_handle, target),
       click_type_(type),
       click_count_(count) {}
@@ -58,7 +58,7 @@ void ClickToolRequest::WillSendToRenderer(
   event.SetType(blink::WebInputEvent::Type::kMouseDown);
 
   // Trigger user interaction notification.
-  render_widget_host->WillSendInputEventToRenderer(event);
+  render_widget_host->SimulateUserInteraction(event);
 }
 
 }  // namespace actor

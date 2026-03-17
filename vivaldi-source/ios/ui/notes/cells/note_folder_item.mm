@@ -52,10 +52,8 @@ const CGFloat textStackSpacing = 4;
       folderCell.folderTitleTextField.text =
           l10n_util::GetNSString(IDS_VIVALDI_NOTE_CREATE_GROUP);
       // Note using the same image for folders as bookmarks now
-      folderCell.folderImageView.image =
-          [UIImage imageNamed:vNoteAddFolder];
-      folderCell.accessibilityIdentifier =
-          kNoteCreateNewFolderCellIdentifier;
+      folderCell.folderImageView.image = [UIImage imageNamed:vNoteAddFolder];
+      folderCell.accessibilityIdentifier = kNoteCreateNewFolderCellIdentifier;
       folderCell.accessibilityTraits |= UIAccessibilityTraitButton;
       break;
     }
@@ -71,8 +69,7 @@ const CGFloat textStackSpacing = 4;
       folderCell.indentationConstraint.constant =
           folderCell.indentationConstraint.constant +
           kFolderCellIndentationWidth * self.indentationLevel;
-      folderCell.folderImageView.image =
-          [UIImage imageNamed:vNotesFolderIcon];
+      folderCell.folderImageView.image = [UIImage imageNamed:vNotesFolderIcon];
       break;
     }
   }
@@ -82,7 +79,7 @@ const CGFloat textStackSpacing = 4;
 
 #pragma mark - TableViewNoteFolderCell
 
-@interface TableViewNoteFolderCell ()<UITextFieldDelegate>
+@interface TableViewNoteFolderCell () <UITextFieldDelegate>
 // Re-declare as readwrite.
 @property(nonatomic, strong, readwrite)
     NSLayoutConstraint* indentationConstraint;
@@ -145,10 +142,8 @@ const CGFloat textStackSpacing = 4;
     verticalStack.translatesAutoresizingMaskIntoConstraints = NO;
 
     // Container StackView.
-    UIStackView* horizontalStack =
-        [[UIStackView alloc] initWithArrangedSubviews:@[
-          self.folderImageView, verticalStack
-        ]];
+    UIStackView* horizontalStack = [[UIStackView alloc]
+        initWithArrangedSubviews:@[ self.folderImageView, verticalStack ]];
     horizontalStack.axis = UILayoutConstraintAxisHorizontal;
     horizontalStack.spacing = kNoteCellViewSpacing;
     horizontalStack.distribution = UIStackViewDistributionFill;

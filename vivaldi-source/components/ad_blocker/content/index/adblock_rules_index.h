@@ -120,8 +120,8 @@ class RulesIndex {
   std::string GetDefaultStylesheet();
 
   InjectionData GetInjectionDataForOrigin(const url::Origin& origin,
-                                          bool disable_specific_rules,
-                                          bool disable_generic_rules);
+                                          bool disable_specific_cosmetic_rules,
+                                          bool disable_generic_cosmetic_rules);
 
  private:
   using ActivationForURLs = base::LRUCache<GURL, ActivationResults>;

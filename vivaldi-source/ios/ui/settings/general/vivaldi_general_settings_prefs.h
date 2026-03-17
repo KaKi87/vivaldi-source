@@ -18,9 +18,9 @@ class PrefService;
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry;
 
 /// Returns Homepage Url
-+ (NSString*)getHomepageUrlWithPrefService: (PrefService*)prefService;
++ (NSString*)getHomepageUrlWithPrefService:(PrefService*)prefService;
 /// Returns show homepage button status
-+ (BOOL)getHomepageEnabledWithPrefService: (PrefService*)prefService;
++ (BOOL)getHomepageEnabledWithPrefService:(PrefService*)prefService;
 
 /// Sets Homepage Url
 + (void)setHomepageUrlWithPrefService:(NSString*)url

@@ -9,6 +9,7 @@
 #include "base/auto_reset.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/to_string.h"
 #include "base/test/gmock_expected_support.h"
 #include "base/test/run_until.h"
 #include "base/test/test_future.h"
@@ -29,6 +30,8 @@
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_trust_checker.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
 #include "chrome/browser/web_applications/isolated_web_apps/policy/isolated_web_app_policy_constants.h"
+#include "chrome/browser/web_applications/isolated_web_apps/runtime_data/chrome_iwa_runtime_data_provider.h"
+#include "chrome/browser/web_applications/isolated_web_apps/test/fake_iwa_runtime_data_provider_mixin.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_builder.h"
 #include "chrome/browser/web_applications/isolated_web_apps/test/isolated_web_app_test_update_server.h"
 #include "chrome/browser/web_applications/policy/web_app_policy_constants.h"
@@ -81,12 +84,13 @@ class MockNetworkConnectionTracker : public network::NetworkConnectionTracker {
 
   MOCK_METHOD(bool,
               GetConnectionType,
-              (network::mojom::ConnectionType*,
+              (net::NetworkChangeNotifier::ConnectionType*,
                network::NetworkConnectionTracker::ConnectionTypeCallback),
               (override));
 
   // Make this function visible so we can simulate a call from the test.
-  void OnNetworkChanged(network::mojom::ConnectionType type) override {
+  void OnNetworkChanged(
+      net::NetworkChangeNotifier::ConnectionType type) override {
     network::NetworkConnectionTracker::OnNetworkChanged(type);
   }
 };
@@ -126,9 +130,9 @@ class RunOnOsLoginTestHandlerMixin : public InProcessBrowserTestMixin {
         .SetRefreshPolicySettingsCompletedCallbackForTesting(
             policy_refresh_sync_future.GetCallback());
     PrefService* prefs = profile_->GetPrefs();
-    base::Value::List web_app_settings =
+    base::ListValue web_app_settings =
         prefs->GetList(prefs::kWebAppSettings).Clone();
-    web_app_settings.Append(base::Value::Dict()
+    web_app_settings.Append(base::DictValue()
                                 .Set(kManifestId, manifest_id)
                                 .Set(kRunOnOsLogin, run_on_os_login)
                                 .Set(kPreventClose, prevent_close));
@@ -162,7 +166,7 @@ class RunOnOsLoginTestHandlerMixin : public InProcessBrowserTestMixin {
     provider_->policy_manager()
         .SetRefreshPolicySettingsCompletedCallbackForTesting(
             future.GetCallback());
-    profile_->GetPrefs()->SetList(prefs::kWebAppSettings, base::Value::List());
+    profile_->GetPrefs()->SetList(prefs::kWebAppSettings, base::ListValue());
     ASSERT_TRUE(future.Wait());
   }
 
@@ -176,8 +180,6 @@ class RunOnOsLoginTestHandlerMixin : public InProcessBrowserTestMixin {
   raw_ptr<WebAppProvider> provider_ = nullptr;
   std::unique_ptr<base::AutoReset<bool>> skip_run_on_os_login_startup_;
   std::unique_ptr<base::test::TestFuture<void>> completed_future_;
-  base::test::ScopedFeatureList scoped_feature_list_{
-      features::kDesktopPWAsRunOnOsLogin};
   IsolatedWebAppTestUpdateServer iwa_test_server_;
 };
 
@@ -232,10 +234,10 @@ class WebAppRunOnOsLoginManagerBrowserTest
     observer.BeginListening({app_id});
 
     PrefService* prefs = profile()->GetPrefs();
-    base::Value::List install_force_list =
+    base::ListValue install_force_list =
         prefs->GetList(prefs::kWebAppInstallForceList).Clone();
     install_force_list.Append(
-        base::Value::Dict()
+        base::DictValue()
             .Set(kUrlKey, manifest_id)
             .Set(kDefaultLaunchContainerKey, kDefaultLaunchContainerWindowValue)
             .Set(kFallbackAppNameKey, app_name));
@@ -268,7 +270,8 @@ IN_PROC_BROWSER_TEST_F(
     WebAppRunOnOsLoginWithInitialPolicyValueLaunchesBrowserWindow) {
   EXPECT_CALL(*mock_tracker_, GetConnectionType(_, _))
       .WillRepeatedly(DoAll(
-          SetArgPointee<0>(network::mojom::ConnectionType::CONNECTION_ETHERNET),
+          SetArgPointee<0>(
+              net::NetworkChangeNotifier::ConnectionType::CONNECTION_ETHERNET),
           Return(true)));
 
   AddForceInstalledApp(kTestApp, kTestAppName);
@@ -290,7 +293,8 @@ IN_PROC_BROWSER_TEST_F(
     WebAppRunOnOsLoginWithForceInstallLaunchesBrowserWindow) {
   EXPECT_CALL(*mock_tracker_, GetConnectionType(_, _))
       .WillRepeatedly(DoAll(
-          SetArgPointee<0>(network::mojom::ConnectionType::CONNECTION_ETHERNET),
+          SetArgPointee<0>(
+              net::NetworkChangeNotifier::ConnectionType::CONNECTION_ETHERNET),
           Return(true)));
 
   AddForceInstalledApp(kTestApp, kTestAppName);
@@ -311,7 +315,8 @@ IN_PROC_BROWSER_TEST_F(WebAppRunOnOsLoginManagerBrowserTest,
                        WebAppRunOnOsLoginNetworkNotConnectedCallSynchronous) {
   EXPECT_CALL(*mock_tracker_, GetConnectionType(_, _))
       .WillRepeatedly(DoAll(
-          SetArgPointee<0>(network::mojom::ConnectionType::CONNECTION_NONE),
+          SetArgPointee<0>(
+              net::NetworkChangeNotifier::ConnectionType::CONNECTION_NONE),
           Return(true)));
 
   AddForceInstalledApp(kTestApp, kTestAppName);
@@ -326,7 +331,7 @@ IN_PROC_BROWSER_TEST_F(WebAppRunOnOsLoginManagerBrowserTest,
 
   // Simulate the network coming back.
   mock_tracker_->OnNetworkChanged(
-      network::mojom::ConnectionType::CONNECTION_WIFI);
+      net::NetworkChangeNotifier::ConnectionType::CONNECTION_WIFI);
   run_on_os_login_handler_.WaitForRunOnOsLogin();
 
   // Should have 2 browsers: normal and app.
@@ -339,14 +344,14 @@ IN_PROC_BROWSER_TEST_F(WebAppRunOnOsLoginManagerBrowserTest,
 IN_PROC_BROWSER_TEST_F(
     WebAppRunOnOsLoginManagerBrowserTest,
     WebAppRunOnOsLoginNetworkNotConnectedCallAsynchronousInitiallyConnected) {
-  base::OnceCallback<void(network::mojom::ConnectionType)>
+  base::OnceCallback<void(net::NetworkChangeNotifier::ConnectionType)>
       connection_changed_callback;
   EXPECT_CALL(*mock_tracker_, GetConnectionType(_, _))
       .WillRepeatedly(
           DoAll([&connection_changed_callback](
-                    network::mojom::ConnectionType*,
-                    base::OnceCallback<void(network::mojom::ConnectionType)>
-                        callback) {
+                    net::NetworkChangeNotifier::ConnectionType*,
+                    base::OnceCallback<void(
+                        net::NetworkChangeNotifier::ConnectionType)> callback) {
             connection_changed_callback = std::move(callback);
             return false;
           }));
@@ -363,7 +368,7 @@ IN_PROC_BROWSER_TEST_F(
 
   // Asynchronously notify that there is a network connection
   std::move(connection_changed_callback)
-      .Run(network::mojom::ConnectionType::CONNECTION_WIFI);
+      .Run(net::NetworkChangeNotifier::ConnectionType::CONNECTION_WIFI);
   run_on_os_login_handler_.WaitForRunOnOsLogin();
 
   // Should have 2 browsers: normal and app.
@@ -376,14 +381,14 @@ IN_PROC_BROWSER_TEST_F(
 IN_PROC_BROWSER_TEST_F(
     WebAppRunOnOsLoginManagerBrowserTest,
     WebAppRunOnOsLoginNetworkNotConnectedCallAsynchronousInitiallyDisconnected) {
-  base::OnceCallback<void(network::mojom::ConnectionType)>
+  base::OnceCallback<void(net::NetworkChangeNotifier::ConnectionType)>
       connection_changed_callback;
   EXPECT_CALL(*mock_tracker_, GetConnectionType(_, _))
       .WillRepeatedly(
           DoAll([&connection_changed_callback](
-                    network::mojom::ConnectionType*,
-                    base::OnceCallback<void(network::mojom::ConnectionType)>
-                        callback) {
+                    net::NetworkChangeNotifier::ConnectionType*,
+                    base::OnceCallback<void(
+                        net::NetworkChangeNotifier::ConnectionType)> callback) {
             connection_changed_callback = std::move(callback);
             return false;
           }));
@@ -400,7 +405,7 @@ IN_PROC_BROWSER_TEST_F(
 
   // Asynchronously notify that the device is connected.
   std::move(connection_changed_callback)
-      .Run(network::mojom::ConnectionType::CONNECTION_NONE);
+      .Run(net::NetworkChangeNotifier::ConnectionType::CONNECTION_NONE);
   provider().command_manager().AwaitAllCommandsCompleteForTesting();
 
   // Should have only the normal browser as there is no network.
@@ -408,7 +413,7 @@ IN_PROC_BROWSER_TEST_F(
 
   // Simulate the network coming back.
   mock_tracker_->OnNetworkChanged(
-      network::mojom::ConnectionType::CONNECTION_WIFI);
+      net::NetworkChangeNotifier::ConnectionType::CONNECTION_WIFI);
   run_on_os_login_handler_.WaitForRunOnOsLogin();
 
   // Should have 2 browsers: normal and app.
@@ -439,7 +444,8 @@ IN_PROC_BROWSER_TEST_P(WebAppRunOnOsLoginNotificationBrowserTest,
                        WebAppRunOnOsLoginNotificationOpensManagementUI) {
   EXPECT_CALL(*mock_tracker_, GetConnectionType(_, _))
       .WillRepeatedly(DoAll(
-          SetArgPointee<0>(network::mojom::ConnectionType::CONNECTION_ETHERNET),
+          SetArgPointee<0>(
+              net::NetworkChangeNotifier::ConnectionType::CONNECTION_ETHERNET),
           Return(true)));
 
   const auto test_params = GetParam();
@@ -497,7 +503,8 @@ IN_PROC_BROWSER_TEST_P(WebAppRunOnOsLoginNotificationBrowserTest,
                        WebAppRunOnOsLoginNotification) {
   EXPECT_CALL(*mock_tracker_, GetConnectionType(_, _))
       .WillRepeatedly(DoAll(
-          SetArgPointee<0>(network::mojom::ConnectionType::CONNECTION_ETHERNET),
+          SetArgPointee<0>(
+              net::NetworkChangeNotifier::ConnectionType::CONNECTION_ETHERNET),
           Return(true)));
 
   const auto test_params = GetParam();
@@ -622,18 +629,17 @@ class IsolatedWebAppRunOnOsLoginManagerBrowserTest
  protected:
   void SetUpOnMainThread() override {
     IsolatedWebAppBrowserTestHarness::SetUpOnMainThread();
-    web_app::IwaKeyDistributionInfoProvider::GetInstance()
-        .SkipManagedAllowlistChecksForTesting(true);
     test::WaitUntilWebAppProviderAndSubsystemsReady(&provider());
     SetUpFilesAndServer();
-    AddTrustedWebBundleIdForTesting(url_info_->web_bundle_id());
     run_on_os_login_handler_.ResetSkipRunOnOsLoginStartup();
+
+    data_provider_->Update([&](auto& update) {
+      update.AddToManagedAllowlist(url_info_->web_bundle_id());
+    });
   }
 
   void TearDownOnMainThread() override {
     run_on_os_login_handler_.TearDown();
-    web_app::IwaKeyDistributionInfoProvider::GetInstance()
-        .SkipManagedAllowlistChecksForTesting(false);
     IsolatedWebAppBrowserTestHarness::TearDownOnMainThread();
   }
 
@@ -703,6 +709,7 @@ class IsolatedWebAppRunOnOsLoginManagerBrowserTest
   web_package::test::Ed25519KeyPair key_pair_ =
       test::GetDefaultEd25519KeyPair();
   RunOnOsLoginTestHandlerMixin run_on_os_login_handler_{&mixin_host_, this};
+  web_app::FakeIwaRuntimeDataProviderMixin data_provider_{&mixin_host_};
 };
 
 IN_PROC_BROWSER_TEST_F(IsolatedWebAppRunOnOsLoginManagerBrowserTest,
@@ -716,8 +723,8 @@ IN_PROC_BROWSER_TEST_F(IsolatedWebAppRunOnOsLoginManagerBrowserTest,
 
   profile()->GetPrefs()->SetList(
       prefs::kIsolatedWebAppInstallForceList,
-      base::Value::List().Append(
-          base::Value::Dict()
+      base::ListValue().Append(
+          base::DictValue()
               .Set(kPolicyWebBundleIdKey, url_info_->web_bundle_id().id())
               .Set(kPolicyUpdateManifestUrlKey,
                    run_on_os_login_handler_.iwa_test_server()

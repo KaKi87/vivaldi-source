@@ -4,17 +4,16 @@
 
 #include <set>
 
-#include "base/containers/contains.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/extensions/chrome_extension_system_factory.h"
-#include "chrome/browser/extensions/external_install_error_desktop.h"
 #include "chrome/browser/extensions/extension_service.h"
+#include "chrome/browser/extensions/external_install_error_desktop.h"
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "content/public/browser/web_contents.h"
+#include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_factory.h"
 #include "extensions/browser/extensions_browser_client.h"
-#include "extensions/browser/extension_registry.h"
 #include "extensions/schema/browser_action_utilities.h"
 #include "extensions/tools/vivaldi_tools.h"
 
@@ -50,7 +49,6 @@ VivaldiRootDocumentHandlerFactory::VivaldiRootDocumentHandlerFactory()
     : BrowserContextKeyedServiceFactory(
           "VivaldiRootDocumentHandler",
           BrowserContextDependencyManager::GetInstance()) {
-
   DependsOn(extensions::ExtensionRegistryFactory::GetInstance());
   DependsOn(extensions::ChromeExtensionSystemFactory::GetInstance());
 }
@@ -78,15 +76,13 @@ VivaldiRootDocumentHandlerFactory::GetBrowserContextToUse(
   // Redirected in incognito.
   return ExtensionsBrowserClient::Get()->GetContextRedirectedToOriginal(
       context);
-
 }
 
 VivaldiRootDocumentHandler::VivaldiRootDocumentHandler(
     content::BrowserContext* context)
     : profile_(Profile::FromBrowserContext(context)) {
-
-  infobar_container_ = std::make_unique<::vivaldi::InfoBarContainerWebProxy>(
-      this);
+  infobar_container_ =
+      std::make_unique<::vivaldi::InfoBarContainerWebProxy>(this);
 
   observed_profiles_.AddObservation(profile_);
   if (profile_->HasPrimaryOTRProfile())
@@ -157,7 +153,8 @@ void VivaldiRootDocumentHandler::DocumentContentsObserver::DOMContentLoaded(
     // Nothing to do for sub frames here.
     return;
   }
-  auto* web_contents = content::WebContents::FromRenderFrameHost(render_frame_host);
+  auto* web_contents =
+      content::WebContents::FromRenderFrameHost(render_frame_host);
 
   if (web_contents == root_doc_handler_->GetWebContents()) {
     root_doc_handler_->document_loader_is_ready_ = true;
@@ -212,7 +209,7 @@ void VivaldiRootDocumentHandler::OnExtensionInstalled(
     content::BrowserContext* browser_context,
     const extensions::Extension* extension,
     bool is_update) {
-    // Remove any visible install-errors.
+  // Remove any visible install-errors.
   vivaldi::extension_action_utils::ExtensionInstallError jserror;
   jserror.id = extension->id();
   VivaldiExtensionDisabledGlobalError::SendGlobalErrorRemoved(browser_context,
@@ -248,7 +245,6 @@ void VivaldiRootDocumentHandler::RemoveObserver(
     VivaldiRootDocumentHandlerObserver* observer) {
   observers_.RemoveObserver(observer);
 }
-
 
 void VivaldiRootDocumentHandler::AddGlobalError(
     std::unique_ptr<VivaldiExtensionDisabledGlobalError> error) {
@@ -313,10 +309,9 @@ void VivaldiRootDocumentHandler::OnExtensionCommandRemoved(
       */
 }
 
-
 void MarkProfilePathForNoVivaldiClient(const base::FilePath& path) {
   // No need to mark the path more than once.
-  DCHECK(!base::Contains(ProfilesWithNoVivaldi(), path));
+  DCHECK(!ProfilesWithNoVivaldi().contains(path));
   ProfilesWithNoVivaldi().insert(path);
 }
 
@@ -326,7 +321,7 @@ void ClearProfilePathForNoVivaldiClient(const base::FilePath& path) {
 }
 
 bool ProfileShouldNotUseVivaldiClient(const base::FilePath& path) {
-  return base::Contains(ProfilesWithNoVivaldi(), path);
+  return ProfilesWithNoVivaldi().contains(path);
 }
 
 /// VivaldiExtensionDisabledGlobalError
@@ -335,7 +330,6 @@ VivaldiExtensionDisabledGlobalError::VivaldiExtensionDisabledGlobalError(
     content::BrowserContext* context,
     base::WeakPtr<ExternalInstallError> error)
     : browser_context_(context) {
-
   VivaldiRootDocumentHandler* root_doc_handler =
       extensions::VivaldiRootDocumentHandlerFactory::GetForBrowserContext(
           browser_context_);
@@ -431,8 +425,8 @@ VivaldiExtensionDisabledGlobalError::VivaldiExtensionDisabledGlobalError(
 
 VivaldiExtensionDisabledGlobalError::~VivaldiExtensionDisabledGlobalError() {}
 
- GlobalErrorWithStandardBubble::Severity
- VivaldiExtensionDisabledGlobalError::GetSeverity() {
+GlobalErrorWithStandardBubble::Severity
+VivaldiExtensionDisabledGlobalError::GetSeverity() {
   return SEVERITY_LOW;
 }
 
@@ -457,12 +451,11 @@ bool VivaldiExtensionDisabledGlobalError::HasShownBubbleView() {
 }
 void VivaldiExtensionDisabledGlobalError::ShowBubbleView(Browser* browser) {
   if (external_install_error_) {
-    //VivaldiBrowserComponentWrapper::GetInstance()->ShowExtensionErrorDialog(
-    //    browser, external_install_error_.get());
+    // VivaldiBrowserComponentWrapper::GetInstance()->ShowExtensionErrorDialog(
+    //     browser, external_install_error_.get());
 
-     static_cast<ExternalInstallErrorDesktop*>(external_install_error_.get())
-        ->ShowDialog(
-            browser);
+    static_cast<ExternalInstallErrorDesktop*>(external_install_error_.get())
+        ->ShowDialog(browser);
 
   } else if (disabled_upgrade_error_) {
     disabled_upgrade_error_->ShowBubbleView(browser);

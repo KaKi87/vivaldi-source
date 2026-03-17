@@ -23,12 +23,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeNtpUrl;
+
 import android.text.TextUtils;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
@@ -62,7 +65,6 @@ import org.chromium.chrome.browser.tabmodel.TabPersistentStoreImpl.TabRestoreDet
 import org.chromium.chrome.browser.tabpersistence.TabMetadataFileManager;
 import org.chromium.chrome.browser.tabpersistence.TabMetadataFileManager.TabModelSelectorMetadata;
 import org.chromium.chrome.browser.tabwindow.TabWindowManager;
-import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.content_public.browser.LoadUrlParams;
 import org.chromium.url.GURL;
 
@@ -87,12 +89,12 @@ public class TabPersistentStoreUnitTest {
     private static final String RESTORE_TAB_STRING_3 = "https://quuz.com/";
 
     @Rule public MockitoRule mMockitoRule = MockitoJUnit.rule();
+    @Rule public TemporaryFolder mTemporaryFolder = new TemporaryFolder();
 
     @Mock private TabPersistencePolicy mPersistencePolicy;
     @Mock private TabModelSelector mTabModelSelector;
     @Mock private TabModelInternal mNormalTabModel;
     @Mock private TabModelInternal mIncognitoTabModel;
-    @Mock private TabGroupModelFilterProvider mTabGroupModelFilterProvider;
     @Mock private TabCreatorManager mTabCreatorManager;
     @Mock private TabCreator mNormalTabCreator;
     @Mock private TabCreator mIncognitoTabCreator;
@@ -120,14 +122,13 @@ public class TabPersistentStoreUnitTest {
 
         when(mPersistencePolicy.getMetadataFileName())
                 .thenReturn(TabMetadataFileManager.SAVED_METADATA_FILE_PREFIX + "state_files_yay");
+        when(mPersistencePolicy.getOrCreateStateDirectory()).thenReturn(mTemporaryFolder.getRoot());
         when(mPersistencePolicy.isMergeInProgress()).thenReturn(false);
         when(mPersistencePolicy.performInitialization(any(TaskRunner.class))).thenReturn(false);
 
-        when(mTabModelSelector.getTabGroupModelFilterProvider())
-                .thenReturn(mTabGroupModelFilterProvider);
-        when(mTabGroupModelFilterProvider.getTabGroupModelFilter(false))
+        when(mTabModelSelector.getTabGroupModelFilter(false))
                 .thenReturn(mNormalTabGroupModelFilter);
-        when(mTabGroupModelFilterProvider.getTabGroupModelFilter(true))
+        when(mTabModelSelector.getTabGroupModelFilter(true))
                 .thenReturn(mIncognitoTabGroupModelFilter);
 
         mCipherFactory = new CipherFactory();
@@ -160,7 +161,8 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory) {
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true) {
                     @Override
                     protected void saveNextTab() {
                         // Intentionally ignore to avoid triggering async task creation.
@@ -171,7 +173,7 @@ public class TabPersistentStoreUnitTest {
         UserDataHost emptyNtpTabUserDataHost = new UserDataHost();
         when(emptyNtpTab.getUserDataHost()).thenReturn(emptyNtpTabUserDataHost);
         TabStateAttributes.createForTab(emptyNtpTab, TabCreationState.FROZEN_ON_RESTORE);
-        when(emptyNtpTab.getUrl()).thenReturn(new GURL(UrlConstants.NTP_URL));
+        when(emptyNtpTab.getUrl()).thenReturn(new GURL(getOriginalNativeNtpUrl()));
         TabStateAttributes.from(emptyNtpTab).setStateForTesting(DirtinessState.DIRTY);
 
         mPersistentStore.addTabToSaveQueue(emptyNtpTab);
@@ -188,16 +190,17 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.initializeRestoreVars(false);
 
         TabRestoreDetails emptyNtpDetails =
-                new TabRestoreDetails(1, 0, false, UrlConstants.NTP_URL, false);
+                new TabRestoreDetails(1, 0, false, getOriginalNativeNtpUrl(), false);
         mPersistentStore.restoreTab(emptyNtpDetails, null, false);
 
         verify(mNormalTabCreator)
                 .createNewTab(
-                        argThat(new LoadUrlParamsUrlMatcher(UrlConstants.NTP_URL)),
+                        argThat(new LoadUrlParamsUrlMatcher(getOriginalNativeNtpUrl())),
                         eq(TabLaunchType.FROM_RESTORE),
                         isNull(),
                         eq(0));
@@ -216,22 +219,24 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.initializeRestoreVars(false);
 
-        LoadUrlParamsUrlMatcher paramsMatcher = new LoadUrlParamsUrlMatcher(UrlConstants.NTP_URL);
+        LoadUrlParamsUrlMatcher paramsMatcher =
+                new LoadUrlParamsUrlMatcher(getOriginalNativeNtpUrl());
         Tab emptyNtp = mock(Tab.class);
         when(mNormalTabCreator.createNewTab(
                         argThat(paramsMatcher), eq(TabLaunchType.FROM_RESTORE), isNull()))
                 .thenReturn(emptyNtp);
 
         TabRestoreDetails emptyNtpDetails =
-                new TabRestoreDetails(1, 0, false, UrlConstants.NTP_URL, false);
+                new TabRestoreDetails(1, 0, false, getOriginalNativeNtpUrl(), false);
         mPersistentStore.restoreTab(emptyNtpDetails, null, true);
 
         verify(mNormalTabCreator)
                 .createNewTab(
-                        argThat(new LoadUrlParamsUrlMatcher(UrlConstants.NTP_URL)),
+                        argThat(new LoadUrlParamsUrlMatcher(getOriginalNativeNtpUrl())),
                         eq(TabLaunchType.FROM_RESTORE),
                         isNull(),
                         eq(0));
@@ -250,31 +255,33 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.initializeRestoreVars(false);
 
-        LoadUrlParamsUrlMatcher paramsMatcher = new LoadUrlParamsUrlMatcher(UrlConstants.NTP_URL);
+        LoadUrlParamsUrlMatcher paramsMatcher =
+                new LoadUrlParamsUrlMatcher(getOriginalNativeNtpUrl());
         Tab emptyNtp = mock(Tab.class);
         when(mNormalTabCreator.createNewTab(
                         argThat(paramsMatcher), eq(TabLaunchType.FROM_RESTORE), isNull()))
                 .thenReturn(emptyNtp);
 
         TabRestoreDetails emptyNtpDetails =
-                new TabRestoreDetails(1, 0, false, UrlConstants.NTP_URL, true);
+                new TabRestoreDetails(1, 0, false, getOriginalNativeNtpUrl(), true);
         mPersistentStore.restoreTab(emptyNtpDetails, null, false);
         verify(mNormalTabCreator)
                 .createNewTab(
-                        argThat(new LoadUrlParamsUrlMatcher(UrlConstants.NTP_URL)),
+                        argThat(new LoadUrlParamsUrlMatcher(getOriginalNativeNtpUrl())),
                         eq(TabLaunchType.FROM_RESTORE),
                         isNull(),
                         eq(0));
 
         TabRestoreDetails emptyIncognitoNtpDetails =
-                new TabRestoreDetails(1, 0, true, UrlConstants.NTP_URL, true);
+                new TabRestoreDetails(1, 0, true, getOriginalNativeNtpUrl(), true);
         mPersistentStore.restoreTab(emptyIncognitoNtpDetails, null, false);
         verify(mIncognitoTabCreator)
                 .createNewTab(
-                        argThat(new LoadUrlParamsUrlMatcher(UrlConstants.NTP_URL)),
+                        argThat(new LoadUrlParamsUrlMatcher(getOriginalNativeNtpUrl())),
                         eq(TabLaunchType.FROM_RESTORE),
                         isNull(),
                         eq(0));
@@ -290,11 +297,12 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.initializeRestoreVars(false);
 
         TabRestoreDetails ntpDetails =
-                new TabRestoreDetails(1, 0, false, UrlConstants.NTP_URL, false);
+                new TabRestoreDetails(1, 0, false, getOriginalNativeNtpUrl(), false);
         TabState ntpState = new TabState();
         mPersistentStore.restoreTab(ntpDetails, ntpState, false);
 
@@ -314,22 +322,24 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.initializeRestoreVars(false);
 
-        LoadUrlParamsUrlMatcher paramsMatcher = new LoadUrlParamsUrlMatcher(UrlConstants.NTP_URL);
+        LoadUrlParamsUrlMatcher paramsMatcher =
+                new LoadUrlParamsUrlMatcher(getOriginalNativeNtpUrl());
         Tab emptyNtp = mock(Tab.class);
         when(mIncognitoTabCreator.createNewTab(
                         argThat(paramsMatcher), eq(TabLaunchType.FROM_RESTORE), isNull()))
                 .thenReturn(emptyNtp);
 
         TabRestoreDetails emptyNtpDetails =
-                new TabRestoreDetails(1, 0, true, UrlConstants.NTP_URL, false);
+                new TabRestoreDetails(1, 0, true, getOriginalNativeNtpUrl(), false);
         mPersistentStore.restoreTab(emptyNtpDetails, null, true);
 
         verify(mIncognitoTabCreator)
                 .createNewTab(
-                        argThat(new LoadUrlParamsUrlMatcher(UrlConstants.NTP_URL)),
+                        argThat(new LoadUrlParamsUrlMatcher(getOriginalNativeNtpUrl())),
                         eq(TabLaunchType.FROM_RESTORE),
                         isNull(),
                         eq(0));
@@ -348,7 +358,8 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.initializeRestoreVars(false);
 
         TabRestoreDetails emptyNtpDetails = new TabRestoreDetails(1, 0, false, url, false);
@@ -373,11 +384,12 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.initializeRestoreVars(false);
 
         TabRestoreDetails emptyNtpDetails =
-                new TabRestoreDetails(1, 0, true, UrlConstants.NTP_URL, false);
+                new TabRestoreDetails(1, 0, true, getOriginalNativeNtpUrl(), false);
         mPersistentStore.restoreTab(emptyNtpDetails, null, false);
 
         verifyNoMoreInteractions(mIncognitoTabCreator);
@@ -393,11 +405,12 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.initializeRestoreVars(true);
 
         TabRestoreDetails emptyNtpDetails =
-                new TabRestoreDetails(1, 0, true, UrlConstants.NTP_URL, false);
+                new TabRestoreDetails(1, 0, true, getOriginalNativeNtpUrl(), false);
         mPersistentStore.restoreTab(emptyNtpDetails, null, true);
 
         verifyNoMoreInteractions(mIncognitoTabCreator);
@@ -414,7 +427,8 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.initializeRestoreVars(false);
         when(mNormalTabCreator.createFrozenTab(any(), anyInt(), anyInt())).thenReturn(mTab);
         when(mTab.getUrl()).thenReturn(new GURL(RESTORE_TAB_STRING_1));
@@ -506,7 +520,7 @@ public class TabPersistentStoreUnitTest {
                 "Incorrect number of tabs in regular", 2, metadata.normalModelMetadata.ids.size());
         assertEquals(
                 "Incorrect URL for first NTP.",
-                UrlConstants.NTP_URL,
+                getOriginalNativeNtpUrl(),
                 metadata.normalModelMetadata.urls.get(0));
         assertEquals(
                 "Incorrect id for first NTP.",
@@ -616,7 +630,8 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.setSequencedTaskRunnerForTesting(mSequencedTaskRunner);
         mPersistentStore.onNativeLibraryReady();
         verify(mNormalTabModel).addObserver(mTabModelObserverCaptor.capture());
@@ -624,7 +639,7 @@ public class TabPersistentStoreUnitTest {
         mTabModelObserverCaptor
                 .getValue()
                 .didSelectTab(mTab, TabSelectionType.FROM_USER, TabModel.INVALID_TAB_INDEX);
-        verify(mSequencedTaskRunner).execute(any());
+        verify(mSequencedTaskRunner).execute(any(), any());
         reset(mSequencedTaskRunner);
 
         mTabModelObserverCaptor
@@ -634,7 +649,7 @@ public class TabPersistentStoreUnitTest {
                         TabLaunchType.FROM_RESTORE,
                         TabCreationState.FROZEN_ON_RESTORE,
                         /* markedForSelection= */ false);
-        verify(mSequencedTaskRunner).execute(any());
+        verify(mSequencedTaskRunner).execute(any(), any());
         reset(mSequencedTaskRunner);
     }
 
@@ -653,7 +668,8 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.setSequencedTaskRunnerForTesting(mSequencedTaskRunner);
         mPersistentStore.onNativeLibraryReady();
         verify(mNormalTabModel).addObserver(mTabModelObserverCaptor.capture());
@@ -662,7 +678,7 @@ public class TabPersistentStoreUnitTest {
         mTabModelObserverCaptor
                 .getValue()
                 .didSelectTab(mTab, TabSelectionType.FROM_USER, TabModel.INVALID_TAB_INDEX);
-        verify(mSequencedTaskRunner, never()).execute(any());
+        verify(mSequencedTaskRunner, never()).execute(any(), any());
 
         mTabModelObserverCaptor
                 .getValue()
@@ -671,7 +687,7 @@ public class TabPersistentStoreUnitTest {
                         TabLaunchType.FROM_RESTORE,
                         TabCreationState.FROZEN_ON_RESTORE,
                         /* markedForSelection= */ false);
-        verify(mSequencedTaskRunner, never()).execute(any());
+        verify(mSequencedTaskRunner, never()).execute(any(), any());
 
         // Now they should all trigger saves.
         when(mTabModelSelector.isTabStateInitialized()).thenReturn(true);
@@ -679,7 +695,7 @@ public class TabPersistentStoreUnitTest {
         mTabModelObserverCaptor
                 .getValue()
                 .didSelectTab(mTab, TabSelectionType.FROM_USER, TabModel.INVALID_TAB_INDEX);
-        verify(mSequencedTaskRunner).execute(any());
+        verify(mSequencedTaskRunner).execute(any(), any());
         reset(mSequencedTaskRunner);
 
         mTabModelObserverCaptor
@@ -689,7 +705,7 @@ public class TabPersistentStoreUnitTest {
                         TabLaunchType.FROM_RESTORE,
                         TabCreationState.FROZEN_ON_RESTORE,
                         /* markedForSelection= */ false);
-        verify(mSequencedTaskRunner).execute(any());
+        verify(mSequencedTaskRunner).execute(any(), any());
         reset(mSequencedTaskRunner);
     }
 
@@ -708,7 +724,8 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.setSequencedTaskRunnerForTesting(mSequencedTaskRunner);
         mPersistentStore.onNativeLibraryReady();
         verify(mNormalTabModel).addObserver(mTabModelObserverCaptor.capture());
@@ -716,7 +733,7 @@ public class TabPersistentStoreUnitTest {
         mTabModelObserverCaptor
                 .getValue()
                 .didSelectTab(mTab, TabSelectionType.FROM_USER, /* lastId= */ 0);
-        verify(mSequencedTaskRunner).execute(any());
+        verify(mSequencedTaskRunner).execute(any(), any());
         reset(mSequencedTaskRunner);
 
         mTabModelObserverCaptor
@@ -726,7 +743,7 @@ public class TabPersistentStoreUnitTest {
                         TabLaunchType.FROM_LINK,
                         TabCreationState.FROZEN_ON_RESTORE,
                         /* markedForSelection= */ false);
-        verify(mSequencedTaskRunner).execute(any());
+        verify(mSequencedTaskRunner).execute(any(), any());
         reset(mSequencedTaskRunner);
     }
 
@@ -745,26 +762,27 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.setSequencedTaskRunnerForTesting(mSequencedTaskRunner);
         mPersistentStore.onNativeLibraryReady();
         verify(mNormalTabModel).addObserver(mTabModelObserverCaptor.capture());
         TabModelObserver observer = mTabModelObserverCaptor.getValue();
 
         observer.didSelectTab(mTab, TabSelectionType.FROM_USER, /* lastId= */ 0);
-        verify(mSequencedTaskRunner).execute(any());
+        verify(mSequencedTaskRunner).execute(any(), any());
         reset(mSequencedTaskRunner);
 
         mPersistentStore.pauseSaveTabList();
         observer.didSelectTab(mTab, TabSelectionType.FROM_USER, /* lastId= */ 0);
-        verify(mSequencedTaskRunner, never()).execute(any());
+        verify(mSequencedTaskRunner, never()).execute(any(), any());
 
         mPersistentStore.resumeSaveTabList(() -> {});
-        verify(mSequencedTaskRunner).execute(any());
+        verify(mSequencedTaskRunner).execute(any(), any());
         reset(mSequencedTaskRunner);
 
         observer.didSelectTab(mTab, TabSelectionType.FROM_USER, /* lastId= */ 0);
-        verify(mSequencedTaskRunner).execute(any());
+        verify(mSequencedTaskRunner).execute(any(), any());
         reset(mSequencedTaskRunner);
     }
 
@@ -783,34 +801,35 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.setSequencedTaskRunnerForTesting(mSequencedTaskRunner);
         mPersistentStore.onNativeLibraryReady();
         verify(mNormalTabModel).addObserver(mTabModelObserverCaptor.capture());
         TabModelObserver observer = mTabModelObserverCaptor.getValue();
 
         observer.didSelectTab(mTab, TabSelectionType.FROM_USER, /* lastId= */ 0);
-        verify(mSequencedTaskRunner).execute(any());
+        verify(mSequencedTaskRunner).execute(any(), any());
         reset(mSequencedTaskRunner);
 
         mPersistentStore.pauseSaveTabList();
         observer.didSelectTab(mTab, TabSelectionType.FROM_USER, /* lastId= */ 0);
-        verify(mSequencedTaskRunner, never()).execute(any());
+        verify(mSequencedTaskRunner, never()).execute(any(), any());
 
         mPersistentStore.resumeSaveTabList(() -> {});
-        verify(mSequencedTaskRunner).execute(any());
+        verify(mSequencedTaskRunner).execute(any(), any());
         reset(mSequencedTaskRunner);
 
         observer.didSelectTab(mTab, TabSelectionType.FROM_USER, /* lastId= */ 0);
-        verify(mSequencedTaskRunner).execute(any());
+        verify(mSequencedTaskRunner).execute(any(), any());
         reset(mSequencedTaskRunner);
 
         mPersistentStore.pauseSaveTabList();
         mPersistentStore.resumeSaveTabList(() -> {});
-        verify(mSequencedTaskRunner, never()).execute(any());
+        verify(mSequencedTaskRunner, never()).execute(any(), any());
 
         observer.didSelectTab(mTab, TabSelectionType.FROM_USER, /* lastId= */ 0);
-        verify(mSequencedTaskRunner).execute(any());
+        verify(mSequencedTaskRunner).execute(any(), any());
         reset(mSequencedTaskRunner);
     }
 
@@ -830,7 +849,8 @@ public class TabPersistentStoreUnitTest {
                         mTabModelSelector,
                         mTabCreatorManager,
                         mTabWindowManager,
-                        mCipherFactory);
+                        mCipherFactory,
+                        /* recordLegacyTabCountMetrics= */ true);
         mPersistentStore.setSequencedTaskRunnerForTesting(mSequencedTaskRunner);
 
         UserDataHost userDataHost = new UserDataHost();
@@ -847,7 +867,7 @@ public class TabPersistentStoreUnitTest {
     @Test
     @Feature({"TabPersistentStore"})
     public void testShouldSkipTab_PinnedNtpIsNotSkipped() {
-        GURL ntpGurl = new GURL(UrlConstants.NTP_URL);
+        GURL ntpGurl = new GURL(getOriginalNativeNtpUrl());
         GURL regularGurl = new GURL(REGULAR_TAB_STRING_1);
 
         // Pinned NTPs should not be skipped.
@@ -874,7 +894,7 @@ public class TabPersistentStoreUnitTest {
         when(mNormalTabModel.getTabAtChecked(0)).thenReturn(regularTab1);
 
         Tab regularNtpTab1 = mock(Tab.class);
-        GURL ntpGurl = new GURL(UrlConstants.NTP_URL);
+        GURL ntpGurl = new GURL(getOriginalNativeNtpUrl());
         when(regularNtpTab1.getUrl()).thenReturn(ntpGurl);
         when(regularNtpTab1.isNativePage()).thenReturn(true);
         when(mNormalTabModel.getTabAtChecked(1)).thenReturn(regularNtpTab1);
@@ -906,7 +926,7 @@ public class TabPersistentStoreUnitTest {
         // current active Tab.
         when(mNormalTabModel.index()).thenReturn(1);
         Tab regularNtpTab1 = mock(Tab.class);
-        GURL ntpGurl = new GURL(UrlConstants.NTP_URL);
+        GURL ntpGurl = new GURL(getOriginalNativeNtpUrl());
         when(regularNtpTab1.getUrl()).thenReturn(ntpGurl);
         when(regularNtpTab1.isNativePage()).thenReturn(true);
         when(mNormalTabModel.getTabAtChecked(0)).thenReturn(regularNtpTab1);
@@ -926,7 +946,7 @@ public class TabPersistentStoreUnitTest {
         when(mNormalTabModel.getCount()).thenReturn(3);
         when(mNormalTabModel.index()).thenReturn(2);
 
-        GURL ntpGurl = new GURL(UrlConstants.NTP_URL);
+        GURL ntpGurl = new GURL(getOriginalNativeNtpUrl());
 
         // Non-active NTP with no state.
         Tab regularNtpTab1 = mock(Tab.class);

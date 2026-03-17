@@ -10,9 +10,9 @@ import android.util.ArrayMap;
 import org.jni_zero.CalledByNative;
 import org.jni_zero.NativeMethods;
 
+import org.chromium.base.ResettersForTesting;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.profiles.Profile;
-import org.chromium.chrome.browser.profiles.ProfileManager;
 import org.chromium.chrome.browser.ui.browser_window.ChromeAndroidTask;
 
 import java.util.ArrayList;
@@ -21,8 +21,7 @@ import java.util.Map;
 
 /** Implements {@link ExtensionWindowControllerBridge}. */
 @NullMarked
-final class ExtensionWindowControllerBridgeImpl
-        implements ExtensionWindowControllerBridge, ProfileManager.Observer {
+final class ExtensionWindowControllerBridgeImpl implements ExtensionWindowControllerBridge {
 
     /**
      * Events received by the native singleton {@code WindowControllerListObserverForTesting}.
@@ -41,15 +40,16 @@ final class ExtensionWindowControllerBridgeImpl
      * has been loaded, which usually means starting a {@code ChromeTabbedActivity}. Otherwise, the
      * JNI call in the method will cause {@code UnsatisfiedLinkError}.
      */
-    static void addWindowControllerListObserverForTesting() {
+    static void initializeWindowControllerListObserverForTesting() {
         ExtensionWindowControllerBridgeImplJni.get()
                 .addWindowControllerListObserverForTesting(); // IN-TEST
-    }
 
-    static void removeWindowControllerListObserverForTesting() {
-        ExtensionWindowControllerBridgeImplJni.get()
-                .removeWindowControllerListObserverForTesting(); // IN-TEST
-        sExtensionInternalEventsForTesting.clear();
+        ResettersForTesting.register(
+                () -> {
+                    ExtensionWindowControllerBridgeImplJni.get()
+                            .removeWindowControllerListObserverForTesting(); // IN-TEST
+                    sExtensionInternalEventsForTesting.clear();
+                });
     }
 
     static Map<Integer, List<@ExtensionInternalWindowEventForTesting Integer>>
@@ -74,10 +74,13 @@ final class ExtensionWindowControllerBridgeImpl
 
     private final ChromeAndroidTask mChromeAndroidTask;
 
+    private final Profile mProfile;
+
     private long mNativeExtensionWindowControllerBridge;
 
-    ExtensionWindowControllerBridgeImpl(ChromeAndroidTask chromeAndroidTask) {
+    ExtensionWindowControllerBridgeImpl(ChromeAndroidTask chromeAndroidTask, Profile profile) {
         mChromeAndroidTask = chromeAndroidTask;
+        mProfile = profile;
     }
 
     @Override
@@ -85,18 +88,16 @@ final class ExtensionWindowControllerBridgeImpl
         assert mNativeExtensionWindowControllerBridge == 0
                 : "ExtensionWindowControllerBridge is already added to a task.";
 
-        ProfileManager.addObserver(this);
         mNativeExtensionWindowControllerBridge =
                 ExtensionWindowControllerBridgeImplJni.get()
                         .create(
                                 /* caller= */ this,
-                                mChromeAndroidTask.getOrCreateNativeBrowserWindowPtr());
+                                mChromeAndroidTask.getOrCreateNativeBrowserWindowPtr(mProfile));
     }
 
     @Override
-    public void onTaskRemoved() {
+    public void onFeatureRemoved() {
         destroyNativeExtensionWindowControllerBridge();
-        ProfileManager.removeObserver(this);
     }
 
     @Override
@@ -112,32 +113,6 @@ final class ExtensionWindowControllerBridgeImpl
         if (mNativeExtensionWindowControllerBridge != 0) {
             ExtensionWindowControllerBridgeImplJni.get()
                     .onTaskFocusChanged(mNativeExtensionWindowControllerBridge, hasFocus);
-        }
-    }
-
-    @Override
-    public void onProfileAdded(Profile profile) {}
-
-    @Override
-    public void onProfileDestroyed(Profile profile) {
-        // This is a short-term fix for http://crbug.com/450234852.
-        //
-        // The native extension code is cross-platform and depends on BrowserWindowInterface. Per
-        // documentation of BrowserWindowInterface::GetProfile(), cross-platform code assumes
-        // BrowserWindowInterface will always be destroyed *before* its Profile.
-        //
-        // See:
-        // https://source.chromium.org/chromium/chromium/src/+/main:chrome/browser/ui/browser_window/public/browser_window_interface.h;l=108;drc=c8dc70b538f1bb0862f1be58237d6e945ee81819
-        //
-        // However, on Android, http://crbug.com/450234852 reveals a case where the Profile is
-        // destroyed before its BrowserWindowInterface, which caused native extension code to
-        // dereference an invalid Profile pointer.
-        //
-        // To avoid this issue, we destroy the native objects for extensions as soon as the native
-        // Profile is about to be destroyed. The long-term fix should be to correct the object
-        // destruction order for the case described in http://crbug.com/450234852.
-        if (profile == mChromeAndroidTask.getProfile()) {
-            destroyNativeExtensionWindowControllerBridge();
         }
     }
 

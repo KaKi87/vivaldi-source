@@ -1,21 +1,19 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="de">
-<translation id="1089894737218087497">Eigenständige Installation</translation>
 <translation id="1682285232070778125">Vivaldi als Standardbrowser festlegen</translation>
+<translation id="1775102330209840064">Absturzberichte senden, damit wir die Produktqualität verbessern können</translation>
 <translation id="1974060860693918893">Erweitert</translation>
 <translation id="2053560788696003312">Vivaldi erfordert Windows 10 oder höher.</translation>
 <translation id="2134216661302048561">Die Vivaldi Installationsprogramm hat die Installation des Browsers noch nicht abgeschlossen. Sind Sie sicher, dass Sie es jetzt beenden wollen?</translation>
-<translation id="2286454467119466181">Einfach</translation>
 <translation id="237789874664518125">Copyright <ph name="YEAR" /> Vivaldi Technologies AS. Alle Rechte vorbehalten.. &lt;a&gt;Datenschutzerklärung&lt;/a&gt;</translation>
-<translation id="3004507951429848293">Durch Klicken auf die Schaltfläche „Akzeptieren und aktualisieren“ stimmen Sie den &lt;a&gt;Nutzungsbedingungen&lt;/a&gt; von Vivaldi zu</translation>
+<translation id="3355081107855563356">Durch Klicken auf die Schaltfläche „Akzeptieren und installieren“ stimmen Sie den &lt;a&gt;Nutzungsbedingungen&lt;/a&gt; von Vivaldi zu</translation>
 <translation id="335985608243443814">Durchsuchen …</translation>
 <translation id="3485073444286678268">Der Zielordner ist unzulässig. Bitte wählen Sie einen anderen.</translation>
+<translation id="3601875200579023345">Pro Benutzer</translation>
 <translation id="3784826321032465839">Vivaldi installieren</translation>
-<translation id="4079588913451946215">Für alle Benutzer installieren</translation>
+<translation id="4066679519692422625">Die Installation ist aufgrund eines unbestimmten Fehlers fehlgeschlagen. Bitte laden Sie Vivaldi erneut herunter.</translation>
 <translation id="421958613172216971">Ordner auswählen</translation>
-<translation id="4234678621326711327">Nur für diesen Benutzer installieren</translation>
-<translation id="4322221081772213228">Durch Klicken auf die Schaltfläche „Akzeptieren und installieren“ stimmen Sie den &lt;a&gt;Nutzungsbedingungen&lt;/a&gt; von Vivaldi zu</translation>
 <translation id="4380252528729894811">Zielordner</translation>
 <translation id="460304900852424163">Automatische Updates deaktivieren (nicht empfohlen)</translation>
 <translation id="4619978527973181021">Akzeptieren und installieren</translation>
@@ -23,11 +21,16 @@
 <translation id="5051728323101947360">Eigenständig installierten Vivaldi Browser als Standardanwendung einrichten</translation>
 <translation id="5247376421371319618">Akzeptieren und aktualisieren</translation>
 <translation id="5302048478445481009">Sprache</translation>
+<translation id="6665592435383088482">Eigenständig</translation>
 <translation id="694714344624446243">Vivaldi Installationsprogramm</translation>
+<translation id="7298195798382681320">Empfohlen</translation>
 <translation id="7467493612551448880">Die Version von Vivaldi, die Sie installieren, ist nicht für die Version von Windows optimiert, die Sie verwenden.
 
 Besuchen Sie vivaldi.com/download, um die Windows Arm Version herunterzuladen.</translation>
 <translation id="7658239707568436148">Abbrechen</translation>
 <translation id="8773751185824654197">Hinweis: Wenn Sie einen geöffneten Vivaldi-Browser aktualisieren, wird dessen Instanz geschlossen und neu gestartet</translation>
+<translation id="9163437061188815291">Durch Klicken auf die Schaltfläche „Akzeptieren und aktualisieren“ stimmen Sie den &lt;a&gt;Nutzungsbedingungen&lt;/a&gt; von Vivaldi zu</translation>
+<translation id="9175596866737867642">Freuen Sie sich auf unvergleichliche Anpassungsmöglichkeiten und integrierte Browserfunktionen für mehr Leistung, Produktivität und Datenschutz 🎉</translation>
 <translation id="933060950687965486">Installationstyp</translation>
+<translation id="963837307749850257">Alle Benutzer</translation>
 </translationbundle>

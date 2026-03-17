@@ -152,7 +152,9 @@ foreach(_target_config, CHROMIUM_VIVALDI_RESOURCE_LIST) {
 
   grit_suffix = "_grit"
   if (is_android && defined(_flags.java_grd_name) && _flags.java_grd_name) {
-    grit_suffix = "__grit" + grit_suffix
+    grit_suffix = "_grit"
+  } else if (!defined(_flags.have_strings_flag) || _flags.have_strings_flag || (defined(_flags.use_strings_target) && _flags.use_strings_target)) {
+    grit_suffix = "__strings_grit"
   }
   update_target(_target+grit_suffix) {
     inputs += [

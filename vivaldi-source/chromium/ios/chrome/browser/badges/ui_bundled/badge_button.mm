@@ -126,13 +126,12 @@ const CGFloat kButtonCircularCornerRadiusDivisor = 2.0;
       return accepted
                  ? kBadgeButtonPermissionsMicrophoneAcceptedAccessibilityIdentifier
                  : kBadgeButtonPermissionsMicrophoneAccessibilityIdentifier;
-
-    // Vivaldi
     case kBadgeTypeReaderMode:
+      // Vivaldi
       return accepted
                  ? kBadgeButtonReaderModeAcceptedAccessibilityIdentifier
                  : kBadgeButtonReaderModeAccessibilityIdentifier;
-  // End Vivaldi
+      // End Vivaldi
 
   }
 }

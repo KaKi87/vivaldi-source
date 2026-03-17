@@ -18,7 +18,7 @@ constexpr char kTabIdKey[] = "tab_id";
 constexpr char kInspectTabIdKey[] = "inspect_tab_id";
 
 bool GuestViewInternalCreateGuestFunction::GetExternalWebContents(
-    const base::Value::Dict& create_params) {
+    const base::DictValue& create_params) {
   auto callback = base::BindOnce(
       &GuestViewInternalCreateGuestFunction::CreateGuestCallback, this);
   content::WebContents* contents = nullptr;
@@ -34,11 +34,8 @@ bool GuestViewInternalCreateGuestFunction::GetExternalWebContents(
     bool include_incognito = true;
     Profile* profile = Profile::FromBrowserContext(browser_context());
     WindowController* browser;
-    VivaldiBrowserComponentWrapper::GetInstance()
-        ->ExtensionTabUtilGetTabById(tab_id, profile,
-                                               include_incognito,
-                                             &browser, &contents,
-                                             &tab_index);
+    VivaldiBrowserComponentWrapper::GetInstance()->ExtensionTabUtilGetTabById(
+        tab_id, profile, include_incognito, &browser, &contents, &tab_index);
   }
 
   // We also need to clean up guests used for webviews in our docked devtools.
@@ -46,8 +43,8 @@ bool GuestViewInternalCreateGuestFunction::GetExternalWebContents(
   // is a devtools item with a webcontents. Find the guest and delete it to
   // prevent dangling guest objects.
   content::WebContents* devtools_contents =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          DevToolsWindowGetDevtoolsWebContentsForInspectedWebContents(
+      VivaldiBrowserComponentWrapper::GetInstance()
+          ->DevToolsWindowGetDevtoolsWebContentsForInspectedWebContents(
               contents);
 
   if (devtools_contents) {

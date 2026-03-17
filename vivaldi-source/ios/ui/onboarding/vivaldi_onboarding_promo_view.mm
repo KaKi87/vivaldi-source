@@ -10,7 +10,7 @@
 #import "ios/ui/onboarding/vivaldi_onboarding_swift.h"
 
 namespace {
-NSString *const kOnboardingStartImageName = @"onboarding_start";
+NSString* const kOnboardingStartImageName = @"onboarding_start";
 CGFloat const kPlayerViewSize = 144.0;
 CGFloat const kLogoViewSize = 120.0;
 UIEdgeInsets const kTextStackViewPadding = {32, 8, 0, 8};
@@ -19,26 +19,26 @@ CGFloat const kLogoPlayerViewYAnchorConstant = -120.0;
 NSTimeInterval const kAnimationDuration = 0.5;
 NSTimeInterval const kAnimationDurationPlayerView = 0.2;
 NSTimeInterval const kAnimationDelay = 0.0;
-}
+}  // namespace
 
 @interface VivaldiOnboardingPromoView ()
 
-@property (nonatomic,strong) AVPlayerLayer *playerLayer;
-@property (nonatomic,strong) AVPlayer *player;
+@property(nonatomic, strong) AVPlayerLayer* playerLayer;
+@property(nonatomic, strong) AVPlayer* player;
 // This view holds the video player.
-@property (nonatomic,strong) UIView *playerView;
+@property(nonatomic, strong) UIView* playerView;
 
 // Logo view holds the Vivaldi logo that stays after the logo animation video
 // is finished.
-@property (nonatomic,weak) UIImageView *logoView;
-@property (nonatomic,weak) UILabel *titleLabel;
-@property (nonatomic,weak) UILabel *subtitleLabel;
+@property(nonatomic, weak) UIImageView* logoView;
+@property(nonatomic, weak) UILabel* titleLabel;
+@property(nonatomic, weak) UILabel* subtitleLabel;
 
 // The model that holds the data for title and subtitle.
-@property (nonatomic,strong) VivaldiOnboardingDataModel *dataModel;
+@property(nonatomic, strong) VivaldiOnboardingDataModel* dataModel;
 
 // Y constraint to animate the logo from center when promo animation is finished
-@property (nonatomic,strong) NSLayoutConstraint *logoPlayerViewYAnchor;
+@property(nonatomic, strong) NSLayoutConstraint* logoPlayerViewYAnchor;
 
 @end
 
@@ -74,9 +74,8 @@ NSTimeInterval const kAnimationDelay = 0.0;
   [self setupNotificationObserver];
 
   if (@available(iOS 17, *)) {
-    NSArray<UITrait>* traits = TraitCollectionSetForTraits(@[
-      UITraitVerticalSizeClass.class, UITraitHorizontalSizeClass.class
-    ]);
+    NSArray<UITrait>* traits = TraitCollectionSetForTraits(
+        @[ UITraitVerticalSizeClass.class, UITraitHorizontalSizeClass.class ]);
     [self registerForTraitChanges:traits
                        withAction:@selector(updatePlayerLayerFrame)];
 
@@ -91,40 +90,38 @@ NSTimeInterval const kAnimationDelay = 0.0;
   [self addSubview:self.playerView];
   [self.playerView setViewSize:CGSizeMake(kPlayerViewSize, kPlayerViewSize)];
   [self.playerView centerXInSuperview];
-  self.logoPlayerViewYAnchor =
-      [self.playerView.centerYAnchor
-          constraintEqualToAnchor:self.centerYAnchor];
+  self.logoPlayerViewYAnchor = [self.playerView.centerYAnchor
+      constraintEqualToAnchor:self.centerYAnchor];
   self.logoPlayerViewYAnchor.active = YES;
 
   // Logo view
-  UIImage *logoImage = [UIImage imageNamed:kOnboardingStartImageName];
-  UIImageView *logoView = [[UIImageView alloc] initWithImage:logoImage];
+  UIImage* logoImage = [UIImage imageNamed:kOnboardingStartImageName];
+  UIImageView* logoView = [[UIImageView alloc] initWithImage:logoImage];
   _logoView = logoView;
   [self addSubview:logoView];
 
   [logoView setViewSize:CGSizeMake(kLogoViewSize, kLogoViewSize)];
   [logoView centerXInSuperview];
 
-  [logoView.centerYAnchor
-      constraintEqualToAnchor:self.playerView.centerYAnchor].active = YES;
+  [logoView.centerYAnchor constraintEqualToAnchor:self.playerView.centerYAnchor]
+      .active = YES;
   logoView.alpha = 0;
   [self sendSubviewToBack:logoView];
 
   // Title and subtitle
-  UILabel *titleLabel = [UILabel new];
+  UILabel* titleLabel = [UILabel new];
   _titleLabel = titleLabel;
   titleLabel.textColor = UIColor.labelColor;
   titleLabel.adjustsFontForContentSizeCategory = YES;
-  UIFontDescriptor *boldFontDescriptor =
-  [[UIFontDescriptor
+  UIFontDescriptor* boldFontDescriptor = [[UIFontDescriptor
       preferredFontDescriptorWithTextStyle:UIFontTextStyleTitle1]
-        fontDescriptorWithSymbolicTraits:UIFontDescriptorTraitBold];
+      fontDescriptorWithSymbolicTraits:UIFontDescriptorTraitBold];
   titleLabel.font = [UIFont fontWithDescriptor:boldFontDescriptor size:0.0];
   titleLabel.numberOfLines = 0;
   titleLabel.textAlignment = NSTextAlignmentCenter;
   titleLabel.alpha = 0;
 
-  UILabel *subtitleLabel = [UILabel new];
+  UILabel* subtitleLabel = [UILabel new];
   _subtitleLabel = subtitleLabel;
   subtitleLabel.textColor = UIColor.secondaryLabelColor;
   subtitleLabel.adjustsFontForContentSizeCategory = YES;
@@ -134,9 +131,8 @@ NSTimeInterval const kAnimationDelay = 0.0;
   subtitleLabel.alpha = 0;
 
   // Stackview for title and subtitle
-  UIStackView *textStackView =
-      [[UIStackView alloc] initWithArrangedSubviews:@[self.titleLabel,
-                                                      self.subtitleLabel]];
+  UIStackView* textStackView = [[UIStackView alloc]
+      initWithArrangedSubviews:@[ self.titleLabel, self.subtitleLabel ]];
   textStackView.distribution = UIStackViewDistributionFill;
   textStackView.spacing = kTextStackViewSpacing;
   textStackView.axis = UILayoutConstraintAxisVertical;
@@ -161,11 +157,12 @@ NSTimeInterval const kAnimationDelay = 0.0;
   self.playerLayer.videoGravity = AVLayerVideoGravityResizeAspectFill;
   [self.playerView.layer addSublayer:self.playerLayer];
 
-  NSURL *fileUrl = [self videoFileURL];
-  if (!fileUrl) return;
+  NSURL* fileUrl = [self videoFileURL];
+  if (!fileUrl)
+    return;
 
-  AVAsset *asset = [AVAsset assetWithURL:fileUrl];
-  AVPlayerItem *item = [AVPlayerItem playerItemWithAsset:asset];
+  AVAsset* asset = [AVAsset assetWithURL:fileUrl];
+  AVPlayerItem* item = [AVPlayerItem playerItemWithAsset:asset];
 
   self.player = [AVQueuePlayer playerWithPlayerItem:item];
   ((AVQueuePlayer*)self.player).actionAtItemEnd = AVPlayerActionAtItemEndPause;
@@ -176,39 +173,40 @@ NSTimeInterval const kAnimationDelay = 0.0;
 }
 
 - (NSURL*)videoFileURL {
-  NSString *fileName =
-      self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark ?
-        [VivaldiOnboardingVideoConstants logoAnimDark] :
-        [VivaldiOnboardingVideoConstants logoAnimLight];
+  NSString* fileName =
+      self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark
+          ? [VivaldiOnboardingVideoConstants logoAnimDark]
+          : [VivaldiOnboardingVideoConstants logoAnimLight];
 
-  NSURL *fileUrl =
-      [[NSBundle mainBundle]
-         URLForResource:fileName
-          withExtension:[VivaldiOnboardingVideoConstants fileExtension]
-           subdirectory:[VivaldiOnboardingVideoConstants bundlePath]];
+  NSURL* fileUrl = [[NSBundle mainBundle]
+      URLForResource:fileName
+       withExtension:[VivaldiOnboardingVideoConstants fileExtension]
+        subdirectory:[VivaldiOnboardingVideoConstants bundlePath]];
   return fileUrl;
 }
 
 - (void)restartPlayer {
-  if (!self.player) return;
+  if (!self.player)
+    return;
   CMTime currentTime = self.player.currentTime;
   if (!CMTIME_IS_VALID(currentTime)) {
     return;
   }
 
-  NSURL *fileUrl = [self videoFileURL];
-  if (!fileUrl) return;
+  NSURL* fileUrl = [self videoFileURL];
+  if (!fileUrl)
+    return;
 
-  AVPlayerItem *playerItem = [AVPlayerItem playerItemWithURL:fileUrl];
+  AVPlayerItem* playerItem = [AVPlayerItem playerItemWithURL:fileUrl];
   [self.player replaceCurrentItemWithPlayerItem:playerItem];
   [self.player seekToTime:currentTime
           toleranceBefore:kCMTimeZero
            toleranceAfter:kCMTimeZero
         completionHandler:^(BOOL finished) {
-    if (finished) {
-      [self.player play];
-    }
-  }];
+          if (finished) {
+            [self.player play];
+          }
+        }];
 }
 
 #pragma mark - Animation Methods
@@ -216,14 +214,15 @@ NSTimeInterval const kAnimationDelay = 0.0;
 - (void)animateAppearance {
   self.logoView.alpha = 1;
   [UIView animateWithDuration:kAnimationDurationPlayerView
-                        delay:kAnimationDelay
-                      options:UIViewAnimationCurveEaseOut
-                   animations:^{
-    self.playerView.alpha = 0;
-    [self layoutIfNeeded];
-  } completion:^(BOOL alphaFinished) {
-    [self animateTextAppearance];
-  }];
+      delay:kAnimationDelay
+      options:UIViewAnimationCurveEaseOut
+      animations:^{
+        self.playerView.alpha = 0;
+        [self layoutIfNeeded];
+      }
+      completion:^(BOOL alphaFinished) {
+        [self animateTextAppearance];
+      }];
 }
 
 - (void)animateTextAppearance {
@@ -235,23 +234,25 @@ NSTimeInterval const kAnimationDelay = 0.0;
                         delay:kAnimationDelay
                       options:UIViewAnimationCurveEaseOut
                    animations:^{
-    self.logoPlayerViewYAnchor.constant = kLogoPlayerViewYAnchorConstant;
-    self.titleLabel.alpha = 1;
-    self.subtitleLabel.alpha = 1;
-    [self layoutIfNeeded];
-  } completion:nil];
+                     self.logoPlayerViewYAnchor.constant =
+                         kLogoPlayerViewYAnchorConstant;
+                     self.titleLabel.alpha = 1;
+                     self.subtitleLabel.alpha = 1;
+                     [self layoutIfNeeded];
+                   }
+                   completion:nil];
 }
 
 #pragma mark - Notifications
 - (void)setupNotificationObserver {
   [[NSNotificationCenter defaultCenter]
-       addObserver:self
-          selector:@selector(playerItemDidPlayToEndTime:)
-              name:AVPlayerItemDidPlayToEndTimeNotification
-            object:nil];
+      addObserver:self
+         selector:@selector(playerItemDidPlayToEndTime:)
+             name:AVPlayerItemDidPlayToEndTimeNotification
+           object:nil];
 }
 
-- (void)playerItemDidPlayToEndTime:(NSNotification *)notification {
+- (void)playerItemDidPlayToEndTime:(NSNotification*)notification {
   [self animateAppearance];
 }
 

@@ -8,6 +8,7 @@
 
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/gmock_expected_support.h"
 #include "base/test/test_future.h"
@@ -134,25 +135,6 @@ TEST_F(SignedWebBundleMetadataTest, Succeeds) {
           Property(&SignedWebBundleMetadata::version,
                    Eq(*IwaVersion::Create("3.4.5"))),
           Property(&SignedWebBundleMetadata::app_id, Eq(url_info.app_id())))));
-}
-
-TEST_F(SignedWebBundleMetadataTest, FailsWhenWebBundleIdNotTrusted) {
-  IsolatedWebAppUrlInfo url_info = WriteBundleToDisk();
-  SetTrustedWebBundleIdsForTesting({});
-  FakeWebContentsManager& fake_web_contents_manager =
-      static_cast<FakeWebContentsManager&>(
-          fake_provider().web_contents_manager());
-  MockIconAndPageState(fake_web_contents_manager, url_info);
-
-  base::test::TestFuture<base::expected<SignedWebBundleMetadata, std::string>>
-      metadata_future;
-  SignedWebBundleMetadata::Create(profile(), &fake_provider(), url_info,
-                                  bundle_source(),
-                                  metadata_future.GetCallback());
-  base::expected<SignedWebBundleMetadata, std::string> metadata =
-      metadata_future.Get();
-
-  EXPECT_THAT(metadata, ErrorIs(HasSubstr("not trusted")));
 }
 
 TEST_F(SignedWebBundleMetadataTest, FailsWhenBundleInvalid) {

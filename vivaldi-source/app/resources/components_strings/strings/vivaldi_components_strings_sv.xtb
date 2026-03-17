@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Anslutningen till den här webbplatsen är inte helt säker</translation>
 <translation id="4265872034478892965">Beviljades av administratören</translation>
 <translation id="4305666528087210886">Din fil gick inte att komma åt</translation>
-<translation id="4408413947728134509">Kakor <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> godkände inte inloggningscertifikatet eller så har inget inloggningscertifikat angetts.</translation>
 <translation id="4506599922270137252">Kontakta systemadministratören</translation>
 <translation id="4522570452068850558">Detaljer</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Inga resultat</translation>
 <translation id="5017554619425969104">Texten som du kopierade</translation>
 <translation id="5023310440958281426">Kontrollera administratörsprinciperna</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1 {(1 används)} other {(# används)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Kontrollerar adressen till mellanservern (proxyn)<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 bitar)</translation>
 <translation id="5216942107514965959">Senast besökt idag</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Du bör inte ange några känsliga uppgifter på den här webbplatsen (till exempel lösenord eller kreditkortsuppgifter) eftersom angripare kan stjäla dem.</translation>
 <translation id="5863515189965725638">Redigera IBAN</translation>
 <translation id="5869405914158311789">Webbplatsen kan inte nås</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{1 används}other{# används}}</translation>
 <translation id="5932224571077948991">Påträngande eller vilseledande annonser visas på webbplatsen</translation>
 <translation id="6051221802930200923">Du kan inte besöka <ph name="SITE" /> just nu eftersom tekniken att fästa certifikat används på webbplatsen. Nätverksfel och attacker är ofta tillfälliga, så sidan kommer förmodligen att fungera senare.</translation>
 <translation id="6146055958333702838">Kontrollera kablar och starta om routrar, modem och andra nätverksenheter

@@ -199,8 +199,7 @@ bool ServiceImpl::DoSetScriptOverrideForTab(content::WebContents* tab_contents,
   if (!was_enabled && script_override == Service::kEnabledOverride) {
     if (script_path.MatchesExtension(kJSExtension)) {
       ChangeStaticInjectionForFrame(
-          tab_contents, tab_contents->GetPrimaryMainFrame(),
-                                    script_path, true);
+          tab_contents, tab_contents->GetPrimaryMainFrame(), script_path, true);
     } else {
       tab_contents->ForEachRenderFrameHost(
           [tab_contents, script_path](content::RenderFrameHost* rfh) {
@@ -212,11 +211,10 @@ bool ServiceImpl::DoSetScriptOverrideForTab(content::WebContents* tab_contents,
       // Can't unload injected Javascript.
       tab_contents->GetController().Reload(content::ReloadType::NORMAL, true);
     } else {
-      tab_contents->ForEachRenderFrameHost(
-          [tab_contents, script_path](content::RenderFrameHost* rfh) {
-            ChangeStaticInjectionForFrame(tab_contents, rfh, script_path,
-                                          false);
-          });
+      tab_contents->ForEachRenderFrameHost([tab_contents, script_path](
+                                               content::RenderFrameHost* rfh) {
+        ChangeStaticInjectionForFrame(tab_contents, rfh, script_path, false);
+      });
     }
   }
 

@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Sua conexão com esse site não é completamente segura</translation>
 <translation id="4265872034478892965">Permitido pelo administrador</translation>
 <translation id="4305666528087210886">Não foi possível acessar seu arquivo</translation>
-<translation id="4408413947728134509">Cookies: <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544">O certificado de login não foi aceito por <ph name="HOST_NAME" /> ou não foi fornecido.</translation>
 <translation id="4506599922270137252">Entrar em contato com o administrador do sistema</translation>
 <translation id="4522570452068850558">Detalhes</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Nenhum resultado</translation>
 <translation id="5017554619425969104">Texto copiado</translation>
 <translation id="5023310440958281426">Verifique as políticas do administrador</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 em uso)} other {(# em uso)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Verificar o endereço do proxy<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 bits)</translation>
 <translation id="5216942107514965959">Última visita hoje</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Você não deve fornecer nenhuma informação confidencial neste site (como senhas importantes ou números de cartão de crédito), pois elas podem ser roubadas por qualquer invasor que interceptar os dados entre você e o site.</translation>
 <translation id="5863515189965725638">Editar IBAN</translation>
 <translation id="5869405914158311789">Não foi possível acessar este site</translation>
-<translation id="5920262536204764679">{NUM_COOKIES, plural, =0 {Nenhum} =1 {1 em uso} other {# em uso}}</translation>
 <translation id="5932224571077948991">No site, há exibição de anúncios invasivos ou enganosos</translation>
 <translation id="6051221802930200923">Não é possível acessar <ph name="SITE" /> no momento, porque o site usa bloqueio de certificados. Como os ataques e erros de rede são geralmente temporários, esta pagina provavelmente funcionará mais tarde.</translation>
 <translation id="6146055958333702838">Verifique todos os cabos e reinicie todos os roteadores, modens ou outros dispositivos de rede

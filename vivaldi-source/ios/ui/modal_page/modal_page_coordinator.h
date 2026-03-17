@@ -19,7 +19,6 @@ class Browser;
 - (instancetype)initWithBaseViewController:(UIViewController*)baseViewController
                                    browser:(Browser*)browser NS_UNAVAILABLE;
 
-
 @end
 
 #endif  // IOS_UI_MODAL_PAGE_MODAL_PAGE_COORDINATOR_H_

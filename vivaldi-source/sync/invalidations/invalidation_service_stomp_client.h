@@ -24,7 +24,7 @@ namespace stomp {
 class StompFrameBuilder;
 }
 
-class InvalidationServiceStompClient: public network::mojom::SocketObserver {
+class InvalidationServiceStompClient : public network::mojom::SocketObserver {
  public:
   class Delegate {
    public:
@@ -79,7 +79,8 @@ class InvalidationServiceStompClient: public network::mojom::SocketObserver {
 
   mojo::Remote<network::mojom::ProxyResolvingSocketFactory> socket_factory_;
   mojo::Remote<network::mojom::ProxyResolvingSocket> socket_;
-  mojo::Receiver<network::mojom::SocketObserver> socket_observer_receiver_{this};
+  mojo::Receiver<network::mojom::SocketObserver> socket_observer_receiver_{
+      this};
 
   mojo::ScopedDataPipeConsumerHandle readable_;
   mojo::SimpleWatcher readable_watcher_;

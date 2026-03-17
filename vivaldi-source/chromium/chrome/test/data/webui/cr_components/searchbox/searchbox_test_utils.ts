@@ -2,37 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {createAutocompleteMatch} from 'chrome://new-tab-page/new_tab_page.js';
-import type {AutocompleteMatch, AutocompleteResult} from 'chrome://resources/mojo/components/omnibox/browser/searchbox.mojom-webui.js';
+import type {InputState} from 'chrome://resources/mojo/components/omnibox/composebox/composebox_query.mojom-webui.js';
 import {assertEquals} from 'chrome://webui-test/chai_assert.js';
-
-export function createAutocompleteResult(
-    modifiers: Partial<AutocompleteResult> = {}): AutocompleteResult {
-  const base: AutocompleteResult = {
-    input: '',
-    matches: [],
-    suggestionGroupsMap: {},
-    smartComposeInlineHint: null,
-  };
-
-  return Object.assign(base, modifiers);
-}
-
-export function createSearchMatch(modifiers: Partial<AutocompleteMatch> = {}):
-    AutocompleteMatch {
-  return Object.assign(
-      createAutocompleteMatch(), {
-        isSearchType: true,
-        contents: 'hello world',
-        contentsClass: [{offset: 0, style: 0}],
-        description: 'Google search',
-        descriptionClass: [{offset: 0, style: 4}],
-        destinationUrl: {url: 'https://www.google.com/search?q=hello+world'},
-        fillIntoEdit: 'hello world',
-        type: 'search-what-you-typed',
-      },
-      modifiers);
-}
 
 /**
  * Asserts the computed style value for an element.
@@ -75,4 +46,27 @@ export function waitForAttributeChange(
       attributeFilter: [attributeName],
     });
   });
+}
+
+export function createInputState(overrides?: Partial<InputState>): InputState {
+  return Object.assign(
+      {
+        allowedTools: [],
+        disabledTools: [],
+        toolConfigs: [],
+        toolsSectionConfig: {header: ''},
+        allowedModels: [],
+        disabledModels: [],
+        activeModel: 0,
+        activeTool: 0,
+        hintText: '',
+        modelConfigs: [],
+        modelSectionConfig: {header: ''},
+        allowedInputTypes: [],
+        disabledInputTypes: [],
+        inputTypeConfigs: [],
+        maxInstances: {},
+        maxTotalInputs: 0,
+      },
+      overrides);
 }

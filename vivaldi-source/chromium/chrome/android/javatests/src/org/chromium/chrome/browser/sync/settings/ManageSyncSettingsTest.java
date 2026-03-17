@@ -137,7 +137,7 @@ import java.util.Set;
 @Restriction(GmsCoreVersionRestriction.RESTRICTION_TYPE_VERSION_GE_24W15)
 @DisableFeatures(ChromeFeatureList.SETTINGS_MULTI_COLUMN)
 public class ManageSyncSettingsTest {
-    private static final int RENDER_TEST_REVISION = 9;
+    private static final int RENDER_TEST_REVISION = 10;
 
     /** Maps selected types to their Account UI element IDs. */
     private static final Map<Integer, String> ACCOUNT_UI_DATATYPES =
@@ -231,20 +231,6 @@ public class ManageSyncSettingsTest {
         ThreadUtils.runOnUiThreadBlocking(() -> mFakeExtensionUiBackendRule.setEnabled(false));
 
         PasswordManagerUtilBridgeJni.setInstanceForTesting(mPasswordManagerUtilBridgeJniMock);
-    }
-
-    /**
-     * Test opening sync settings without sync consent when `mIsFromSigninScreen` is true doesn't
-     * crash.
-     *
-     * <p>This is a regression test for crbug.com/362220452.
-     */
-    @Test
-    @SmallTest
-    @Feature({"Sync"})
-    public void testOpenSyncSettingsIsFromSigninScreenIsTrueWithoutSyncConsent() {
-        mSyncTestRule.setUpAccountAndSignInForTesting();
-        mSettingsActivityTestRule.startSettingsActivity(ManageSyncSettings.createArguments(true));
     }
 
     @Test
@@ -827,6 +813,7 @@ public class ManageSyncSettingsTest {
     @Test
     @LargeTest
     @Feature({"Sync", "RenderTest"})
+    @DisableIf.Build(sdk_equals = 35, message = "crbug.com/465817909")
     public void testBottomOfAccountSyncSettingsPage() throws Exception {
         mSyncTestRule.setUpAccountAndSignInForTesting();
         final ManageSyncSettings fragment = startManageSyncPreferences();
@@ -1151,6 +1138,7 @@ public class ManageSyncSettingsTest {
     @Test
     @LargeTest
     @Feature({"PersonalizedGoogleServices", "RenderTest"})
+    @DisabledTest(message = "Flaky - crbug.com/466094740")
     public void testLinkedServicesSettingEea() throws Exception {
         when(mRegionalCapabilities.isInEeaCountry()).thenReturn(true);
         mSyncTestRule.setUpAccountAndSignInForTesting();

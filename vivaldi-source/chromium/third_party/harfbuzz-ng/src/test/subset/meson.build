@@ -84,11 +84,13 @@ tests = [
   'empty_region_vardata',
   'colrv1_partial_instance',
   'instantiate_gvar_padding',
+  'avar2_full_instance',
 ]
 
 if get_option('experimental_api')
   tests += [
     'iftb_requirements',
+    'retain-num-glyphs',
   ]
 endif
 

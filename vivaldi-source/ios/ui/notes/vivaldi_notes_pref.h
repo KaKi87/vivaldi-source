@@ -20,7 +20,7 @@ class PrefService;
 + (PrefService*)prefService;
 
 // Static method to set the PrefService
-+ (void)setPrefService:(PrefService *)pref;
++ (void)setPrefService:(PrefService*)pref;
 
 /// Registers the feature preferences.
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry;

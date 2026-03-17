@@ -124,7 +124,7 @@ class SettingsUI
   // Makes a request to show a HaTS survey.
   void TryShowHatsSurveyWithTimeout();
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   // Updates, based on account and profile state, the loadTimeData values that
   // control whether the glic settings page should be shown. Returns the enabled
   // value.
@@ -180,7 +180,7 @@ class SettingsUI
                      CustomizeColorSchemeModeHandlerFactory>
       customize_color_scheme_mode_handler_factory_receiver_{this};
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   base::CallbackListSubscription glic_settings_state_subscription_;
 #endif
 

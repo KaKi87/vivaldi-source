@@ -73,6 +73,11 @@
 #include "remoting/host/chromeos/features.h"
 #endif
 
+#if BUILDFLAG(IS_LINUX)
+#include "remoting/host/linux/gnome_remote_desktop_session.h"
+#include "remoting/host/linux/portal_remote_desktop_session.h"
+#endif
+
 namespace remoting {
 
 using protocol::ErrorCode;
@@ -212,12 +217,13 @@ void It2MeHost::SendReconnectSessionMessage() const {
       reconnect_params_->support_id);
   SignalingAddress signaling_address(reconnect_params_->client_ftl_address);
 
-  signal_strategy_->SendMessage(signaling_address, crd_message);
+  signal_strategy_->SendMessage(signaling_address,
+                                SignalingMessage{crd_message});
 }
 
 void It2MeHost::Connect(
     std::unique_ptr<ChromotingHostContext> host_context,
-    base::Value::Dict policies,
+    base::DictValue policies,
     std::unique_ptr<It2MeConfirmationDialogFactory> dialog_factory,
     base::WeakPtr<It2MeHost::Observer> observer,
     CreateDeferredConnectContext create_context,
@@ -278,6 +284,12 @@ void It2MeHost::ConnectOnNetworkThread(
   }
 
   SetState(It2MeHostState::kStarting, ErrorCode::OK);
+
+#if BUILDFLAG(IS_LINUX)
+  if (!GnomeRemoteDesktopSession::IsRunningUnderGnome()) {
+    PortalRemoteDesktopSession::GetInstance()->SetCreateVirtualMonitor(false);
+  }
+#endif
 
   auto connection_context = std::move(create_context).Run(host_context_.get());
   signal_strategy_ = std::move(connection_context->signal_strategy);
@@ -413,13 +425,17 @@ void It2MeHost::ConnectOnNetworkThread(
                      << ConvertChromeOsEnterpriseAudioPlaybackToString(
                             chrome_os_enterprise_params_->audio_playback);
     }
+  } else {
+    // Audio remoting is disabled for non-enterprise ChromeOS connections.
+    options.set_audio_playback_mode(AudioPlaybackMode::kLocalOnly);
   }
-#endif
+#endif  // BUILDFLAG(IS_CHROMEOS) || !defined(NDEBUG)
 
   // Create the host.
   host_ = std::make_unique<ChromotingHost>(
       desktop_environment_factory_.get(), std::move(session_manager),
-      transport_context, host_context_->audio_task_runner(),
+      /* secondary_session_manager */ nullptr, transport_context,
+      host_context_->audio_task_runner(),
       host_context_->video_encode_task_runner(), options,
       base::BindRepeating(&It2MeHost::OnEffectiveSessionPoliciesReceived,
                           base::Unretained(this)),
@@ -506,7 +522,7 @@ void It2MeHost::SetHostEventReporterFactoryForTesting(
 }
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
-void It2MeHost::OnPolicyUpdate(base::Value::Dict policies) {
+void It2MeHost::OnPolicyUpdate(base::DictValue policies) {
   // The policy watcher runs on the |ui_task_runner|.
   if (!host_context_->network_task_runner()->BelongsToCurrentThread()) {
     host_context_->network_task_runner()->PostTask(
@@ -529,7 +545,7 @@ void It2MeHost::OnPolicyUpdate(base::Value::Dict policies) {
   remote_support_connections_allowed_ =
       RemoteSupportConnectionsAllowed(policies);
 
-  const base::Value::List* host_domain_list =
+  const base::ListValue* host_domain_list =
       policies.FindList(policy::key::kRemoteAccessHostDomainList);
   if (host_domain_list) {
     std::vector<std::string> host_domain_list_vector;
@@ -539,7 +555,7 @@ void It2MeHost::OnPolicyUpdate(base::Value::Dict policies) {
     UpdateHostDomainListPolicy(std::move(host_domain_list_vector));
   }
 
-  const base::Value::List* client_domain_list =
+  const base::ListValue* client_domain_list =
       policies.FindList(policy::key::kRemoteAccessHostClientDomainList);
   if (client_domain_list) {
     std::vector<std::string> client_domain_list_vector;
@@ -628,7 +644,7 @@ void It2MeHost::UpdateClientDomainListPolicy(
 }
 
 void It2MeHost::UpdateLocalSessionPolicies(
-    const base::Value::Dict& platform_policies) {
+    const base::DictValue& platform_policies) {
   // |local_session_policies_provider_| is null if there is no active
   // connection. Connect() calls OnPolicyUpdate() with the platform policies, so
   // we don't need to track session policies when there is no active connection.
@@ -973,7 +989,7 @@ void It2MeHost::OnConfirmationResult(ValidationResultCallback result_callback,
 }
 
 bool It2MeHost::RemoteSupportConnectionsAllowed(
-    const base::Value::Dict& policies) {
+    const base::DictValue& policies) {
 #if BUILDFLAG(IS_CHROMEOS)
   // The policy to disallow remote support connections
   // (RemoteAccessHostAllowRemoteSupportConnections) does not apply to support

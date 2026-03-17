@@ -59,6 +59,53 @@ update_target("//chrome/browser:browser") {
   configs += [
      "//vivaldi/gn/config:release_kind"
   ]
+
+  if (!is_android) {
+    deps -= [
+      "//chrome/browser/default_browser",
+      "//chrome/browser/ui/startup/default_browser_prompt",
+      "//chrome/browser/ui/startup/default_browser_prompt:impl",
+      "//chrome/browser/ui/webui/default_browser:default_browser_modal",
+      "//chrome/browser/ui/webui/default_browser:modal_mojo_bindings",
+    ]
+    allow_circular_includes_from -= [
+      "//chrome/browser/ui/startup/default_browser_prompt:impl",
+    ]
+  }
+  if (is_win || is_mac) {
+    deps -= [
+      "//chrome/browser/ui/startup/default_browser_prompt/pin_infobar:impl",
+    ]
+    allow_circular_includes_from -= [
+      "//chrome/browser/ui/startup/default_browser_prompt/pin_infobar:impl",
+    ]
+  }
+}
+
+if (!is_android) {
+  update_target("//chrome/browser/ui/toolbar:impl") {
+    deps -= [
+      "//chrome/browser/ui/startup/default_browser_prompt",
+    ]
+  }
+
+  update_target("//chrome/browser/ui/webui:configs") {
+    deps -= [
+      "//chrome/browser/ui/webui/default_browser:default_browser_modal",
+    ]
+  }
+
+  update_target("//chrome/browser/ui/webui/infobar_internals:impl") {
+    deps -= [
+      "//chrome/browser/ui/startup/default_browser_prompt",
+    ]
+  }
+
+  update_target("//chrome/browser/resources:resources") {
+    public_deps -= [
+       "default_browser/default_browser_modal:resources",
+    ]
+  }
 }
 
 update_target("//chrome/browser/ui:ui") {
@@ -81,6 +128,42 @@ update_target("//chrome/browser/ui:ui") {
   deps += [
     "//chrome/services/sharing/public/proto",
   ]
+}
+
+if (!is_android) {
+  update_target("//chrome/browser/pdf:pdf") {
+    deps -= [
+      "//chrome/browser/glic",
+    ]
+  }
+
+  update_target("//chrome/browser/ui/pdf:pdf") {
+    deps -= [
+      "//chrome/browser/glic",
+    ]
+  }
+
+  update_target("//chrome/browser/ui/views/toolbar:toolbar") {
+    public_deps -= [
+      "//chrome/browser/glic",
+      "//chrome/browser/ui/views/glic",
+    ]
+  }
+
+  update_target("//chrome/browser/ui/views/toolbar:impl") {
+    deps -= [
+      "//chrome/browser/ui/views/glic",
+      "//chrome/browser/ui/views/tabs/glic",
+    ]
+  }
+}
+
+if (enable_extensions) {
+  update_target("//chrome/browser/extensions/api/pdf_viewer_private:pdf_viewer_private") {
+    deps -= [
+      "//chrome/browser/glic",
+    ]
+  }
 }
 
 update_target("//content/browser:browser") {

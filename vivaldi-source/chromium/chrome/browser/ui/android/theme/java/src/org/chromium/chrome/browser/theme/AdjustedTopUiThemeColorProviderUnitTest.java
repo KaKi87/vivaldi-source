@@ -30,10 +30,9 @@ import org.mockito.junit.MockitoRule;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.theme.ThemeColorProvider.TintObserver;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
@@ -51,9 +50,8 @@ public class AdjustedTopUiThemeColorProviderUnitTest {
 
     private static final @ColorInt int TAB_COLOR = Color.RED;
 
-    private final ObservableSupplier<@Nullable Tab> mTabSupplier = new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<Integer> mActivityThemeColorSupplier =
-            new ObservableSupplierImpl<>();
+    private final SettableNonNullObservableSupplier<Integer> mActivityThemeColorSupplier =
+            ObservableSuppliers.createNonNull(TAB_COLOR);
 
     private Context mContext;
     private AdjustedTopUiThemeColorProvider mAdjustedTopUiThemeColorProvider;
@@ -68,12 +66,11 @@ public class AdjustedTopUiThemeColorProviderUnitTest {
         when(mTab.isNativePage()).thenReturn(true);
         when(mTab.getNativePage()).thenReturn(mNativePage);
         when(mTab.isThemingAllowed()).thenReturn(true);
-        mActivityThemeColorSupplier.set(TAB_COLOR);
 
         mAdjustedTopUiThemeColorProvider =
                 new AdjustedTopUiThemeColorProvider(
                         mContext,
-                        mTabSupplier,
+                        /* tabSupplier= */ ObservableSuppliers.alwaysNull(),
                         mActivityThemeColorSupplier,
                         /* isTablet= */ false,
                         /* allowThemingInNightMode= */ true,

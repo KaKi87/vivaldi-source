@@ -5,28 +5,16 @@
 package org.chromium.chrome.browser.history;
 
 import static org.chromium.build.NullUtil.assumeNonNull;
-import static org.chromium.chrome.browser.hub.HubAnimationConstants.HUB_LAYOUT_FADE_DURATION_MS;
 
 import android.app.Activity;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.FrameLayout;
 
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
 import org.chromium.base.supplier.OneshotSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.hub.DisplayButtonData;
-import org.chromium.chrome.browser.hub.FadeHubLayoutAnimationFactory;
-import org.chromium.chrome.browser.hub.FullButtonData;
-import org.chromium.chrome.browser.hub.HubColorScheme;
-import org.chromium.chrome.browser.hub.HubContainerView;
-import org.chromium.chrome.browser.hub.HubLayoutAnimationListener;
-import org.chromium.chrome.browser.hub.HubLayoutAnimatorProvider;
 import org.chromium.chrome.browser.hub.LoadHint;
 import org.chromium.chrome.browser.hub.Pane;
+import org.chromium.chrome.browser.hub.PaneBase;
 import org.chromium.chrome.browser.hub.PaneHubController;
 import org.chromium.chrome.browser.hub.PaneId;
 import org.chromium.chrome.browser.hub.ResourceButtonData;
@@ -34,93 +22,62 @@ import org.chromium.chrome.browser.profiles.ProfileProvider;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.components.browser_ui.bottomsheet.BottomSheetController;
-import org.chromium.components.browser_ui.widget.MenuOrKeyboardActionController.MenuOrKeyboardActionHandler;
+import org.chromium.ui.base.ActivityResultTracker;
+import org.chromium.ui.base.WindowAndroid;
+import org.chromium.ui.modaldialog.ModalDialogManager;
 
 import java.util.function.DoubleConsumer;
 import java.util.function.Supplier;
 
 /** A {@link Pane} representing history. */
 @NullMarked
-public class HistoryPane implements Pane {
-
-    // Below are dependencies of the pane itself.
-    private final DoubleConsumer mOnToolbarAlphaChange;
-    private final ObservableSupplierImpl<@Nullable DisplayButtonData> mReferenceButtonSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplier<FullButtonData> mEmptyActionButtonSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<Boolean> mHairlineVisibilitySupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<@Nullable View> mHubOverlayViewSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<Boolean> mHubSearchEnabledStateSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<Boolean> mHubSearchBoxVisibilitySupplier =
-            new ObservableSupplierImpl<>();
-
-    // FrameLayout which has HistoryManager's root view as the only child.
-    private final FrameLayout mRootView;
-    // Below are dependencies to create the HistoryManger.
+public class HistoryPane extends PaneBase {
+    private final OneshotSupplier<ProfileProvider> mProfileProviderSupplier;
+    private final WindowAndroid mWindowAndroid;
     private final Activity mActivity;
     private final SnackbarManager mSnackbarManager;
-    private final OneshotSupplier<ProfileProvider> mProfileProviderSupplier;
-    private final Supplier<@Nullable BottomSheetController> mBottomSheetController;
+    private final ActivityResultTracker mActivityResultTracker;
+    private final Supplier<@Nullable ModalDialogManager> mModalDialogManagerSupplier;
+    private final Supplier<BottomSheetController> mBottomSheetController;
     private final Supplier<@Nullable Tab> mTabSupplier;
 
     private @Nullable HistoryManager mHistoryManager;
     private @Nullable PaneHubController mPaneHubController;
 
     /**
+     * @param profileProviderSupplier Used as a dependency to HistoryManager.
      * @param onToolbarAlphaChange Observer to notify when alpha changes during animations.
+     * @param windowAndroid Used as a dependency to HistoryManager.
      * @param activity Used as a dependency to HistoryManager.
      * @param snackbarManager Used as a dependency to HistoryManager.
-     * @param profileProviderSupplier Used as a dependency to HistoryManager.
      * @param bottomSheetController Used as a dependency to HistoryManager.
+     * @param modalDialogManagerSupplier Used as a dependency to HistoryManager.
+     * @param activityResultTracker Used as a dependency to HistoryManager.
      * @param tabSupplier Used as a dependency to HistoryManager.
      */
     public HistoryPane(
+            OneshotSupplier<ProfileProvider> profileProviderSupplier,
             DoubleConsumer onToolbarAlphaChange,
+            WindowAndroid windowAndroid,
             Activity activity,
             SnackbarManager snackbarManager,
-            OneshotSupplier<ProfileProvider> profileProviderSupplier,
-            Supplier<@Nullable BottomSheetController> bottomSheetController,
+            Supplier<BottomSheetController> bottomSheetController,
+            Supplier<@Nullable ModalDialogManager> modalDialogManagerSupplier,
+            ActivityResultTracker activityResultTracker,
             Supplier<@Nullable Tab> tabSupplier) {
-        mOnToolbarAlphaChange = onToolbarAlphaChange;
-        mReferenceButtonSupplier.set(
+        super(PaneId.HISTORY, activity, onToolbarAlphaChange);
+        mReferenceButtonDataSupplier.set(
                 new ResourceButtonData(
                         R.string.menu_history, R.string.menu_history, R.drawable.ic_history_24dp));
 
-        mRootView = new FrameLayout(activity);
+        mWindowAndroid = windowAndroid;
         mActivity = activity;
         mSnackbarManager = snackbarManager;
-        mProfileProviderSupplier = profileProviderSupplier;
         mBottomSheetController = bottomSheetController;
+        mModalDialogManagerSupplier = modalDialogManagerSupplier;
+        mActivityResultTracker = activityResultTracker;
+        mProfileProviderSupplier = profileProviderSupplier;
         mTabSupplier = tabSupplier;
-    }
-
-    @Override
-    public @PaneId int getPaneId() {
-        return PaneId.HISTORY;
-    }
-
-    @Override
-    public ViewGroup getRootView() {
-        return mRootView;
-    }
-
-    @Override
-    public @Nullable MenuOrKeyboardActionHandler getMenuOrKeyboardActionHandler() {
-        return null;
-    }
-
-    @Override
-    public boolean getMenuButtonVisible() {
-        return false;
-    }
-
-    @Override
-    public @HubColorScheme int getColorScheme() {
-        return HubColorScheme.DEFAULT;
     }
 
     @Override
@@ -138,11 +95,14 @@ public class HistoryPane implements Pane {
         if (loadHint == LoadHint.HOT && mHistoryManager == null) {
             mHistoryManager =
                     new HistoryManager(
+                            assumeNonNull(mProfileProviderSupplier.get()).getOriginalProfile(),
+                            mWindowAndroid,
                             mActivity,
                             /* isSeparateActivity= */ false,
                             mSnackbarManager,
-                            assumeNonNull(mProfileProviderSupplier.get()).getOriginalProfile(),
                             mBottomSheetController,
+                            mModalDialogManagerSupplier,
+                            mActivityResultTracker,
                             mTabSupplier,
                             new BrowsingHistoryBridge(
                                     mProfileProviderSupplier.get().getOriginalProfile()),
@@ -158,55 +118,6 @@ public class HistoryPane implements Pane {
         } else if (loadHint == LoadHint.COLD) {
             destroyManagerAndRemoveView();
         }
-    }
-
-    @Override
-    public ObservableSupplier<FullButtonData> getActionButtonDataSupplier() {
-        return mEmptyActionButtonSupplier;
-    }
-
-    @Override
-    public ObservableSupplier<@Nullable DisplayButtonData> getReferenceButtonDataSupplier() {
-        return mReferenceButtonSupplier;
-    }
-
-    @Override
-    public ObservableSupplier<Boolean> getHairlineVisibilitySupplier() {
-        return mHairlineVisibilitySupplier;
-    }
-
-    @Override
-    public ObservableSupplier<@Nullable View> getHubOverlayViewSupplier() {
-        return mHubOverlayViewSupplier;
-    }
-
-    @Override
-    public @Nullable HubLayoutAnimationListener getHubLayoutAnimationListener() {
-        return null;
-    }
-
-    @Override
-    public HubLayoutAnimatorProvider createShowHubLayoutAnimatorProvider(
-            HubContainerView hubContainerView) {
-        return FadeHubLayoutAnimationFactory.createFadeInAnimatorProvider(
-                hubContainerView, HUB_LAYOUT_FADE_DURATION_MS, mOnToolbarAlphaChange);
-    }
-
-    @Override
-    public HubLayoutAnimatorProvider createHideHubLayoutAnimatorProvider(
-            HubContainerView hubContainerView) {
-        return FadeHubLayoutAnimationFactory.createFadeOutAnimatorProvider(
-                hubContainerView, HUB_LAYOUT_FADE_DURATION_MS, mOnToolbarAlphaChange);
-    }
-
-    @Override
-    public ObservableSupplier<Boolean> getHubSearchEnabledStateSupplier() {
-        return mHubSearchEnabledStateSupplier;
-    }
-
-    @Override
-    public ObservableSupplier<Boolean> getHubSearchBoxVisibilitySupplier() {
-        return mHubSearchBoxVisibilitySupplier;
     }
 
     private void onHistoryItemOpened() {

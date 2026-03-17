@@ -1,7 +1,7 @@
 # DO NOT EDIT EXCEPT FOR LOCAL TESTING.
 
 vars = {
-  "upstream_commit_id": "Ieb9a87a50f1f10ed1921bf39c2fef33e3f1f9b1a",
+  "upstream_commit_id": "If5c898aaea62ef3bc6d818ebfdb95cfe1f898a87",
 
   # The path of the sysroots.json file.
   # This is used by vendor builds like Electron.
@@ -390,6 +390,16 @@ hooks = [
                 '--check-v8-revision',
                 "--force",
                 '--quiet',
+    ],
+  },
+  # devtools hook entry for init of platform node modules
+  {
+    'name': 'sync_rollup_libs',
+    'pattern': '.',
+    'cwd': 'chromium/third_party/devtools-frontend/src',
+    'action': [
+      'python3',
+      'scripts/deps/sync_rollup_libs.py',
     ],
   },
   #{ # Vivaldi don't do libc++ roll and reverts; disabling

@@ -71,7 +71,6 @@
 #include "ui/vivaldi_browser_window.h"
 #include "ui/vivaldi_ui_utils.h"
 
-
 #if BUILDFLAG(IS_MAC)
 #include "base/apple/foundation_util.h"
 #endif
@@ -199,41 +198,40 @@ constexpr std::string_view ImportItemToString(
 }
 
 #if BUILDFLAG(IS_WIN)
-  static std::string toSystemUTF(const std::wstring& str) {
-    return base::WideToUTF8(str);
-  }
+static std::string toSystemUTF(const std::wstring& str) {
+  return base::WideToUTF8(str);
+}
 #else
-  static std::string toSystemUTF(const std::string& str) {
-    return str;
-  }
+static std::string toSystemUTF(const std::string& str) {
+  return str;
+}
 #endif  // BUILDFLAG(IS_WIN)
 
-  bool GetDefaultUserDataDirectory(base::FilePath* result) {
+bool GetDefaultUserDataDirectory(base::FilePath* result) {
 #if BUILDFLAG(IS_WIN)
-    const auto key = base::DIR_COMMON_APP_DATA;
+  const auto key = base::DIR_COMMON_APP_DATA;
 #elif BUILDFLAG(IS_MAC)
-    const auto key = base::DIR_APP_DATA;
+  const auto key = base::DIR_APP_DATA;
 #else
-    const auto key = base::DIR_HOME;
+  const auto key = base::DIR_HOME;
 #endif
-    bool success = false;
-    if (result && base::PathService::Get(key, result)) {
-      success = true;
-    }
-    return success;
+  bool success = false;
+  if (result && base::PathService::Get(key, result)) {
+    success = true;
   }
+  return success;
+}
 
 }  // namespace
 
 ImportDataAPI::ImportDataAPI(content::BrowserContext* context)
-    : browser_context_(context),
-      import_succeeded_count_(0) {}
+    : browser_context_(context), import_succeeded_count_(0) {}
 
 ImportDataAPI::~ImportDataAPI() {}
 
 void ImportDataAPI::StartImport(
     const user_data_importer::SourceProfile& source_profile,
-                                uint16_t imported_items) {
+    uint16_t imported_items) {
   if (!imported_items)
     return;
 
@@ -501,7 +499,7 @@ std::string MapSuggestedProfilePath(
   // The rest of ImportTypes is usually detected,
   // or should be in the user data dir (e.g ~/Library/Application Support)
   switch (type) {
-    #if BUILDFLAG(IS_MAC)
+#if BUILDFLAG(IS_MAC)
     case ImportTypes::kSafari: {
       return base::apple::GetUserLibraryPath().Append("Safari").AsUTF8Unsafe();
     }

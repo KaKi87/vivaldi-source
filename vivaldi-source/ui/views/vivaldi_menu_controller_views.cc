@@ -103,11 +103,10 @@ bool MenuController::VivaldiStepSiblingMenu(bool next) {
   }
 
   SubmenuView* source =
-      pending_state_.item->HasSubmenu()
-          ? pending_state_.item->GetSubmenu()
-          : pending_state_.item->GetParentMenuItem()
-                ? pending_state_.item->GetParentMenuItem()->GetSubmenu()
-                : nullptr;
+      pending_state_.item->HasSubmenu() ? pending_state_.item->GetSubmenu()
+      : pending_state_.item->GetParentMenuItem()
+          ? pending_state_.item->GetParentMenuItem()->GetSubmenu()
+          : nullptr;
   if (!source) {
     return false;
   }
@@ -124,8 +123,7 @@ bool MenuController::VivaldiStepSiblingMenu(bool next) {
   did_capture_ = false;
   UpdateInitialLocation(rect, anchor, MenuType::kNormal);
   alt_menu->PrepareForRun(
-      has_mnemonics,
-      source->GetMenuItem()->GetRootMenuItem()->show_mnemonics_);
+      has_mnemonics, source->GetMenuItem()->GetRootMenuItem()->show_mnemonics_);
   alt_menu->controller_ = AsWeakPtr();
   SetSelection(alt_menu, SELECTION_OPEN_SUBMENU | SELECTION_UPDATE_IMMEDIATELY);
 
@@ -140,7 +138,8 @@ bool MenuController::VivaldiStepSiblingMenu(bool next) {
 }
 
 // Returns true if further event handling should be blocked.
-bool MenuController::VivaldiHandleSynthesizedEvent(const ui::MouseEvent& event) {
+bool MenuController::VivaldiHandleSynthesizedEvent(
+    const ui::MouseEvent& event) {
   if (FilterSynthesizedMoveEvent) {
     if (event.IsSynthesized()) {
       return true;

@@ -25,15 +25,21 @@
 #include "chrome/test/base/mixin_based_in_process_browser_test.h"
 #include "components/enterprise/connectors/core/features.h"
 #include "components/enterprise/connectors/core/reporting_test_utils.h"
+#include "components/enterprise/data_controls/content/browser/last_replaced_clipboard_data.h"
+#include "components/enterprise/data_controls/core/browser/features.h"
 #include "components/enterprise/data_controls/core/browser/test_utils.h"
 #include "components/policy/core/common/cloud/realtime_reporting_job_configuration.h"
 #include "components/safe_browsing/core/common/features.h"
+#include "components/strings/grit/components_strings.h"
+#include "content/public/browser/clipboard_types.h"
+#include "content/public/common/drop_data.h"
 #include "content/public/test/browser_test.h"
 #include "content/public/test/test_utils.h"
 #include "ui/base/clipboard/clipboard_metadata.h"
 #include "ui/base/clipboard/clipboard_monitor.h"
 #include "ui/base/clipboard/scoped_clipboard_writer.h"
 #include "ui/base/clipboard/test/test_clipboard.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/views/widget/widget_delegate.h"
 
 namespace enterprise_data_protection {
@@ -43,7 +49,7 @@ namespace {
 constexpr char kWorkspaceUrlForUser0[] = "https://docs.google.com/u/0/";
 constexpr char kWorkspaceUrlForUser1[] =
     "https://mail.google.com/foo/bar?authuser=1";
-constexpr char kNonWorkspaceUrl[] = "https://google.com/";
+constexpr char kNonWorkspaceUrl[] = "https://not.workspace.com/";
 constexpr char kUserName[] = "test-user@chromium.org";
 
 constexpr char kContentAreaUser0[] = "foo@gmail.com";
@@ -78,6 +84,8 @@ class DataControlsClipboardUtilsBrowserTest
                              policy::kUploadRealtimeReportingEventsUsingProto)
                        : disabled_features.push_back(
                              policy::kUploadRealtimeReportingEventsUsingProto);
+
+    enabled_features.push_back(data_controls::kDataControlsDragEnforcement);
 
     scoped_feature_list_.InitWithFeatures(enabled_features, disabled_features);
     active_user_test_mixin_ =
@@ -270,7 +278,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                    "name": "rule_name",
                                    "rule_id": "222",
                                    "destinations": {
-                                     "urls": ["google.com"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "restrictions": [
                                      {"class": "CLIPBOARD", "level": "BLOCK"}
@@ -362,7 +370,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                    "name": "warn_rule_name",
                                    "rule_id": "333",
                                    "destinations": {
-                                     "urls": ["google.com"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "restrictions": [
                                      {"class": "CLIPBOARD", "level": "WARN"}
@@ -522,7 +530,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                    "name": "warn rule name",
                                    "rule_id": "1416",
                                    "destinations": {
-                                     "urls": ["google.com"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "restrictions": [
                                      {"class": "CLIPBOARD", "level": "WARN"}
@@ -570,7 +578,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                    "name": "report_rule_name",
                                    "rule_id": "4321",
                                    "destinations": {
-                                     "urls": ["google.com"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "restrictions": [
                                      {"class": "CLIPBOARD", "level": "BLOCK"}
@@ -678,7 +686,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                    "name": "report_rule_name",
                                    "rule_id": "6543",
                                    "destinations": {
-                                     "urls": ["google.com"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "restrictions": [
                                      {"class": "CLIPBOARD", "level": "WARN"}
@@ -847,7 +855,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                    "name": "report_rule_name",
                                    "rule_id": "7654",
                                    "destinations": {
-                                     "urls": ["google.com"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "restrictions": [
                                      {"class": "CLIPBOARD", "level": "WARN"}
@@ -1013,7 +1021,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                    "name": "report_rule_name",
                                    "rule_id": "8765",
                                    "destinations": {
-                                     "urls": ["google.com"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "restrictions": [
                                      {"class": "CLIPBOARD", "level": "REPORT"}
@@ -1056,7 +1064,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                    "name": "report_rule_name",
                                    "rule_id": "9753",
                                    "destinations": {
-                                     "urls": ["google.com"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "restrictions": [
                                      {"class": "CLIPBOARD", "level": "REPORT"}
@@ -1242,7 +1250,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest, CopyReported) {
                                    "name": "report_only",
                                    "rule_id": "1248",
                                    "sources": {
-                                     "urls": ["google.com"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "restrictions": [
                                      {"class": "CLIPBOARD", "level": "REPORT"}
@@ -1333,7 +1341,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest, CopyBlocked) {
                                    "name": "block",
                                    "rule_id": "987",
                                    "sources": {
-                                     "urls": ["google.com"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "restrictions": [
                                      {"class": "CLIPBOARD", "level": "BLOCK"}
@@ -1431,7 +1439,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                    "name": "warn",
                                    "rule_id": "3927",
                                    "sources": {
-                                     "urls": ["google.com"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "restrictions": [
                                      {"class": "CLIPBOARD", "level": "WARN"}
@@ -1534,7 +1542,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                    "name": "warn_cancel",
                                    "rule_id": "101",
                                    "sources": {
-                                     "urls": ["google.com"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "destinations": {
                                      "os_clipboard": true
@@ -1640,7 +1648,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                    "name": "warn_bypass",
                                    "rule_id": "12345",
                                    "sources": {
-                                     "urls": ["google.com"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "restrictions": [
                                      {"class": "CLIPBOARD", "level": "WARN"}
@@ -1802,7 +1810,7 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                    "name": "warn_bypass_os",
                                    "rule_id": "111",
                                    "sources": {
-                                     "urls": ["google.com"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "destinations": {
                                      "os_clipboard": true
@@ -2088,32 +2096,141 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
-                       WriteTextToClipboard_Allowed) {
+                       FindBar_CopyAllowed) {
   auto event_validator = event_report_validator_helper_->CreateValidator();
   event_validator.ExpectNoReport();
 
-  EXPECT_TRUE(HandleWriteTextToClipboard(
-      contents(), ui::ClipboardBuffer::kCopyPaste, u"text"));
+  // Without any restriction, selected text is allowed to reach the find bar.
+  EXPECT_TRUE(CanPopulateFindBarFromSelection(contents()));
 
-  base::test::TestFuture<std::u16string> future;
-  ui::Clipboard::GetForCurrentThread()->ReadText(
-      ui::ClipboardBuffer::kCopyPaste, /*data_dst=*/nullptr,
-      future.GetCallback());
-  EXPECT_EQ(future.Get(), u"text");
+  // Without any restriction, text in the find bar is allowed to be copied and
+  // isn't replaced.
+  const std::u16string kText = u"foo";
+  std::u16string copy_replacement;
+  EXPECT_FALSE(ReplaceCopyFromFindBar(kText, contents(), &copy_replacement));
+  EXPECT_TRUE(copy_replacement.empty());
 }
 
 IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
-                       WriteTextToClipboard_Blocked) {
+                       FindBar_CopyBlocked) {
+  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+                                   "name": "block",
+                                   "rule_id": "987",
+                                   "destinations": {
+                                     "os_clipboard": true
+                                   },
+                                   "restrictions": [
+                                     {"class": "CLIPBOARD", "level": "BLOCK"}
+                                   ]
+                                 })"},
+                                 machine_scope());
+
+  // With a blocking Data Controls rule, selected text is not allowed to reach
+  // the find bar.
+  EXPECT_FALSE(CanPopulateFindBarFromSelection(contents()));
+
+  // With a blocking Data Controls rule, text is not allowed to be copied from
+  // the find bar and is instead replaced by a warning message.
+  const std::u16string kText = u"foo";
+  std::u16string replacement;
+  EXPECT_TRUE(ReplaceCopyFromFindBar(kText, contents(), &replacement));
+  EXPECT_EQ(replacement,
+            l10n_util::GetStringUTF16(
+                IDS_ENTERPRISE_DATA_CONTROLS_COPY_PREVENTION_WARNING_MESSAGE));
+
+  ui::ClipboardMonitor::GetInstance()->NotifyClipboardDataChanged();
+
+  // Since the current rules don't restrict pasting inside the browser, the
+  // original data is replaced back after pasting.
+  base::test::TestFuture<std::optional<content::ClipboardPasteData>>
+      paste_future;
+  PasteIfAllowedByPolicy(
+      CreateURLClipboardEndpoint("https://source.com/"),
+      CreateURLClipboardEndpoint("https://destination.com"),
+      {
+          .size = 1234,
+          .format_type = ui::ClipboardFormatType::PlainTextType(),
+          .seqno = ui::Clipboard::GetForCurrentThread()->GetSequenceNumber(
+              ui::ClipboardBuffer::kCopyPaste),
+      },
+      MakeClipboardPasteData("replacement", "", {}),
+      paste_future.GetCallback());
+  auto paste_data = paste_future.Get();
+  EXPECT_TRUE(paste_data);
+  EXPECT_EQ(paste_data->text, kText);
+}
+
+IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest, FindBar_Paste) {
+  // Without any restriction, text pasted in the find bar will be replaced if
+  // necessary.
+  auto paste_replacement = ReplacePasteToFindBar(contents());
+  EXPECT_FALSE(paste_replacement);
+
+  {
+    ui::ScopedClipboardWriter writer(ui::ClipboardBuffer::kCopyPaste,
+                                     std::make_unique<ui::DataTransferEndpoint>(
+                                         contents()->GetLastCommittedURL()));
+    content::AddSourceDataToClipboardWriter(writer,
+                                            *contents()->GetPrimaryMainFrame());
+    writer.WriteText(u"warning");
+  }
+  content::ClipboardPasteData data;
+  data.text = u"replaced";
+  data_controls::LastReplacedClipboardDataObserver::GetInstance()
+      ->AddDataToNextSeqno(data);
+  ui::ClipboardMonitor::GetInstance()->NotifyClipboardDataChanged();
+
+  paste_replacement = ReplacePasteToFindBar(contents());
+  EXPECT_TRUE(paste_replacement);
+  EXPECT_EQ(*paste_replacement, u"replaced");
+
+  // With a triggered Data Controls rule, the data isn't replaced.
+  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
+                                   "name": "block",
+                                   "rule_id": "987",
+                                   "destinations": {
+                                     "urls": ["*"]
+                                   },
+                                   "restrictions": [
+                                     {"class": "CLIPBOARD", "level": "BLOCK"}
+                                   ]
+                                 })"},
+                                 machine_scope());
+
+  paste_replacement = ReplacePasteToFindBar(contents());
+  EXPECT_FALSE(paste_replacement);
+}
+
+IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest, DragAllowed) {
+  auto event_validator = event_report_validator_helper_->CreateValidator();
+  event_validator.ExpectNoReport();
+
+  bool allowed = IsDragAllowedByPolicy(
+      /*source=*/CreateURLClipboardEndpoint("https://google.com"),
+      /*drop_data=*/content::DropData());
+
+  EXPECT_TRUE(allowed);
+}
+
+IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest, DragBlocked) {
+  active_user_test_mixin_->SetFakeCookieValue();
+
   base::RunLoop run_loop;
   auto event_validator = event_report_validator_helper_->CreateValidator();
   event_validator.SetDoneClosure(run_loop.QuitClosure());
+
   if (use_proto_format()) {
     chrome::cros::reporting::proto::DlpSensitiveDataEvent expected_event;
-    expected_event.set_url("about:blank");
-    expected_event.set_tab_url("about:blank");
-    expected_event.set_source("about:blank");
+    if (use_workspace_urls()) {
+      expected_event.set_web_app_signed_in_account(kContentAreaUser0);
+      expected_event.set_source_web_app_signed_in_account(kContentAreaUser0);
+    }
+    expected_event.set_url(test_url_0());
+    expected_event.set_tab_url(test_url_0());
+    expected_event.set_source(test_url_0());
+    expected_event.set_destination("");
     expected_event.set_content_type("text/plain");
-    expected_event.set_content_size(8);
+    expected_event.set_content_size(14);
     expected_event.set_trigger(chrome::cros::reporting::proto::
                                    DataTransferEventTrigger::CLIPBOARD_COPY);
     expected_event.set_event_result(
@@ -2130,10 +2247,14 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
 
     event_validator.ExpectSensitiveDataEvent(std::move(expected_event));
   } else {
+    if (use_workspace_urls()) {
+      event_validator.ExpectActiveUser(kContentAreaUser0);
+      event_validator.ExpectSourceActiveUser(kContentAreaUser0);
+    }
     event_validator.ExpectDataControlsSensitiveDataEvent(
-        /*expected_url=*/"about:blank",
-        /*expected_tab_url=*/"about:blank",
-        /*expected_source=*/"about:blank",
+        /*expected_url=*/test_url_0(),
+        /*expected_tab_url=*/test_url_0(),
+        /*expected_source=*/test_url_0(),
         /*expected_destination=*/"",
         /*expected_mimetypes=*/
         []() {
@@ -2146,14 +2267,14 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
         /*expected_profile_username=*/kUserName,
         /*expected_profile_identifier=*/
         browser()->profile()->GetPath().AsUTF8Unsafe(),
-        /*expected_content_size=*/8);
+        /*expected_content_size=*/14);
   }
 
   data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
                                    "name": "block",
                                    "rule_id": "987",
                                    "sources": {
-                                     "urls": ["*"]
+                                     "urls": ["google.com", "not.workspace.com"]
                                    },
                                    "restrictions": [
                                      {"class": "CLIPBOARD", "level": "BLOCK"}
@@ -2161,69 +2282,21 @@ IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
                                  })"},
                                  machine_scope());
   data_controls::DesktopDataControlsDialogTestHelper helper(
-      data_controls::DataControlsDialog::Type::kClipboardCopyBlock);
+      data_controls::DataControlsDialog::Type::kClipboardDragBlock);
 
-  EXPECT_TRUE(HandleWriteTextToClipboard(
-      contents(), ui::ClipboardBuffer::kCopyPaste, u"text"));
+  content::DropData drop_data;
+  drop_data.text = u"Sensitive Data";
+
+  bool allowed = IsDragAllowedByPolicy(
+      /*source=*/CreateURLClipboardEndpoint(test_url_0()),
+      /*drop_data=*/drop_data);
+
+  EXPECT_FALSE(allowed);
 
   helper.WaitForDialogToInitialize();
   helper.CloseDialogWithoutBypass();
   helper.WaitForDialogToClose();
-
-  base::test::TestFuture<std::u16string> future;
-  ui::Clipboard::GetForCurrentThread()->ReadText(
-      ui::ClipboardBuffer::kCopyPaste, /*data_dst=*/nullptr,
-      future.GetCallback());
-  EXPECT_EQ(future.Get(), u"");
   run_loop.Run();
-}
-
-IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
-                       DragAndDropForText_Allowed) {
-  auto event_validator = event_report_validator_helper_->CreateValidator();
-  event_validator.ExpectNoReport();
-
-  EXPECT_TRUE(DragAndDropForTextIsAllowed(contents()));
-}
-
-IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
-                       DragAndDropForText_Blocked) {
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
-                                   "name": "block",
-                                   "rule_id": "987",
-                                   "sources": {
-                                     "urls": ["*"]
-                                   },
-                                   "restrictions": [
-                                     {"class": "CLIPBOARD", "level": "BLOCK"}
-                                   ]
-                                 })"},
-                                 machine_scope());
-  EXPECT_FALSE(DragAndDropForTextIsAllowed(contents()));
-}
-
-IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
-                       StartFindBarWithSelectedText_Allowed) {
-  auto event_validator = event_report_validator_helper_->CreateValidator();
-  event_validator.ExpectNoReport();
-
-  EXPECT_TRUE(CanPopulateFindBarFromSelection(contents()));
-}
-
-IN_PROC_BROWSER_TEST_P(DataControlsClipboardUtilsBrowserTest,
-                       StartFindBarWithSelectedText_Blocked) {
-  data_controls::SetDataControls(browser()->profile()->GetPrefs(), {R"({
-                                   "name": "block",
-                                   "rule_id": "987",
-                                   "sources": {
-                                     "urls": ["*"]
-                                   },
-                                   "restrictions": [
-                                     {"class": "CLIPBOARD", "level": "BLOCK"}
-                                   ]
-                                 })"},
-                                 machine_scope());
-  EXPECT_FALSE(CanPopulateFindBarFromSelection(contents()));
 }
 
 }  // namespace enterprise_data_protection

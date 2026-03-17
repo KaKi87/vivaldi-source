@@ -21,6 +21,7 @@
 
 // Vivaldi
 #include "app/vivaldi_apptools.h"
+#import "ios/ui/ntp/vivaldi_ntp_constants.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using vivaldi::IsVivaldiRunning;
@@ -113,6 +114,12 @@ NSString* GetTitleString(TabGridPage page) {
     topLabel.textColor = [UIColor colorNamed:vTabGridEmptyStateTitleTextColor];
     bottomTextView.textColor =
         [UIColor colorNamed:vTabGridEmptyStateBodyTextColor];
+    if (self.page == TabGridPageIncognitoTabs) {
+      UIColor* backgroundColor =
+          [UIColor colorNamed:vPrivateNTPBackgroundColor];
+      self.view.backgroundColor = backgroundColor;
+      bottomTextView.backgroundColor = backgroundColor;
+    }
   }
   // End Vivaldi
 
@@ -161,22 +168,9 @@ NSString* GetTitleString(TabGridPage page) {
 
 #pragma mark - UITextViewDelegate
 
-#if __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_17_0
-- (BOOL)textView:(UITextView*)textView
-    shouldInteractWithURL:(NSURL*)URL
-                  inRange:(NSRange)characterRange
-              interaction:(UITextItemInteraction)interaction {
-  if (URL) {
-    [self.delegate didTapLinkWithURL:net::GURLWithNSURL(URL)];
-  }
-  // Return NO as the app is handling the opening of the URL.
-  return NO;
-}
-#endif
-
 - (UIAction*)textView:(UITextView*)textView
     primaryActionForTextItem:(UITextItem*)textItem
-               defaultAction:(UIAction*)defaultAction API_AVAILABLE(ios(17.0)) {
+               defaultAction:(UIAction*)defaultAction {
   NSURL* URL = textItem.link;
   if (!URL) {
     return defaultAction;

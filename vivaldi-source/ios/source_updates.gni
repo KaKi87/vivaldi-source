@@ -33,6 +33,8 @@ update_target("//ios/chrome/browser/tab_switcher/ui_bundled/tab_grid:tab_grid_ui
     "//vivaldi/ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_page_control_constants.h",
     "//vivaldi/ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_page_control_constants.mm",
     "//vivaldi/ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_empty_state_view_delegate.h",
+    "//vivaldi/ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_swipe_helper.h",
+    "//vivaldi/ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_swipe_helper.mm",
   ]
 }
 
@@ -109,6 +111,13 @@ update_target("//ios/chrome/browser/sharing/ui_bundled/activity_services/data:da
   ]
 }
 
+update_target("//ios/chrome/browser/sharing/ui_bundled:ui_bundled") {
+  sources += [
+    "//vivaldi/ios/chrome/browser/sharing/ui_bundled/vivaldi_sharing_utils.h",
+    "//vivaldi/ios/chrome/browser/sharing/ui_bundled/vivaldi_sharing_utils.mm",
+  ]
+}
+
 update_target("//ios/chrome/browser/settings/ui_bundled:ui_bundled") {
   sources += [
     "//vivaldi/ios/ui/settings/vivaldi_settings_constants.h",
@@ -119,13 +128,13 @@ update_target("//ios/chrome/browser/settings/ui_bundled:ui_bundled") {
   ]
 }
 
-update_target("//ios/chrome/browser/popup_menu/ui_bundled/overflow_menu:overflow_menu_swift") {
+update_target("//ios/chrome/browser/popup_menu/overflow_menu/ui:ui_swift") {
     sources += [
     "//vivaldi/ios/ui/vivaldi_overflow_menu/vivaldi_overflow_action_add_to_view.swift",
   ]
 }
 
-update_target("//ios/chrome/browser/popup_menu/ui_bundled:constants") {
+update_target("//ios/chrome/browser/popup_menu/public:public") {
     sources += [
       "//vivaldi/ios/chrome/browser/popup_menu/ui_bundled/vivaldi_popup_menu_constants.h",
       "//vivaldi/ios/chrome/browser/popup_menu/ui_bundled/vivaldi_popup_menu_constants.mm",
@@ -187,9 +196,16 @@ update_template_instance("//ios/chrome/open_extension/resources:resources") {
   ]
 }
 
-update_target("//ios/chrome/browser/toolbar/ui_bundled:ui") {
+update_target("//ios/chrome/browser/toolbar/legacy/ui_bundled:ui") {
   sources += [
     "//vivaldi/ios/chrome/browser/ui/toolbar/vivaldi_adaptive_toolbar_viewcontroller_delegate.h"
+  ]
+}
+
+update_target("//ios/chrome/browser/toolbar/coordinator:coordinator") {
+  sources += [
+    "//vivaldi/ios/chrome/browser/ui/toolbar/vivaldi_tools_menu_guide_helper.h",
+    "//vivaldi/ios/chrome/browser/ui/toolbar/vivaldi_tools_menu_guide_helper.mm",
   ]
 }
 
@@ -199,7 +215,7 @@ update_template_instance("//ios/chrome/common/ui/colors/resources:resources") {
   ]
 }
 
-update_template_instance("//ios/chrome/browser/toolbar/ui_bundled/buttons/resources:resources") {
+update_template_instance("//ios/chrome/browser/toolbar/legacy/ui_bundled/buttons/resources:resources") {
   sources -= [
     "Assets.xcassets/tab_toolbar_button_color_highlighted.colorset/Contents.json",
     "Assets.xcassets/tab_toolbar_button_color_highlighted_incognito.colorset/Contents.json",
@@ -220,7 +236,7 @@ update_target("//ios/chrome/browser/providers/lottie:chromium_lottie_animation")
   sources += [ "//vivaldi/ios/chrome/browser/providers/lottie/vivaldi_lottie_animation.mm" ]
 }
 
-update_target("//ios/chrome/browser/default_promo/ui_bundled/resources:animation_files") {
+update_target("//ios/chrome/browser/default_browser/promo/resources:animation_files") {
   sources -= [
     "default_browser_animation.json",
     "default_browser_animation_darkmode.json",

@@ -38,6 +38,7 @@
 
 namespace {
 const char kFakePreRestoreAccountEmail[] = "person@example.org";
+const char kFakePreRestoreAccountGaiaId[] = "fake_gaia";
 const char kFakePreRestoreAccountGivenName[] = "Given";
 const char kFakePreRestoreAccountFullName[] = "Full Name";
 }  // namespace
@@ -62,18 +63,22 @@ class PostRestoreSignInProviderTest : public PlatformTest {
   }
 
   void SetFakePreRestoreAccountInfo() {
-    AccountInfo accountInfo;
-    accountInfo.email = std::string(kFakePreRestoreAccountEmail);
-    accountInfo.given_name = std::string(kFakePreRestoreAccountGivenName);
-    accountInfo.full_name = std::string(kFakePreRestoreAccountFullName);
-    StorePreRestoreIdentity(pref_service_, accountInfo,
+    AccountInfo account_info =
+        AccountInfo::Builder(GaiaId(kFakePreRestoreAccountGaiaId),
+                             kFakePreRestoreAccountEmail)
+            .SetGivenName(kFakePreRestoreAccountGivenName)
+            .SetFullName(kFakePreRestoreAccountFullName)
+            .Build();
+    StorePreRestoreIdentity(pref_service_, account_info,
                             /*history_sync_enabled=*/false);
   }
 
   void ClearUserName() {
-    AccountInfo accountInfo;
-    accountInfo.email = std::string(kFakePreRestoreAccountEmail);
-    StorePreRestoreIdentity(pref_service_, accountInfo,
+    AccountInfo account_info =
+        AccountInfo::Builder(GaiaId(kFakePreRestoreAccountGaiaId),
+                             kFakePreRestoreAccountEmail)
+            .Build();
+    StorePreRestoreIdentity(pref_service_, account_info,
                             /*history_sync_enabled=*/false);
     // Reinstantiate a provider so that it picks up the changes.
     provider_ =
@@ -92,7 +97,8 @@ class PostRestoreSignInProviderTest : public PlatformTest {
         FakeSystemIdentityManager::FromSystemIdentityManager(
             GetApplicationContext()->GetSystemIdentityManager());
     system_identity_manager->AddIdentity(fake_identity);
-    auth_service_->SignIn(fake_identity, signin_metrics::AccessPoint::kUnknown);
+    auth_service_->SignIn(fake_identity,
+                          signin_metrics::AccessPoint::kStartPage);
   }
 
  protected:

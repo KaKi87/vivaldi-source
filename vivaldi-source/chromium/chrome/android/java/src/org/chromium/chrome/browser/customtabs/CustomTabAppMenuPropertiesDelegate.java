@@ -16,7 +16,7 @@ import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.content.res.AppCompatResources;
 
 import org.chromium.base.ContextUtils;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
@@ -31,8 +31,8 @@ import org.chromium.chrome.browser.dom_distiller.ReaderModeManager;
 import org.chromium.chrome.browser.firstrun.FirstRunStatus;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.multiwindow.MultiWindowModeStateDispatcher;
+import org.chromium.chrome.browser.open_in_app.OpenInAppMenuItemProvider;
 import org.chromium.chrome.browser.readaloud.ReadAloudController;
-import org.chromium.chrome.browser.readaloud.ReadAloudFeatures;
 import org.chromium.chrome.browser.segmentation_platform.ContextualPageActionController;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
@@ -40,8 +40,6 @@ import org.chromium.chrome.browser.toolbar.ToolbarManager;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuItemProperties;
 import org.chromium.components.embedder_support.util.UrlConstants;
-import org.chromium.content_public.browser.ContentFeatureList;
-import org.chromium.content_public.browser.ContentFeatureMap;
 import org.chromium.ui.modelutil.MVCListAdapter;
 import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.url.GURL;
@@ -94,7 +92,7 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             TabModelSelector tabModelSelector,
             ToolbarManager toolbarManager,
             View decorView,
-            ObservableSupplier<BookmarkModel> bookmarkModelSupplier,
+            NullableObservableSupplier<BookmarkModel> bookmarkModelSupplier,
             Verifier verifier,
             @CustomTabsUiType final int uiType,
             List<String> menuEntries,
@@ -107,7 +105,8 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             boolean isStartIconMenu,
             Supplier<ReadAloudController> readAloudControllerSupplier,
             Supplier<ContextualPageActionController> contextualPageActionControllerSupplier,
-            boolean hasClientPackage) {
+            boolean hasClientPackage,
+            @Nullable OpenInAppMenuItemProvider openInAppMenuItemProvider) {
         super(
                 context,
                 activityTabProvider,
@@ -117,7 +116,8 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
                 decorView,
                 null,
                 bookmarkModelSupplier,
-                readAloudControllerSupplier);
+                readAloudControllerSupplier,
+                openInAppMenuItemProvider);
         mVerifier = verifier;
         mUiType = uiType;
         mMenuEntries = menuEntries;
@@ -163,7 +163,7 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
         boolean downloadItemVisible = mShowDownload;
         boolean addToHomeScreenVisible = true;
         boolean requestDesktopSiteVisible = true;
-        boolean tryAddingReadAloud = ReadAloudFeatures.isEnabledForOverflowMenuInCct();
+        boolean tryAddingReadAloud = true;
         boolean readerModePrefsVisible = false;
         boolean translateVisible = true;
         // When the icon row is visible, site info is a button in that row.
@@ -220,18 +220,16 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             addToHomeScreenVisible = !mVerifier.wasPreviouslyVerified(url.getSpec());
             downloadItemVisible = false;
             bookmarkItemVisible = false;
-            if (ChromeFeatureList.sAndroidWebAppMenuButton.isEnabled()) {
-                requestDesktopSiteVisible = false;
+            requestDesktopSiteVisible = false;
 
-                translateVisible = false;
-                // Remove icons.
-                iconRowVisible = false;
-                // Site settings menu item row.
-                siteSettingsItemVisible = true;
-                zoomVisible = true;
-                findInPageVisible = true;
-                mShowShare = true;
-            }
+            translateVisible = false;
+            // Remove icons.
+            iconRowVisible = false;
+            // Site settings menu item row.
+            siteSettingsItemVisible = true;
+            zoomVisible = true;
+            findInPageVisible = true;
+            mShowShare = true;
         } else if (mUiType == CustomTabsUiType.OFFLINE_PAGE) {
             bookmarkItemVisible = true;
             downloadItemVisible = false;
@@ -288,11 +286,8 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
         boolean isContentScheme = url.getScheme().equals(UrlConstants.CONTENT_SCHEME);
         // TODO(crbug.com/384992232): Hide open in Chrome for blob and data url until such view
         //  intent can be handled.
-        if ((ContentFeatureMap.isEnabled(ContentFeatureList.ANDROID_OPEN_PDF_INLINE)
-                        || ChromeFeatureList.isEnabled(
-                                ChromeFeatureList.ANDROID_OPEN_PDF_INLINE_BACKPORT))
-                && (url.getScheme().equals(UrlConstants.BLOB_SCHEME)
-                        || url.getScheme().equals(UrlConstants.DATA_SCHEME))) {
+        if (url.getScheme().equals(UrlConstants.BLOB_SCHEME)
+                || url.getScheme().equals(UrlConstants.DATA_SCHEME)) {
             openInChromeItemVisible = false;
         }
         addToHomeScreenVisible &=
@@ -368,7 +363,7 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
                 ChromeFeatureList.getFieldTrialParamByFeatureAsBoolean(
                         ChromeFeatureList.CCT_ADAPTIVE_BUTTON,
                         SHOW_OPEN_IN_BROWSER_MENU_TOP_PARAM,
-                        false);
+                        true);
         if (openInChromeItemVisible && showOpenInBrowserAtTop) {
             addOpenInChrome(modelList, /* showIcon= */ true);
         }
@@ -438,6 +433,11 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
             modelList.add(buildAddToHomescreenListItem(currentTab, false));
         }
 
+        // Open in App
+        if (shouldShowOpenInAppItem()) {
+            modelList.add(buildOpenInAppItem());
+        }
+
         // --- Request Desktop Site ---
         if (requestDesktopSiteVisible) {
             MVCListAdapter.ListItem rdsListItem =
@@ -496,11 +496,15 @@ public class CustomTabAppMenuPropertiesDelegate extends AppMenuPropertiesDelegat
            modelList.add(
                    new MVCListAdapter.ListItem(AppMenuHandler.AppMenuItemType.STANDARD, model));
         } else { // Vivaldi
-        String title =
-                mIsOffTheRecord
-                        ? ContextUtils.getApplicationContext()
-                                .getString(R.string.menu_open_in_incognito_chrome)
-                        : DefaultBrowserInfo.getTitleOpenInDefaultBrowser(mIsOpenedByChrome);
+        String title;
+        Context context = ContextUtils.getApplicationContext();
+        if (mIsOffTheRecord) {
+            title = context.getString(R.string.menu_open_in_incognito_chrome);
+        } else if (mIsOpenedByChrome) {
+            title = context.getString(R.string.menu_open_in_new_tab);
+        } else {
+            title = DefaultBrowserInfo.getTitleOpenInDefaultBrowser(false);
+        }
         PropertyModel model =
                 buildBaseModelForTextItem(R.id.open_in_browser_id)
                         .with(AppMenuItemProperties.TITLE, title)

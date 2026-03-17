@@ -18,7 +18,7 @@ import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Callback;
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.feature_engagement.TrackerFactory;
@@ -63,8 +63,6 @@ public class TabSwitcherActionMenuCoordinator {
         MenuItemType.CLOSE_TAB,
         MenuItemType.NEW_TAB,
         MenuItemType.NEW_INCOGNITO_TAB,
-        MenuItemType.SWITCH_TO_INCOGNITO,
-        MenuItemType.SWITCH_OUT_OF_INCOGNITO,
         MenuItemType.CLOSE_ALL_INCOGNITO_TABS,
         MenuItemType.ADD_TAB_TO_GROUP,
         MenuItemType.ADD_TAB_TO_NEW_GROUP,
@@ -76,13 +74,11 @@ public class TabSwitcherActionMenuCoordinator {
         int CLOSE_TAB = 1;
         int NEW_TAB = 2;
         int NEW_INCOGNITO_TAB = 3;
-        int SWITCH_TO_INCOGNITO = 4;
-        int SWITCH_OUT_OF_INCOGNITO = 5;
-        int CLOSE_ALL_INCOGNITO_TABS = 6;
-        int ADD_TAB_TO_GROUP = 7;
-        int ADD_TAB_TO_NEW_GROUP = 8;
-        int NEW_WINDOW = 9;
-        int NEW_INCOGNITO_WINDOW = 10;
+        int CLOSE_ALL_INCOGNITO_TABS = 4;
+        int ADD_TAB_TO_GROUP = 5;
+        int ADD_TAB_TO_NEW_GROUP = 6;
+        int NEW_WINDOW = 7;
+        int NEW_INCOGNITO_WINDOW = 8;
 
         int VIVALDI_CLOSE_OTHER_TABS = 301; // Vivaldi
     }
@@ -95,7 +91,7 @@ public class TabSwitcherActionMenuCoordinator {
     public static OnLongClickListener createOnLongClickListener(
             Callback<Integer> onItemClicked,
             Profile profile,
-            ObservableSupplier<TabModelSelector> tabModelSelectorSupplier) {
+            MonotonicObservableSupplier<TabModelSelector> tabModelSelectorSupplier) {
         return createOnLongClickListener(
                 new TabSwitcherActionMenuCoordinator(profile, tabModelSelectorSupplier),
                 profile,
@@ -132,10 +128,6 @@ public class TabSwitcherActionMenuCoordinator {
             RecordUserAction.record("MobileMenuNewIncognitoTab.LongTapMenu");
         } else if (id == R.id.close_all_incognito_tabs_menu_id) {
             RecordUserAction.record("MobileMenuCloseAllIncognitoTabs.LongTapMenu");
-        } else if (id == R.id.switch_to_incognito_menu_id) {
-            RecordUserAction.record("MobileMenuSwitchToIncognito.LongTapMenu");
-        } else if (id == R.id.switch_out_of_incognito_menu_id) {
-            RecordUserAction.record("MobileMenuSwitchOutOfIncognito.LongTapMenu");
         } else if (id == R.id.add_tab_to_group_menu_id) {
             RecordUserAction.record("MobileMenuAddToGroup.LongTapMenu");
         } else if (id == R.id.add_tab_to_new_group_menu_id) {
@@ -143,7 +135,7 @@ public class TabSwitcherActionMenuCoordinator {
         }
     }
 
-    private final ObservableSupplier<TabModelSelector> mTabModelSelectorSupplier;
+    private final MonotonicObservableSupplier<TabModelSelector> mTabModelSelectorSupplier;
     private final Profile mProfile;
 
     // For test.
@@ -151,7 +143,8 @@ public class TabSwitcherActionMenuCoordinator {
 
     /** Construct a coordinator for the given {@link Profile}. */
     public TabSwitcherActionMenuCoordinator( // Vivaldi
-            Profile profile, ObservableSupplier<TabModelSelector> tabModelSelectorSupplier) {
+            Profile profile,
+            MonotonicObservableSupplier<TabModelSelector> tabModelSelectorSupplier) {
         mProfile = profile;
         mTabModelSelectorSupplier = tabModelSelectorSupplier;
     }
@@ -216,12 +209,10 @@ public class TabSwitcherActionMenuCoordinator {
         boolean isCurrentModelIncognito =
                 selector != null && selector.isIncognitoBrandedModelSelected();
         boolean hasIncognitoTabs = selector != null && selector.getModel(true).getCount() > 0;
-        boolean incognitoMigrationFFEnabled =
-                ChromeFeatureList.sTabStripIncognitoMigration.isEnabled();
         boolean supportedMixedWindows = !IncognitoUtils.shouldOpenIncognitoAsWindow();
         ModelList itemList = new ModelList();
         itemList.add(buildListItemByMenuItemType(MenuItemType.CLOSE_TAB));
-        if (incognitoMigrationFFEnabled && isCurrentModelIncognito && hasIncognitoTabs) {
+        if (!supportedMixedWindows && isCurrentModelIncognito && hasIncognitoTabs) {
             itemList.add(buildListItemByMenuItemType(MenuItemType.CLOSE_ALL_INCOGNITO_TABS));
         }
 
@@ -230,36 +221,30 @@ public class TabSwitcherActionMenuCoordinator {
             itemList.add(buildListItemByMenuItemType(MenuItemType.VIVALDI_CLOSE_OTHER_TABS));
 
         itemList.add(buildListItemByMenuItemType(MenuItemType.DIVIDER));
-        if (!IncognitoUtils.shouldOpenIncognitoAsWindow() || !isCurrentModelIncognito) {
+        if (supportedMixedWindows || !isCurrentModelIncognito) {
             itemList.add(buildListItemByMenuItemType(MenuItemType.NEW_TAB));
         }
-        if (!IncognitoUtils.shouldOpenIncognitoAsWindow() || isCurrentModelIncognito) {
+        if (supportedMixedWindows || isCurrentModelIncognito) {
             itemList.add(buildListItemByMenuItemType(MenuItemType.NEW_INCOGNITO_TAB));
         }
-        if (IncognitoUtils.shouldOpenIncognitoAsWindow()) {
+        if (!supportedMixedWindows) {
             itemList.add(buildListItemByMenuItemType(MenuItemType.NEW_WINDOW));
             itemList.add(buildListItemByMenuItemType(MenuItemType.NEW_INCOGNITO_WINDOW));
         }
         maybeBuildAddToGroup(itemList);
-        if (incognitoMigrationFFEnabled && supportedMixedWindows) {
-            if (isCurrentModelIncognito) {
-                itemList.add(buildListItemByMenuItemType(MenuItemType.SWITCH_OUT_OF_INCOGNITO));
-            } else if (hasIncognitoTabs) {
-                // Show switch into incognito when incognito model has tabs.
-                itemList.add(buildListItemByMenuItemType(MenuItemType.SWITCH_TO_INCOGNITO));
-            }
-        }
         return itemList;
     }
 
     private void maybeBuildAddToGroup(ModelList itemList) {
-        if (!ChromeFeatureList.sTabGroupEntryPointsAndroid.isEnabled()) return;
+	    // Note(david@vivaldi.com): Check if grouping is allowed.
+        final String enabledStack = "enable_tab_stack";
+        if (!ChromeSharedPreferences.getInstance().readBoolean(enabledStack, true)) return;
+        // End Vivaldi
 
         if (ChromeFeatureList.sTabModelInitFixes.isEnabled()) {
             TabModelSelector selector = mTabModelSelectorSupplier.get();
             if (selector == null || !selector.isTabStateInitialized()) return;
-            TabGroupModelFilter filter =
-                    selector.getTabGroupModelFilterProvider().getCurrentTabGroupModelFilter();
+            TabGroupModelFilter filter = selector.getCurrentTabGroupModelFilter();
             if (filter == null || !filter.isTabModelRestored()) return;
         }
 
@@ -295,7 +280,7 @@ public class TabSwitcherActionMenuCoordinator {
                         .withStartIconRes(
                                 IncognitoUtils.shouldOpenIncognitoAsWindow()
                                         ? R.drawable.ic_add_box_rounded_corner
-                                        : R.drawable.incognito_simple)
+                                        : R.drawable.ic_incognito)
                         .withEnabled(enabled)
                         .build();
             case MenuItemType.CLOSE_ALL_INCOGNITO_TABS:
@@ -303,18 +288,6 @@ public class TabSwitcherActionMenuCoordinator {
                         .withTitleRes(R.string.menu_close_all_incognito_tabs)
                         .withMenuId(R.id.close_all_incognito_tabs_menu_id)
                         .withStartIconRes(R.drawable.ic_close_all_tabs)
-                        .build();
-            case MenuItemType.SWITCH_TO_INCOGNITO:
-                return new ListItemBuilder()
-                        .withTitleRes(R.string.menu_switch_to_incognito)
-                        .withMenuId(R.id.switch_to_incognito_menu_id)
-                        .withStartIconRes(R.drawable.ic_switch_to_incognito)
-                        .build();
-            case MenuItemType.SWITCH_OUT_OF_INCOGNITO:
-                return new ListItemBuilder()
-                        .withTitleRes(R.string.menu_switch_out_of_incognito)
-                        .withMenuId(R.id.switch_out_of_incognito_menu_id)
-                        .withStartIconRes(R.drawable.ic_switch_out_of_incognito)
                         .build();
             case MenuItemType.ADD_TAB_TO_GROUP:
                 return new ListItemBuilder()
@@ -362,9 +335,7 @@ public class TabSwitcherActionMenuCoordinator {
         TabModelSelector tabModelSelector = mTabModelSelectorSupplier.get();
         if (tabModelSelector != null) {
             TabGroupModelFilter currentTabGroupModelFilter =
-                    tabModelSelector
-                            .getTabGroupModelFilterProvider()
-                            .getCurrentTabGroupModelFilter();
+                    tabModelSelector.getCurrentTabGroupModelFilter();
             assumeNonNull(currentTabGroupModelFilter);
             return currentTabGroupModelFilter.getTabGroupCount() != 0;
         }

@@ -53,6 +53,9 @@ NSString* const
     kBadgeButtonPermissionsMicrophoneAcceptedAccessibilityIdentifier =
         @"badgeButtonPermissionsMicrophoneAcceptedAXID";
 
+NSString* const kBadgeButtonReaderModeAccessibilityIdentifier =
+    @"badgeButtonReaderModeAXID";
+
 NSString* const kBadgeUnreadIndicatorAccessibilityIdentifier =
     @"badgeUnreadIndicatorAXID";
 
@@ -75,9 +78,6 @@ NSString* const kBadgeButtonPermissionsActionIdentifier =
     @"badgeButtonPermissionsActionIdentifier";
 
 // Vivaldi
-NSString* const kBadgeButtonReaderModeAccessibilityIdentifier =
-    @"badgeButtonReaderModeAXID";
-
 NSString* const kBadgeButtonReaderModeAcceptedAccessibilityIdentifier =
     @"badgeButtonReaderModeAcceptedAXID";
 

@@ -25,7 +25,7 @@ constexpr char kVivaldiBlockList[] =
     "https://downloads.vivaldi.com/lists/vivaldi/blocklist-current.txt";
 
 constexpr char kRussianList[] =
-    "https://easylist-downloads.adblockplus.org/advblock.txt";
+    "https://downloads.vivaldi.com/lists/abp/ruadlist-current.txt";
 
 struct PresetSourceInfo {
   PresetKind kind;

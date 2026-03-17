@@ -1,10 +1,9 @@
 // Copyright 2022 Vivaldi Technologies. All rights reserved.
 
-
 #import "ios/chrome/browser/ui/browser_view/browser_view_controller+vivaldi.h"
 
-#import <memory>
 #import <objc/runtime.h>
+#import <memory>
 
 #import "base/apple/foundation_util.h"
 #import "base/strings/sys_string_conversions.h"
@@ -30,96 +29,93 @@ const void* const key = &key;
 
 }
 
-@implementation BrowserViewController(Vivaldi)
+@implementation BrowserViewController (Vivaldi)
 
 NoteInteractionController* _noteInteractionController;
 
 // Initializes the note interaction controller if not already initialized.
 - (void)showNotesManager:(Browser*)browser
-        parentController:(BrowserViewController*)bvc{
-    if (_noteInteractionController) {
-        [_noteInteractionController showNotes];
-        return;
-   }
-   _noteInteractionController =
+        parentController:(BrowserViewController*)bvc {
+  if (_noteInteractionController) {
+    [_noteInteractionController showNotes];
+    return;
+  }
+  _noteInteractionController =
       [[NoteInteractionController alloc] initWithBrowser:browser
-                                            parentController:bvc];
-   [_noteInteractionController showNotes];
+                                        parentController:bvc];
+  [_noteInteractionController showNotes];
 }
 
 #if !defined(__IPHONE_16_0) || __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_16_0
 - (void)onCopyToNote:(UIMenuController*)sender {
   UIResponder* firstResponder = GetFirstResponder();
   vivaldi::NotesModel* notesModel =
-    vivaldi::NotesModelFactory::GetForBrowserState(
-                              self.browserState);
+      vivaldi::NotesModelFactory::GetForBrowserState(self.browserState);
 
   if ([firstResponder isKindOfClass:[OmniboxTextFieldIOS class]]) {
     OmniboxTextFieldIOS* field =
-      base::apple::ObjCCast<OmniboxTextFieldIOS>(firstResponder);
+        base::apple::ObjCCast<OmniboxTextFieldIOS>(firstResponder);
     NSString* text = [field textInRange:field.selectedTextRange];
     if (notesModel) {
-      const vivaldi::NoteNode* defaultNoteFolder =
-      notesModel->main_node();
+      const vivaldi::NoteNode* defaultNoteFolder = notesModel->main_node();
       if (defaultNoteFolder) {
         notesModel->AddNote(defaultNoteFolder,
-                     defaultNoteFolder->children().size(),
-                     base::SysNSStringToUTF16(text),
-                     GURL(), base::SysNSStringToUTF16(text));
+                            defaultNoteFolder->children().size(),
+                            base::SysNSStringToUTF16(text), GURL(),
+                            base::SysNSStringToUTF16(text));
       }
     }
   } else {
     void (^javascript_completion)(const base::Value*) =
-    ^(const base::Value* value) {
-      if (notesModel) {
-        const vivaldi::NoteNode* defaultNoteFolder =
-        notesModel->main_node();
-        if (defaultNoteFolder) {
-          notesModel->AddNote(defaultNoteFolder,
-                       defaultNoteFolder->children().size(),
-                       base::UTF8ToUTF16(value->GetString()),
-                       GURL(), base::UTF8ToUTF16(value->GetString()));
-        }
-      }
-    };
+        ^(const base::Value* value) {
+          if (notesModel) {
+            const vivaldi::NoteNode* defaultNoteFolder =
+                notesModel->main_node();
+            if (defaultNoteFolder) {
+              notesModel->AddNote(defaultNoteFolder,
+                                  defaultNoteFolder->children().size(),
+                                  base::UTF8ToUTF16(value->GetString()), GURL(),
+                                  base::UTF8ToUTF16(value->GetString()));
+            }
+          }
+        };
 
-    web::WebFrame* main_frame =
-        [self getCurrentWebState]->GetPageWorldWebFramesManager()
-                                ->GetMainWebFrame();
+    web::WebFrame* main_frame = [self getCurrentWebState]
+                                    ->GetPageWorldWebFramesManager()
+                                    ->GetMainWebFrame();
     if (main_frame) {
       main_frame->ExecuteJavaScript(
-                   base::SysNSStringToUTF16(@"window.getSelection().toString()"),
-                   base::BindOnce(javascript_completion));
+          base::SysNSStringToUTF16(@"window.getSelection().toString()"),
+          base::BindOnce(javascript_completion));
     }
   }
 }
 #endif
 
-- (void)dismissNoteController{
-    [_noteInteractionController dismissNoteModalControllerAnimated:NO];
-    [_noteInteractionController dismissSnackbar];
+- (void)dismissNoteController {
+  [_noteInteractionController dismissNoteModalControllerAnimated:NO];
+  [_noteInteractionController dismissSnackbar];
 }
 
-- (void)shutdownNoteController{
-    [_noteInteractionController shutdown];
-    _noteInteractionController = nil;
+- (void)shutdownNoteController {
+  [_noteInteractionController shutdown];
+  _noteInteractionController = nil;
 }
 
-- (void)dismissNoteSnackbar{
-    [_noteInteractionController dismissSnackbar];
+- (void)dismissNoteSnackbar {
+  [_noteInteractionController dismissSnackbar];
 }
 
-- (void)dismissNoteModalControllerAnimated{
-[_noteInteractionController dismissNoteModalControllerAnimated:YES];
+- (void)dismissNoteModalControllerAnimated {
+  [_noteInteractionController dismissNoteModalControllerAnimated:YES];
 }
 
-- (void)setNoteInteractionController:(NoteInteractionController *)item {
-    objc_setAssociatedObject(self, &key,
-      item, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+- (void)setNoteInteractionController:(NoteInteractionController*)item {
+  objc_setAssociatedObject(self, &key, item, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
 - (NoteInteractionController*)noteInteractionController {
-    return objc_getAssociatedObject(self, &key);
+  return objc_getAssociatedObject(self, &key);
 }
 
 @end

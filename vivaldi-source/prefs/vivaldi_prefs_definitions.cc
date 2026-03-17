@@ -29,6 +29,10 @@
 #include "chrome/common/pref_names.h"
 #endif  // !IS_IOS
 
+#if BUILDFLAG(IS_IOS)
+#include "prefs/ios/vivaldi_ios_syncable_prefs.h"
+#endif  // IS_IOS
+
 // Preference override is available on Linux or in internal desktop builds on
 // any platform for testing convenience.
 #if BUILDFLAG(IS_LINUX) || \
@@ -55,27 +59,19 @@ namespace {
 
 // Not an enum class to ease cast to int.
 namespace syncable_prefs_ids {
-// According to chromium code, These values are only used for histograms. While
-// we don't care about those, we should probably give them sensible values in
-// case they actually end up being used for sync itself.
-
-/* It is currently empty, so remove the declaration completely.
-enum {
-// Starts with 1000000 to avoid clash with prefs listed in
-// chrome_syncable_prefs_database.cc,
-// common_syncable_prefs_database.cc and
-// ios_chrome_syncable_prefs_database.cc.
-
-// kSyncedDefault...SearchProviderGUID prefs occupied 1000000 up to 1000005 and
-// are deprecated.
-
-// Start with 1000006.
-
- };
-*/
-
-// Prefs from the prefs_definitions.json have their own ids starting at 1.
-// We add this number so that they don't collide with anything.
+// Keep ranges in sync with prefs/prefs_sync_ids.md.
+//
+// Historical note (do not reuse):
+// IDs 1000000..1000005 were previously used by these deprecated prefs:
+// - kSyncedDefaultPrivateSearchProviderGUID
+// - kSyncedDefaultSearchFieldProviderGUID
+// - kSyncedDefaultPrivateSearchFieldProviderGUID
+// - kSyncedDefaultSpeedDialsSearchProviderGUID
+// - kSyncedDefaultSpeedDialsPrivateSearchProviderGUID
+// - kSyncedDefaultImageSearchProviderGUID
+//
+// Prefs from prefs_definitions.json have their own logical IDs starting at 1.
+// Effective sync ID is: kLowestIdForPrefsDefinitions + json_id.
 constexpr int kLowestIdForPrefsDefinitions = 1500000;
 }  // namespace syncable_prefs_ids
 
@@ -140,7 +136,7 @@ struct PrefOverrideValues {
 // prefs structure (in the release builds erroneous assumptions will CHECK()
 // or crash on null pointer), but verifies the overrides reporting errors
 // there.
-void PatchPrefsJson(base::Value::Dict& prefs, base::Value& overrides) {
+void PatchPrefsJson(base::DictValue& prefs, base::Value& overrides) {
   bool has_errors = false;
   auto error = [&](std::string message) {
     LOG(ERROR) << prefs_overrides::kFileName << ": " << message;
@@ -260,7 +256,7 @@ void PatchPrefsJson(base::Value::Dict& prefs, base::Value& overrides) {
     *themes_value = std::move(themes);
   }
 
-  auto pretty_print_patched_prefs = [](const base::Value::Dict& prefs) {
+  auto pretty_print_patched_prefs = [](const base::DictValue& prefs) {
     std::string text;
     base::JSONWriter::WriteWithOptions(base::Value(prefs.Clone()),
                                        base::JSONWriter::OPTIONS_PRETTY_PRINT,
@@ -275,14 +271,14 @@ void PatchPrefsJson(base::Value::Dict& prefs, base::Value& overrides) {
 
 #endif  // VIVALDI_PREFERENCE_OVERRIDE_FILE
 
-base::Value::Dict ReadPrefsJson() {
+base::DictValue ReadPrefsJson() {
   ResourceReader reader_main(kPrefsDefinitionFileName);
   std::optional<base::Value> dictionary_value = reader_main.ParseJSON();
   if (!dictionary_value) {
     // Any error in the primary preference file is fatal.
     LOG(FATAL) << reader_main.GetError();
   }
-  base::Value::Dict* dictionary = dictionary_value->GetIfDict();
+  base::DictValue* dictionary = dictionary_value->GetIfDict();
   if (!dictionary) {
     LOG(FATAL) << kPrefsDefinitionFileName << ": JSON is not an object";
   }
@@ -385,15 +381,15 @@ VivaldiPrefsDefinitions* VivaldiPrefsDefinitions::GetInstance() {
 }
 
 VivaldiPrefsDefinitions::VivaldiPrefsDefinitions() {
-  base::Value::Dict prefs_definitions = ReadPrefsJson();
+  base::DictValue prefs_definitions = ReadPrefsJson();
 
-  base::Value::Dict* vivaldi_pref_definitions =
+  base::DictValue* vivaldi_pref_definitions =
       prefs_definitions.FindDict(kVivaldiKeyName);
   if (!vivaldi_pref_definitions) {
     LOG(FATAL) << "Expected a dictionary at '" << kVivaldiKeyName << "'";
   }
 
-  base::Value::Dict* syncable_pref_paths =
+  base::DictValue* syncable_pref_paths =
       prefs_definitions.FindDict(kSyncableKeyName);
   if (!syncable_pref_paths) {
     LOG(FATAL) << "Expected a dictionary at '" << kSyncableKeyName << "'";
@@ -413,10 +409,10 @@ VivaldiPrefsDefinitions::~VivaldiPrefsDefinitions() = default;
 #if !BUILDFLAG(IS_ANDROID)
 
 void VivaldiPrefsDefinitions::AddChromiumProperties(
-    base::Value::Dict& prefs,
+    base::DictValue& prefs,
     std::string_view current_path,
     bool local_pref) {
-  base::Value::Dict* chromium_prefs = prefs.FindDict(current_path);
+  base::DictValue* chromium_prefs = prefs.FindDict(current_path);
   if (!chromium_prefs) {
     LOG(FATAL) << "Expected a dictionary at '" << current_path << "'";
   }
@@ -441,8 +437,8 @@ void VivaldiPrefsDefinitions::AddChromiumProperties(
 #endif  // !BUILDFLAG(IS_ANDROID)
 
 void VivaldiPrefsDefinitions::AddPropertiesFromDefinition(
-    base::Value::Dict& definition,
-    base::Value::Dict& syncable_paths,
+    base::DictValue& definition,
+    base::DictValue& syncable_paths,
     std::string current_path) {
   const base::Value* type_value = definition.Find(kTypeKeyName);
   if (!type_value) {
@@ -496,7 +492,7 @@ void VivaldiPrefsDefinitions::AddPropertiesFromDefinition(
     LOG(FATAL) << "Invalid type value at '" << current_path << "'";
   }
 
-  base::Value::Dict* syncable_path = syncable_paths.FindDict(current_path);
+  base::DictValue* syncable_path = syncable_paths.FindDict(current_path);
   if (syncable_path) {
     result.sync_properties.emplace();
     std::optional<int> sync_id = syncable_path->FindInt(kSyncIdKeyName);
@@ -540,7 +536,7 @@ void VivaldiPrefsDefinitions::AddPropertiesFromDefinition(
   }
 
   if (result.pref_kind == PrefKind::kEnum) {
-    const base::Value::Dict* enum_dict = definition.FindDict(kEnumValuesKey);
+    const base::DictValue* enum_dict = definition.FindDict(kEnumValuesKey);
     if (!enum_dict) {
       LOG(FATAL) << "Expected a dictionary at '" << current_path << "."
                  << kEnumValuesKey << "'";
@@ -623,13 +619,15 @@ void VivaldiPrefsDefinitions::RegisterProfilePrefs(
   registry->RegisterBooleanPref(vivaldiprefs::kPWADisabled, true);
   registry->RegisterBooleanPref(vivaldiprefs::kAddressBarDeleteDirectMatch,
                                 false);
-#if defined(OEM_MERCEDES_BUILD) || defined(OEM_LYNKCO_BUILD)
-  registry->RegisterBooleanPref(vivaldiprefs::kBackgroundMediaPlaybackAllowed,
-                                true);
+// VAB-12491: Enable background audio as default.
+#if defined(OEM_AUTOMOTIVE_BUILD) && \
+    !(defined(OEM_MERCEDES_BUILD) || defined(OEM_LYNKCO_BUILD))
+#define VIVALDI_DEFAULT_BACKGROUND_PLAYBACK false
 #else
-  registry->RegisterBooleanPref(vivaldiprefs::kBackgroundMediaPlaybackAllowed,
-                                false);
+#define VIVALDI_DEFAULT_BACKGROUND_PLAYBACK true
 #endif
+  registry->RegisterBooleanPref(vivaldiprefs::kBackgroundMediaPlaybackAllowed,
+                                VIVALDI_DEFAULT_BACKGROUND_PLAYBACK);
 #endif  // !BUILDFLAG(IS_ANDROID)
 
   for (auto& [path, properties] : pref_properties_) {
@@ -789,6 +787,12 @@ VivaldiPrefsDefinitions::GetSyncablePrefMetadata(
   // do this. See the commented out enum at the top for details about which ids
   // we use.
 
+#if BUILDFLAG(IS_IOS)
+  if (auto ios_pref = GetIOSSyncablePrefMetadata(pref_name)) {
+    return *ios_pref;
+  }
+#endif  // IS_IOS
+
   const auto& item = pref_properties_.find(std::string(pref_name));
   if (item == pref_properties_.end() || !item->second.definition ||
       !item->second.definition->sync_properties) {
@@ -797,6 +801,7 @@ VivaldiPrefsDefinitions::GetSyncablePrefMetadata(
   const SyncedPrefProperties& sync_properties =
       *(item->second.definition->sync_properties);
 
+  // See prefs/prefs_sync_ids.md for Vivaldi syncable ID ranges.
   return sync_preferences::SyncablePrefMetadata(
       sync_properties.id + syncable_prefs_ids::kLowestIdForPrefsDefinitions,
       syncer::PREFERENCES, sync_preferences::PrefSensitivity::kNone,

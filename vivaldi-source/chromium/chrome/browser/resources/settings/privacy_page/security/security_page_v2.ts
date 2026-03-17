@@ -3,35 +3,46 @@
 // found in the LICENSE file.
 
 import 'chrome://resources/cr_elements/cr_icon/cr_icon.js';
+import 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
 import 'chrome://resources/cr_elements/cr_button/cr_button.js';
+import 'chrome://resources/cr_elements/cr_collapse/cr_collapse.js';
 import 'chrome://resources/cr_elements/cr_shared_style.css.js';
 import '/shared/settings/prefs/prefs.js';
 import '../../controls/controlled_radio_button.js';
 import '../../controls/settings_radio_group.js';
 import '../../icons.html.js';
 import '../../controls/settings_toggle_button.js';
+import '../../settings_page/settings_section.js';
 import '../../settings_page/settings_subpage.js';
 import './security_page_feature_row.js';
+import './secure_dns.js';
+import './secure_dns_v2.js';
 
 import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
 import {CrSettingsPrefs} from '/shared/settings/prefs/prefs_types.js';
 import type {CrButtonElement} from 'chrome://resources/cr_elements/cr_button/cr_button.js';
 import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
+import {assertNotReachedCase} from 'chrome://resources/js/assert.js';
 import {EventTracker} from 'chrome://resources/js/event_tracker.js';
+import {OpenWindowProxyImpl} from 'chrome://resources/js/open_window_proxy.js';
 import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 
 import type {ControlledRadioButtonElement} from '../../controls/controlled_radio_button.js';
 import type {SettingsRadioGroupElement} from '../../controls/settings_radio_group.js';
 import type {SettingsToggleButtonElement} from '../../controls/settings_toggle_button.js';
 import {loadTimeData} from '../../i18n_setup.js';
+import type {MetricsBrowserProxy} from '../../metrics_browser_proxy.js';
+import {MetricsBrowserProxyImpl, PrivacyElementInteractions} from '../../metrics_browser_proxy.js';
 import {routes} from '../../route.js';
 import type {Route} from '../../router.js';
-import {RouteObserverMixin} from '../../router.js';
+import {RouteObserverMixin, Router} from '../../router.js';
 import {SettingsViewMixin} from '../../settings_page/settings_view_mixin.js';
 import type {HatsBrowserProxy} from '../hats_browser_proxy.js';
 import {HatsBrowserProxyImpl, SecurityPageV2Interaction} from '../hats_browser_proxy.js';
-import {SafeBrowsingSetting} from '../safe_browsing_types.js';
 
+import {SafeBrowsingSetting} from './safe_browsing_types.js';
+import {SecureDnsV2ResolverType} from './secure_dns_v2.js';
+import type {SettingsSecureDnsV2Element} from './secure_dns_v2.js';
 import type {SecurityPageFeatureRowElement} from './security_page_feature_row.js';
 import {getTemplate} from './security_page_v2.html.js';
 
@@ -43,9 +54,24 @@ export enum SecuritySettingsBundleSetting {
 }
 // LINT.ThenChange(/components/safe_browsing/core/common/safe_browsing_prefs.h:SecuritySettingsBundleSetting)
 
+/** Enumeration of all HTTPS-First Mode setting states.*/
+// LINT.IfChange(HttpsFirstModeSetting)
+export enum HttpsFirstModeSetting {
+  DISABLED = 0,
+  // DEPRECATED: A separate Incognito setting never shipped.
+  // ENABLED_INCOGNITO = 1,
+  ENABLED_FULL = 2,
+  ENABLED_BALANCED = 3,
+}
+// LINT.ThenChange(/chrome/browser/ssl/https_first_mode_settings_tracker.h)
+
 export interface SettingsSecurityPageV2Element {
   $: {
     bundlesRadioGroup: SettingsRadioGroupElement,
+    httpsFirstModeEnabledBalanced: ControlledRadioButtonElement,
+    httpsFirstModeEnabledStrict: ControlledRadioButtonElement,
+    httpsFirstModeRadioGroup: SettingsRadioGroupElement,
+    httpsFirstModeToggle: SettingsToggleButtonElement,
     passwordsLeakToggle: SettingsToggleButtonElement,
     resetEnhancedBundleToDefaultsButton: CrButtonElement,
     resetStandardBundleToDefaultsButton: CrButtonElement,
@@ -53,6 +79,7 @@ export interface SettingsSecurityPageV2Element {
     securitySettingsBundleStandard: ControlledRadioButtonElement,
     safeBrowsingRadioGroup: SettingsRadioGroupElement,
     safeBrowsingRow: SecurityPageFeatureRowElement,
+    secureDnsV2Row: SettingsSecureDnsV2Element,
   };
 }
 
@@ -81,6 +108,11 @@ export class SettingsSecurityPageV2Element extends
         value: SafeBrowsingSetting,
       },
 
+      httpsFirstModeSettingEnum_: {
+        type: Object,
+        value: HttpsFirstModeSetting,
+      },
+
       isResetStandardBundleToDefaultsButtonVisible_: {
         type: Boolean,
         value: false,
@@ -97,9 +129,29 @@ export class SettingsSecurityPageV2Element extends
         value: false,
       },
 
+      isHttpsFirstModeEnabled_: {
+        type: Boolean,
+        value: true,
+      },
+
+      isSafeBrowsingEnabled_: {
+        type: Boolean,
+        value: true,
+      },
+
+      isSafeBrowsingWarningIconVisible_: {
+        type: Boolean,
+        value: false,
+      },
+
       safeBrowsingOff_: {
         type: Array,
         value: () => [SafeBrowsingSetting.DISABLED],
+      },
+
+      httpsFirstModeUncheckedValues_: {
+        type: Array,
+        value: () => [HttpsFirstModeSetting.DISABLED],
       },
 
       safeBrowsingStateTextMap_: {
@@ -113,6 +165,20 @@ export class SettingsSecurityPageV2Element extends
               loadTimeData.getString('securityFeatureRowStateOff'),
         }),
       },
+
+      enableSecurityKeysSubpage_: {
+        type: Boolean,
+        readOnly: true,
+        value() {
+          return loadTimeData.getBoolean('enableSecurityKeysSubpage');
+        },
+      },
+
+      enableBundledSecuritySettingsSecureDnsV2_: {
+        type: Boolean,
+        value: () =>
+            loadTimeData.getBoolean('enableBundledSecuritySettingsSecureDnsV2'),
+      },
     };
   }
 
@@ -122,14 +188,23 @@ export class SettingsSecurityPageV2Element extends
           'isResettingToDefaults_,' +
           'prefs.generated.security_settings_bundle.value,' +
           'prefs.generated.safe_browsing.*),',
+      'updateRowsState_(' +
+          'prefs.generated.https_first_mode_enabled.*,' +
+          'prefs.generated.safe_browsing.*),',
     ];
   }
 
   declare private isResettingToDefaults_: boolean;
   declare private isResetStandardBundleToDefaultsButtonVisible_: boolean;
   declare private isResetEnhancedBundleToDefaultsButtonVisible_: boolean;
+  declare private isHttpsFirstModeEnabled_: boolean;
+  declare private isSafeBrowsingEnabled_: boolean;
+  declare private isSafeBrowsingWarningIconVisible_: boolean;
   declare private safeBrowsingOff_: SafeBrowsingSetting[];
+  declare private httpsFirstModeUncheckedValues_: HttpsFirstModeSetting[];
   declare private safeBrowsingStateTextMap_: Object;
+  declare private enableSecurityKeysSubpage_: boolean;
+  declare private enableBundledSecuritySettingsSecureDnsV2_: boolean;
 
   private lastFocusTime_: number|undefined;
   private totalTimeInFocus_: number = 0;
@@ -140,6 +215,8 @@ export class SettingsSecurityPageV2Element extends
   private eventTracker_: EventTracker = new EventTracker();
   private hatsBrowserProxy_: HatsBrowserProxy =
       HatsBrowserProxyImpl.getInstance();
+  private metricsBrowserProxy_: MetricsBrowserProxy =
+      MetricsBrowserProxyImpl.getInstance();
 
   override ready() {
     super.ready();
@@ -237,6 +314,18 @@ export class SettingsSecurityPageV2Element extends
     if (isExpanded) {
       this.interactions_.add(
           SecurityPageV2Interaction.SAFE_BROWSING_ROW_EXPANDED);
+      this.metricsBrowserProxy_.recordAction(
+          'SafeBrowsing.Settings.SafeBrowsingRowExpanded');
+    }
+  }
+
+  private onSafeBrowsingToggleChange_() {
+    this.interactions_.add(
+        SecurityPageV2Interaction.SAFE_BROWSING_TOGGLE_CLICK);
+
+    if (!this.isSafeBrowsingEnabled_) {
+      this.metricsBrowserProxy_.recordAction(
+          'SafeBrowsing.Settings.DisableSafeBrowsingClicked');
     }
   }
 
@@ -250,9 +339,61 @@ export class SettingsSecurityPageV2Element extends
     if (selected === SafeBrowsingSetting.STANDARD) {
       this.interactions_.add(
           SecurityPageV2Interaction.STANDARD_SAFE_BROWSING_RADIO_BUTTON_CLICK);
+      this.metricsBrowserProxy_.recordAction(
+          'SafeBrowsing.Settings.StandardProtectionClicked');
     } else if (selected === SafeBrowsingSetting.ENHANCED) {
       this.interactions_.add(
           SecurityPageV2Interaction.ENHANCED_SAFE_BROWSING_RADIO_BUTTON_CLICK);
+      this.metricsBrowserProxy_.recordAction(
+          'SafeBrowsing.Settings.EnhancedProtectionClicked');
+    }
+  }
+
+  private onSecureDnsRowExpandedChange_(e: CustomEvent<{value: boolean}>) {
+    // Contains the new state of the row (true if expanded, false if collapsed).
+    const isExpanded = e.detail.value;
+    if (isExpanded) {
+      this.interactions_.add(
+          SecurityPageV2Interaction.SECURE_DNS_V2_ROW_EXPANDED);
+    }
+  }
+
+  private onSecureDnsToggleChange_() {
+    this.interactions_.add(
+        SecurityPageV2Interaction.SECURE_DNS_V2_TOGGLE_CLICK);
+  }
+
+  private onSecureDnsToggleClick_() {
+    this.interactions_.add(SecurityPageV2Interaction.SECURE_DNS_TOGGLE_CLICK);
+  }
+
+  /**
+   * Handles changes of the radio button selection inside the secure DNS
+   * settings row.
+   */
+  private onSecureDnsRadioGroupChange_(e: CustomEvent<{value: string}>) {
+    const selected = e.detail.value as SecureDnsV2ResolverType;
+
+    switch (selected) {
+      case SecureDnsV2ResolverType.AUTOMATIC:
+        this.interactions_.add(SecurityPageV2Interaction
+                                   .SECURE_DNS_V2_AUTOMATIC_RADIO_BUTTON_CLICK);
+        break;
+      case SecureDnsV2ResolverType.FALLBACK:
+        this.interactions_.add(SecurityPageV2Interaction
+                                   .SECURE_DNS_V2_FALLBACK_RADIO_BUTTON_CLICK);
+        break;
+      case SecureDnsV2ResolverType.CUSTOM:
+        this.interactions_.add(
+            SecurityPageV2Interaction.SECURE_DNS_V2_CUSTOM_RADIO_BUTTON_CLICK);
+        break;
+      case SecureDnsV2ResolverType.BUILT_IN:
+        // There is technically no button for the built-in resolver type.
+        break;
+      default:
+        assertNotReachedCase(
+            selected,
+            'Received unknown secure DNS radio button selection: ' + selected);
     }
   }
 
@@ -283,10 +424,12 @@ export class SettingsSecurityPageV2Element extends
 
     const bundleSetting = this.getBundleSetting_();
 
+    // LINT.IfChange
     const prefsToCheck = [{
       prefKey: 'generated.safe_browsing',
       defaultValue: this.getDefaultSafeBrowsingValue_(bundleSetting),
     }];
+    // LINT.ThenChange(//chrome/browser/safe_browsing/safe_browsing_service.cc,//chrome/browser/safe_browsing/metrics/bundled_settings_metrics_provider.cc)
     for (const prefToCheck of prefsToCheck) {
       const pref = this.getPref(prefToCheck.prefKey);
       if (pref.value !== prefToCheck.defaultValue &&
@@ -326,6 +469,66 @@ export class SettingsSecurityPageV2Element extends
         'generated.safe_browsing',
         this.getDefaultSafeBrowsingValue_(bundleSetting));
     this.isResettingToDefaults_ = false;
+  }
+
+  private onHttpsFirstModeToggleChange_() {
+    this.interactions_.add(
+        SecurityPageV2Interaction.HTTPS_FIRST_MODE_TOGGLE_CLICK);
+  }
+
+  private onHttpsFirstModeRadioGroupChange_() {
+    const selected =
+        Number.parseInt(this.$.httpsFirstModeRadioGroup.selected || '', 10);
+    if (selected === HttpsFirstModeSetting.ENABLED_BALANCED) {
+      this.interactions_.add(SecurityPageV2Interaction
+                                 .BALANCED_HTTPS_FIRST_MODE_RADIO_BUTTON_CLICK);
+    } else if (selected === HttpsFirstModeSetting.ENABLED_FULL) {
+      this.interactions_.add(
+          SecurityPageV2Interaction.STRICT_HTTPS_FIRST_MODE_RADIO_BUTTON_CLICK);
+    }
+  }
+
+  private onPasswordsLeakToggleChange_() {
+    this.interactions_.add(
+        SecurityPageV2Interaction.PASSWORD_LEAK_DETECTION_TOGGLE_CLICK);
+  }
+
+  private onManageCertificatesClick_() {
+    this.metricsBrowserProxy_.recordSettingsPageHistogram(
+        PrivacyElementInteractions.MANAGE_CERTIFICATES);
+    OpenWindowProxyImpl.getInstance().openUrl(
+        loadTimeData.getString('certManagementV2URL'));
+  }
+
+  private onSecurityKeysClick_() {
+    Router.getInstance().navigateTo(routes.SECURITY_KEYS);
+  }
+
+  private onAdvancedProtectionProgramClick_(e: Event) {
+    OpenWindowProxyImpl.getInstance().openUrl(
+        loadTimeData.getString('advancedProtectionURL'));
+    // The Advanced Protection Program link is part of a string that is
+    // contained in a link-row. The default link navigation action will
+    // be ignored to ensure that the click will only be registered for
+    // the link inside the string and not also for the link-row.
+    if ((e.target as HTMLElement).tagName === 'A') {
+      e.preventDefault();
+      return;
+    }
+  }
+
+  private updateRowsState_() {
+    const httpsFirstModePref =
+        this.getPref('generated.https_first_mode_enabled');
+    this.isHttpsFirstModeEnabled_ = httpsFirstModePref.value !== undefined &&
+        httpsFirstModePref.value !== HttpsFirstModeSetting.DISABLED;
+
+    const safeBrowsingPref = this.getPref('generated.safe_browsing');
+    this.isSafeBrowsingEnabled_ = safeBrowsingPref.value !== undefined &&
+        safeBrowsingPref.value !== SafeBrowsingSetting.DISABLED;
+    this.isSafeBrowsingWarningIconVisible_ = !this.isSafeBrowsingEnabled_ &&
+        safeBrowsingPref.enforcement !==
+            chrome.settingsPrivate.Enforcement.ENFORCED;
   }
 }
 

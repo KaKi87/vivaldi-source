@@ -26,7 +26,6 @@ import org.chromium.base.ObserverList;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
-import org.chromium.chrome.browser.compositor.layouts.LayoutRenderHost;
 import org.chromium.chrome.browser.compositor.layouts.LayoutUpdateHost;
 import org.chromium.chrome.browser.compositor.layouts.components.CompositorButton;
 import org.chromium.chrome.browser.compositor.layouts.components.CompositorButton.ButtonType;
@@ -50,6 +49,7 @@ import java.util.List;
 // Vivaldi
 import org.chromium.build.BuildConfig;
 import org.chromium.chrome.browser.ChromeApplicationImpl;
+import org.chromium.chrome.browser.compositor.layouts.LayoutRenderHost;
 import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
 import org.chromium.chrome.browser.tasks.tab_management.TabUiFeatureUtilities;
@@ -137,11 +137,24 @@ public class StripLayoutTab extends StripLayoutView {
     private static final float FAVICON_WIDTH = 16.f;
     private static final float FAVICON_PADDING = 26.f;
     protected static final float MIN_WIDTH = FAVICON_WIDTH + (FOLIO_FOOT_LENGTH_DP * 2);
-    // TODO(crbug.com/454048975): Check media indicator constants with UX.
-    private static final float MEDIA_INDICATOR_WIDTH = 16.f;
     private static final float WIDTH_TO_HIDE_ICON = 86.f;
+
+    // Media Indicator Constants.
+    private static final float MEDIA_INDICATOR_WIDTH = 16.f;
+    // Spacing between the media indicator and the close button.
+    private static final float MEDIA_INDICATOR_TO_CLOSE_BUTTON_SPACING_DP = 12.f;
+    // The media indicator icon has internal padding of approx 2dp when scaled to 16dp.
+    private static final float MEDIA_INDICATOR_INTERNAL_PADDING_DP = 2.f;
+    // We want the visual gap between title and media indicator to be the same as the visual gap
+    // between title and close button (which is CLOSE_BUTTON_PADDING_DP).
+    private static final float TITLE_TO_MEDIA_INDICATOR_SPACING_DP =
+            Math.max(0, CLOSE_BUTTON_PADDING_DP - MEDIA_INDICATOR_INTERNAL_PADDING_DP);
     private static final float WIDTH_TO_HIDE_FAVICON_FOR_MEDIA_INDICATOR =
-            WIDTH_TO_HIDE_ICON + MEDIA_INDICATOR_WIDTH;
+            WIDTH_TO_HIDE_ICON
+                    + MEDIA_INDICATOR_WIDTH
+                    + (MEDIA_INDICATOR_TO_CLOSE_BUTTON_SPACING_DP
+                            - CLOSE_BUTTON_PADDING_DP
+                            - MEDIA_INDICATOR_INTERNAL_PADDING_DP);
 
     // Divider Constants
     private static final int DIVIDER_OFFSET_X = 13;
@@ -212,8 +225,10 @@ public class StripLayoutTab extends StripLayoutView {
      * @param keyboardFocusHandler Handles keyboard focus gain/loss on this {@link StripLayoutTab}.
      * @param loadTrackerCallback The {@link TabLoadTrackerCallback} to be notified of loading state
      *     changes.
-     * @param updateHost The {@link LayoutRenderHost}.
+     * @param updateHost The {@link LayoutUpdateHost}.
      * @param incognito Whether or not this layout tab is incognito.
+     * @param isPinned Whether or not this tab is pinned.
+     * @param mediaState The media state of the tab.
      */
     public StripLayoutTab(
             Context context,
@@ -223,9 +238,11 @@ public class StripLayoutTab extends StripLayoutView {
             TabLoadTrackerCallback loadTrackerCallback,
             LayoutUpdateHost updateHost,
             boolean incognito,
-            boolean isPinned) {
+            boolean isPinned,
+            @MediaState int mediaState) {
         super(incognito, clickHandler, keyboardFocusHandler, context);
         mTabId = id;
+        mMediaState = mediaState;
         mIsPinned = isPinned;
         mLoadTracker = new TabLoadTracker(id, loadTrackerCallback);
         mUpdateHost = updateHost;
@@ -983,6 +1000,18 @@ public class StripLayoutTab extends StripLayoutView {
         return MEDIA_INDICATOR_WIDTH;
     }
 
+    public float getMediaIndicatorToCloseButtonSpacing() {
+        return MEDIA_INDICATOR_TO_CLOSE_BUTTON_SPACING_DP;
+    }
+
+    public float getTitleToMediaIndicatorSpacing() {
+        return TITLE_TO_MEDIA_INDICATOR_SPACING_DP;
+    }
+
+    public float getMediaIndicatorInternalPadding() {
+        return MEDIA_INDICATOR_INTERNAL_PADDING_DP;
+    }
+
     @Override
     public void getAnchorRect(Rect out) {
         float dpToPx = getDpToPx();
@@ -1062,16 +1091,12 @@ public class StripLayoutTab extends StripLayoutView {
      * Vivaldi: For foreground tabs the close button is always visible, for background tabs we read
      * the appropriate setting.
      */
-    public boolean isCloseButtonVisible() {
-        if (mTabModelSelector != null) {
-            int selectedTabId = mTabModelSelector.getCurrentTabId();
-            boolean isTabSelected = mTabId == selectedTabId;
-            if (getIsPinned()) return false;
-            if (isTabSelected) return true;
-            return VivaldiPreferences.getSharedPreferencesManager().readBoolean(
-                    VivaldiPreferences.SHOW_X_BUTTON_FOR_BACKGROUND_TABS, false);
-        }
-        return false;
+    public boolean isCloseButtonVisible(int selectedTabId) {
+        boolean isTabSelected = mTabId == selectedTabId;
+        if (getIsPinned()) return false;
+        if (isTabSelected) return true;
+        return VivaldiPreferences.getSharedPreferencesManager().readBoolean(
+                VivaldiPreferences.SHOW_X_BUTTON_FOR_BACKGROUND_TABS, false);
     }
 
     /**
@@ -1110,9 +1135,7 @@ public class StripLayoutTab extends StripLayoutView {
             mCloseButton.setOpacity(
                     getIsPinned() || (!isTabSelected && !showCloseButton) ? 0.f : 1.f);
 
-            TabGroupModelFilter filter = mTabModelSelector
-                    .getTabGroupModelFilterProvider()
-                    .getCurrentTabGroupModelFilter();
+            TabGroupModelFilter filter = mTabModelSelector.getCurrentTabGroupModelFilter();
             if (filter != null) {
                 int tabCount = filter.getRelatedTabList(mTabId).size();
                 isTabInStack = tabCount > 1;

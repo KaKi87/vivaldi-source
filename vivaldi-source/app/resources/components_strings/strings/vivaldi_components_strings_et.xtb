@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Osaliselt ebaturvaline ühendus</translation>
 <translation id="4265872034478892965">Administraatori poolt lubatud</translation>
 <translation id="4305666528087210886">Failile ei pääsetud juurde</translation>
-<translation id="4408413947728134509">Küpsised <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544">Host <ph name="HOST_NAME" /> ei aktsepteerinud sisselogimise sertifikaati või sa ei esitanud seda.</translation>
 <translation id="4506599922270137252">Võta ühendust süsteemiadministraatoriga</translation>
 <translation id="4522570452068850558">Üksikasjad</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Tulemusi pole</translation>
 <translation id="5017554619425969104">Kopeeritud tekst</translation>
 <translation id="5023310440958281426">Tutvu administraatori reeglitega</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 kasutusel)} other {(# kasutusel)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Kontrolli puhverserveri aadressi<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bitine)</translation>
 <translation id="5216942107514965959">Viimati külastatud täna</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Sellel saidil ei tohiks kuhugi sisestada tundlikke andmeid (nt paroole või krediitkaardiandmeid), kuna ründajad võivad need varastada.</translation>
 <translation id="5863515189965725638">IBAN-i muutmine</translation>
 <translation id="5869405914158311789">Selle saidiga ei saa ühendust</translation>
-<translation id="5920262536204764679">{NUM_COOKIES, plural, =1 {1 kasutusel} other {# kasutusel}}</translation>
 <translation id="5932224571077948991">Sait näitab pealetükkivaid võtteid kasutavaid või eksitavaid reklaame</translation>
 <translation id="6051221802930200923">Saiti <ph name="SITE" /> ei saa praegu külastada, sest see kasutab sertifikaadi kinnistust. Võrguvead ja -rünnakud on tavaliselt ajutised, nii et tõenäoliselt leht hiljem taas töötab.</translation>
 <translation id="6146055958333702838">Kontrolli kaableid ning taaskäivita ruuter, modem või muu võrguseade,

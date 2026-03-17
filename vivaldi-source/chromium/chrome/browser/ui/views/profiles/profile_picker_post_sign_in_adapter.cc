@@ -10,6 +10,7 @@
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
 #include "base/strings/string_util.h"
+#include "base/strings/to_string.h"
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/identity_manager_factory.h"
@@ -268,7 +269,7 @@ void ProfilePickerPostSignInAdapter::SwitchToProfileSwitch(
 }
 
 void ProfilePickerPostSignInAdapter::ResetHostAndShowErrorDialog(
-    const ForceSigninUIError& error) {
+    const std::variant<ForceSigninUIError, SigninUIError>& error) {
   CHECK(IsInitialized());
   if (!step_switch_callback_->is_null()) {
     std::move(step_switch_callback_.value()).Run(false);
@@ -276,7 +277,7 @@ void ProfilePickerPostSignInAdapter::ResetHostAndShowErrorDialog(
 
   Cancel();
   host_->Reset(StepSwitchFinishedCallback(
-      base::BindOnce(&ProfilePickerWebContentsHost::ShowForceSigninErrorDialog,
+      base::BindOnce(&ProfilePickerWebContentsHost::ShowSigninErrorDialog,
                      base::Unretained(host_), error)));
 }
 

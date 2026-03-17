@@ -89,10 +89,10 @@ export class CrLottieElement extends CrLitElement {
     };
   }
 
-  animationUrl: string = '';
-  autoplay: boolean = false;
-  override hidden: boolean = false;
-  singleLoop: boolean = false;
+  accessor animationUrl: string = '';
+  accessor autoplay: boolean = false;
+  override accessor hidden: boolean = false;
+  accessor singleLoop: boolean = false;
 
   private canvasElement_: CanvasElementWithOffscreen|null = null;
   private isAnimationLoaded_: boolean = false;
@@ -272,10 +272,10 @@ export class CrLottieElement extends CrLitElement {
     assert(!this.xhr_);
 
     this.xhr_ = new XMLHttpRequest();
-    this.xhr_!.open('GET', url, true);
-    this.xhr_!.responseType = responseType;
-    this.xhr_!.send();
-    this.xhr_!.onreadystatechange = () => {
+    this.xhr_.open('GET', url, true);
+    this.xhr_.responseType = responseType;
+    this.xhr_.send();
+    this.xhr_.onreadystatechange = () => {
       assert(this.xhr_);
       if (this.xhr_.readyState === 4 && this.xhr_.status === 200) {
         // |successCallback| might trigger another xhr, so we set to null before

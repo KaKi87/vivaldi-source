@@ -47,7 +47,7 @@
 #include "ui/webui/webui_util.h"
 #include "url/gurl.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/resources/glic_resources.h"
 #include "chrome/browser/glic/resources/grit/glic_browser_resources.h"
 #endif
@@ -102,7 +102,7 @@ std::string GetManagedDeviceDisclaimer() {
 }
 
 int GetMainViewTitleId(bool is_glic_version) {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (is_glic_version) {
     return IDS_PROFILE_PICKER_MAIN_VIEW_TITLE_GLIC;
   }
@@ -112,7 +112,7 @@ int GetMainViewTitleId(bool is_glic_version) {
 }
 
 int GetMainViewSingleProfileTitleId(bool is_glic_version) {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (is_glic_version) {
     return IDS_PROFILE_PICKER_MAIN_VIEW_TITLE_GLIC;
   }
@@ -136,7 +136,7 @@ int GetMainViewSingleProfileTitleId(bool is_glic_version) {
 }
 
 int GetMainViewSubtitleId(bool is_glic_version) {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (is_glic_version) {
     return IDS_PROFILE_PICKER_MAIN_VIEW_SUBTITLE_GLIC;
   }
@@ -145,7 +145,7 @@ int GetMainViewSubtitleId(bool is_glic_version) {
 }
 
 int GetMainViewSingleProfileSubtitleId(bool is_glic_version) {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (is_glic_version) {
     return IDS_PROFILE_PICKER_MAIN_VIEW_SUBTITLE_GLIC;
   }
@@ -210,13 +210,13 @@ void AddStrings(content::WebUIDataSource* html_source, bool is_glic_version) {
       {"ok", IDS_OK},
       {"signInButtonLabel",
        IDS_PROFILE_PICKER_PROFILE_CREATION_FLOW_SIGNIN_BUTTON_LABEL},
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
       {"glicAddProfileHelper", IDS_PROFILE_PICKER_ADD_PROFILE_HELPER_GLIC},
       {"glicTitleNoProfile",
        IDS_PROFILE_PICKER_MAIN_VIEW_TITLE_GLIC_NO_PROFILE},
       {"mainViewSubtitleGlicNoProfile",
        IDS_PROFILE_PICKER_MAIN_VIEW_SUBTITLE_GLIC_NO_PROFILE},
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
   };
   html_source->AddLocalizedStrings(kLocalizedStrings);
 
@@ -248,6 +248,10 @@ void AddStrings(content::WebUIDataSource* html_source, bool is_glic_version) {
 
   html_source->AddString("managedDeviceDisclaimer",
                          GetManagedDeviceDisclaimer());
+
+  html_source->AddBoolean("usePrimaryAndTonalButtonsForPromos",
+                          base::FeatureList::IsEnabled(
+                              switches::kUsePrimaryAndTonalButtonsForPromos));
 }
 
 void AddFlags(content::WebUIDataSource* html_source, bool is_glic_version) {
@@ -321,7 +325,7 @@ void AddResourcePaths(content::WebUIDataSource* html_source,
       {"left_banner_dark.svg", IDR_SIGNIN_IMAGES_SHARED_LEFT_BANNER_DARK_SVG},
       {"right_banner.svg", IDR_SIGNIN_IMAGES_SHARED_RIGHT_BANNER_SVG},
       {"right_banner_dark.svg", IDR_SIGNIN_IMAGES_SHARED_RIGHT_BANNER_DARK_SVG},
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
       {"glic_banner_top_right.svg",
        glic::GetResourceID(IDR_GLIC_PROFILE_BANNER_TOP_RIGHT)},
       {"glic_banner_bottom_left.svg",
@@ -332,18 +336,18 @@ void AddResourcePaths(content::WebUIDataSource* html_source,
        glic::GetResourceID(IDR_GLIC_PROFILE_BANNER_BOTTOM_LEFT_LIGHT)},
       {"glic_profile_branding.css",
        glic::GetResourceID(IDR_GLIC_PROFILE_BRANDING_CSS)},
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
   };
   html_source->AddResourcePaths(kResourcePaths);
 
   int logo_resource_id;
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   logo_resource_id = is_glic_version
                          ? glic::GetResourceID(IDR_GLIC_PROFILE_LOGO)
                          : IDR_PRODUCT_LOGO_SVG;
 #else
   logo_resource_id = IDR_PRODUCT_LOGO_SVG;
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
   html_source->AddResourcePath("picker_logo.svg", logo_resource_id);
 }
 
@@ -416,10 +420,9 @@ ProfilePickerHandler* ProfilePickerUI::GetProfilePickerHandlerForTesting() {
   return profile_picker_handler_;
 }
 
-void ProfilePickerUI::ShowForceSigninErrorDialog(
-    const ForceSigninUIError& error) {
-  profile_picker_handler_->DisplayForceSigninErrorDialog(base::FilePath(),
-                                                         error);
+void ProfilePickerUI::ShowSigninErrorDialog(
+    const std::variant<ForceSigninUIError, SigninUIError>& error) {
+  profile_picker_handler_->DisplaySigninErrorDialog(base::FilePath(), error);
 }
 
 WEB_UI_CONTROLLER_TYPE_IMPL(ProfilePickerUI)

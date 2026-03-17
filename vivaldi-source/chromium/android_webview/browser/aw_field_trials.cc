@@ -13,11 +13,12 @@
 #include "base/metrics/persistent_histogram_allocator.h"
 #include "base/path_service.h"
 #include "components/history/core/browser/features.h"
+#include "components/input/features.h"
 #include "components/metrics/persistent_histograms.h"
 #include "components/payments/content/android/payment_feature_map.h"
 #include "components/permissions/features.h"
 #include "components/safe_browsing/core/common/features.h"
-#include "components/translate/core/common/translate_util.h"
+#include "components/stylus_handwriting/android/stylus_handwriting_feature_map.h"
 #include "components/variations/feature_overrides.h"
 #include "components/viz/common/features.h"
 #include "content/public/common/content_features.h"
@@ -65,10 +66,10 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   aw_feature_overrides.DisableFeature(
       blink::features::kAboutBlankPageRespectsDarkModeOnUserAction);
 
-  // TODO(crbug.com/433304196): Remove this once webview experiment has
+  // TODO(crbug.com/444669046): Remove this once webview experiment has
   // concluded.
   aw_feature_overrides.DisableFeature(
-      blink::features::kAsyncTouchMovesImmediatelyAfterScroll);
+      input::features::kUpdateScrollPredictorInputMapping);
 
   // Disable enforcing `noopener` on Blob URL navigations on WebView.
   aw_feature_overrides.DisableFeature(
@@ -194,18 +195,15 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   // Disable Web Serial API on WebView.
   aw_feature_overrides.DisableFeature(blink::features::kWebSerialAPI);
 
-  // Disable TFLite based language detection on webview until webview supports
-  // ML model delivery via Optimization Guide component.
-  // TODO(crbug.com/40819484): Enable the feature on Webview.
-  aw_feature_overrides.DisableFeature(
-      ::translate::kTFLiteLanguageDetectionEnabled);
-
   // Disable key pinning enforcement on webview.
   aw_feature_overrides.DisableFeature(
       net::features::kStaticKeyPinningEnforcement);
 
   // FedCM is not yet supported on WebView.
   aw_feature_overrides.DisableFeature(::features::kFedCm);
+
+  // Email Verification Protocol is not yet supported on WebView.
+  aw_feature_overrides.DisableFeature(::features::kEmailVerificationProtocol);
 
   // Disable Digital Credentials API on WebView.
   aw_feature_overrides.DisableFeature(
@@ -288,21 +286,23 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   aw_feature_overrides.DisableFeature(
       features::kAAudioPerStreamDeviceSelection);
 
-  // WebView exposes text autosizing to apps via setLayoutAlgorithm(), so
-  // we keep text autosizing support in WebView for now. Further WebView
-  // work will take place in https://crbug.com/391990606.
-  aw_feature_overrides.DisableFeature(blink::features::kForceOffTextAutosizing);
-
   // Local Network Access restrictions should not be enforced in WebView.
   // The LNA permission is auto-granted in WebView, but the permission
   // policy currently blocks iframes from using it. crbug.com/442879527
   aw_feature_overrides.DisableFeature(
       network::features::kLocalNetworkAccessChecks);
+  aw_feature_overrides.DisableFeature(
+      network::features::kLocalNetworkAccessChecksSplitPermissions);
 
   // Disable background media for WebView, until we have consensus on long-term
   // behavior crbug.com/453706851
   aw_feature_overrides.DisableFeature(
       features::kAndroidEnableBackgroundMediaLargeFormFactors);
+
+  // Disable ExtendedReportingRemovePrefDependency for WebView, because WebView
+  // doesn't support ESB
+  aw_feature_overrides.DisableFeature(
+      safe_browsing::kExtendedReportingRemovePrefDependency);
 
   // SystemTracing is enabled by default only in WebView for now.
   aw_feature_overrides.EnableFeature(features::kEnablePerfettoSystemTracing);
@@ -310,4 +310,11 @@ void AwFieldTrials::RegisterFeatureOverrides(base::FeatureList* feature_list) {
   // Deemed that performance benefit is not worth the stability cost.
   // See crbug.com/1309151.
   aw_feature_overrides.DisableFeature(::features::kGpuShaderDiskCache);
+
+  // Don't pass the data about browser window position on screen to WebView.
+  aw_feature_overrides.DisableFeature(ui::kAndroidUseCorrectWindowBounds);
+
+  // Launched for WebView. Experimentation needed for Chrome on Android.
+  aw_feature_overrides.EnableFeature(
+      stylus_handwriting::android::kProbeStylusWritingInBackground);
 }

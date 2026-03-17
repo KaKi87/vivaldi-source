@@ -144,8 +144,7 @@ const base::win::i18n::LanguageSelector* GetInstallerLanguageSelector() {
 
 namespace vivaldi_installer {
 
-std::wstring GetLocalizedStringF(int message_id,
-                                  const std::wstring& arg) {
+std::wstring GetLocalizedStringF(int message_id, const std::wstring& arg) {
   std::wstring text = ::installer::GetLocalizedString(message_id);
   return base::ReplaceStringPlaceholders(text, {arg}, nullptr);
 }
@@ -157,4 +156,4 @@ std::wstring GetLocalizedStringF2(int message_id,
   return base::ReplaceStringPlaceholders(text, {arg1, arg2}, nullptr);
 }
 
-}  // namespace installer
+}  // namespace vivaldi_installer

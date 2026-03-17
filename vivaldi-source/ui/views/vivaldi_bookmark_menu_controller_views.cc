@@ -16,6 +16,7 @@ void BookmarkMenuController::RunMenuAt(const views::View* parent,
                           ui::mojom::MenuSourceType::kNone);
 }
 
+// Used when navigating with open menus using keyboard.
 views::MenuItemView* BookmarkMenuController::GetNextSiblingMenu(
     bool next,
     bool* has_mnemonics,
@@ -26,11 +27,13 @@ views::MenuItemView* BookmarkMenuController::GetNextSiblingMenu(
       menu_delegate_->GetBookmarkMergedSurfaceService()->bookmark_model(), next,
       &start_index, rect);
   if (!node || !node->is_folder() ||
-      menu_delegate_->GetBookmarkMergedSurfaceService()->bookmark_model()->is_root_node(node))
+      menu_delegate_->GetBookmarkMergedSurfaceService()
+          ->bookmark_model()
+          ->is_root_node(node))
     return nullptr;
   menu_delegate_->SetActiveMenu(BookmarkParentFolder::FromFolderNode(node),
                                 start_index);
-  *has_mnemonics = true;
+  *has_mnemonics = menu_delegate_->vivaldi_menu_uses_mnemonics();
   *anchor = views::MenuAnchorPosition::kTopLeft;
   return this->menu();
 }

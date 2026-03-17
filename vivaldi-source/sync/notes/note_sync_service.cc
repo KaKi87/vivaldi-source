@@ -49,8 +49,8 @@ void NoteSyncService::SetIsTrackingMetadataForTesting() {
   is_tracking_metadata_for_testing_ = true;
 }
 
-void NoteSyncService::SetNotesLimitForTesting(size_t limit) {
-  note_data_type_processor_.SetMaxNotesTillSyncEnabledForTest(  // IN-TEST
+void NoteSyncService::SetLocalNotesLimitForTesting(size_t limit) {
+  note_data_type_processor_.SetLocalNotesLimitForTesting(  // IN-TEST
       limit);
 }
 

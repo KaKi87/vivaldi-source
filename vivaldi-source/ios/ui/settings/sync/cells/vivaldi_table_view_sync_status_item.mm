@@ -17,7 +17,7 @@ const CGFloat kStatusLabelVerticalPadding = 4.0;
 const int kSyncStatusTextColor = 0x3B3B3B;
 
 const UIFontTextStyle fontTextStyle = UIFontTextStyleSubheadline;
-}
+}  // namespace
 
 #pragma mark - VivaldiTableViewSyncStatusItem
 
@@ -65,7 +65,6 @@ const UIFontTextStyle fontTextStyle = UIFontTextStyleSubheadline;
 
 @implementation VivaldiTableViewSyncStatusCell
 
-
 - (instancetype)initWithStyle:(UITableViewCellStyle)style
               reuseIdentifier:(NSString*)reuseIdentifier {
   self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
@@ -80,8 +79,7 @@ const UIFontTextStyle fontTextStyle = UIFontTextStyleSubheadline;
     // Because the background of the label is colored we want
     // the same color for the text regardless of light/dark mode
     _syncActiveLabel.textColor = UIColorFromRGB(kSyncStatusTextColor);
-    _syncActiveLabel.font =
-        [UIFont preferredFontForTextStyle:fontTextStyle];
+    _syncActiveLabel.font = [UIFont preferredFontForTextStyle:fontTextStyle];
     _syncActiveLabel.textAlignment = NSTextAlignmentCenter;
     _syncActiveLabel.numberOfLines = 0;
     _syncActiveLabel.backgroundColor = [UIColor clearColor];
@@ -90,9 +88,8 @@ const UIFontTextStyle fontTextStyle = UIFontTextStyleSubheadline;
     _syncStatusView.layer.masksToBounds = YES;
     [_syncStatusView addSubview:_syncActiveLabel];
 
-    UIStackView* stackView = [[UIStackView alloc] initWithArrangedSubviews:@[
-      _lastSyncDateLabel, _syncStatusView
-    ]];
+    UIStackView* stackView = [[UIStackView alloc]
+        initWithArrangedSubviews:@[ _lastSyncDateLabel, _syncStatusView ]];
     stackView.axis = UILayoutConstraintAxisVertical;
     stackView.alignment = UIStackViewAlignmentCenter;
     stackView.spacing = kStackViewSpacing;
@@ -101,20 +98,21 @@ const UIFontTextStyle fontTextStyle = UIFontTextStyleSubheadline;
     // Layout
     if (!_lastSyncDateLabel.hidden) {
       [_lastSyncDateLabel anchorTop:nil
-            leading:stackView.leadingAnchor
-              bottom:nil
-            trailing:stackView.trailingAnchor];
+                            leading:stackView.leadingAnchor
+                             bottom:nil
+                           trailing:stackView.trailingAnchor];
     }
 
-    [_syncActiveLabel fillSuperviewWithPadding:UIEdgeInsetsMake(
-                kStatusLabelVerticalPadding,
-                kStatusLabelHorizontalPadding,
-                kStatusLabelVerticalPadding,
-                kStatusLabelHorizontalPadding)];
+    [_syncActiveLabel
+        fillSuperviewWithPadding:UIEdgeInsetsMake(
+                                     kStatusLabelVerticalPadding,
+                                     kStatusLabelHorizontalPadding,
+                                     kStatusLabelVerticalPadding,
+                                     kStatusLabelHorizontalPadding)];
 
-    [stackView fillSuperviewWithPadding:UIEdgeInsetsMake(
-              kStackMargin,kStackMargin,
-              kStackMargin,kStackMargin)];
+    [stackView
+        fillSuperviewWithPadding:UIEdgeInsetsMake(kStackMargin, kStackMargin,
+                                                  kStackMargin, kStackMargin)];
   }
 
   return self;
@@ -127,7 +125,7 @@ const UIFontTextStyle fontTextStyle = UIFontTextStyleSubheadline;
   if (@available(iOS 26, *)) {
     divider = 3.0;
   }
-  _syncStatusView.layer.cornerRadius = height/divider;
+  _syncStatusView.layer.cornerRadius = height / divider;
 }
 
 - (void)prepareForReuse {

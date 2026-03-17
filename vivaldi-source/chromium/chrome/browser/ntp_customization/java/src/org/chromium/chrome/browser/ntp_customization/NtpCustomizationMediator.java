@@ -13,12 +13,14 @@ import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoor
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.SINGLE_THEME_COLLECTION;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.THEME;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationCoordinator.BottomSheetType.THEME_COLLECTIONS;
+import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType.THEME_COLLECTION;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationViewProperties.LAYOUT_TO_DISPLAY;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationViewProperties.LIST_CONTAINER_VIEW_DELEGATE;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationViewProperties.MAIN_BOTTOM_SHEET_FEED_SECTION_SUBTITLE;
 import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationViewProperties.MAIN_BOTTOM_SHEET_MVT_SECTION_SUBTITLE;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.view.View;
 import android.widget.ViewFlipper;
 
@@ -39,6 +41,8 @@ import org.chromium.components.browser_ui.bottomsheet.BottomSheetObserver;
 import org.chromium.components.browser_ui.bottomsheet.EmptyBottomSheetObserver;
 import org.chromium.components.prefs.PrefService;
 import org.chromium.components.user_prefs.UserPrefs;
+import org.chromium.ui.base.DeviceFormFactor;
+import org.chromium.ui.base.WindowAndroid;
 import org.chromium.ui.modelutil.PropertyModel;
 
 import java.util.ArrayList;
@@ -75,9 +79,11 @@ public class NtpCustomizationMediator {
     private final Supplier<@Nullable Profile> mProfileSupplier;
     private final @Nullable PropertyModel mContainerPropertyModel;
     private final boolean mNtpCustomizationForMvtFeatureEnabled;
+    private final WindowAndroid mWindowAndroid;
     private @Nullable Profile mProfile;
     private @Nullable Integer mCurrentBottomSheet;
     private boolean mShouldRecreate;
+    private @Nullable Bitmap mNewThemeCollectionImage;
     private static @Nullable PrefService sPrefServiceForTest;
 
     public NtpCustomizationMediator(
@@ -86,15 +92,17 @@ public class NtpCustomizationMediator {
             NtpCustomizationBottomSheetContent bottomSheetContent,
             PropertyModel viewFlipperPropertyModel,
             @Nullable PropertyModel containerPropertyModel,
-            Supplier<@Nullable Profile> profileSupplier) {
+            Supplier<@Nullable Profile> profileSupplier,
+            WindowAndroid windowAndroid) {
         mBottomSheetController = bottomSheetController;
         mBottomSheetContent = bottomSheetContent;
         mViewFlipperPropertyModel = viewFlipperPropertyModel;
         mContainerPropertyModel = containerPropertyModel;
         mProfileSupplier = profileSupplier;
+        mWindowAndroid = windowAndroid;
         mViewFlipperMap = new HashMap<>();
         mTypeToListenersMap = new HashMap<>();
-        mListContent = buildListContent();
+        mListContent = buildListContent(context);
         mNtpCustomizationForMvtFeatureEnabled =
                 ChromeFeatureList.sNewTabPageCustomizationForMvt.isEnabled();
 
@@ -107,6 +115,13 @@ public class NtpCustomizationMediator {
 
                     @Override
                     public void onSheetClosed(@BottomSheetController.StateChangeReason int reason) {
+                        // Pick and save the primary color if a new theme collection image is
+                        // selected.
+                        if (NtpCustomizationConfigManager.getInstance().getBackgroundType()
+                                        == THEME_COLLECTION
+                                && mNewThemeCollectionImage != null) {
+                            NtpCustomizationUtils.pickAndSavePrimaryColor(mNewThemeCollectionImage);
+                        }
                         mBottomSheetContent.onSheetClosed();
                         mBottomSheetController.removeObserver(mBottomSheetObserver);
                         // Notify to recreate activities if a new customized theme color is selected
@@ -151,6 +166,11 @@ public class NtpCustomizationMediator {
     // Called when a customized theme color is selected or removed.
     void onNewColorSelected(boolean isDifferentColor) {
         mShouldRecreate = isDifferentColor;
+    }
+
+    // Called when a new theme collection image is selected or removed.
+    void onNewThemeCollectionImageSelected(@Nullable Bitmap image) {
+        mNewThemeCollectionImage = image;
     }
 
     /** Handles system back press and back button clicks on the bottom sheet. */
@@ -281,7 +301,7 @@ public class NtpCustomizationMediator {
      * Feed" list item only if the feed section exists in the new tab page.
      */
     @VisibleForTesting
-    List<Integer> buildListContent() {
+    List<Integer> buildListContent(Context context) {
         Profile profile = mProfileSupplier.get();
         if (profile == null) {
             return List.of(NTP_CARDS);
@@ -296,16 +316,26 @@ public class NtpCustomizationMediator {
         if (FeedFeatures.isFeedEnabled(mProfile)) {
             content.add(FEED);
         }
-        if (ChromeFeatureList.sNewTabPageCustomizationV2.isEnabled()) {
-            content.add(THEME);
+
+        if (NtpCustomizationUtils.isNtpThemeCustomizationEnabled()) {
+            boolean isTablet = DeviceFormFactor.isNonMultiDisplayContextOnTablet(context);
+            if (isTablet
+                    || NtpCustomizationUtils.canEnableEdgeToEdgeForCustomizedTheme(
+                            mWindowAndroid, isTablet)) {
+                content.add(THEME);
+            }
         }
         return content;
     }
 
     /** Clears maps */
     void destroy() {
+        if (mContainerPropertyModel != null) {
+            mContainerPropertyModel.set(LIST_CONTAINER_VIEW_DELEGATE, null);
+        }
         mViewFlipperMap.clear();
         mTypeToListenersMap.clear();
+        mListContent.clear();
     }
 
     /**

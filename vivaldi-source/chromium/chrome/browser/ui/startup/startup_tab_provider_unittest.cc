@@ -34,20 +34,6 @@
 #define CMD_ARG(x) x
 #endif  // !BUILDFLAG(IS_WIN)
 
-namespace {
-
-// Helper to create a CommandLine object from a single argument, handling
-// platform differences for string types.
-static base::CommandLine MakeCommandLine(std::string_view argument) {
-#if BUILDFLAG(IS_WIN)
-  return base::CommandLine({L"", base::ASCIIToWide(argument)});
-#else
-  return base::CommandLine({"", std::string(argument)});
-#endif
-}
-
-}  // namespace
-
 TEST(StartupTabProviderTest, GetInitialPrefsTabsForState) {
   std::vector<GURL> input = {GURL(u"https://new_tab_page"),
                              GURL(u"https://www.google.com")};
@@ -351,6 +337,21 @@ TEST(StartupTabProviderTest, GetCommandLineTabs) {
   }
 }
 
+#if !BUILDFLAG(CHROME_FOR_TESTING)
+namespace {
+
+// Helper to create a CommandLine object from a single argument, handling
+// platform differences for string types.
+static base::CommandLine MakeCommandLine(std::string_view argument) {
+#if BUILDFLAG(IS_WIN)
+  return base::CommandLine({L"", base::ASCIIToWide(argument)});
+#else
+  return base::CommandLine({"", std::string(argument)});
+#endif
+}
+
+}  // namespace
+
 TEST(StartupTabProviderTest, GetCommandLineTabsCustomScheme) {
   const std::string scheme_prefix =
       base::StrCat({shell_integration::GetDirectLaunchUrlScheme(), "://"});
@@ -418,6 +419,21 @@ TEST(StartupTabProviderTest, GetCommandLineTabsCustomScheme) {
     EXPECT_EQ(CommandLineTabsPresent::kNo,
               instance.HasCommandLineTabs(command_line, base::FilePath()));
 #endif
+  }
+
+  // Custom scheme case with opaque format (no slashes).
+  {
+    const std::string arg_ascii = base::StrCat(
+        {shell_integration::GetDirectLaunchUrlScheme(), ":http://example.com"});
+    base::CommandLine command_line = MakeCommandLine(arg_ascii);
+    StartupTabProviderImpl instance;
+    StartupTabs output =
+        instance.GetCommandLineTabs(command_line, base::FilePath(), &profile);
+    ASSERT_EQ(1u, output.size());
+    EXPECT_EQ(GURL("http://example.com"), output[0].url);
+
+    EXPECT_EQ(CommandLineTabsPresent::kYes,
+              instance.HasCommandLineTabs(command_line, base::FilePath()));
   }
 
   // Custom scheme case with no inner URL.
@@ -488,6 +504,7 @@ TEST(StartupTabProviderTest, GetCommandLineTabsCustomScheme) {
               instance.HasCommandLineTabs(command_line, base::FilePath()));
   }
 }
+#endif  // BUILDFLAG(CHROME_FOR_TESTING)
 
 // This test fails on Windows. TODO(crbug.com/40265634): Investigate and
 // fix this test on Windows.
@@ -559,7 +576,7 @@ TEST_F(StartupTabProviderPrivacySandboxTest,
   scoped_refptr<const extensions::Extension> extension =
       extensions::ExtensionBuilder("1")
           .SetManifestKey("chrome_url_overrides",
-                          base::Value::Dict().Set("newtab", "custom_tab.html"))
+                          base::DictValue().Set("newtab", "custom_tab.html"))
           .Build();
   registry()->AddEnabled(extension);
   auto output = StartupTabProviderImpl::GetPrivacySandboxTabsForState(

@@ -4,10 +4,10 @@ if [ ! -x "$XDG_ICON_RESOURCE" ]; then
   echo "Error: Could not find xdg-icon-resource" >&2
   exit 1
 fi
-for icon in @@LOGO_RESOURCES_PNG@@; do
+for icon in @@logo_resources_png; do
   size="$(echo ${icon} | sed 's/[^0-9]//g')"
-  "$XDG_ICON_RESOURCE" install --size "${size}" "@@INSTALLDIR@@/${icon}" --novendor \
-    "@@PACKAGE@@"
+  "$XDG_ICON_RESOURCE" install --size "${size}" "@@INSTALLDIR/${icon}" --novendor \
+    "@@PACKAGE"
 done
 
 # Update cache of .desktop file MIME types. Non-fatal since it's just a cache.
@@ -45,4 +45,4 @@ update_defaults_list() {
   done
 }
 
-update_defaults_list "@@USR_BIN_SYMLINK_NAME@@.desktop"
+update_defaults_list "@@usr_bin_symlink_name.desktop"

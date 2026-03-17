@@ -17,15 +17,6 @@ const char kCssModsName[] = "Allow CSS modifications";
 const char kCssModsDescription[] =
     "Allow user interface CSS modifications set in Appearance settings.";
 
-const char kDesktopBackgroundInternalName[] =
-    "vivaldi-desktop-background-image";
-const char kDesktopBackgroundName[] = "Enable daily background image";
-const char kDesktopBackgroundDescription[] = "Enable daily background image.";
-
-const char kDnDTilingInternalName[] = "vivaldi-drag-and-drop-tiling";
-const char kDnDTilingMenuName[] = "Drag-and-drop tiling";
-const char kDnDTilingMenuDescription[] = "Tile tabs using the mouse";
-
 const char kDoubleClickMenuInternalName[] = "vivaldi-double-click-menu";
 const char kDoubleClickMenuName[] = "Show context menu on a double click";
 const char kDoubleClickMenuDescription[] =
@@ -46,21 +37,10 @@ extern const char kInternalPageReaderModeDescription[] =
     "Should give better results on most pages but is lacking in translation "
     "features.";
 
-const char kLocationOverrideInternalName[] = "vivaldi-location-override";
-const char kLocationOverrideName[] = "Enable Location Override";
-const char kLocationOverrideDescription[] =
-    "Spoof and protect your geolocation with Location Override.";
-
-const char kNewPrivacyReportInternalName[] = "vivaldi-new-privacy-report";
-const char kNewPrivacyReportName[] = "Use new Privacy Report";
-const char kNewPrivacyReportDescription[] =
-    "When enabled, the new redesigned privacy report is presented.";
-
-const char kOpenLinkTiledInternalName[] = "vivaldi-open-link-tiled";
-const char kOpenLinkTiledName[] =
-    "Enable Open Link Tiled navigation context menu";
-const char kOpenLinkTiledDescription[] =
-    "When enabled, Open Link Tiled navigation context menu is presented.";
+const char kLayoutsInternalName[] = "vivaldi-layouts";
+const char kLayoutsName[] = "Vivaldi Layouts";
+const char kLayoutsDescription[] =
+    "Select one of several predefined browser layouts";
 
 const char kShowNewSpeedDialDialogInternalName[] = "vivaldi-show-new-sd-dialog";
 const char kShowNewSpeedDialDialogName[] = "Enable new speed dial dialog";
@@ -90,12 +70,6 @@ const char kNoteEditorName[] = "vivaldi-note-editor";
 const char kNoteEditorOption[] = "Use the new note editor";
 const char kNoteEditorDescription[] =
     "Give access to a new note editor with more features.";
-
-const char kRestrictPinnedTabInternalName[] = "vivaldi-restrict-tab";
-const char kRestrictPinnedTabName[] =
-    "Enable navigation option: Restrict Pinned Tab to Current Site";
-const char kRestrictPinnedTabDescription[] =
-    "Enable navigation option: Restrict Pinned Tab to Current Site.";
 
 const char kTabsAutoHideName[] = "vivaldi-auto-hide";
 const char kTabsAutoHideOption[] = "Can use the Auto-Hide settings";

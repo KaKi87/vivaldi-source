@@ -9,6 +9,7 @@
 #include <string>
 #include <string_view>
 
+#include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "chrome/browser/ui/views/chrome_views_export.h"
 #include "ui/base/interaction/element_identifier.h"
@@ -17,6 +18,7 @@
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/controls/textfield/textfield_controller.h"
 #include "ui/views/layout/box_layout_view.h"
+#include "ui/views/metadata/view_factory.h"
 
 class FindBarHost;
 class FindBarMatchCountLabel;
@@ -100,8 +102,15 @@ class FindBarView : public views::BoxLayoutView,
   // views::TextfieldController:
   bool HandleKeyEvent(views::Textfield* sender,
                       const ui::KeyEvent& key_event) override;
+  bool HandleMouseEvent(views::Textfield* sender,
+                        const ui::MouseEvent& key_event) override;
   void OnAfterUserAction(views::Textfield* sender) override;
   void OnAfterPaste() override;
+  bool OnBeforeCutOrCopy(views::Textfield* sender,
+                         std::u16string* copy_contents) override;
+  bool OnBeforePaste(views::Textfield* sender,
+                     std::u16string* paste_contents) override;
+  std::unique_ptr<ui::ScopedClipboardWriter> CreateClipboardWriter() override;
 
  private:
   FRIEND_TEST_ALL_PREFIXES(LegacyFindInPageTest, AccessibleName);

@@ -56,7 +56,6 @@ import org.chromium.chrome.browser.customtabs.content.CustomTabActivityTabProvid
 import org.chromium.chrome.browser.customtabs.features.CustomTabNavigationBarController;
 import org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabHistoryIphController;
 import org.chromium.chrome.browser.customtabs.features.toolbar.CustomTabToolbar;
-import org.chromium.chrome.browser.firstrun.FirstRunSignInProcessor;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.history.HistoryManager;
 import org.chromium.chrome.browser.history.HistoryManagerUtils;
@@ -68,7 +67,6 @@ import org.chromium.chrome.browser.page_info.ChromePageInfoHighlight;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tab.TrustedCdn;
 import org.chromium.chrome.browser.ui.google_bottom_bar.GoogleBottomBarCoordinator;
-import org.chromium.chrome.browser.ui.web_app_header.WebAppHeaderUtils;
 import org.chromium.components.browser_ui.util.motion.MotionEventInfo;
 import org.chromium.components.page_info.PageInfoController.OpenedFromSource;
 import org.chromium.content_public.browser.LoadUrlParams;
@@ -78,18 +76,10 @@ import org.chromium.ui.base.PageTransition;
 import org.chromium.ui.util.ColorUtils;
 
 // Vivaldi
-import android.app.UiAutomation;
-
-import org.chromium.base.ContextUtils;
 import org.chromium.build.BuildConfig;
-import org.chromium.chrome.browser.ChromeTabbedActivity;
-import org.chromium.chrome.browser.app.ChromeActivity;
-import org.chromium.chrome.browser.document.ChromeLauncherActivity;
-import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.dom_distiller.DomDistillerTabUtils;
 import org.chromium.components.dom_distiller.core.DomDistillerUrlUtils;
-
-import org.vivaldi.browser.bookmarks.VivaldiBookmarkAddEditActivity;
+import org.vivaldi.browser.common.VivaldiKeepScreenOnForVideoController;
 
 /** The activity for custom tabs. It will be launched on top of a client's task. */
 public class CustomTabActivity extends BaseCustomTabActivity {
@@ -143,6 +133,9 @@ public class CustomTabActivity extends BaseCustomTabActivity {
                     resetPostMessageHandlersForCurrentSession();
                 }
             };
+
+    // Vivaldi
+    private VivaldiKeepScreenOnForVideoController mVivaldiKeepScreenOnController;
 
     private void onTabInitOrSwapped(@Nullable Tab tab) {
         resetPostMessageHandlersForCurrentSession();
@@ -275,15 +268,11 @@ public class CustomTabActivity extends BaseCustomTabActivity {
                             toolbar.setVisibility(View.GONE);
                     }
                 }
-            }// End Vivladi
+            } // End Vivaldi
     }
 
     @Override
     public void finishNativeInitialization() {
-        if (!getIntentDataProvider().isInfoPage()) {
-            FirstRunSignInProcessor.openSyncSettingsIfScheduled(this);
-        }
-
         mConnection.showSignInToastIfNecessary(mSession, getIntent(), getProfileProviderSupplier());
 
         new CustomTabTrustedCdnPublisherUrlVisibility(
@@ -364,15 +353,24 @@ public class CustomTabActivity extends BaseCustomTabActivity {
     }
 
     @Override
+    public void onStart() {
+        super.onStart();
+        if (mTimeoutHandler != null) mTimeoutHandler.onStart();
+    }
+
+    @Override
     public void onResume() {
-        if (mTimeoutHandler != null) mTimeoutHandler.onResume();
+        if (mTimeoutHandler != null) mTimeoutHandler.onResume(this);
         super.onResume();
     }
 
     @Override
     public void onPause() {
         super.onPause();
-
+        // Vivaldi
+        if (mVivaldiKeepScreenOnController != null) {
+            mVivaldiKeepScreenOnController.onHostPaused();
+        }
         if (mAuxiliarySearchController != null) {
             Tab tab = getCustomTabActivityTabProvider().getTab();
             if (tab != null) {
@@ -388,8 +386,23 @@ public class CustomTabActivity extends BaseCustomTabActivity {
     }
 
     @Override
+    public void onStop() {
+        super.onStop();
+        if (mTimeoutHandler != null) mTimeoutHandler.onStop(this);
+    }
+
+    @Override
+    protected void onDestroyInternal() {
+        if (mTimeoutHandler != null) mTimeoutHandler.onDestroy();
+        // Vivaldi
+        if (mVivaldiKeepScreenOnController != null) {
+            mVivaldiKeepScreenOnController.destroy();
+        }
+        super.onDestroyInternal();
+    }
+
+    @Override
     protected void onUserLeaveHint() {
-        if (mTimeoutHandler != null) mTimeoutHandler.onUserLeaveHint();
         if (mOpenTimeRecorder != null) mOpenTimeRecorder.onUserLeaveHint();
         super.onUserLeaveHint();
     }
@@ -460,14 +473,8 @@ public class CustomTabActivity extends BaseCustomTabActivity {
                             mRootUiCoordinator.getMerchantTrustSignalsCoordinatorSupplier()::get,
                             mRootUiCoordinator.getEphemeralTabCoordinatorSupplier(),
                             getTabCreator(getCurrentTabModel().isIncognito()));
-            boolean isMinimalUiVisible =
-                    WebAppHeaderUtils.isMinimalUiVisible(
-                            getIntentDataProvider(),
-                            getBaseCustomTabRootUiCoordinator().getDesktopWindowStateManager());
             boolean isTWA = getIntentDataProvider().isTrustedWebActivity();
-            if (ChromeFeatureList.sAndroidWebAppMenuButton.isEnabled()
-                    && isTWA
-                    && isMinimalUiVisible) {
+            if (isTWA) {
                 String packageName = getIntentDataProvider().getClientPackageName();
                 pageInfo.show(tab, ChromePageInfoHighlight.noHighlight(), packageName);
                 return true;
@@ -653,4 +660,26 @@ public class CustomTabActivity extends BaseCustomTabActivity {
         sOnFinishCallbackForTesting = callback;
         ResettersForTesting.register(() -> sOnFinishCallbackForTesting = null);
     }
+
+    /**
+     * Called by InterceptNavigationDelegateImpl when a navigation is intercepted to launch an
+     * external intent.
+     */
+    public void setIntentLaunchedByNavigation() {
+        if (mTimeoutHandler != null) mTimeoutHandler.setLaunchingExternalActivity(true);
+    }
+
+    // Vivaldi
+    @Override
+    public void onStartWithNative() {
+        super.onStartWithNative();
+        if (mVivaldiKeepScreenOnController == null) {
+            mVivaldiKeepScreenOnController =
+                    new VivaldiKeepScreenOnForVideoController(
+                            this,
+                            getActivityTabProvider().asObservable());
+        }
+        mVivaldiKeepScreenOnController.onHostResumed();
+    }
+    // End Vivaldi
 }

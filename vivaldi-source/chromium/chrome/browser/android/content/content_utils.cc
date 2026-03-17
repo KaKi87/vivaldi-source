@@ -6,6 +6,7 @@
 #include "components/embedder_support/user_agent_utils.h"
 #include "components/version_info/version_info.h"
 #include "content/public/browser/web_contents.h"
+#include "third_party/blink/public/common/features.h"
 #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
 
 // Must come after all headers that specialize FromJniType() / ToJniType().
@@ -17,8 +18,8 @@ static std::string JNI_ContentUtils_GetBrowserUserAgent(JNIEnv* env) {
 
 static void JNI_ContentUtils_SetUserAgentOverride(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& jweb_contents,
-    jboolean j_override_in_new_tabs) {
+    const base::android::JavaRef<jobject>& jweb_contents,
+    bool j_override_in_new_tabs) {
 #if !defined(OEM_MERCEDES_BUILD)
   constexpr char kLinuxInfoStr[] = "X11; Linux x86_64";
 #else
@@ -35,7 +36,10 @@ static void JNI_ContentUtils_SetUserAgentOverride(
       embedder_support::BuildUserAgentFromOSAndProduct(
           kLinuxInfoStr, embedder_support::GetProductAndVersion());
   spoofed_ua.ua_metadata_override = metadata;
-  spoofed_ua.ua_metadata_override->platform = "Linux";
+  spoofed_ua.ua_metadata_override->platform =
+      base::FeatureList::IsEnabled(blink::features::kAndroidDesktopUAPlatform)
+          ? "Android"
+          : "Linux";
   spoofed_ua.ua_metadata_override->platform_version =
       std::string();  // match content::GetOSVersion(false) on Linux
   spoofed_ua.ua_metadata_override->model = std::string();

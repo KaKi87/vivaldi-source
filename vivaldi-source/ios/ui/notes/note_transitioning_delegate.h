@@ -6,7 +6,7 @@
 #import <UIKit/UIKit.h>
 
 @interface NoteTransitioningDelegate
-    : NSObject<UIViewControllerTransitioningDelegate>
+    : NSObject <UIViewControllerTransitioningDelegate>
 
 @end
 

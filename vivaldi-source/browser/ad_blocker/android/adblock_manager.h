@@ -36,94 +36,92 @@ class AdblockManager : public adblock_filter::RuleService::Observer,
   AdblockManager& operator=(const AdblockManager&) = delete;
 
   void SetActiveExceptionsList(JNIEnv* env,
-                               const base::android::JavaParamRef<jobject>& obj,
+                               const base::android::JavaRef<jobject>& obj,
                                jint group,
                                jint list);
 
   jint GetActiveExceptionsList(JNIEnv* env,
-                               const base::android::JavaParamRef<jobject>& obj,
+                               const base::android::JavaRef<jobject>& obj,
                                jint group);
 
-  void AddExceptionForDomain(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
-      jint group,
-      jint list,
-      const base::android::JavaParamRef<jstring>& domain);
+  void AddExceptionForDomain(JNIEnv* env,
+                             const base::android::JavaRef<jobject>& obj,
+                             jint group,
+                             jint list,
+                             const base::android::JavaRef<jstring>& domain);
 
-  void RemoveExceptionForDomain(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
-      jint group,
-      jint list,
-      const base::android::JavaParamRef<jstring>& domain);
+  void RemoveExceptionForDomain(JNIEnv* env,
+                                const base::android::JavaRef<jobject>& obj,
+                                jint group,
+                                jint list,
+                                const base::android::JavaRef<jstring>& domain);
 
   void RemoveAllExceptions(JNIEnv* env,
-                           const base::android::JavaParamRef<jobject>& obj,
+                           const base::android::JavaRef<jobject>& obj,
                            jint group,
                            jint list);
 
   base::android::ScopedJavaLocalRef<jobjectArray> GetExceptions(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
+      const base::android::JavaRef<jobject>& obj,
       jint group,
       jint list) const;
 
   base::android::ScopedJavaLocalRef<jobjectArray> GetBlockedUrlsInfo(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
+      const base::android::JavaRef<jobject>& obj,
       jint group,
-      const base::android::JavaParamRef<jobject>& web_contents) const;
+      const base::android::JavaRef<jobject>& web_contents) const;
 
   base::android::ScopedJavaLocalRef<jstring> GetAdAtributionDomain(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
-      const base::android::JavaParamRef<jobject>& web_contents) const;
+      const base::android::JavaRef<jobject>& obj,
+      const base::android::JavaRef<jobject>& web_contents) const;
 
   bool IsAdAttributionActive(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
-      const base::android::JavaParamRef<jobject>& web_contents) const;
+      const base::android::JavaRef<jobject>& obj,
+      const base::android::JavaRef<jobject>& web_contents) const;
 
   bool IsPartnerAdsShown(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
-      const base::android::JavaParamRef<jobject>& web_contents) const;
+      const base::android::JavaRef<jobject>& obj,
+      const base::android::JavaRef<jobject>& web_contents) const;
 
   base::android::ScopedJavaLocalRef<jobjectArray>
   GetAllowedAdAttributionTrackers(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
-      const base::android::JavaParamRef<jobject>& web_contents) const;
+      const base::android::JavaRef<jobject>& obj,
+      const base::android::JavaRef<jobject>& web_contents) const;
 
   bool IsExemptOfFiltering(JNIEnv* env,
-                           const base::android::JavaParamRef<jobject>& obj,
+                           const base::android::JavaRef<jobject>& obj,
                            const jint group,
-                           const base::android::JavaParamRef<jstring>& domain);
+                           const base::android::JavaRef<jstring>& domain);
 
   base::android::ScopedJavaLocalRef<jstring> GetRuleSource(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
+      const base::android::JavaRef<jobject>& obj,
       const jint group,
       const jlong source_id) const;
 
   base::android::ScopedJavaLocalRef<jobjectArray> GetRuleSources(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
+      const base::android::JavaRef<jobject>& obj,
       const jint group) const;
 
   jlong AddSourceFromUrl(JNIEnv* env,
-                         const base::android::JavaParamRef<jobject>& obj,
+                         const base::android::JavaRef<jobject>& obj,
                          const jint group,
-                         const base::android::JavaParamRef<jstring>& url);
+                         const base::android::JavaRef<jstring>& url);
 
   jlong AddSourceFromFile(JNIEnv* env,
-                          const base::android::JavaParamRef<jobject>& obj,
+                          const base::android::JavaRef<jobject>& obj,
                           const jint group,
-                          const base::android::JavaParamRef<jstring>& file);
+                          const base::android::JavaRef<jstring>& file);
 
   bool SetSourceSettings(JNIEnv* env,
-                         const base::android::JavaParamRef<jobject>& obj,
+                         const base::android::JavaRef<jobject>& obj,
                          const jint group,
                          const jlong source_id,
                          bool allow_apb_snippets,
@@ -131,39 +129,37 @@ class AdblockManager : public adblock_filter::RuleService::Observer,
                          bool use_whole_document_allow);
 
   bool RemoveSource(JNIEnv* env,
-                    const base::android::JavaParamRef<jobject>& obj,
+                    const base::android::JavaRef<jobject>& obj,
                     const jint group,
                     const jlong source_id);
 
   bool EnableSource(JNIEnv* env,
-                    const base::android::JavaParamRef<jobject>& obj,
+                    const base::android::JavaRef<jobject>& obj,
                     const jint group,
                     const jlong source_id);
 
   void DisableSource(JNIEnv* env,
-                     const base::android::JavaParamRef<jobject>& obj,
+                     const base::android::JavaRef<jobject>& obj,
                      const jint group,
                      const jlong source_id);
 
   bool IsSourceEnabled(JNIEnv* env,
-                       const base::android::JavaParamRef<jobject>& obj,
+                       const base::android::JavaRef<jobject>& obj,
                        const jint group,
                        const jlong source_id);
 
   void ResetPresetSources(JNIEnv* env,
-                          const base::android::JavaParamRef<jobject>& obj,
+                          const base::android::JavaRef<jobject>& obj,
                           const jint group);
 
-  bool IsDocumentBlockingEnabled(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj);
-  void SetDocumentBlockingEnabled(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& obj,
-      bool enabled);
+  bool IsDocumentBlockingEnabled(JNIEnv* env,
+                                 const base::android::JavaRef<jobject>& obj);
+  void SetDocumentBlockingEnabled(JNIEnv* env,
+                                  const base::android::JavaRef<jobject>& obj,
+                                  bool enabled);
 
   void GetBlockingData(JNIEnv* env,
-                       const base::android::JavaParamRef<jobject>& obj,
+                       const base::android::JavaRef<jobject>& obj,
                        const jint interval);
 
   // adblock_filter::RuleService::Observer implementation

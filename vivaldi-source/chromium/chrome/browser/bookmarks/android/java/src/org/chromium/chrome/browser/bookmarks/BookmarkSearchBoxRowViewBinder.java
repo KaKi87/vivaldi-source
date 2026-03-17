@@ -17,6 +17,9 @@ import org.chromium.ui.modelutil.PropertyModel;
 import org.chromium.ui.modelutil.PropertyModel.ReadableObjectPropertyKey;
 import org.chromium.ui.modelutil.PropertyModelChangeProcessor.ViewBinder;
 
+// Vivaldi
+import org.chromium.chrome.browser.ChromeApplicationImpl;
+
 /** Binds model properties to view methods for {@link BookmarkSearchBoxRow}. */
 @NullMarked
 class BookmarkSearchBoxRowViewBinder {
@@ -79,6 +82,10 @@ class BookmarkSearchBoxRowViewBinder {
             final @StringRes int res =
                     model.get(BookmarkSearchBoxRowProperties.SHOPPING_CHIP_TEXT_RES);
             shoppingChip.getPrimaryTextView().setText(res);
+        } // Vivaldi
+        else if (ChromeApplicationImpl.isVivaldi()
+                && key == BookmarkSearchBoxRowProperties.SEARCH_TEXT_HINT) {
+            row.setSearchTextHint(model.get(BookmarkSearchBoxRowProperties.SEARCH_TEXT_HINT));
         }
     }
 

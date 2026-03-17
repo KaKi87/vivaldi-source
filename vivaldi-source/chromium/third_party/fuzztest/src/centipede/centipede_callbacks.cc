@@ -36,6 +36,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/base/no_destructor.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
@@ -499,11 +500,12 @@ int CentipedeCallbacks::RunBatchForBinary(std::string_view binary) {
   if (should_clean_up) {
     exit_code = [&] {
       if (!cmd.is_executing()) return EXIT_FAILURE;
-      FUZZTEST_LOG(ERROR) << "Cleaning up the batch execution.";
+      FUZZTEST_LOG(ERROR) << "Cleaning up the batch execution with timeout: "
+                          << kCommandCleanupTimeout;
       cmd.RequestStop();
       const auto ret = cmd.Wait(absl::Now() + kCommandCleanupTimeout);
       if (ret.has_value()) return *ret;
-      FUZZTEST_LOG(ERROR) << "Batch execution cleanup failed to end in 60s.";
+      FUZZTEST_LOG(ERROR) << "Failed to wait for the batch execution cleanup.";
       return EXIT_FAILURE;
     }();
     command_contexts_.erase(
@@ -569,17 +571,31 @@ int CentipedeCallbacks::ExecuteCentipedeSancovBinaryWithShmem(
 
   if (env_.print_runner_log) PrintExecutionLog();
 
+  // TODO: b/467103298 - Handle failures when the exit code is zero, e.g., when
+  // the target exits via `std::_Exit(0)`.
   if (exit_code != EXIT_SUCCESS) {
     ReadFromLocalFile(execute_log_path_, batch_result.log());
-    ReadFromLocalFile(failure_description_path_,
-                      batch_result.failure_description());
-    if (std::filesystem::exists(failure_signature_path_)) {
-      ReadFromLocalFile(failure_signature_path_,
-                        batch_result.failure_signature());
+
+    if (std::filesystem::exists(failure_description_path_)) {
+      ReadFromLocalFile(failure_description_path_,
+                        batch_result.failure_description());
+      if (std::filesystem::exists(failure_signature_path_)) {
+        ReadFromLocalFile(failure_signature_path_,
+                          batch_result.failure_signature());
+      } else {
+        // TODO(xinhaoyuan): Refactor runner to use dispatcher so this branch
+        // can be removed. Crash deduplication assumes that the failure
+        // signature contains no dashes and that it can be used as a file name.
+        batch_result.failure_signature() =
+            Hash(batch_result.failure_description());
+      }
     } else {
-      // TODO(xinhaoyuan): Refactor runner to use dispatcher so this branch can
-      // be removed.
-      batch_result.failure_signature() = batch_result.failure_description();
+      static constexpr std::string_view kFallbackFailureDescription =
+          "unexpected-termination";
+      static const absl::NoDestructor<std::string> fallback_failure_signature{
+          Hash(kFallbackFailureDescription)};
+      batch_result.failure_description() = kFallbackFailureDescription;
+      batch_result.failure_signature() = *fallback_failure_signature;
     }
     // Remove the failure description and signature files here so that they do
     // not stay until another failed execution.
@@ -615,9 +631,22 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   cmd_options.stderr_file = execute_log_path_;
   cmd_options.temp_file_path = temp_input_file_path_;
   Command cmd{binary, std::move(cmd_options)};
-  const int retval = cmd.Execute();
+  const int retval = [&] {
+    if (!cmd.ExecuteAsync()) {
+      FUZZTEST_LOG(ERROR) << "Failed to execute seeding command "
+                          << cmd.ToString();
+      return EXIT_FAILURE;
+    }
+    const auto wait_result = cmd.Wait(GetStopTime());
+    if (!wait_result.has_value()) {
+      FUZZTEST_LOG(ERROR) << "Failed to wait for the seeding command "
+                          << cmd.ToString();
+      return EXIT_FAILURE;
+    }
+    return *wait_result;
+  }();
 
-  if (env_.print_runner_log) {
+  if (env_.print_runner_log || retval != EXIT_SUCCESS) {
     FUZZTEST_LOG(INFO) << "Getting seeds via external binary returns "
                        << retval;
     PrintExecutionLog();
@@ -643,7 +672,7 @@ bool CentipedeCallbacks::GetSeedsViaExternalBinary(
   FUZZTEST_LOG_IF(ERROR, error)
       << "Failed to remove seed inputs directory: " << error.message();
 
-  return retval == 0;
+  return retval == EXIT_SUCCESS;
 }
 
 // See also: `DumpSerializedTargetConfigToFile()`.
@@ -708,7 +737,7 @@ MutationResult CentipedeCallbacks::MutateViaExternalBinary(
     FUZZTEST_LOG(WARNING) << "Custom mutator failed with exit code: "
                           << exit_code;
   }
-  if (env_.print_runner_log || exit_code != EXIT_SUCCESS) {
+  if (env_.print_runner_log) {
     PrintExecutionLog();
   }
 
@@ -768,7 +797,7 @@ void CentipedeCallbacks::PrintExecutionLog() const {
   }
   std::string log_text;
   ReadFromLocalFile(execute_log_path_, log_text);
-  absl::MutexLock lock(&GetExecutionLoggingMutex());
+  absl::MutexLock lock(GetExecutionLoggingMutex());
   for (const auto& log_line :
        absl::StrSplit(absl::StripAsciiWhitespace(log_text), '\n')) {
     FUZZTEST_LOG(INFO).NoPrefix() << "LOG: " << log_line;

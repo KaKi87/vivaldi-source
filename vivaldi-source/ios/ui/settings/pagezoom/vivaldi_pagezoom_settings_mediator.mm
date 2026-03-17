@@ -16,7 +16,7 @@
 #import "ios/public/provider/chrome/browser/text_zoom/text_zoom_api.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
 #import "ios/ui/settings/pagezoom/vivaldi_pagezoom_settings_prefs.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 namespace {
 // Recursively processes a dictionary to extract zoom levels for domains.
@@ -27,7 +27,7 @@ namespace {
 //   dict - The dictionary to process
 //   prefix - Current prefix for nested keys (empty for root level)
 //   result - Map to store domain->zoom_level mappings
-void ProcessDictionary(const base::Value::Dict& dict,
+void ProcessDictionary(const base::DictValue& dict,
                        const std::string& prefix,
                        base::flat_map<std::string, double>& result) {
   // Iterate through all key-value pairs in the dictionary
@@ -36,8 +36,8 @@ void ProcessDictionary(const base::Value::Dict& dict,
     const std::string& key = it->first;
     const base::Value& value = it->second;
 
-    // Build the domain key by concatenating the current key with any existing prefix
-    // For example: "example.com" or "example.com.subdomain"
+    // Build the domain key by concatenating the current key with any existing
+    // prefix For example: "example.com" or "example.com.subdomain"
     std::string new_prefix = prefix.empty() ? key : prefix + "." + key;
 
     if (value.is_dict()) {
@@ -91,8 +91,8 @@ void ProcessDictionary(const base::Value::Dict& dict,
 
 #pragma mark - VivaldiPageZoomSettingsConsumer
 - (void)setPreferenceForPageZoomLevel:(NSInteger)level {
-  [VivaldiPageZoomSettingPrefs
-      setPageZoomLevelWithPrefService:level inPrefServices: _prefService];
+  [VivaldiPageZoomSettingPrefs setPageZoomLevelWithPrefService:level
+                                                inPrefServices:_prefService];
   // Applying the zoom level for all web states
   if (_browser) {
     WebStateList* webStateList = _browser->GetWebStateList();
@@ -100,16 +100,16 @@ void ProcessDictionary(const base::Value::Dict& dict,
       web::WebState* webState = webStateList->GetWebStateAt(i);
       if (webState) {
         FontSizeTabHelper* fontSizeTabHelper =
-          FontSizeTabHelper::FromWebState(webState);
-        fontSizeTabHelper->
-          SetPageZoomSize(fontSizeTabHelper->GetFontZoomSize());
+            FontSizeTabHelper::FromWebState(webState);
+        fontSizeTabHelper->SetPageZoomSize(
+            fontSizeTabHelper->GetFontZoomSize());
       }
     }
   }
 }
 
 - (void)setPreferenceForDomainSettings:
-    (NSDictionary<NSString *, NSNumber *> *)dict {
+    (NSDictionary<NSString*, NSNumber*>*)dict {
   // no op
 }
 
@@ -117,7 +117,7 @@ void ProcessDictionary(const base::Value::Dict& dict,
 
 - (double)pageZoomLevel {
   return [VivaldiPageZoomSettingPrefs
-          getPageZoomLevelWithPrefService: _prefService];
+      getPageZoomLevelWithPrefService:_prefService];
 }
 
 - (NSDictionary<NSString*, NSNumber*>*)domainSettings {
@@ -127,7 +127,7 @@ void ProcessDictionary(const base::Value::Dict& dict,
   }
 
   // Get the dictionary of zoom multipliers from preferences
-  const base::Value::Dict& pref =
+  const base::DictValue& pref =
       _prefService->GetDict(prefs::kIosUserZoomMultipliers);
 
   // Create a map to store domain->zoom level mappings
@@ -137,7 +137,7 @@ void ProcessDictionary(const base::Value::Dict& dict,
 
   // Convert the C++ map to an Objective-C dictionary
   NSMutableDictionary<NSString*, NSNumber*>* nsDict =
-    [[NSMutableDictionary alloc] init];
+      [[NSMutableDictionary alloc] init];
   for (const auto& [domain, zoom] : result) {
     // Convert domain string and zoom value to Objective-C types
     NSString* nsDomain = [NSString stringWithUTF8String:domain.c_str()];

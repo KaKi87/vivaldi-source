@@ -32,8 +32,8 @@
 #import "ios/ui/notes/vivaldi_notes_pref.h"
 #import "ui/base/l10n/l10n_util.h"
 
-using vivaldi::NoteNode;
 using l10n_util::GetNSString;
+using vivaldi::NoteNode;
 
 namespace {
 // Maximum number of entries to fetch when searching.
@@ -45,14 +45,14 @@ class NoteModelBridge;
 }
 
 @interface NoteHomeMediator () <NoteModelBridgeObserver,
-                                    PrefObserverDelegate,
-                                    SigninPresenter,
-                                    SyncObserverModelBridge> {
+                                PrefObserverDelegate,
+                                SigninPresenter,
+                                SyncObserverModelBridge> {
   // Bridge to register for note changes.
   std::unique_ptr<notes::NoteModelBridge> _modelBridge;
 
   // Observer to keep track of the signin and syncing status.
-  //std::unique_ptr<sync_vivaldi::SyncedNotesObserverBridge>
+  // std::unique_ptr<sync_vivaldi::SyncedNotesObserverBridge>
   //    _syncedNotesObserver;
 
   // Pref observer to track changes to prefs.
@@ -123,8 +123,8 @@ class NoteModelBridge;
 
 // Computes the notes table view based on the current root node.
 - (void)computeNoteTableViewData {
-  [self deleteAllItemsOrAddSectionWithIdentifier:
-            NoteHomeSectionIdentifierNotes];
+  [self
+      deleteAllItemsOrAddSectionWithIdentifier:NoteHomeSectionIdentifierNotes];
   [self deleteAllItemsOrAddSectionWithIdentifier:
             NoteHomeSectionIdentifierMessages];
 
@@ -156,9 +156,8 @@ class NoteModelBridge;
     NoteHomeNodeItem* nodeItem =
         [[NoteHomeNodeItem alloc] initWithType:NoteHomeItemTypeNote
                                       noteNode:child.get()];
-    [self.sharedState.tableViewModel
-                        addItem:nodeItem
-        toSectionWithIdentifier:NoteHomeSectionIdentifierNotes];
+    [self.sharedState.tableViewModel addItem:nodeItem
+                     toSectionWithIdentifier:NoteHomeSectionIdentifierNotes];
   }
 }
 
@@ -178,15 +177,14 @@ class NoteModelBridge;
     return;
   }
 
-  NSMutableArray<NoteHomeNodeItem*> *nodeItems = [NSMutableArray array];
+  NSMutableArray<NoteHomeNodeItem*>* nodeItems = [NSMutableArray array];
 
   // Add all notes and folders of the current root node to the table.
   for (const auto& child :
-     self.sharedState.tableViewDisplayedRootNode->children()) {
+       self.sharedState.tableViewDisplayedRootNode->children()) {
     NoteHomeNodeItem* nodeItem =
-      [[NoteHomeNodeItem alloc]
-        initWithType:NoteHomeItemTypeNote
-            noteNode:child.get()];
+        [[NoteHomeNodeItem alloc] initWithType:NoteHomeItemTypeNote
+                                      noteNode:child.get()];
     [nodeItems addObject:nodeItem];
   }
 
@@ -196,29 +194,27 @@ class NoteModelBridge;
       // Doesn't need to apply any sorting in manual sort mode
       break;
     case NotesSortingModeTitle:
-      [nodeItems sortUsingComparator:
-          ^NSComparisonResult(NoteHomeNodeItem* a, NoteHomeNodeItem* b) {
+      [nodeItems sortUsingComparator:^NSComparisonResult(NoteHomeNodeItem* a,
+                                                         NoteHomeNodeItem* b) {
         return [a.noteTitle compare:b.noteTitle];
       }];
       break;
     case NotesSortingModeDateCreated:
-      [nodeItems sortUsingComparator:
-          ^NSComparisonResult(NoteHomeNodeItem* a, NoteHomeNodeItem* b) {
+      [nodeItems sortUsingComparator:^NSComparisonResult(NoteHomeNodeItem* a,
+                                                         NoteHomeNodeItem* b) {
         return [a.createdAt compare:b.createdAt];
       }];
       break;
     case NotesSortingModeDateEdited:
-      [nodeItems sortUsingComparator:
-          ^NSComparisonResult(NoteHomeNodeItem* a, NoteHomeNodeItem* b) {
+      [nodeItems sortUsingComparator:^NSComparisonResult(NoteHomeNodeItem* a,
+                                                         NoteHomeNodeItem* b) {
         return [b.lastModified compare:a.lastModified];
       }];
       break;
     case NotesSortingModeByKind:
-      [nodeItems sortUsingComparator:
-          ^NSComparisonResult(NoteHomeNodeItem* a, NoteHomeNodeItem* b) {
-        return [self compare:a.isFolder
-                      second:b.isFolder
-                foldersFirst:YES];
+      [nodeItems sortUsingComparator:^NSComparisonResult(NoteHomeNodeItem* a,
+                                                         NoteHomeNodeItem* b) {
+        return [self compare:a.isFolder second:b.isFolder foldersFirst:YES];
       }];
       break;
   }
@@ -238,8 +234,7 @@ class NoteModelBridge;
 }
 
 /// Returns sorted result from two provided NSString keys.
-- (NSComparisonResult)compare:(NSString*)first
-             second:(NSString*)second {
+- (NSComparisonResult)compare:(NSString*)first second:(NSString*)second {
   return [VivaldiGlobalHelpers compare:first second:second];
 }
 
@@ -255,53 +250,45 @@ class NoteModelBridge;
 // Generate the table view data when the current root node is the outermost
 // root.
 - (void)generateTableViewDataForRootNode {
-
   if (![self hasNotesOrFolders]) {
     return;
   }
 
   // Add root "Notes" to the table.
-  const NoteNode* rootNode =
-      self.sharedState.notesModel->main_node();
+  const NoteNode* rootNode = self.sharedState.notesModel->main_node();
   NoteHomeNodeItem* mobileItem =
       [[NoteHomeNodeItem alloc] initWithType:NoteHomeItemTypeNote
                                     noteNode:rootNode];
-  [self.sharedState.tableViewModel
-                      addItem:mobileItem
-      toSectionWithIdentifier:NoteHomeSectionIdentifierNotes];
+  [self.sharedState.tableViewModel addItem:mobileItem
+                   toSectionWithIdentifier:NoteHomeSectionIdentifierNotes];
 
   // Add "Trash" notes to the table.
-  const NoteNode* trashNode =
-      self.sharedState.notesModel->trash_node();
+  const NoteNode* trashNode = self.sharedState.notesModel->trash_node();
   NoteHomeNodeItem* trashItem =
       [[NoteHomeNodeItem alloc] initWithType:NoteHomeItemTypeNote
                                     noteNode:trashNode];
   trashItem.shouldShowTrashIcon = YES;
-  [self.sharedState.tableViewModel
-                      addItem:trashItem
-      toSectionWithIdentifier:NoteHomeSectionIdentifierNotes];
+  [self.sharedState.tableViewModel addItem:trashItem
+                   toSectionWithIdentifier:NoteHomeSectionIdentifierNotes];
 }
 
 - (void)computeNoteTableViewDataMatching:(NSString*)searchText
-                  orShowMessageWhenNoResults:(NSString*)noResults {
-  [self deleteAllItemsOrAddSectionWithIdentifier:
-            NoteHomeSectionIdentifierNotes];
+              orShowMessageWhenNoResults:(NSString*)noResults {
+  [self
+      deleteAllItemsOrAddSectionWithIdentifier:NoteHomeSectionIdentifierNotes];
   [self deleteAllItemsOrAddSectionWithIdentifier:
             NoteHomeSectionIdentifierMessages];
 
   std::vector<const NoteNode*> nodes;
   self.sharedState.notesModel->GetNotesMatching(
-        base::SysNSStringToUTF16(searchText),
-        kMaxNotesSearchResults,
-        nodes);
+      base::SysNSStringToUTF16(searchText), kMaxNotesSearchResults, nodes);
   int count = 0;
   for (const NoteNode* node : nodes) {
     NoteHomeNodeItem* nodeItem =
         [[NoteHomeNodeItem alloc] initWithType:NoteHomeItemTypeNote
                                       noteNode:node];
-    [self.sharedState.tableViewModel
-                        addItem:nodeItem
-        toSectionWithIdentifier:NoteHomeSectionIdentifierNotes];
+    [self.sharedState.tableViewModel addItem:nodeItem
+                     toSectionWithIdentifier:NoteHomeSectionIdentifierNotes];
     count++;
   }
 
@@ -310,9 +297,8 @@ class NoteModelBridge;
         [[TableViewTextItem alloc] initWithType:NoteHomeItemTypeMessage];
     item.textColor = [UIColor colorNamed:kTextPrimaryColor];
     item.text = noResults;
-    [self.sharedState.tableViewModel
-                        addItem:item
-        toSectionWithIdentifier:NoteHomeSectionIdentifierMessages];
+    [self.sharedState.tableViewModel addItem:item
+                     toSectionWithIdentifier:NoteHomeSectionIdentifierMessages];
     return;
   }
 
@@ -329,7 +315,8 @@ class NoteModelBridge;
      &&   _syncedNotesObserver->IsPerformingInitialSync()) {
       [self.consumer
           updateTableViewBackgroundStyle:NoteHomeBackgroundStyleLoading];
-    } else*/ if (![self hasNotesOrFolders]) {
+    } else*/
+    if (![self hasNotesOrFolders]) {
       [self.consumer
           updateTableViewBackgroundStyle:NoteHomeBackgroundStyleEmpty];
     } else {
@@ -341,8 +328,7 @@ class NoteModelBridge;
 
   if (![self hasNotesOrFolders] &&
       !self.sharedState.currentlyShowingSearchResults) {
-    [self.consumer
-        updateTableViewBackgroundStyle:NoteHomeBackgroundStyleEmpty];
+    [self.consumer updateTableViewBackgroundStyle:NoteHomeBackgroundStyleEmpty];
   } else {
     [self.consumer
         updateTableViewBackgroundStyle:NoteHomeBackgroundStyleDefault];
@@ -382,8 +368,7 @@ class NoteModelBridge;
   // reload here.)
   // Or the current roots grand children changed
   if ((noteNode == self.sharedState.tableViewDisplayedRootNode ||
-      noteNode->parent() == self.sharedState.tableViewDisplayedRootNode
-      ) &&
+       noteNode->parent() == self.sharedState.tableViewDisplayedRootNode) &&
       !self.sharedState.addingNewFolder && !self.sharedState.addingNewNote) {
     [self.consumer refreshContents];
     return;
@@ -393,21 +378,20 @@ class NoteModelBridge;
 // The node has moved to a new parent folder.
 // This might mean the count needs updating
 - (void)noteNode:(const NoteNode*)noteNode
-     movedFromParent:(const NoteNode*)oldParent
-            toParent:(const NoteNode*)newParent {
+    movedFromParent:(const NoteNode*)oldParent
+           toParent:(const NoteNode*)newParent {
   if (oldParent == self.sharedState.tableViewDisplayedRootNode ||
       newParent == self.sharedState.tableViewDisplayedRootNode ||
       oldParent->parent() == self.sharedState.tableViewDisplayedRootNode ||
-      newParent->parent() == self.sharedState.tableViewDisplayedRootNode
-      ) {
-      // A folder was added or removed from the current root folder or its child.
-     [self.consumer refreshContents];
+      newParent->parent() == self.sharedState.tableViewDisplayedRootNode) {
+    // A folder was added or removed from the current root folder or its child.
+    [self.consumer refreshContents];
   }
 }
 
 // |node| was deleted from |folder|.
 - (void)noteNodeDeleted:(const NoteNode*)node
-                 fromFolder:(const NoteNode*)folder {
+             fromFolder:(const NoteNode*)folder {
   if (self.sharedState.currentlyShowingSearchResults) {
     [self.consumer refreshContents];
   } else if (self.sharedState.tableViewDisplayedRootNode == node) {
@@ -421,8 +405,7 @@ class NoteModelBridge;
   // TODO(crbug.com/695749) Check if this case is applicable in the new UI.
 }
 
-- (NoteHomeNodeItem*)itemForNode:
-    (const vivaldi::NoteNode*)noteNode {
+- (NoteHomeNodeItem*)itemForNode:(const vivaldi::NoteNode*)noteNode {
   NSArray<TableViewItem*>* items = [self.sharedState.tableViewModel
       itemsInSectionWithIdentifier:NoteHomeSectionIdentifierNotes];
   for (TableViewItem* item in items) {
@@ -464,7 +447,7 @@ class NoteModelBridge;
   // Editing capability may need to be updated on the notes UI.
   // Or managed notes contents may need to be updated.
   // TODO if (preferenceName == prefs::kEditNotesEnabled) {
-    [self.consumer refreshContents];
+  [self.consumer refreshContents];
   //}
 }
 
@@ -497,8 +480,8 @@ class NoteModelBridge;
 // Returns YES if the user cannot turn on sync for enterprise policy reasons.
 - (BOOL)isSyncDisabledByAdministrator {
   DCHECK(self.syncService);
-    bool syncDisabledPolicy = YES; //self.syncService->GetDisableReasons().Has(
-    //  syncer::SyncService::DISABLE_REASON_ENTERPRISE_POLICY);
-  return syncDisabledPolicy ;
+  bool syncDisabledPolicy = YES;  // self.syncService->GetDisableReasons().Has(
+  //  syncer::SyncService::DISABLE_REASON_ENTERPRISE_POLICY);
+  return syncDisabledPolicy;
 }
 @end

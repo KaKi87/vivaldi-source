@@ -17,8 +17,7 @@
 - (instancetype)initWithCoder:(NSCoder*)aDecoder NS_UNAVAILABLE;
 
 // DELEGATE
-@property (nonatomic,weak)
-  id<VivaldiSearchBarViewDelegate> delegate;
+@property(nonatomic, weak) id<VivaldiSearchBarViewDelegate> delegate;
 
 // SETTER
 - (void)setPlaceholder:(NSString*)placeholder;

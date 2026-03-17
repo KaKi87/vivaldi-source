@@ -35,20 +35,20 @@
 
 #include "mbspatch.h"
 
+#include <fcntl.h>
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <fcntl.h>
-#include <string.h>
-#include <limits.h>
 
 #ifdef _WIN32
-# include <io.h>
-# include <winsock2.h>
+#include <io.h>
+#include <winsock2.h>
 #else
-# include <unistd.h>
-# include <arpa/inet.h>
+#include <arpa/inet.h>
+#include <unistd.h>
 #endif
 
 extern "C" {
@@ -56,22 +56,20 @@ extern "C" {
 }
 
 #ifndef SSIZE_MAX
-# define SSIZE_MAX LONG_MAX
+#define SSIZE_MAX LONG_MAX
 #endif
 
-int
-MBS_ReadHeader(int fd, MBSPatchHeader *header)
-{
+int MBS_ReadHeader(int fd, MBSPatchHeader* header) {
   int s = read(fd, header, sizeof(MBSPatchHeader));
   if (s != sizeof(MBSPatchHeader))
     return READ_ERROR;
 
-  header->slen      = ntohl(header->slen);
-  header->scrc32    = ntohl(header->scrc32);
-  header->dlen      = ntohl(header->dlen);
-  header->cblen     = ntohl(header->cblen);
-  header->difflen   = ntohl(header->difflen);
-  header->extralen  = ntohl(header->extralen);
+  header->slen = ntohl(header->slen);
+  header->scrc32 = ntohl(header->scrc32);
+  header->dlen = ntohl(header->dlen);
+  header->cblen = ntohl(header->cblen);
+  header->difflen = ntohl(header->difflen);
+  header->extralen = ntohl(header->extralen);
 
   struct stat hs;
   s = fstat(fd, &hs);
@@ -107,23 +105,22 @@ MBS_ReadHeader(int fd, MBSPatchHeader *header)
   return OK;
 }
 
-int
-MBS_ApplyPatch(const MBSPatchHeader *header, int patchfd,
-               unsigned char *fbuffer, int filefd)
-{
-  unsigned char *fbufstart = fbuffer;
-  unsigned char *fbufend = fbuffer + header->slen;
+int MBS_ApplyPatch(const MBSPatchHeader* header,
+                   int patchfd,
+                   unsigned char* fbuffer,
+                   int filefd) {
+  unsigned char* fbufstart = fbuffer;
+  unsigned char* fbufend = fbuffer + header->slen;
 
-  unsigned char *buf = (unsigned char*) malloc(header->cblen +
-                                               header->difflen +
-                                               header->extralen);
+  unsigned char* buf = (unsigned char*)malloc(header->cblen + header->difflen +
+                                              header->extralen);
   if (!buf)
     return MEM_ERROR;
 
   int rv = OK;
 
   int r = header->cblen + header->difflen + header->extralen;
-  unsigned char *wb = buf;
+  unsigned char* wb = buf;
   while (r) {
     int c = read(patchfd, wb, (r > SSIZE_MAX) ? SSIZE_MAX : r);
     if (c < 0) {
@@ -141,18 +138,18 @@ MBS_ApplyPatch(const MBSPatchHeader *header, int patchfd,
   }
 
   {
-    MBSPatchTriple *ctrlsrc = (MBSPatchTriple*) buf;
+    MBSPatchTriple* ctrlsrc = (MBSPatchTriple*)buf;
     if (header->cblen % sizeof(MBSPatchTriple) != 0) {
       rv = UNEXPECTED_ERROR;
       goto end;
     }
 
-    unsigned char *diffsrc = buf + header->cblen;
-    unsigned char *extrasrc = diffsrc + header->difflen;
+    unsigned char* diffsrc = buf + header->cblen;
+    unsigned char* extrasrc = diffsrc + header->difflen;
 
-    MBSPatchTriple *ctrlend = (MBSPatchTriple*) diffsrc;
-    unsigned char *diffend = extrasrc;
-    unsigned char *extraend = extrasrc + header->extralen;
+    MBSPatchTriple* ctrlend = (MBSPatchTriple*)diffsrc;
+    unsigned char* diffend = extrasrc;
+    unsigned char* extraend = extrasrc + header->extralen;
 
     while (ctrlsrc < ctrlend) {
       ctrlsrc->x = ntohl(ctrlsrc->x);
@@ -160,13 +157,12 @@ MBS_ApplyPatch(const MBSPatchHeader *header, int patchfd,
       ctrlsrc->z = ntohl(ctrlsrc->z);
 
 #ifdef DEBUG_bsmedberg
-      printf("Applying block:\n"
-             " x: %u\n"
-             " y: %u\n"
-             " z: %i\n",
-             ctrlsrc->x,
-             ctrlsrc->y,
-             ctrlsrc->z);
+      printf(
+          "Applying block:\n"
+          " x: %u\n"
+          " y: %u\n"
+          " z: %i\n",
+          ctrlsrc->x, ctrlsrc->y, ctrlsrc->z);
 #endif
 
       /* Add x bytes from oldfile to x bytes from the diff block */
@@ -179,7 +175,7 @@ MBS_ApplyPatch(const MBSPatchHeader *header, int patchfd,
       for (unsigned int i = 0; i < ctrlsrc->x; ++i) {
         diffsrc[i] += fbuffer[i];
       }
-      if ((int) write(filefd, diffsrc, ctrlsrc->x) != ctrlsrc->x) {
+      if ((int)write(filefd, diffsrc, ctrlsrc->x) != ctrlsrc->x) {
         rv = WRITE_ERROR;
         goto end;
       }
@@ -192,7 +188,7 @@ MBS_ApplyPatch(const MBSPatchHeader *header, int patchfd,
         rv = UNEXPECTED_ERROR;
         goto end;
       }
-      if ((int) write(filefd, extrasrc, ctrlsrc->y) != ctrlsrc->y) {
+      if ((int)write(filefd, extrasrc, ctrlsrc->y) != ctrlsrc->y) {
         rv = WRITE_ERROR;
         goto end;
       }
@@ -200,8 +196,7 @@ MBS_ApplyPatch(const MBSPatchHeader *header, int patchfd,
 
       /* "seek" forwards in oldfile by z bytes */
 
-      if (ctrlsrc->z < fbufstart - fbuffer ||
-          ctrlsrc->z > fbufend - fbuffer) {
+      if (ctrlsrc->z < fbufstart - fbuffer || ctrlsrc->z > fbufend - fbuffer) {
         rv = UNEXPECTED_ERROR;
         goto end;
       }
@@ -218,7 +213,7 @@ end:
   return rv;
 }
 
-int CalculateCrc(const unsigned char *buf, int size) {
+int CalculateCrc(const unsigned char* buf, int size) {
   CrcGenerateTable();
   unsigned int crc = 0xffffffffL;
   crc = ~CrcCalc(buf, size);
@@ -234,18 +229,20 @@ int CalculateCrc(const unsigned char *buf, int size) {
  * mask to check for binary mode), but it seems OK in the limited
  * context of the following small function. */
 #ifndef _O_BINARY
-# define _O_BINARY 0
+#define _O_BINARY 0
 #endif
 
-int ApplyBinaryPatch(const wchar_t *old_file, const wchar_t *patch_file,
-                     const wchar_t *new_file) {
+int ApplyBinaryPatch(const wchar_t* old_file,
+                     const wchar_t* patch_file,
+                     const wchar_t* new_file) {
   int ret = OK;
   int ofd = -1;
   int nfd = -1;
-  unsigned char *buf = NULL;
+  unsigned char* buf = NULL;
 
   int pfd = _wopen(patch_file, O_RDONLY | _O_BINARY);
-  if (pfd < 0) return READ_ERROR;
+  if (pfd < 0)
+    return READ_ERROR;
 
   do {
     MBSPatchHeader header;
@@ -269,7 +266,7 @@ int ApplyBinaryPatch(const wchar_t *old_file, const wchar_t *patch_file,
       break;
     }
 
-    buf = (unsigned char*) malloc(header.slen);
+    buf = (unsigned char*)malloc(header.slen);
     if (!buf) {
       ret = MEM_ERROR;
       break;
@@ -296,7 +293,9 @@ int ApplyBinaryPatch(const wchar_t *old_file, const wchar_t *patch_file,
 
   free(buf);
   close(pfd);
-  if (ofd >= 0) close(ofd);
-  if (nfd >= 0) close(nfd);
+  if (ofd >= 0)
+    close(ofd);
+  if (nfd >= 0)
+    close(nfd);
   return ret;
 }

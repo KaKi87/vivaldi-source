@@ -188,11 +188,11 @@
   <release seq="1" allow_pseudo="false">
     <messages fallback_to_english="true">
       <!-- Vivaldi installer -->
-      <message name="IDS_INSTALL_MODE_ADVANCED" desc="Text of the installer mode toggle button (Advanced/Simple)">
+      <message name="IDS_INSTALL_MODE_ADVANCED" desc="Text of the installer mode toggle button (Advanced/Recommended)">
         Advanced
       </message>
-      <message name="IDS_INSTALL_MODE_SIMPLE" desc="Text of the installer mode toggle button (Advanced/Simple)">
-        Simple
+      <message name="IDS_INSTALL_MODE_SIMPLE" desc="Text of the installer mode toggle button (Advanced/Recommended)">
+        Recommended
       </message>
       <message name="IDS_INSTALL_TXT_TOS_ACCEPT_AND_INSTALL" desc="Description text for the TOS 'Accept and Install' button">
         By clicking on the 'Accept and Install' button, you are agreeing to Vivaldi's &lt;a&gt;Terms of Service&lt;/a&gt;

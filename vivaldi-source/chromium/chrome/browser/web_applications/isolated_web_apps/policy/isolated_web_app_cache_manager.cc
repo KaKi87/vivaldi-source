@@ -23,6 +23,7 @@
 #include "chrome/browser/web_applications/isolated_web_apps/policy/isolated_web_app_cache_client.h"
 #include "chrome/browser/web_applications/isolated_web_apps/policy/isolated_web_app_external_install_options.h"
 #include "chrome/browser/web_applications/isolated_web_apps/policy/isolated_web_app_policy_manager.h"
+#include "chrome/browser/web_applications/isolated_web_apps/runtime_data/chrome_iwa_runtime_data_provider.h"
 #include "chrome/browser/web_applications/isolated_web_apps/update/isolated_web_app_update_manager.h"
 #include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_provider.h"
@@ -55,7 +56,7 @@ bool HasManagedGuestSessionInPolicy() {
 std::vector<web_package::SignedWebBundleId> FilterAllowlistedIwas(
     std::vector<web_package::SignedWebBundleId> iwa_ids) {
   std::erase_if(iwa_ids, [](const auto& id) {
-    return !IwaKeyDistributionInfoProvider::GetInstance()
+    return !ChromeIwaRuntimeDataProvider::GetInstance()
                 .IsManagedInstallPermitted(id.id());
   });
   return iwa_ids;
@@ -95,10 +96,10 @@ GetPolicyInstalledIwasForManagedGuestSession(const Profile& profile) {
 template <typename T, typename E>
 void AddResultToLog(const std::string& key,
                     const base::expected<T, E>& result,
-                    base::Value::List& operations_results) {
+                    base::ListValue& operations_results) {
   std::string value = result.has_value() ? base::ToString(result.value())
                                          : base::ToString(result.error());
-  operations_results.Append(base::Value::Dict().Set(key, std::move(value)));
+  operations_results.Append(base::DictValue().Set(key, std::move(value)));
 }
 
 }  // namespace
@@ -134,20 +135,22 @@ void IwaBundleCacheManager::SetProvider(base::PassKey<WebAppProvider>,
 }
 
 void IwaBundleCacheManager::OnWebAppInstalled(const webapps::AppId& app_id) {
-  ASSIGN_OR_RETURN(const WebApp& iwa,
-                   GetIsolatedWebAppById(provider_->registrar_unsafe(), app_id),
-                   [](const std::string&) { return; });
+  const WebApp* iwa = provider_->registrar_unsafe().GetAppById(
+      app_id, WebAppFilter::IsIsolatedApp());
+  if (!iwa) {
+    return;
+  }
 
   // In ephemeral sessions `IsolatedWebAppUpdateManager` checks for updates
   // before IWAs are installed from cache (without updating IWAs even when the
   // update is available, since only installed IWAs can be updated). Triggering
   // the update check manually here after the IWA installation to avoid waiting
   // for the next scheduled update check.
-  TriggerIwaUpdateCheck(iwa);
+  TriggerIwaUpdateCheck(*iwa);
 
   // Both update command and remove obsolete versions command take app lock,
   // so it is fine to call them here at the same time.
-  RemoveObsoleteIwaVersionsCache(iwa);
+  RemoveObsoleteIwaVersionsCache(*iwa);
 }
 
 void IwaBundleCacheManager::OnWebAppInstallManagerDestroyed() {
@@ -156,7 +159,7 @@ void IwaBundleCacheManager::OnWebAppInstallManagerDestroyed() {
 
 base::Value IwaBundleCacheManager::GetDebugValue() const {
   return base::Value(
-      base::Value::Dict()
+      base::DictValue()
           .Set(kBundleCacheIsEnabled, IsIwaBundleCacheEnabledInCurrentSession())
           .Set(kOperationsResults, base::Value(operations_results_.Clone())));
 }
@@ -220,7 +223,8 @@ void IwaBundleCacheManager::OnCleanupManagedGuestSessionOrphanedIwas(
 
 void IwaBundleCacheManager::TriggerIwaUpdateCheck(const WebApp& iwa) {
   CHECK(iwa.isolation_data());
-  provider_->iwa_update_manager().MaybeDiscoverUpdatesForApp(iwa.app_id());
+  provider_->isolated_web_app_update_manager().MaybeDiscoverUpdatesForApp(
+      iwa.app_id());
 }
 
 void IwaBundleCacheManager::RemoveObsoleteIwaVersionsCache(const WebApp& iwa) {

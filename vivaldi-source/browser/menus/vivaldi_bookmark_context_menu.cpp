@@ -347,11 +347,27 @@ unsigned int GetStartIndexForBookmarks(views::MenuItemView* menu, int64_t id) {
 }
 
 const gfx::Image GetBookmarkDefaultIcon() {
+  if (!container) {
+    // During move operations there is a chance the bookmark menu delegate
+    // outlives the menu for a brief time. We reset the container when closing
+    // the menu but the delegate can still access it here.
+    // (VB-123142). TODO(espen). Find a way to deactivate the delegate.
+    LOG(WARNING) << "Icon requested after menu has closed";
+    return gfx::Image();
+  }
   return container->support.icons[BookmarkSupport::kUrl];
 }
 
 const gfx::Image GetBookmarkletIcon(views::MenuItemView* menu,
                                     views::Widget* widget) {
+  if (!container) {
+    // During move operations there is a chance the bookmark menu delegate
+    // outlives the menu for a brief time. We reset the container when closing
+    // the menu but the delegate can still access it here.
+    // (VB-123142). TODO(espen). Find a way to deactivate the delegate.
+    LOG(WARNING) << "Icon requested after menu has closed";
+    return gfx::Image();
+  }
   return container->support
       .icons[color_utils::IsDark(TextColorForMenu(menu, widget))
                  ? BookmarkSupport::kBookmarklet
@@ -360,6 +376,14 @@ const gfx::Image GetBookmarkletIcon(views::MenuItemView* menu,
 
 ui::ImageModel GetBookmarkFolderIcon(views::MenuItemView* menu,
                                      views::Widget* widget) {
+  if (!container) {
+    // During move operations there is a chance the bookmark menu delegate
+    // outlives the menu for a brief time. We reset the container when closing
+    // the menu but the delegate can still access it here.
+    // (VB-123142). TODO(espen). Find a way to deactivate the delegate.
+    LOG(WARNING) << "Icon requested after menu has closed";
+    return ui::ImageModel::FromImage(gfx::Image());
+  }
   return ui::ImageModel::FromImage(
       container->support
           .icons[color_utils::IsDark(TextColorForMenu(menu, widget))
@@ -369,6 +393,14 @@ ui::ImageModel GetBookmarkFolderIcon(views::MenuItemView* menu,
 
 ui::ImageModel GetBookmarkSpeeddialIcon(views::MenuItemView* menu,
                                         views::Widget* widget) {
+  if (!container) {
+    // During move operations there is a chance the bookmark menu delegate
+    // outlives the menu for a brief time. We reset the container when closing
+    // the menu but the delegate can still access it here.
+    // (VB-123142). TODO(espen). Find a way to deactivate the delegate.
+    LOG(WARNING) << "Icon requested after menu has closed";
+    return ui::ImageModel::FromImage(gfx::Image());
+  }
   return ui::ImageModel::FromImage(
       container->support
           .icons[color_utils::IsDark(TextColorForMenu(menu, widget))

@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_CONTENT_SETTING_BUBBLE_CONTENTS_H_
 #define CHROME_BROWSER_UI_VIEWS_CONTENT_SETTING_BUBBLE_CONTENTS_H_
 
-#include <map>
 #include <memory>
 #include <string>
 
@@ -42,7 +41,7 @@ class ContentSettingBubbleContents : public content::WebContentsObserver,
   ContentSettingBubbleContents(
       std::unique_ptr<ContentSettingBubbleModel> content_setting_bubble_model,
       content::WebContents* web_contents,
-      views::View* anchor_view,
+      views::BubbleAnchor anchor,
       views::BubbleBorder::Arrow arrow);
   ContentSettingBubbleContents(const ContentSettingBubbleContents&) = delete;
   ContentSettingBubbleContents& operator=(const ContentSettingBubbleContents&) =

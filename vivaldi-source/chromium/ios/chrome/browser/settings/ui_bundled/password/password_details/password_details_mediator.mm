@@ -9,7 +9,6 @@
 #import <utility>
 #import <vector>
 
-#import "base/containers/contains.h"
 #import "base/containers/flat_set.h"
 #import "base/memory/raw_ptr.h"
 #import "base/strings/sys_string_conversions.h"
@@ -323,9 +322,12 @@ bool AreMatchingCredentials(const CredentialUIEntry& credential,
   }
 
   it->stored_in = {password_manager::PasswordForm::Store::kAccountStore};
-  self.savedPasswordsPresenter->MoveCredentialsToAccount(
-      {*it}, password_manager::metrics_util::MoveToAccountStoreTrigger::
-                 kExplicitlyTriggeredInSettings);
+  self.savedPasswordsPresenter->MoveCredentialsToAccount({*it});
+
+  base::UmaHistogramEnumeration(
+      "PasswordManager.AccountStorage.MoveToAccountStoreFlowAccepted2",
+      password_manager::metrics_util::MoveToAccountStoreTrigger::
+          kExplicitlyTriggeredInSettings);
   [self providePasswordsToConsumer];
 }
 
@@ -573,8 +575,7 @@ bool AreMatchingCredentials(const CredentialUIEntry& credential,
     // storage is enabled.
     credentialDetails.shouldOfferToMoveToAccount =
         self.context == DetailsContext::kPasswordSettings &&
-        password_manager::features_util::IsAccountStorageEnabled(
-            _syncService) &&
+        password_manager::features_util::IsAccountStorageActive(_syncService) &&
         ShouldShowLocalOnlyIcon(credential, _syncService);
     [passwords addObject:credentialDetails];
   }
@@ -633,7 +634,7 @@ bool AreMatchingCredentials(const CredentialUIEntry& credential,
   }
 #endif  // !BUILDFLAG(GOOGLE_CHROME_BRANDING)
 
-  return password_manager::features_util::IsAccountStorageEnabled(_syncService);
+  return password_manager::features_util::IsAccountStorageActive(_syncService);
 }
 
 @end

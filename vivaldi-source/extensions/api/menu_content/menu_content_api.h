@@ -43,7 +43,7 @@ class MenuContentAPI : public BrowserContextKeyedAPI,
                             int64_t select_id,
                             const std::string& named_menu);
   static void SendOnResetAll(content::BrowserContext* context,
-                            menus::Menu_Model* model);
+                             menus::Menu_Model* model);
 
   // KeyedService implementation.
   void Shutdown() override;

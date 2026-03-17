@@ -4,8 +4,8 @@
 
 #define _USE_MATH_DEFINES
 
-#include <cmath>
 #include <math.h>
+#include <cmath>
 #include <vector>
 
 namespace vivaldi {
@@ -48,9 +48,7 @@ gfx::Rect Quad::GetRect() {
 }
 
 bool Quad::IsContainedIn(QuadPtr q) {
-  return left_ >= q->left_ &&
-         top_ >= q->top_ &&
-         right_ <= q->right_ &&
+  return left_ >= q->left_ && top_ >= q->top_ && right_ <= q->right_ &&
          bottom_ <= q->bottom_;
 }
 
@@ -156,7 +154,7 @@ int Quad::FindBestY(QuadPtr quad, int& quality) {
 int getWeight(SpatnavPoint p) {
   int dx = p.x - p.sx;
   int dy = p.y - p.sy;
-  return dx*dx + dy*dy;
+  return dx * dx + dy * dy;
 }
 
 int findDirection(SpatnavPoint p2, int direction) {
@@ -177,7 +175,7 @@ int deviation(SpatnavPoint pt, int navDir) {
   //         -90
   //           |
   //           |
-  //180-----------------0
+  // 180-----------------0
   //           |
   //           |
   //          90
@@ -288,18 +286,18 @@ SpatnavPoint bestDirection(const std::vector<SpatnavPoint>& pts, int navDir) {
 
 SpatnavPoint nextPt(const std::vector<SpatnavPoint>& pts, int navDir) {
   std::vector<SpatnavPoint> weighted_pts = pts;
-  for (auto& pt: weighted_pts) {
+  for (auto& pt : weighted_pts) {
     pt.direction = findDirection(pt, navDir);
     pt.weight = getWeight(pt);
   }
   std::vector<SpatnavPoint> min90 = minWeights(weighted_pts, navDir, 90);
   std::vector<SpatnavPoint> min45 = minWeights(weighted_pts, navDir, 45);
 
-  std::vector<SpatnavPoint> *candidates = min45.size() ? &min45 : &min90;
+  std::vector<SpatnavPoint>* candidates = min45.size() ? &min45 : &min90;
 
   if (candidates->size() == 0) {
     return SpatnavPoint();
-    //TODO: Implement wrapping
+    // TODO: Implement wrapping
   } else if (candidates->size() == 1) {
     return (*candidates)[0];
   } else {
@@ -308,7 +306,7 @@ SpatnavPoint nextPt(const std::vector<SpatnavPoint>& pts, int navDir) {
 }
 
 void Quad::FindNeighborQuads(const std::vector<QuadPtr>& quads) {
-  for (auto q: quads) {
+  for (auto q : quads) {
     if (q->id_ == id_) {
       // No need to compare to myself
       continue;
@@ -345,7 +343,7 @@ void Quad::FindNeighborQuads(const std::vector<QuadPtr>& quads) {
   }
 }
 
-//TODO: Review this
+// TODO: Review this
 std::vector<SpatnavPoint> GetBestQuality(const std::vector<SpatnavPoint>& pts) {
   std::vector<SpatnavPoint> topQuality;
   std::vector<SpatnavPoint> lowQuality;
@@ -373,7 +371,7 @@ void Quad::BuildPoints(const std::vector<QuadPtr>& quads) {
 
 // static
 QuadPtr Quad::GetInitialQuad(const std::vector<QuadPtr>& quads,
-                       vivaldi::mojom::SpatnavDirection direction) {
+                             vivaldi::mojom::SpatnavDirection direction) {
   using vivaldi::mojom::SpatnavDirection;
   if (quads.size() == 0) {
     return nullptr;
@@ -417,12 +415,12 @@ QuadPtr Quad::NextUp() {
     int quality;
 
     int best_x = FindBestX(q, quality);
-    int best_source_y =
-        Overlaps(q) ? std::min(bottom_, q->bottom_) : top_;
+    int best_source_y = Overlaps(q) ? std::min(bottom_, q->bottom_) : top_;
     p.sx = best_x;
     p.sy = best_source_y;
-    p.x = q->right_ < best_x ? q->right_ :
-          q->left_ > best_x ? q->left_ : best_x;
+    p.x = q->right_ < best_x  ? q->right_
+          : q->left_ > best_x ? q->left_
+                              : best_x;
     p.y = q->bottom_;
     p.index = i;
     p.weight = 1;
@@ -450,12 +448,14 @@ QuadPtr Quad::NextDown() {
     int quality;
 
     int best_x = FindBestX(q, quality);
-    int best_source_y = IsContainedIn(q) ?
-        top_ : Overlaps(q) ? std::max(top_, q->top_) : bottom_;
+    int best_source_y = IsContainedIn(q) ? top_
+                        : Overlaps(q)    ? std::max(top_, q->top_)
+                                         : bottom_;
     p.sx = best_x;
     p.sy = best_source_y;
-    p.x = q->right_ < best_x ?
-          q->right_ : q->left_ > best_x ? q->left_ : best_x;
+    p.x = q->right_ < best_x  ? q->right_
+          : q->left_ > best_x ? q->left_
+                              : best_x;
     p.y = q->top_;
     p.index = i;
     p.weight = 1;
@@ -482,15 +482,17 @@ QuadPtr Quad::NextRight() {
     QuadPtr q = toRight_[i];
     int quality;
 
-    int best_source_x = IsContainedIn(q) ? left_ :
-                        Overlaps(q) ? std::max(left_, q->left_) : right_;
+    int best_source_x = IsContainedIn(q) ? left_
+                        : Overlaps(q)    ? std::max(left_, q->left_)
+                                         : right_;
     int best_y = FindBestY(q, quality);
 
     p.sx = best_source_x;
     p.sy = best_y;
     p.x = q->left_;
-    p.y = q->bottom_ < best_y ?
-          q->bottom_ : q->top_ > best_y ? q->top_ : best_y;
+    p.y = q->bottom_ < best_y ? q->bottom_
+          : q->top_ > best_y  ? q->top_
+                              : best_y;
     p.index = i;
     p.weight = 1;
     p.quality = quality;
@@ -517,13 +519,14 @@ QuadPtr Quad::NextLeft() {
     int quality;
 
     int best_y = FindBestY(q, quality);
-    int best_source_x =
-        Overlaps(q) ? std::min(right_, q->right_) : left_;
+    int best_source_x = Overlaps(q) ? std::min(right_, q->right_) : left_;
     p.sx = best_source_x;
     p.sy = best_y;
 
     p.x = q->right_;
-    p.y = q->bottom_ < best_y ? q->bottom_ : q->top_ > best_y ? q->top_ : best_y;
+    p.y = q->bottom_ < best_y ? q->bottom_
+          : q->top_ > best_y  ? q->top_
+                              : best_y;
 
     p.index = i;
     p.weight = 1;

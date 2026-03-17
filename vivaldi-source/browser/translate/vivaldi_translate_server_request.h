@@ -30,12 +30,12 @@ class VivaldiTranslateServerRequestTest;
 
 enum TranslateError {
   kNoError = 0,
-  kNetwork,                    // No connectivity.
-  kUnknownLanguage,            // The page's language could not be detected.
-  kUnsupportedLanguage,        // The server detected a language that the browser
-                               // does not know.
-  kTranslationError,           // General translation error.
-  kTranslationTimeout,         // Timeout during translation.
+  kNetwork,              // No connectivity.
+  kUnknownLanguage,      // The page's language could not be detected.
+  kUnsupportedLanguage,  // The server detected a language that the browser
+                         // does not know.
+  kTranslationError,     // General translation error.
+  kTranslationTimeout,   // Timeout during translation.
 };
 
 using VivaldiTranslateTextCallback =
@@ -52,8 +52,8 @@ class VivaldiTranslateServerRequest {
 
   virtual ~VivaldiTranslateServerRequest();
   VivaldiTranslateServerRequest(const VivaldiTranslateServerRequest&) = delete;
-  VivaldiTranslateServerRequest& operator=(const VivaldiTranslateServerRequest&) =
-      delete;
+  VivaldiTranslateServerRequest& operator=(
+      const VivaldiTranslateServerRequest&) = delete;
 
   // Given an array of strings and language codes, it will request
   // a translation from the server.
@@ -76,7 +76,7 @@ class VivaldiTranslateServerRequest {
   std::string GenerateJSON(const std::vector<std::string>& data,
                            const std::string& source_language,
                            const std::string& destination_language);
-  void OnRequestResponse(std::unique_ptr<std::string> response_body);
+  void OnRequestResponse(std::optional<std::string> response_body);
   const std::string GetServer();
 
   void SetCallbackForTesting(VivaldiTranslateTextCallback callback) {

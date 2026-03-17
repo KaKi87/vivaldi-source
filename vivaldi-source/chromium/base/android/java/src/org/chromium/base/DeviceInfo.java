@@ -276,7 +276,7 @@ public final class DeviceInfo {
             // should not have such a modification.
             isAutomotive = false;
         }
-        mIDeviceInfo.isAutomotive = isAutomotive;
+        mIDeviceInfo.isAutomotive = isAutomotive || BuildConfig.IS_OEM_AUTOMOTIVE_BUILD; // Vivaldi
 
         if (sIsAutomotiveForTesting != null) {
             mIDeviceInfo.isAutomotive = sIsAutomotiveForTesting;

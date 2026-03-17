@@ -21,8 +21,9 @@ class Browser;
 @end
 
 // Controller that manages reader mode for a specific WebState.
-class ReaderModeController : public web::WebStateObserver,
-                            public web::WebStateUserData<ReaderModeController> {
+class ReaderModeController
+    : public web::WebStateObserver,
+      public web::WebStateUserData<ReaderModeController> {
  public:
   ReaderModeController(const ReaderModeController&) = delete;
   ReaderModeController& operator=(const ReaderModeController&) = delete;
@@ -76,8 +77,9 @@ class ReaderModeController : public web::WebStateObserver,
 
   // web::WebStateObserver implementation
   void WebStateDestroyed(web::WebState* web_state) override;
-  void PageLoaded(web::WebState* web_state,
-                  web::PageLoadCompletionStatus load_completion_status) override;
+  void PageLoaded(
+      web::WebState* web_state,
+      web::PageLoadCompletionStatus load_completion_status) override;
 
   // Notify all observers of state changes
   void NotifyAvailabilityObservers(bool available);

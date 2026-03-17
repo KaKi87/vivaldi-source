@@ -4,12 +4,13 @@
 
 #include "sync/notes/note_specifics_conversions.h"
 
+#include <algorithm>
 #include <string>
+#include <string_view>
 #include <unordered_set>
 #include <utility>
 #include <vector>
 
-#include "base/containers/contains.h"
 #include "base/containers/span.h"
 #include "base/hash/sha1.h"
 #include "base/logging.h"
@@ -88,7 +89,7 @@ std::string InferGuidForLegacyNote(
 }
 
 bool IsForbiddenTitleWithMaybeTrailingSpaces(const std::string& title) {
-  return base::Contains(
+  return std::ranges::contains(
       kForbiddenTitles,
       base::TrimWhitespaceASCII(title, base::TrimPositions::TRIM_TRAILING));
 }
@@ -132,7 +133,7 @@ void MoveAllChildren(NoteModelView* model,
     return;
   }
 
-    // This code relies on the underlying type to store children in the
+  // This code relies on the underlying type to store children in the
   // NotesModel which is vector. It moves children from |old_parent| to
   // the end of |new_parent| one by one, from last to first (which reverses the
   // order of children). After that all children must be reordered to keep the

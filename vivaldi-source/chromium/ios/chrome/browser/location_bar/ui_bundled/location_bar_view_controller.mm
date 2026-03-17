@@ -4,7 +4,6 @@
 
 #import "ios/chrome/browser/location_bar/ui_bundled/location_bar_view_controller.h"
 
-#import "base/containers/contains.h"
 #import "base/functional/bind.h"
 #import "base/ios/ios_util.h"
 #import "base/metrics/histogram_functions.h"
@@ -20,7 +19,7 @@
 #import "components/prefs/pref_service.h"
 #import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/fullscreen/ui_bundled/fullscreen_animator.h"
-#import "ios/chrome/browser/intelligence/bwg/metrics/bwg_metrics.h"
+#import "ios/chrome/browser/intelligence/bwg/metrics/gemini_metrics.h"
 #import "ios/chrome/browser/intelligence/bwg/utils/bwg_constants.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/intelligence/page_action_menu/ui/page_action_menu_entrypoint_view.h"
@@ -32,6 +31,7 @@
 #import "ios/chrome/browser/location_bar/ui_bundled/fakebox_buttons_snapshot_provider.h"
 #import "ios/chrome/browser/location_bar/ui_bundled/location_bar_constants.h"
 #import "ios/chrome/browser/location_bar/ui_bundled/location_bar_metrics.h"
+#import "ios/chrome/browser/location_bar/ui_bundled/location_bar_mutator.h"
 #import "ios/chrome/browser/location_bar/ui_bundled/location_bar_placeholder_type.h"
 #import "ios/chrome/browser/location_bar/ui_bundled/location_bar_steady_view.h"
 #import "ios/chrome/browser/omnibox/public/omnibox_constants.h"
@@ -40,22 +40,22 @@
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/public/commands/activity_service_commands.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
 #import "ios/chrome/browser/shared/public/commands/bwg_commands.h"
 #import "ios/chrome/browser/shared/public/commands/help_commands.h"
 #import "ios/chrome/browser/shared/public/commands/lens_commands.h"
 #import "ios/chrome/browser/shared/public/commands/lens_overlay_commands.h"
-#import "ios/chrome/browser/shared/public/commands/load_query_commands.h"
 #import "ios/chrome/browser/shared/public/commands/open_lens_input_selection_command.h"
 #import "ios/chrome/browser/shared/public/commands/page_action_menu_commands.h"
 #import "ios/chrome/browser/shared/public/commands/page_action_menu_entry_point_commands.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/browser/shared/ui/util/layout_guide_names.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/shared/ui/util/util_swift.h"
-#import "ios/chrome/browser/toolbar/ui_bundled/public/toolbar_type.h"
+#import "ios/chrome/browser/sharing/ui_bundled/sharing_metrics.h"
+#import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_type.h"
 #import "ios/chrome/common/NSString+Chromium.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/common/ui/util/pointer_interaction_util.h"
@@ -239,11 +239,7 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
   if (placeholderType == _placeholderType) {
     return;
   }
-  if (IsDiamondPrototypeEnabled()) {
-    _placeholderType = LocationBarPlaceholderType::kNone;
-  } else {
-    _placeholderType = placeholderType;
-  }
+  _placeholderType = placeholderType;
   if (self.isViewLoaded) {
     [self updatePlaceholderView];
   }
@@ -373,7 +369,7 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
                                 underName:kPageActionMenuEntrypointGuide];
   }
 
-  if (IsLensOverlayAvailable(_profilePrefs)) {
+  if (IsLensOverlayAllowedByPolicy(_profilePrefs)) {
     _lensOverlayPlaceholderView = [[LensOverlayEntrypointButton alloc]
         initWithProfilePrefs:_profilePrefs];
     [self.layoutGuideCenter referenceView:_lensOverlayPlaceholderView
@@ -485,7 +481,7 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
 #pragma mark - LocationBarConsumer
 
 - (void)defocusOmnibox {
-  [self.dispatcher cancelOmniboxEdit];
+  [self.dispatcher hideComposebox];
 }
 
 - (void)setPlaceholderText:(NSString*)searchProviderName {
@@ -559,7 +555,8 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
 }
 
 - (void)attemptShowingLensOverlayIPH {
-  if (IsLensOverlayAvailable(_profilePrefs) && !IsPageActionMenuEnabled() &&
+  if (IsLensOverlayAllowedByPolicy(_profilePrefs) &&
+      !IsPageActionMenuEnabled() &&
       !self.locationBarSteadyView.badgesContainerView.placeholderView.hidden) {
     [self.helpCommandsHandler
         presentInProductHelpWithType:InProductHelpType::kLensOverlayEntrypoint];
@@ -762,10 +759,6 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
     state = kNoButton;
   }
 
-  if (IsDiamondPrototypeEnabled()) {
-    state = kNoButton;
-  }
-
   switch (state) {
     case kNoButton: {
       self.locationBarSteadyView.trailingButton.hidden = YES;
@@ -813,7 +806,7 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
       } else {
       [self.locationBarSteadyView.trailingButton
                  addTarget:self.dispatcher
-                    action:@selector(showShareSheet)
+                    action:@selector(showShareSheetFromShareButton:)
           forControlEvents:UIControlEventTouchUpInside];
 
       // Add self as a target to collect the metrics.
@@ -887,10 +880,22 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
 }
 
 - (void)setTrailingButtonState:(TrailingButtonState)state {
+  // This is dirty, but this is experiment-only and will be removed in one
+  // milestone.
+  if (base::FeatureList::IsEnabled(kDisableShareButton) &&
+      state == kShareButton) {
+    state = kNoButton;
+  }
+
   if (_trailingButtonState == state) {
     return;
   }
   _trailingButtonState = state;
+
+  if (state == kShareButton) {
+    base::UmaHistogramEnumeration("Mobile.ShareThisPage.Shown",
+                                  ShareThisPageLocation::kLocationBar);
+  }
 
   [self updateTrailingButton];
 }
@@ -908,6 +913,8 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
 // here.
 - (void)shareButtonPressed {
   RecordAction(UserMetricsAction("MobileToolbarShareMenu"));
+  base::UmaHistogramEnumeration("Mobile.ShareThisPage.Used",
+                                ShareThisPageLocation::kLocationBar);
   [self.delegate recordShareButtonPressed];
 }
 
@@ -940,17 +947,28 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
   NSMutableArray<UIMenuElement*>* menuElements = [[NSMutableArray alloc] init];
   __weak __typeof__(self) weakSelf = self;
 
-  if (IsDiamondPrototypeEnabled() && !self.locationBarSteadyView.hidden) {
+  if (base::FeatureList::IsEnabled(kShareInOmniboxLongPress) &&
+      self.shareButtonEnabled) {
+    base::UmaHistogramEnumeration("Mobile.ShareThisPage.Shown",
+                                  ShareThisPageLocation::kOmniboxLongPress);
     UIImage* image =
-        DefaultSymbolWithPointSize(kShareSymbol, kSymbolActionPointSize);
-    UIAction* copyAction = [UIAction
-        actionWithTitle:l10n_util::GetNSString(IDS_IOS_SHARE_BUTTON_LABEL)
-                  image:image
-             identifier:nil
-                handler:^(UIAction* action) {
-                  [weakSelf.delegate locationBarShareTapped];
-                }];
-    [menuElements addObject:copyAction];
+        DefaultSymbolWithPointSize(kShareSymbol, kSymbolImagePointSize);
+
+    UIAction* shareThisPageAction =
+        [UIAction actionWithTitle:l10n_util::GetNSString(
+                                      IDS_IOS_TOOLS_MENU_SHARE_THIS_PAGE)
+                            image:image
+                       identifier:nil
+                          handler:^(UIAction* action) {
+                            [weakSelf shareThisPage];
+                          }];
+
+    UIMenu* divider = [UIMenu menuWithTitle:@""
+                                      image:nil
+                                 identifier:nil
+                                    options:UIMenuOptionsDisplayInline
+                                   children:@[ shareThisPageAction ]];
+    [menuElements addObject:divider];
   }
 
   UIImage* pasteImage = nil;
@@ -966,7 +984,9 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
                     imageWithRenderingMode:UIImageRenderingModeAlwaysTemplate]
                  identifier:nil
                     handler:^(UIAction* action) {
-                      [weakSelf.dispatcher showShareSheet];
+                      [weakSelf.dispatcher
+                          showShareSheetFromShareButton:
+                              weakSelf.locationBarSteadyView];
                     }];
         [menuElements addObject:copyAction];
       }
@@ -1015,8 +1035,7 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
   if (clipboard_content_types.has_value()) {
     std::set<ClipboardContentType> clipboard_content_types_values =
         clipboard_content_types.value();
-    if (base::Contains(clipboard_content_types_values,
-                       ClipboardContentType::Image)) {
+    if (clipboard_content_types_values.contains(ClipboardContentType::Image)) {
       // Either add an option to search the copied image with Lens, or via the
       // default search engine's reverse image search functionality.
       if (self.shouldUseLensInLongPressMenu) {
@@ -1042,8 +1061,8 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
                               handler:searchCopiedImageHandler];
         [menuElements addObject:searchCopiedImageAction];
       }
-    } else if (base::Contains(clipboard_content_types_values,
-                              ClipboardContentType::URL)) {
+    } else if (clipboard_content_types_values.contains(
+                   ClipboardContentType::URL)) {
       id visitCopiedLinkHandler = ^(UIAction* action) {
         [self visitCopiedLink:nil];
       };
@@ -1053,8 +1072,8 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
                identifier:nil
                   handler:visitCopiedLinkHandler];
       [menuElements addObject:visitCopiedLinkAction];
-    } else if (base::Contains(clipboard_content_types_values,
-                              ClipboardContentType::Text)) {
+    } else if (clipboard_content_types_values.contains(
+                   ClipboardContentType::Text)) {
       id searchCopiedTextHandler = ^(UIAction* action) {
         [self searchCopiedText:nil];
       };
@@ -1065,6 +1084,20 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
                   handler:searchCopiedTextHandler];
       [menuElements addObject:searchCopiedTextAction];
     }
+  }
+
+  // Used to easily trigger the Assistant sheet during development.
+  if (IsAssistantSheetEnabled()) {
+    UIAction* assistantAction =
+        [UIAction actionWithTitle:l10n_util::GetNSString(
+                                      IDS_IOS_DIAMOND_PROTOTYPE_ASK_GEMINI)
+                            image:DefaultSymbolWithPointSize(
+                                      kMagicStackSymbol, kSymbolActionPointSize)
+                       identifier:nil
+                          handler:^(UIAction* action) {
+                            [weakSelf.dispatcher showAssistant];
+                          }];
+    [menuElements addObject:assistantAction];
   }
 
   if (IsVivaldiRunning()) {
@@ -1180,6 +1213,19 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
   return configuration;
 }
 
+- (void)contextMenuInteraction:(UIContextMenuInteraction*)interaction
+    willDisplayMenuForConfiguration:(UIContextMenuConfiguration*)configuration
+                           animator:
+                               (id<UIContextMenuInteractionAnimating>)animator {
+  if (!IsGeminiCopresenceEnabled()) {
+    return;
+  }
+
+  [self.geminiHandler
+      hideFloatyIfInvokedAnimated:YES
+                       fromSource:gemini::FloatyUpdateSource::ContextMenu];
+}
+
 - (BOOL)canPerformAction:(SEL)action withSender:(id)sender {
 
   // Note:(VIB-692)(prio@vivaldi.com) - Do not allow copying for NTP or when
@@ -1224,8 +1270,8 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
         }
         NSString* url = base::SysUTF8ToNSString(optionalURL.value().spec());
         dispatch_async(dispatch_get_main_queue(), ^{
-          [self.dispatcher loadQuery:url immediately:YES];
-          [self.dispatcher cancelOmniboxEdit];
+          [self.mutator loadQuery:url];
+          [self.dispatcher hideComposebox];
         });
       }));
 }
@@ -1242,10 +1288,17 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
         }
         NSString* query = base::SysUTF16ToNSString(optionalText.value());
         dispatch_async(dispatch_get_main_queue(), ^{
-          [self.dispatcher loadQuery:query immediately:YES];
-          [self.dispatcher cancelOmniboxEdit];
+          [self.mutator loadQuery:query];
+          [self.dispatcher hideComposebox];
         });
       }));
+}
+
+/// Shows the Share this page sheet.
+- (void)shareThisPage {
+  base::UmaHistogramEnumeration("Mobile.ShareThisPage.Used",
+                                ShareThisPageLocation::kOmniboxLongPress);
+  [self.dispatcher showShareSheetFromShareButton:_locationBarSteadyView];
 }
 
 /// Set the preferred omnibox position to `toolbarType`.
@@ -1273,14 +1326,14 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
 }
 
 - (void)handlePageActionMenuEntrypointTapped {
-  // TODO(crbug.com/402827015): Log opens.
   if (_pageActionMenuEntrypointView.newBadgeVisible) {
     RecordAIHubNewBadgeTapped();
     [self.delegate locationBarDidTapAIHubNewBadge];
     _pageActionMenuEntrypointView.newBadgeVisible = NO;
   }
   if (IsDirectBWGEntryPoint()) {
-    [self.BWGHandler startBWGFlowWithEntryPoint:bwg::EntryPoint::OmniboxChip];
+    [self.geminiHandler
+        startGeminiFlowWithEntryPoint:gemini::EntryPoint::OmniboxChip];
   } else {
     RecordAIHubIconTapped();
     [self.pageActionMenuHandler showPageActionMenu];
@@ -1454,10 +1507,12 @@ const CGFloat kVivaldiTabSwitcherMinVerticalMovement = 30.0;
 
 - (void)updateLocationText:(NSString*)text
                     domain:(NSString*)domain
-                  showFull:(BOOL)showFull {
+                  showFull:(BOOL)showFull
+                  clipTail:(BOOL)clipTail {
   [self.locationBarSteadyView updateLocationText:text
                                           domain:domain
-                                        showFull:showFull];
+                                        showFull:showFull
+                                        clipTail:clipTail];
 }
 
 - (void)setAtbSettingForActiveWebState:

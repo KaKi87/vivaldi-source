@@ -35,7 +35,6 @@ import org.chromium.components.omnibox.AutocompleteInput;
 import org.chromium.components.omnibox.AutocompleteMatch;
 import org.chromium.components.omnibox.AutocompleteMatch.MatchClassification;
 import org.chromium.components.omnibox.OmniboxFeatures;
-import org.chromium.components.omnibox.OmniboxSuggestionType;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.base.DeviceInput;
 import org.chromium.ui.modelutil.PropertyModel;
@@ -186,9 +185,7 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
             return;
         }
 
-        if (suggestion.hasTabMatch() || suggestion.getType() == OmniboxSuggestionType.OPEN_TAB) {
-            return;
-        }
+        if (!suggestion.isRefineable()) return;
 
         String iconString =
                 OmniboxResourceProvider.getString(
@@ -226,9 +223,7 @@ public abstract class BaseSuggestionViewProcessor implements SuggestionProcessor
                                             OmniboxResourceProvider.getString(
                                                     mContext, R.string.omnibox_confirm_delete),
                                             ()
-                                                    -> mSuggestionHost.onDeleteMatchElement(
-                                                            suggestion, suggestion.getDisplayText(),
-                                                            position))));
+                                                    -> mSuggestionHost.deleteMatch(suggestion))));
                     return;
         } // End Vivaldi
 

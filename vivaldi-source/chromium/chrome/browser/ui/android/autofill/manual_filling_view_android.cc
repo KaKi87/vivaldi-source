@@ -266,8 +266,8 @@ void ManualFillingViewAndroid::OnAccessoryActionAvailabilityChanged(
 
 void ManualFillingViewAndroid::OnFillingTriggered(
     JNIEnv* env,
-    jint tab_type,
-    const base::android::JavaParamRef<jobject>& j_user_info_field) {
+    int32_t tab_type,
+    const base::android::JavaRef<jobject>& j_user_info_field) {
   controller_->OnFillingTriggered(
       static_cast<autofill::AccessoryTabType>(tab_type),
       ConvertJavaUserInfoField(env, j_user_info_field));
@@ -275,27 +275,27 @@ void ManualFillingViewAndroid::OnFillingTriggered(
 
 void ManualFillingViewAndroid::OnPasskeySelected(
     JNIEnv* env,
-    jint tab_type,
+    int32_t tab_type,
     std::vector<uint8_t>& passkey) {
   controller_->OnPasskeySelected(
       static_cast<autofill::AccessoryTabType>(tab_type), passkey);
 }
 
 void ManualFillingViewAndroid::OnOptionSelected(JNIEnv* env,
-                                                jint selected_action) {
+                                                int32_t selected_action) {
   controller_->OnOptionSelected(
       static_cast<autofill::AccessoryAction>(selected_action));
 }
 
 void ManualFillingViewAndroid::OnToggleChanged(JNIEnv* env,
-                                               jint selected_action,
-                                               jboolean enabled) {
+                                               int32_t selected_action,
+                                               bool enabled) {
   controller_->OnToggleChanged(
       static_cast<autofill::AccessoryAction>(selected_action), enabled);
 }
 
 void ManualFillingViewAndroid::RequestAccessorySheet(JNIEnv* env,
-                                                     jint tab_type) {
+                                                     int32_t tab_type) {
   // controller_ owns this class. Therefore, the callback can't outlive the view
   // and base::Unretained is always a valid reference.
   controller_->RequestAccessorySheet(
@@ -327,10 +327,10 @@ ManualFillingViewAndroid::GetOrCreateJavaObject() {
 // static
 static void JNI_ManualFillingComponentBridge_CachePasswordSheetDataForTesting(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& j_web_contents,
+    const base::android::JavaRef<jobject>& j_web_contents,
     std::vector<std::string>& usernames,
     std::vector<std::string>& passwords,
-    jboolean j_blocklisted) {
+    bool j_blocklisted) {
   content::WebContents* web_contents =
       content::WebContents::FromJavaWebContents(j_web_contents);
 
@@ -355,9 +355,9 @@ static void JNI_ManualFillingComponentBridge_CachePasswordSheetDataForTesting(
 // static
 static void JNI_ManualFillingComponentBridge_NotifyFocusedFieldTypeForTesting(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& j_web_contents,
-    jlong j_focused_field_id,
-    jint j_available) {
+    const base::android::JavaRef<jobject>& j_web_contents,
+    int64_t j_focused_field_id,
+    int32_t j_available) {
   ManualFillingControllerImpl::GetOrCreate(
       content::WebContents::FromJavaWebContents(j_web_contents))
       ->NotifyFocusedInputChanged(
@@ -369,8 +369,8 @@ static void JNI_ManualFillingComponentBridge_NotifyFocusedFieldTypeForTesting(
 static void
 JNI_ManualFillingComponentBridge_SignalAutoGenerationStatusForTesting(
     JNIEnv* env,
-    const base::android::JavaParamRef<jobject>& j_web_contents,
-    jboolean j_available) {
+    const base::android::JavaRef<jobject>& j_web_contents,
+    bool j_available) {
   content::WebContents* web_contents =
       content::WebContents::FromJavaWebContents(j_web_contents);
 

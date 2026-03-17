@@ -10,7 +10,7 @@
 #include "base/functional/callback.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted_memory.h"
-#include "base/threading/thread_restrictions.h" // VivaldiScopedAllowBlocking
+#include "base/threading/thread_restrictions.h"  // VivaldiScopedAllowBlocking
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
 #include "content/public/browser/browser_task_traits.h"

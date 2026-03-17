@@ -16,29 +16,28 @@ namespace android {
 class BookmarkBarSceneLayer : public SceneLayer {
  public:
   BookmarkBarSceneLayer(JNIEnv* env,
-                        const base::android::JavaParamRef<jobject>& jobj);
+                        const base::android::JavaRef<jobject>& jobj);
 
   BookmarkBarSceneLayer(const BookmarkBarSceneLayer&) = delete;
   BookmarkBarSceneLayer& operator=(const BookmarkBarSceneLayer&) = delete;
   ~BookmarkBarSceneLayer() override;
 
-  void SetContentTree(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& jcontent_tree);
+  void SetContentTree(JNIEnv* env,
+                      const base::android::JavaRef<jobject>& jcontent_tree);
 
   void UpdateBookmarkBarLayer(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& jresource_manager,
-      jint view_resource_id,
-      jint scene_layer_background_color,
-      jint scene_layer_offset_height,
-      jint scene_layer_width,
-      jint scene_layer_height,
-      jint snapshot_offset_width,
-      jint snapshot_offset_height,
-      jint hairline_height,
-      jint hairline_background_color,
-      const base::android::JavaParamRef<jobject>& joffset_tag);
+      const base::android::JavaRef<jobject>& jresource_manager,
+      int32_t view_resource_id,
+      int32_t scene_layer_background_color,
+      int32_t scene_layer_offset_height,
+      int32_t scene_layer_width,
+      int32_t scene_layer_height,
+      int32_t snapshot_offset_width,
+      int32_t snapshot_offset_height,
+      int32_t hairline_height,
+      int32_t hairline_background_color,
+      const base::android::JavaRef<jobject>& joffset_tag);
 
   void ShowBookmarkBar(JNIEnv* env);
   void HideBookmarkBar(JNIEnv* env);

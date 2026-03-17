@@ -32,8 +32,7 @@ WindowRegistryServiceFactory::BuildServiceInstanceForBrowserContext(
   return std::make_unique<WindowRegistryService>();
 }
 
-content::BrowserContext*
-WindowRegistryServiceFactory::GetBrowserContextToUse(
+content::BrowserContext* WindowRegistryServiceFactory::GetBrowserContextToUse(
     content::BrowserContext* context) const {
   // Make sure the service exist in incognito mode.
   return context;

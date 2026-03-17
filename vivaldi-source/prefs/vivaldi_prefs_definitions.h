@@ -103,11 +103,11 @@ class VivaldiPrefsDefinitions : public sync_preferences::SyncablePrefsDatabase {
   VivaldiPrefsDefinitions();
   ~VivaldiPrefsDefinitions() override;
 
-  void AddPropertiesFromDefinition(base::Value::Dict& definition,
-                                   base::Value::Dict& syncable_paths,
+  void AddPropertiesFromDefinition(base::DictValue& definition,
+                                   base::DictValue& syncable_paths,
                                    std::string current_path);
 
-  void AddChromiumProperties(base::Value::Dict& prefs,
+  void AddChromiumProperties(base::DictValue& prefs,
                              std::string_view current_path,
                              bool local_pref);
 

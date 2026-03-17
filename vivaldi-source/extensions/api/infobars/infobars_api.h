@@ -11,8 +11,7 @@
 namespace extensions {
 class InfobarsShowInfobarFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("infobars.showInfobar",
-                             INFOBARS_SHOWINFOBAR)
+  DECLARE_EXTENSION_FUNCTION("infobars.showInfobar", INFOBARS_SHOWINFOBAR)
 
   InfobarsShowInfobarFunction() = default;
 

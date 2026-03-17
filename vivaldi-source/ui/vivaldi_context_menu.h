@@ -138,10 +138,11 @@ VivaldiBookmarkMenu* CreateVivaldiBookmarkMenu(
     int offset,
     const gfx::Rect& button_rect);
 
-VivaldiMenubarMenu* CreateVivaldiMenubarMenu(content::WebContents* web_contents,
-                                             MenubarMenuParams::Delegate* delegate,
-                                             std::optional<extensions::vivaldi::menubar_menu::Show::Params> api_params,
-                                             int id);
+VivaldiMenubarMenu* CreateVivaldiMenubarMenu(
+    content::WebContents* web_contents,
+    MenubarMenuParams::Delegate* delegate,
+    std::optional<extensions::vivaldi::menubar_menu::Show::Params> api_params,
+    int id);
 
 void ConvertMenubarButtonRectToScreen(content::WebContents* web_contents,
                                       vivaldi::MenubarMenuParams& bar_params);
@@ -191,6 +192,7 @@ class VivaldiBookmarkMenu : public VivaldiMenu {
   virtual void Show() = 0;
   virtual void Close() = 0;
   virtual void set_observer(VivaldiBookmarkMenuObserver* observer) {}
+
  private:
   static VivaldiBookmarkMenu* active_;
 };

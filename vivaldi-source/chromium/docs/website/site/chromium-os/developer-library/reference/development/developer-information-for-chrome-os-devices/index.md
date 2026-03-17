@@ -4569,5 +4569,99 @@ such as the auto update until date, first release, and more.
     <td></td>
     <td>Yes</td>
   </tr>
+  <tr>
+    <td>2025-08-27</td>
+    <td>Asus</td>
+    <td><a href="https://www.asus.com/laptops/for-home/chromebook/asus-chromebook-cx14-cx1405/techspec/">ASUS Chromebook CX14</a></td>
+    <td>Telticn50</td>
+    <td>Nirva</td>
+    <td>Nissa</td>
+    <td>x86_64</td>
+    <td>6.6</td>
+    <td>x86_64</td>
+    <td>Twinlake</td>
+    <td>Clamshell</td>
+    <td>Yes</td>
+    <td>Yes</td>
+  </tr>
+  <tr>
+    <td>2025-08-27</td>
+    <td>Asus</td>
+    <td><a href="https://www.asus.com/laptops/for-home/chromebook/asus-chromebook-cx14-cx1405/techspec/"<ASUS Chromebook CX15</a></td>
+    <td>Telithn50</td>
+    <td>Nirva</td>
+    <td>Nissa</td>
+    <td>x86_64</td>
+    <td>6.6</td>
+    <td>x86_64</td>
+    <td>Twinlake</td>
+    <td>Clamshell</td>
+    <td>Yes</td>
+    <td>Yes</td>
+  </tr>
+
+  <tr>
+    <td>2026-01-12</td>
+    <td>Lenovo</td>
+    <td><a href="https://psref.lenovo.com/Product/Lenovo_Chrome_500e_2in1_G5_ITN">Lenovo Chrome 500e 2in1 G5 ITN</a></td>
+    <td>Pujjolo</td>
+    <td>Trulo</td>
+    <td>Trulo</td>
+    <td>x86_64</td>
+    <td>6.6</td>
+    <td>x86_64</td>
+    <td>Twinlake</td>
+    <td>Convertible</td>
+    <td>Yes</td>
+    <td>Yes</td>
+  </tr>
+
+  <tr>
+    <td>2026-01-12</td>
+    <td>Lenovo</td>
+    <td><a href="https://psref.lenovo.com/Product/Lenovo/Lenovo_Chrome_15ITN10">Lenovo Chromebook (15", 10) / Lenovo Chromebook Plus (15", 10)</a></td>
+    <td>Pujjoquince</td>
+    <td>Trulo</td>
+    <td>Trulo</td>
+    <td>x86_64</td>
+    <td>6.6</td>
+    <td>x86_64</td>
+    <td>Twinlake</td>
+    <td>Clamshell</td>
+    <td>Yes</td>
+    <td>Yes</td>
+  </tr>
+
+  <tr>
+    <td>2026-01-20</td>
+    <td>Asus</td>
+    <td><a href="https://www.asus.com/laptops/for-home/chromebook/asus-chromebook-cx14-cx1405/techspec/">ASUS Chromebook CZ11 (CZ1104C)</a></td>
+    <td>Anakin</td>
+    <td>Skywalker</td>
+    <td>Skywalker</td>
+    <td>aarch64</td>
+    <td>6.6</td>
+    <td>aarch64</td>
+    <td>MT8189</td>
+    <td>Clamshell</td>
+    <td>Yes</td>
+    <td>Yes</td>
+  </tr>
+  <tr>
+    <td>2026-01-20</td>
+    <td>Asus</td>
+    <td><a href="https://www.asus.com/laptops/for-home/chromebook/asus-chromebook-cx14-cx1405/techspec/">ASUS Chromebook CZ11 Flip (CZ1104F)</a></td>
+    <td>Anakin360</td>
+    <td>Skywalker</td>
+    <td>Skywalker</td>
+    <td>aarch64</td>
+    <td>6.6</td>
+    <td>aarch64</td>
+    <td>MT8189</td>
+    <td>Convertible</td>
+    <td>Yes</td>
+    <td>Yes</td>
+  </tr>
+
 
 </table>

@@ -101,6 +101,7 @@
 
 #if BUILDFLAG(IS_ANDROID)
 #include "base/android/content_uri_utils.h"
+#include "base/android/device_info.h"
 #include "base/android/path_utils.h"
 #include "base/process/process_handle.h"
 #include "chrome/browser/android/tab_android.h"
@@ -131,7 +132,7 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
-#include "chrome/common/actor.mojom-data-view.h"
+#include "chrome/common/actor.mojom-shared.h"
 #endif
 
 #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
@@ -148,7 +149,7 @@
 #endif
 
 #if BUILDFLAG(ENTERPRISE_CONTENT_ANALYSIS)
-#include "chrome/browser/safe_browsing/cloud_content_scanning/binary_upload_service.h"
+#include "components/enterprise/connectors/core/cloud_content_scanning/binary_upload_service.h"
 #include "components/enterprise/obfuscation/core/download_obfuscator.h"
 #endif
 
@@ -177,8 +178,6 @@
 #include "components/enterprise/connectors/core/reporting_event_router.h"
 #endif  // BUILDFLAG(ENTERPRISE_CLOUD_CONTENT_ANALYSIS)
 #endif  // BUILDFLAG(SAFE_BROWSING_DOWNLOAD_PROTECTION)
-
-#include "base/android/device_info.h"
 
 #include "app/vivaldi_apptools.h"
 #include "browser/vivaldi_internal_handlers.h"
@@ -287,6 +286,12 @@ void CheckDownloadUrlDone(
 }
 #endif  // SAFE_BROWSING_DOWNLOAD_PROTECTION
 
+// Returns true if the danger type is either FORCE_SAVE_TO_ONEDRIVE or
+// FORCE_SAVE_TO_GDrive.
+bool IsForceSaveToCloud(download::DownloadDangerType danger_type) {
+  return danger_type == download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_ONEDRIVE ||
+         danger_type == download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_GDRIVE;
+}
 // Called asynchronously to determine the MIME type for |path|.
 std::string GetMimeType(const base::FilePath& path) {
 #if BUILDFLAG(IS_ANDROID)
@@ -510,6 +515,8 @@ download::DownloadDangerType SavePackageDangerType(
       return download::DOWNLOAD_DANGER_TYPE_BLOCKED_TOO_LARGE;
     case safe_browsing::DownloadCheckResult::FORCE_SAVE_TO_GDRIVE:
       return download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_GDRIVE;
+    case safe_browsing::DownloadCheckResult::FORCE_SAVE_TO_ONEDRIVE:
+      return download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_ONEDRIVE;
     case safe_browsing::DownloadCheckResult::SENSITIVE_CONTENT_BLOCK:
       return download::DOWNLOAD_DANGER_TYPE_SENSITIVE_CONTENT_BLOCK;
     case safe_browsing::DownloadCheckResult::BLOCKED_SCAN_FAILED:
@@ -551,6 +558,7 @@ void OnCheckDownloadAllowedFailed(
 }
 
 #if !BUILDFLAG(IS_ANDROID)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 actor::ExecutionEngine* GetExecutionEngineForDownloadItem(
     DownloadItem* download) {
   content::WebContents* web_contents =
@@ -567,7 +575,7 @@ actor::ExecutionEngine* GetExecutionEngineForDownloadItem(
 
   if (const actor::ActorTask* actor_task =
           actor_service->GetActingActorTaskForWebContents(web_contents)) {
-    return actor_task->GetExecutionEngine();
+    return &actor_task->GetExecutionEngine();
   }
 
   return nullptr;
@@ -596,6 +604,7 @@ void ProcessFilePickerWithExecutionEngine(
 
   std::move(callback).Run(result, file_info);
 }
+#endif
 #endif
 
 }  // namespace
@@ -856,7 +865,8 @@ bool ChromeDownloadManagerDelegate::IsDangerTypeBlocked(
          danger_type ==
              download::DOWNLOAD_DANGER_TYPE_SENSITIVE_CONTENT_BLOCK ||
          danger_type == download::DOWNLOAD_DANGER_TYPE_BLOCKED_SCAN_FAILED ||
-         danger_type == download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_GDRIVE;
+         danger_type == download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_GDRIVE ||
+         danger_type == download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_ONEDRIVE;
 }
 
 bool ChromeDownloadManagerDelegate::IsDownloadReadyForCompletion(
@@ -942,7 +952,9 @@ bool ChromeDownloadManagerDelegate::IsDownloadReadyForCompletion(
             // Specifying a dangerous type here would take precedence over the
             // blocking of the file.
             download::DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS,
-            download::DOWNLOAD_INTERRUPT_REASON_FILE_BLOCKED);
+            IsForceSaveToCloud(danger_type)
+                ? download::DOWNLOAD_INTERRUPT_REASON_LOCAL_DOWNLOAD_BLOCKED
+                : download::DOWNLOAD_INTERRUPT_REASON_FILE_BLOCKED);
       } else {
         item->OnContentCheckCompleted(
             download::DOWNLOAD_DANGER_TYPE_DANGEROUS_FILE,
@@ -1058,7 +1070,7 @@ bool ChromeDownloadManagerDelegate::ShouldObfuscateDownload(
 
   // Skip obfuscation for large files if size is known.
   if (static_cast<size_t>(item->GetTotalBytes()) >
-      safe_browsing::BinaryUploadService::kMaxUploadSizeBytes) {
+      enterprise_connectors::BinaryUploadService::kMaxUploadSizeBytes) {
     return false;
   }
 
@@ -1577,7 +1589,7 @@ void ChromeDownloadManagerDelegate::RequestConfirmation(
         }
       },
       weak_ptr_factory_.GetWeakPtr(), download->GetGuid(), suggested_path);
-
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (base::FeatureList::IsEnabled(
           actor::kGlicDeferDownloadFilePickerToUserTakeover)) {
     if (actor::ExecutionEngine* execution_engine =
@@ -1593,7 +1605,7 @@ void ChromeDownloadManagerDelegate::RequestConfirmation(
       return;
     }
   }
-
+#endif
   std::move(trigger_user_takeover)
       .Run(std::move(callback), /*should_cancel=*/false);
 #endif  // BUILDFLAG(IS_ANDROID)
@@ -1828,6 +1840,9 @@ void ChromeDownloadManagerDelegate::CheckClientDownloadDone(
       case safe_browsing::DownloadCheckResult::FORCE_SAVE_TO_GDRIVE:
         danger_type = download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_GDRIVE;
         break;
+      case safe_browsing::DownloadCheckResult::FORCE_SAVE_TO_ONEDRIVE:
+        danger_type = download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_ONEDRIVE;
+        break;
       case safe_browsing::DownloadCheckResult::DEEP_SCANNED_SAFE:
         danger_type = download::DOWNLOAD_DANGER_TYPE_DEEP_SCANNED_SAFE;
         break;
@@ -1900,7 +1915,10 @@ void ChromeDownloadManagerDelegate::CheckClientDownloadDone(
             item->GetTargetFilePath().AsUTF8Unsafe(), item);
       }
       item->OnContentCheckCompleted(
-          danger_type, download::DOWNLOAD_INTERRUPT_REASON_FILE_BLOCKED);
+          danger_type,
+          IsForceSaveToCloud(danger_type)
+              ? download::DOWNLOAD_INTERRUPT_REASON_LOCAL_DOWNLOAD_BLOCKED
+              : download::DOWNLOAD_INTERRUPT_REASON_FILE_BLOCKED);
     } else {
       item->OnContentCheckCompleted(danger_type,
                                     download::DOWNLOAD_INTERRUPT_REASON_NONE);
@@ -1984,6 +2002,7 @@ void ChromeDownloadManagerDelegate::CheckSavePackageScanningDone(
     case safe_browsing::DownloadCheckResult::SENSITIVE_CONTENT_BLOCK:
     case safe_browsing::DownloadCheckResult::BLOCKED_SCAN_FAILED:
     case safe_browsing::DownloadCheckResult::FORCE_SAVE_TO_GDRIVE:
+    case safe_browsing::DownloadCheckResult::FORCE_SAVE_TO_ONEDRIVE:
       enterprise_connectors::RunSavePackageScanningCallback(item,
                                                             /*allowed*/ false);
       break;
@@ -2084,7 +2103,7 @@ bool ChromeDownloadManagerDelegate::IsOpenInBrowserPreferredForFile(
 #if !BUILDFLAG(IS_ANDROID) && !BUILDFLAG(IS_CHROMEOS) && \
     BUILDFLAG(ENABLE_PLUGINS)
   // TODO(asanka): Consider other file types and MIME types.
-  // http://crbug.com/323561
+  // http://crbug.com/41076988
   if (path.MatchesExtension(FILE_PATH_LITERAL(".pdf")) ||
       path.MatchesExtension(FILE_PATH_LITERAL(".htm")) ||
       path.MatchesExtension(FILE_PATH_LITERAL(".html")) ||

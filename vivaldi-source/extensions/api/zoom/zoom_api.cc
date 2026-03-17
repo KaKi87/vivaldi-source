@@ -5,8 +5,8 @@
 
 #include "base/lazy_instance.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "components/zoom/zoom_controller.h"
 #include "content/public/browser/storage_partition.h"
 #include "extensions/browser/extension_zoom_request_client.h"
@@ -121,8 +121,7 @@ void ZoomAPI::RemoveZoomObserver(Browser* browser) {
   }
 }
 
-void ZoomAPI::OnZoomControllerDestroyed(
-    zoom::ZoomController* zoom_controller) {
+void ZoomAPI::OnZoomControllerDestroyed(zoom::ZoomController* zoom_controller) {
   DCHECK(zoom_controller);
   zoom_controller->RemoveObserver(this);
 }
@@ -143,12 +142,15 @@ ExtensionFunction::ResponseAction ZoomSetVivaldiUIZoomFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   double zoom_level = blink::ZoomFactorToZoomLevel(params->zoom_factor);
-  for (Browser* browser : *BrowserList::GetInstance()) {
+  std::vector<BrowserWindowInterface*> all_browsers =
+      GetAllBrowserWindowInterfaces();
+  for (auto* browser_window_interface : all_browsers) {
     // Avoid crash if we have a non-Vivaldi window open (such as devtools for
     // our UI).
-    if (browser->is_vivaldi()) {
-      WebContents* web_contents =
-          static_cast<VivaldiBrowserWindow*>(browser->window())->web_contents();
+    if (browser_window_interface->is_vivaldi()) {
+      WebContents* web_contents = static_cast<VivaldiBrowserWindow*>(
+                                      browser_window_interface->GetWindow())
+                                      ->web_contents();
       SetUIZoomByWebContent(zoom_level, web_contents, extension());
     }
   }

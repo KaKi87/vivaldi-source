@@ -63,10 +63,10 @@ ChromeTabRestoreServiceClient::FindLiveTabContextForTab(
     const sessions::LiveTab* tab) {
 #if BUILDFLAG(IS_ANDROID)
   return AndroidLiveTabContext::FindContextForWebContents(
-      static_cast<const sessions::ContentLiveTab*>(tab)->web_contents());
+      &static_cast<const sessions::ContentLiveTab*>(tab)->GetWebContents());
 #else
   return BrowserLiveTabContext::FindContextForWebContents(
-      static_cast<const sessions::ContentLiveTab*>(tab)->web_contents());
+      &static_cast<const sessions::ContentLiveTab*>(tab)->GetWebContents());
 #endif
 }
 
@@ -99,7 +99,7 @@ std::string ChromeTabRestoreServiceClient::GetExtensionAppIDForTab(
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   app_id = apps::GetAppIdForWebContents(
-      static_cast<sessions::ContentLiveTab*>(tab)->web_contents());
+      &static_cast<sessions::ContentLiveTab*>(tab)->GetWebContents());
 #endif
 
   return app_id;

@@ -21,6 +21,8 @@
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/test_future.h"
+#include "build/build_config.h"
+#include "build/buildflag.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/extensions/api/side_panel/side_panel_api.h"
 #include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
@@ -38,7 +40,7 @@
 #include "chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model_factory.h"
 #include "chrome/browser/ui/toolbar/toolbar_actions_model.h"
 #include "chrome/browser/ui/ui_features.h"
-#include "chrome/browser/ui/views/extensions/extensions_toolbar_container.h"
+#include "chrome/browser/ui/views/extensions/extensions_toolbar_desktop.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/layout/browser_view_layout.h"
 #include "chrome/browser/ui/views/frame/multi_contents_view.h"
@@ -205,7 +207,7 @@ class SidePanelCoordinatorTest : public InProcessBrowserTest {
 
  protected:
   void WaitForExtensionsContainerAnimation() {
-    views::test::WaitForAnimatingLayoutManager(GetExtensionsToolbarContainer());
+    views::test::WaitForAnimatingLayoutManager(GetExtensionsToolbarDesktop());
   }
 
   void ClickButton(views::Button* button) {
@@ -218,7 +220,7 @@ class SidePanelCoordinatorTest : public InProcessBrowserTest {
     return SidePanelEntry::Key(SidePanelEntry::Id::kExtension, id);
   }
 
-  ExtensionsToolbarContainer* GetExtensionsToolbarContainer() const {
+  ExtensionsToolbarDesktop* GetExtensionsToolbarDesktop() const {
     return BrowserView::GetBrowserViewForBrowser(browser())
         ->toolbar()
         ->extensions_container();
@@ -229,15 +231,6 @@ class SidePanelCoordinatorTest : public InProcessBrowserTest {
         ->GetActiveTabInterface()
         ->GetTabFeatures()
         ->side_panel_registry();
-  }
-
-  // TODO(https://crbug.com/454583671): Eliminate this in favor of something
-  // that actually returns the specific width needed by the test, or else find
-  // some other way to calculate this in the test itself.
-  int GetMinWebContentsWidth() const {
-    return static_cast<BrowserViewLayout*>(
-               browser()->GetBrowserView().GetLayoutManager())
-        ->GetMinWebContentsWidthForTesting();
   }
 
   // Calls chrome.sidePanel.setOptions() for the given `extension`, `path` and
@@ -293,7 +286,7 @@ class SidePanelCoordinatorTest : public InProcessBrowserTest {
   }
 
   SidePanelCoordinator* coordinator() {
-    return browser()->GetFeatures().side_panel_coordinator();
+    return SidePanelCoordinator::From(browser());
   }
 
   SidePanelRegistry* global_registry() {
@@ -302,16 +295,6 @@ class SidePanelCoordinatorTest : public InProcessBrowserTest {
 
   std::vector<raw_ptr<SidePanelRegistry, DanglingUntriaged>>
       contextual_registries_;
-};
-
-class SidePanelCoordinatorWithSideBySideTest : public SidePanelCoordinatorTest {
- public:
-  SidePanelCoordinatorWithSideBySideTest() {
-    scoped_feature_list_.InitWithFeatures({features::kSideBySide}, {});
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
 };
 
 IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorTest, ToggleSidePanel) {
@@ -531,13 +514,11 @@ IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorTest,
 }
 
 // TODO(crbug.com/384507412): Flaky on Linux and ChromeOS.
-#if BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+// Disabled due to new, better layout logic. New tests need to be written.
+// These have a tendency to fail on CI because they are highly dependent on e.g.
+// the size of the display on the bot.
 #define MAYBE_ChangeSidePanelWidthNarrowWindow \
   DISABLED_ChangeSidePanelWidthNarrowWindow
-#else
-#define MAYBE_ChangeSidePanelWidthNarrowWindow ChangeSidePanelWidthNarrowWindow
-#endif
-
 IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorTest,
                        MAYBE_ChangeSidePanelWidthNarrowWindow) {
   Init();
@@ -647,14 +628,15 @@ IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorTest, ChangeSidePanelWidthMaxMin) {
 
   // the web contents width will either be it's min width or 1/3 the browser
   // width minus the side panel separator width.
-  const int web_contents_width = std::max(
-      GetMinWebContentsWidth(), (browser_width - two_thirds_browser_width - 1));
+  const int web_contents_width =
+      std::max(BrowserViewLayout::kContentsContainerMinimumWidth,
+               (browser_width - two_thirds_browser_width - 1));
   EXPECT_EQ(browser()->GetBrowserView().contents_web_view()->width(),
             web_contents_width);
 }
 
-IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorWithSideBySideTest,
-                       ChangeSidePanelWidthMaxMin) {
+IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorTest,
+                       ChangeSidePanelWidthMaxMinWithSplitView) {
   Init();
 
   // Create split view.
@@ -685,17 +667,11 @@ IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorWithSideBySideTest,
       large_increment, true);
   views::test::RunScheduledLayout(&browser()->GetBrowserView());
 
-  if (base::FeatureList::IsEnabled(features::kTabbedBrowserUseNewLayout)) {
-    EXPECT_EQ(browser()->GetBrowserView().multi_contents_view()->width(),
-              GetMinWebContentsWidth() + views::Separator::kThickness);
-  } else {
-    EXPECT_EQ(browser()->GetBrowserView().multi_contents_view()->width(),
-              GetMinWebContentsWidth());
-    EXPECT_EQ(
-        browser()->GetBrowserView().multi_contents_view()->width(),
-        browser()->GetBrowserView().multi_contents_view()->GetMinViewWidth() *
-            2);
-  }
+  MultiContentsView* multi_contents_view =
+      browser()->GetBrowserView().multi_contents_view();
+  EXPECT_EQ(multi_contents_view->width(),
+            BrowserViewLayout::kContentsContainerMinimumWidth +
+                views::Separator::kThickness);
 }
 
 IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorTest, ChangeSidePanelWidthRTL) {
@@ -761,12 +737,11 @@ IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorTest,
   browser()->GetBrowserView().Restore();
 #endif
   browser()->GetBrowserView().SetBounds(new_bounds);
-  const int min_web_contents_width = GetMinWebContentsWidth();
 
   ASSERT_TRUE(base::test::RunUntil([&]() {
     // Within a couple of pixels.
     return browser()->GetBrowserView().contents_web_view()->width() <
-           min_web_contents_width + 20;
+           BrowserViewLayout::kContentsContainerMinimumWidth + 20;
   }));
 
   // Return browser window to original size, side panel should also return to
@@ -874,125 +849,6 @@ IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorTest, ChangeSidePanelAlignmentRTL) {
                 .toolbar_height_side_panel()
                 ->horizontal_alignment(),
             SidePanel::HorizontalAlignment::kRight);
-}
-
-class SidePanelCoordinatorPanelsOnSameSideTest
-    : public SidePanelCoordinatorTest {
- public:
-  SidePanelCoordinatorPanelsOnSameSideTest() {
-    scoped_feature_list_.InitWithFeaturesAndParameters(
-        /*enabled_features=*/
-        {
-            {features::kToolbarHeightSidePanel,
-             {{
-                 {features::kSidePanelRelativeAlignment.name, "same"},
-             }}},
-        },
-        /*disabled_features=*/{});
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorPanelsOnSameSideTest,
-                       ChangeSidePanelAlignment) {
-  Init();
-  browser()->GetBrowserView().GetProfile()->GetPrefs()->SetBoolean(
-      prefs::kSidePanelHorizontalAlignment, true);
-  EXPECT_TRUE(browser()
-                  ->GetBrowserView()
-                  .contents_height_side_panel()
-                  ->IsRightAligned());
-  EXPECT_EQ(browser()
-                ->GetBrowserView()
-                .contents_height_side_panel()
-                ->horizontal_alignment(),
-            SidePanel::HorizontalAlignment::kRight);
-  // Toolbar height side panel should have the same alignment.
-  EXPECT_TRUE(browser()
-                  ->GetBrowserView()
-                  .toolbar_height_side_panel()
-                  ->IsRightAligned());
-  EXPECT_EQ(browser()
-                ->GetBrowserView()
-                .toolbar_height_side_panel()
-                ->horizontal_alignment(),
-            SidePanel::HorizontalAlignment::kRight);
-
-  browser()->GetBrowserView().GetProfile()->GetPrefs()->SetBoolean(
-      prefs::kSidePanelHorizontalAlignment, false);
-  EXPECT_FALSE(browser()
-                   ->GetBrowserView()
-                   .contents_height_side_panel()
-                   ->IsRightAligned());
-  EXPECT_EQ(browser()
-                ->GetBrowserView()
-                .contents_height_side_panel()
-                ->horizontal_alignment(),
-            SidePanel::HorizontalAlignment::kLeft);
-  // Toolbar height side panel should have the same alignment.
-  EXPECT_FALSE(browser()
-                   ->GetBrowserView()
-                   .toolbar_height_side_panel()
-                   ->IsRightAligned());
-  EXPECT_EQ(browser()
-                ->GetBrowserView()
-                .toolbar_height_side_panel()
-                ->horizontal_alignment(),
-            SidePanel::HorizontalAlignment::kLeft);
-}
-
-// Verify that right and left alignment works the same as when in LTR mode.
-IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorPanelsOnSameSideTest,
-                       ChangeSidePanelAlignmentRTL) {
-  Init();
-  // Forcing the language to hebrew causes the ui to enter RTL mode.
-  base::test::ScopedRestoreICUDefaultLocale scoped_locale_("he");
-
-  browser()->GetBrowserView().GetProfile()->GetPrefs()->SetBoolean(
-      prefs::kSidePanelHorizontalAlignment, true);
-  EXPECT_TRUE(browser()
-                  ->GetBrowserView()
-                  .contents_height_side_panel()
-                  ->IsRightAligned());
-  EXPECT_EQ(browser()
-                ->GetBrowserView()
-                .contents_height_side_panel()
-                ->horizontal_alignment(),
-            SidePanel::HorizontalAlignment::kRight);
-  // Toolbar height side panel should have the same alignment.
-  EXPECT_TRUE(browser()
-                  ->GetBrowserView()
-                  .toolbar_height_side_panel()
-                  ->IsRightAligned());
-  EXPECT_EQ(browser()
-                ->GetBrowserView()
-                .toolbar_height_side_panel()
-                ->horizontal_alignment(),
-            SidePanel::HorizontalAlignment::kRight);
-
-  browser()->GetBrowserView().GetProfile()->GetPrefs()->SetBoolean(
-      prefs::kSidePanelHorizontalAlignment, false);
-  EXPECT_FALSE(browser()
-                   ->GetBrowserView()
-                   .contents_height_side_panel()
-                   ->IsRightAligned());
-  EXPECT_EQ(browser()
-                ->GetBrowserView()
-                .contents_height_side_panel()
-                ->horizontal_alignment(),
-            SidePanel::HorizontalAlignment::kLeft);
-  // Toolbar height side panel should have the same alignment.
-  EXPECT_FALSE(browser()
-                   ->GetBrowserView()
-                   .toolbar_height_side_panel()
-                   ->IsRightAligned());
-  EXPECT_EQ(browser()
-                ->GetBrowserView()
-                .toolbar_height_side_panel()
-                ->horizontal_alignment(),
-            SidePanel::HorizontalAlignment::kLeft);
 }
 
 IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorTest,
@@ -2514,8 +2370,7 @@ IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorTest,
   ASSERT_TRUE(guest_browser->profile()->IsGuestSession());
 
   // Check that pin button does not show in guest window.
-  auto* coordinator = guest_browser->GetFeatures().side_panel_coordinator();
-
+  auto* const coordinator = SidePanelCoordinator::From(guest_browser);
   coordinator->SetNoDelaysForTesting(true);
   coordinator->DisableAnimationsForTesting();
   coordinator->Show(SidePanelEntry::Id::kBookmarks);
@@ -3174,6 +3029,9 @@ IN_PROC_BROWSER_TEST_F(
   ASSERT_GT(content_x_at_first_step, content_x_at_second_step);
 }
 
+// TODO(crbug.com/467727720): Re-enable on Windows when the underlying jank is
+// resolved.
+#if !BUILDFLAG(IS_WIN)
 IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorTest,
                        ClosingMidShowFromAnimationReparentsContentView) {
   // Deregister and reregister kAboutThisSite side panel with kToolbar
@@ -3233,6 +3091,7 @@ IN_PROC_BROWSER_TEST_F(SidePanelCoordinatorTest,
   ASSERT_EQ(
       toolbar_height_side_panel->GetContentParentView()->children().size(), 1);
 }
+#endif
 
 IN_PROC_BROWSER_TEST_F(
     SidePanelCoordinatorTest,

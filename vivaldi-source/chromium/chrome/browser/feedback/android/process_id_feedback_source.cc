@@ -18,7 +18,7 @@
 // Must come after all headers that specialize FromJniType() / ToJniType().
 #include "chrome/browser/feedback/android/jni_headers/ProcessIdFeedbackSource_jni.h"
 
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 using base::android::ScopedJavaLocalRef;
 using content::BrowserThread;
 using jni_zero::AttachCurrentThread;
@@ -30,17 +30,15 @@ static int64_t JNI_ProcessIdFeedbackSource_GetCurrentPid(JNIEnv* env) {
   return base::GetCurrentProcId();
 }
 
-static void JNI_ProcessIdFeedbackSource_Start(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& obj) {
+static void JNI_ProcessIdFeedbackSource_Start(JNIEnv* env,
+                                              const JavaRef<jobject>& obj) {
   scoped_refptr<ProcessIdFeedbackSource> source =
       new ProcessIdFeedbackSource(env, obj);
   source->PrepareProcessIds();
 }
 
-ProcessIdFeedbackSource::ProcessIdFeedbackSource(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& obj)
+ProcessIdFeedbackSource::ProcessIdFeedbackSource(JNIEnv* env,
+                                                 const JavaRef<jobject>& obj)
     : java_ref_(env, obj) {}
 
 ProcessIdFeedbackSource::~ProcessIdFeedbackSource() = default;
@@ -71,7 +69,7 @@ void ProcessIdFeedbackSource::PrepareProcessIds() {
 
 ScopedJavaLocalRef<jlongArray> ProcessIdFeedbackSource::GetProcessIdsForType(
     JNIEnv* env,
-    jint process_type) {
+    int32_t process_type) {
   switch (process_type) {
     case content::PROCESS_TYPE_RENDERER:
     case content::PROCESS_TYPE_UTILITY:
@@ -82,7 +80,7 @@ ScopedJavaLocalRef<jlongArray> ProcessIdFeedbackSource::GetProcessIdsForType(
   }
   size_t size = process_ids_[process_type].size();
 
-  base::FixedArray<jlong> pids(size);
+  base::FixedArray<int64_t> pids(size);
   for (size_t i = 0; i < size; i++)
     pids[i] = process_ids_[process_type][i];
 

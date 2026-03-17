@@ -10,7 +10,7 @@
 @protocol VivaldiFeedbackViewConsumer;
 
 // The mediator for feedback prompt view.
-@interface VivaldiFeedbackViewMediator: NSObject
+@interface VivaldiFeedbackViewMediator : NSObject
 
 - (instancetype)init NS_DESIGNATED_INITIALIZER;
 

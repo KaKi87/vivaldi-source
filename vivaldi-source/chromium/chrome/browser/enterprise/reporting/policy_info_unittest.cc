@@ -43,8 +43,6 @@ constexpr char kExtensionId2[] = "abcdefghijklmnoabcdefghijklmnoac";
 using ::testing::_;
 using ::testing::Eq;
 
-// TODO(crbug.com/40700771): Get rid of chrome/browser dependencies and then
-// move this file to components/enterprise/browser.
 class PolicyInfoTest : public ::testing::Test {
  public:
   void SetUp() override {
@@ -99,7 +97,7 @@ class PolicyInfoTest : public ::testing::Test {
 TEST_F(PolicyInfoTest, ChromePolicy) {
   policy_map()->Set(kPolicyName1, policy::POLICY_LEVEL_MANDATORY,
                     policy::POLICY_SCOPE_USER, policy::POLICY_SOURCE_CLOUD,
-                    base::Value(base::Value::List()), nullptr);
+                    base::Value(base::ListValue()), nullptr);
   policy_map()->Set(kPolicyName2, policy::POLICY_LEVEL_RECOMMENDED,
                     policy::POLICY_SCOPE_MACHINE, policy::POLICY_SOURCE_MERGED,
                     base::Value(true), nullptr);

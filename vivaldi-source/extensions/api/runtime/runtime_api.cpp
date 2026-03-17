@@ -31,7 +31,8 @@
 #include "chrome/browser/profiles/profiles_state.h"
 #include "chrome/browser/signin/signin_util.h"
 #include "chrome/browser/ui/browser_commands.h"
-#include "chrome/browser/ui/browser_list.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/profiles/profile_picker.h"
 #include "chrome/browser/ui/webui/profile_helper.h"
 #include "chrome/common/pref_names.h"
@@ -188,16 +189,11 @@ RuntimePrivateGetAllFeatureFlagsFunction::Run() {
   const std::vector<const base::Feature*> desktop_features{
       &vivaldi_features::kChromePages,
       &vivaldi_features::kCssMods,
-      &vivaldi_features::kDesktopBackgroundImage,
-      &vivaldi_features::kDnDTiling,
       &vivaldi_features::kDoubleClickMenu,
       &vivaldi_features::kFollowerTab,
       &vivaldi_features::kInternalPageReaderMode,
-      &vivaldi_features::kLocationOverride,
-      &vivaldi_features::kNewPrivacyReport,
-      &vivaldi_features::kOpenLinkTiled,
+      &vivaldi_features::kLayouts,
       &vivaldi_features::kNoteEditor,
-      &vivaldi_features::kRestrictPinnedTab,
       &vivaldi_features::kTabsAutoHide,
   };
 
@@ -233,8 +229,10 @@ ExtensionFunction::ResponseAction RuntimePrivateHasGuestSessionFunction::Run() {
   namespace Results = vivaldi::runtime_private::HasGuestSession::Results;
 
   bool has_guest = false;
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->profile()->IsGuestSession()) {
+  std::vector<BrowserWindowInterface*> all_browsers =
+      GetAllBrowserWindowInterfaces();
+  for (auto* browser_window_interface : all_browsers) {
+    if (browser_window_interface->GetProfile()->IsGuestSession()) {
       has_guest = true;
       break;
     }
@@ -248,9 +246,11 @@ RuntimePrivateSwitchToGuestSessionFunction::Run() {
 
   // First test available browsers and open a new guest window if we already
   // have a browser for a guest window to allow for multiple guest windows.
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->profile()->IsGuestSession()) {
-      chrome::NewWindow(browser);
+  std::vector<BrowserWindowInterface*> all_browsers =
+      GetAllBrowserWindowInterfaces();
+  for (auto* browser_window_interface : all_browsers) {
+    if (browser_window_interface->GetProfile()->IsGuestSession()) {
+      chrome::NewWindow(browser_window_interface);
       return RespondNow(ArgumentList(Results::Create(true)));
     }
   }

@@ -1,7 +1,9 @@
 <?xml version="1.0" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="az">
+<translation id="1035560095760914532">İstənilən vaxt daxil olmaq üçün Chrome-u aşağı hissəyə yerləşdirin</translation>
 <translation id="1076643793026027628">Chrome YouTube Anonim keçidlərini avtomatik olaraq Anonim rejimdə açır.</translation>
+<translation id="1081114897601629648">Aşağıdakı parollar tələblərə uyğun olmadığı üçün Google Parol Menecerinə import edilmədi.</translation>
 <translation id="1086486568852410168">Google Linza ilə axtarın</translation>
 <translation id="1088490543924960890">Google Parol Meneceri ilə giriş açarlarını yadda saxlayın</translation>
 <translation id="1143896152279775643">Parolunuz <ph name="EMAIL" /> üçün Google Parol Menecerində saxlanacaq.</translation>
@@ -16,6 +18,7 @@
 <translation id="124228879633599436">Chrome köhnəlib. Güvənli qalmaq üçün güncəlləyin.</translation>
 <translation id="1258531953614971819">Chrome tövsiyəsi: Chrome-u əsas ekrana köçürün</translation>
 <translation id="1333745675627230582">Chrome Dinozavr Oyununu oynayın</translation>
+<translation id="1343830902827845050">Chrome-a daxil olun</translation>
 <translation id="1352919863522755794">Google Parol Meneceri parollarınızı yoxlaya bilmədi. İnternet bağlantınızı yoxlayın.</translation>
 <translation id="1394995526009609883">Chrome ayarlarında seçimləri yeniləyə bilərsiniz.</translation>
 <translation id="1407843355326180937">Əlfəcinləri və s. bütün cihazlarda əldə etmək üçün bu sayta və Chrome-a daxil olun.</translation>
@@ -84,6 +87,10 @@ Nəzərə alın ki:
 <translation id="2767464022270041271">Yadda saxlanmış parol yoxdur. Parollarınızı yadda saxladıqda Google Parol Meneceri onları yoxlaya bilər.</translation>
 <translation id="2788811701191021538">Chrome-da ödəniş metodları ayarı səhifəsini açır.</translation>
 <translation id="2876628302275096482"><ph name="BEGIN_LINK" />Chrome-un datanı məxfi saxlaması<ph name="END_LINK" /> haqqında ətraflı</translation>
+<translation id="288992067439702510">Google Chrome-un əlfəcin limitinə (<ph name="LIMIT" />) çatdınız, ona görə də əlfəcinlərinizin bir hissəsi hələ Google Hesabınızda yadda saxlanılmayıb.
+
+Bəzilərini silənə qədər yeni əlfəcinləri hesabınızda yadda saxlamaq olmur. İndi çıxsanız, yadda saxlanılmamış əlfəcinlər silinəcək.</translation>
+<translation id="2901621928549457170">iPad-də olduğunuz zaman Chrome-u dərhal açın</translation>
 <translation id="2922914028977213693">iPad-də Chrome-dan maksimum yararlanmaq üçün buraya toxunun.</translation>
 <translation id="292371311537977079">Chrome ayarları</translation>
 <translation id="2923827943290349720">Chrome bağlandıqda Anonim tablar kilidlənsin</translation>
@@ -103,7 +110,6 @@ Nəzərə alın ki:
 <translation id="3167189358072330585">Hesabınız Google Chrome üzərində işləmir. Domen administratorunuzla əlaqə saxlayın, və ya adi Google Hesab girişi istifadə edin.</translation>
 <translation id="320747600144551583">Chrome məsləhəti: Təkmil güvənli baxış vaxtınıza qənaət edəcək</translation>
 <translation id="322254490661677575">Google Hesabında Chrome datasını istifadə etmək və saxlamaq üçün parol ifadəsi daxil edin.</translation>
-<translation id="3282568296779691940">Chrome'a daxil olun</translation>
 <translation id="3303503998967553377">iOS-da Chrome əməliyyatlarından istifadə edin</translation>
 <translation id="3348862487678490430">Oxu siyahısı elementini Chrome-a əlavə edin</translation>
 <translation id="3357827134511189025">Avto-doldurma üçün Chrome istifadə edərək istənilən tətbiqdə yadda saxladığınız parol və giriş açarları ilə daxil olun</translation>
@@ -115,6 +121,7 @@ Nəzərə alın ki:
 <translation id="3460369101684070455">Yadda saxlanmış parolları digər tətbiqlərinizdə asanlıqla əldə etmək məqsədilə avto-doldurma üçün Chrome seçin</translation>
 <translation id="3472587960215700950">Chrome aşkarlanan ünvanlar üzrə istiqamət və yerli məlumat təqdim etmək üçün Google Xəritədən istifadə edir.</translation>
 <translation id="3482807551645716768">iPad-in əsas ekranından Chrome-a daha tez daxil olun.</translation>
+<translation id="3491067552520121605">Göstərilən saytlar üçün artıq Google Parol Menecerində parollarınız və ya giriş açarlarınız var. Göstərilən giriş məlumatlarını saxlamaq üçün hesab seçin, Google Parol Menecerindəki məlumatlar əvəz ediləcək.</translation>
 <translation id="3503014945441706099">Bu Chrome profili üçün də Qabaqcıl Güvənli Baxış əldə edin</translation>
 <translation id="3522659714780527202">Chrome istifadə etdiyiniz hər yerdən tabları görmək üçün sinxronizasiyanı aktiv edin</translation>
 <translation id="364480321352456989">Chrome köhnəlib.</translation>
@@ -134,6 +141,7 @@ Nəzərə alın ki:
 <translation id="4167555379306984168">Chrome-da yeniliklərə nəzər salın</translation>
 <translation id="417201473131094001">Chrome Canary'də dəstəklənmir</translation>
 <translation id="424864128008805179">Chrome'dan çıxılsın?</translation>
+<translation id="4409545895715116037">Aşağıdakı giriş açarları tələblərə uyğun olmadığı üçün Google Parol Menecerinə import edilmədi.</translation>
 <translation id="4430797724889237570">Chrome-da Gmail, Xəritə, YouTube və digər tətbiqlərdən olan keçidləri açın</translation>
 <translation id="447252321002412580">Chrome'un funksiya və performansını təkmilləşdirməyə kömək edin</translation>
 <translation id="4523886039239821078">Bəzi addonlar Chrome'da xətaya səbəb olur. Lütfən, sistemdən silin:</translation>
@@ -167,6 +175,8 @@ Nəzərə alın ki:
 <translation id="5119391094379141756">Chrome seçin</translation>
 <translation id="5123188916260706415">Chrome-da səs ilə axtarın</translation>
 <translation id="5162467219239570114">Chrome köhnəlib. <ph name="BEGIN_LINK" />App Store'da<ph name="END_LINK" /> əlçatan güncəlləmə yoxdursa, ola bilər ki, cihazınız artıq Chrome'un yeni versiyalarını dəstəkləmir.</translation>
+<translation id="5172049865623113551">iPhone-da olduğunuz zaman Chrome-u dərhal açın</translation>
+<translation id="5179095426828744632">Dokdan Chrome-a daha tez daxil olun</translation>
 <translation id="5184329579814168207">Chrome'da açın</translation>
 <translation id="5190139289262548459">Təşkilat (<ph name="DOMAIN" />) daxil olduğunuz hesabı və Chrome-un istifadə qaydasını idarə edir.</translation>
 <translation id="5209238444239954363">Chrome güncəlləmələri yoxlaya bilmədi. Sonra cəhd edin.</translation>
@@ -272,6 +282,7 @@ Chrome təcrübənizi təkmilləşdirmək məqsədilə data istifadə edən dig�
 <translation id="7284245284340063465">Parol ifadəsini unutsanız, yaxud bu ayarı dəyişmək istəsəniz, <ph name="BEGIN_LINK" />hesabda Chrome datasını silin<ph name="END_LINK" />.</translation>
 <translation id="7296102444587051536">iOS üçün Chrome</translation>
 <translation id="7299681342915173313">E-məktub, sənəd və digər tətbiqlərdə linklərə toxunduqda Chrome istifadə edə bilərsiniz.</translation>
+<translation id="7334364820047587268">Google Parol Menecerində bu hesabların parolları var. Aşağıdakı parollardan birini import etməyi seçsəniz, mövcud olan əvəzlənəcək.</translation>
 <translation id="7344094882820374540">Təhlükəli saytlardan Chrome-un ən güclü güvənlik sistemini əldə edin</translation>
 <translation id="7349129508108954623">Aşkarlanan ünvanlar üzrə istiqamət və yerli məlumat təmin etməsi üçün Chrome-a Google Xəritədən istifadə imkanı verin.</translation>
 <translation id="7371674917547846460">Faydalı Chrome məsləhətləri və s. ilə belə də davam edin.</translation>
@@ -304,7 +315,6 @@ Chrome təcrübənizi təkmilləşdirmək məqsədilə data istifadə edən dig�
 <translation id="787226752901403048">Tab qruplarını paylaşmaq və onlara qoşulmaq, ideyalarla bağlı birlikdə işləmək üçün Chrome-a daxil olun</translation>
 <translation id="7897703007638178753">Son Chrome tablarına baxın</translation>
 <translation id="7948283758957877064">Chrome-da yeniliklər</translation>
-<translation id="7996707498590516621">Chrome-da Gemini ilə şəkil yaradın</translation>
 <translation id="8000174216052461231">Chrome məsləhəti: Chrome-un ən güclü təhlükəsizlik səviyyəsini əldə edin</translation>
 <translation id="8006014511203279255">Mesaj və ya digər tətbiqlərdə keçidləri Chrome ilə açın.</translation>
 <translation id="8014670471808569312">Chrome parolu yadda saxlamağı təklif edəcək.</translation>

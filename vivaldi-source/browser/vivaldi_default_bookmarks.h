@@ -41,7 +41,7 @@ using UpdateCallback = base::OnceCallback<
 void UpdatePartners(std::unique_ptr<UpdaterClient> client,
                     UpdateCallback callback = UpdateCallback());
 std::set<base::Uuid> ReadRemovedPartners(
-    const base::Value::List& deleted_partners,
+    const base::ListValue& deleted_partners,
     bool& upgraded_old_id);
 
 }  // namespace vivaldi_default_bookmarks

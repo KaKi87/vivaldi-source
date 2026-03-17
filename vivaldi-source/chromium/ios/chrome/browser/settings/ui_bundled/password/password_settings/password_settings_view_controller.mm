@@ -136,8 +136,8 @@ BOOL ShouldShowTurnOnPasswordsInOtherAppsItem(
   // Whether the credential delete button should be enabled.
   BOOL _canDeleteAllCredentials;
 
-  // Whether the exporter should be enabled.
-  BOOL _canExportPasswords;
+  // Whether credentials are available for export.
+  BOOL _canExportCredentials;
 
   // Whether automatic passkey upgrades is enabled.
   BOOL _automaticPasskeyUpgradesEnabled;
@@ -365,7 +365,7 @@ BOOL ShouldShowTurnOnPasswordsInOtherAppsItem(
       break;
     }
     case ItemTypeExportPasswordsButton: {
-      if (_canExportPasswords) {
+      if (_canExportCredentials) {
         [self.presentationDelegate startExportFlow];
       }
       break;
@@ -399,7 +399,7 @@ BOOL ShouldShowTurnOnPasswordsInOtherAppsItem(
     case ItemTypeDeleteCredentialsButton:
       return _canDeleteAllCredentials;
     case ItemTypeExportPasswordsButton:
-      return _canExportPasswords;
+      return _canExportCredentials;
     case ItemTypeSavePasswordsSwitch:
       return NO;
     case ItemTypePasswordsInOtherApps:
@@ -618,9 +618,13 @@ BOOL ShouldShowTurnOnPasswordsInOtherAppsItem(
     if (CredentialExchangeEnabled()) {
       exportPasswordsItem.text =
           l10n_util::GetNSString(IDS_IOS_EXPORT_PASSWORDS_AND_PASSKEYS);
+      exportPasswordsItem.accessoryType =
+          UITableViewCellAccessoryDisclosureIndicator;
     }
   }
   exportPasswordsItem.accessibilityTraits = UIAccessibilityTraitButton;
+  exportPasswordsItem.accessibilityIdentifier =
+      kPasswordSettingsCredentialExportButtonId;
   return exportPasswordsItem;
 }
 
@@ -726,12 +730,11 @@ BOOL ShouldShowTurnOnPasswordsInOtherAppsItem(
   [self updateDeleteAllCredentialsSection];
 }
 
-- (void)setCanExportPasswords:(BOOL)canExportPasswords {
-  if (_canExportPasswords == canExportPasswords) {
+- (void)setCanExportCredentials:(BOOL)canExportCredentials {
+  if (_canExportCredentials == canExportCredentials) {
     return;
   }
-
-  _canExportPasswords = canExportPasswords;
+  _canExportCredentials = canExportCredentials;
   [self updateExportPasswordsButton];
 }
 
@@ -1262,8 +1265,8 @@ BOOL ShouldShowTurnOnPasswordsInOtherAppsItem(
     return;
   }
 
-  if (_canExportPasswords) {
-    _exportPasswordsItem.textColor = [UIColor colorNamed:kBlueColor];
+  if (_canExportCredentials) {
+    _exportPasswordsItem.textColor = [UIColor colorNamed:kTextPrimaryColor];
     _exportPasswordsItem.accessibilityTraits &= ~UIAccessibilityTraitNotEnabled;
   } else {
     // Disable, rather than remove, because the button will go back and forth

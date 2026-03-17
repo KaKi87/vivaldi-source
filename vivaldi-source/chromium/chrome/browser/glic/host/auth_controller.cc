@@ -7,6 +7,7 @@
 #include "base/command_line.h"
 #include "base/functional/callback_helpers.h"
 #include "base/time/time.h"
+#include "build/build_config.h"
 #include "chrome/browser/glic/host/glic_cookie_synchronizer.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/signin/signin_ui_util.h"
@@ -14,6 +15,7 @@
 #include "components/signin/public/base/consent_level.h"
 #include "components/signin/public/base/signin_metrics.h"
 #include "google_apis/gaia/gaia_auth_util.h"
+#include "mojo/public/cpp/bindings/callback_helpers.h"
 
 namespace glic {
 
@@ -67,6 +69,9 @@ bool AuthController::CheckAuthBeforeShowSync(base::OnceClosure after_signin) {
 
 void AuthController::CheckAuthBeforeLoad(
     base::OnceCallback<void(mojom::PrepareForClientResult)> callback) {
+  callback = mojo::WrapCallbackWithDefaultInvokeIfNotRun(
+      std::move(callback),
+      mojom::PrepareForClientResult::kErrorResyncingCookies);
   // If automation is enabled skip auth check.
   if (IsAutomationEnabled()) {
     base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
@@ -183,9 +188,11 @@ void AuthController::ShowReauthForAccount(base::OnceClosure after_signin) {
       base::TimeTicks::Now() + base::Minutes(5);
   CoreAccountInfo primary_account_info =
       identity_manager_->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin);
+#if !BUILDFLAG(IS_ANDROID)  // TODO(b/477997050): Implement for android
   signin_ui_util::ShowReauthForAccount(
       profile_, primary_account_info.email,
       signin_metrics::AccessPoint::kGlicLaunchButton);
+#endif
 }
 
 void AuthController::OnGlicWindowOpened() {

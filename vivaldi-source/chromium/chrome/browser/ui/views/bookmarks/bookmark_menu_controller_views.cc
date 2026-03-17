@@ -38,7 +38,8 @@ BookmarkMenuController::BookmarkMenuController(
     views::Widget* parent,
     const BookmarkParentFolder& folder,
     size_t start_child_index,
-    bool for_drop)
+    bool for_drop,
+    bool vivaldi_has_mnemonics)
     : menu_delegate_(std::make_unique<BookmarkMenuDelegate>(
           browser,
           parent,
@@ -56,6 +57,9 @@ BookmarkMenuController::BookmarkMenuController(
   }
 
   if (base::FeatureList::IsEnabled(features::kTabGroupMenuImprovements)) {
+    run_type |= views::MenuRunner::HAS_MNEMONICS;
+  }
+  if (vivaldi_has_mnemonics) {
     run_type |= views::MenuRunner::HAS_MNEMONICS;
   }
   menu_runner_ = std::make_unique<views::MenuRunner>(
@@ -304,6 +308,7 @@ views::MenuItemView* BookmarkMenuController::GetVivaldiSiblingMenu(
     views::MenuItemView* menu,
     const gfx::Point& screen_point,
     gfx::Rect* rect,
+    bool* has_mnemonics,
     views::MenuAnchorPosition* anchor) {
   int start_index;
   const BookmarkNode* node = vivaldi::GetNodeByPosition(
@@ -316,6 +321,7 @@ views::MenuItemView* BookmarkMenuController::GetVivaldiSiblingMenu(
     return nullptr;
   menu_delegate_->SetActiveMenu(BookmarkParentFolder::FromFolderNode(node),
                                 start_index);
+  *has_mnemonics = menu_delegate_->vivaldi_menu_uses_mnemonics();
   *anchor = views::MenuAnchorPosition::kTopLeft;
   return this->menu();
 }

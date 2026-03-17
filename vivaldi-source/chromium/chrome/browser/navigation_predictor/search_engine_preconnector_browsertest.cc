@@ -4,7 +4,6 @@
 
 #include "chrome/browser/navigation_predictor/search_engine_preconnector.h"
 
-#include "base/containers/contains.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/metrics/histogram_tester.h"
@@ -107,7 +106,7 @@ class SearchEnginePreconnectorBrowserTest
     }
 
     const GURL origin = url.DeprecatedGetOriginAsURL();
-    if (!base::Contains(preresolve_counts_, origin)) {
+    if (!preresolve_counts_.contains(origin)) {
       return;
     }
 
@@ -121,7 +120,7 @@ class SearchEnginePreconnectorBrowserTest
 
   void WaitForPreresolveCountForURL(const GURL& url, int expected_count) {
     const GURL origin = url.DeprecatedGetOriginAsURL();
-    EXPECT_TRUE(base::Contains(preresolve_counts_, origin));
+    EXPECT_TRUE(preresolve_counts_.contains(origin));
     while (preresolve_counts_[origin] < expected_count) {
       run_loops_[origin] = std::make_unique<base::RunLoop>();
       run_loops_[origin]->Run();
@@ -641,7 +640,8 @@ class SearchEnginePreconnectorWithPreconnect2FeatureBrowserTest
          {{"FallbackInLowPowerMode", "true"}}}};
     battery::OverrideIsBatterySaverEnabledForTesting(false);
 
-    std::vector<base::test::FeatureRef> disabled_features;
+    std::vector<base::test::FeatureRef> disabled_features{
+        {features::kAdjustPreconnectRetryInterval}};
 
     if (PreconnectFromKeyedServiceEnabled()) {
       enabled_features.push_back(
@@ -1137,7 +1137,7 @@ class SearchEnginePreconnectorWithBindReceiversEverytimeFeatureBrowserTest
     }
 
     const GURL origin = url.DeprecatedGetOriginAsURL();
-    if (!base::Contains(preresolve_counts_, origin)) {
+    if (!preresolve_counts_.contains(origin)) {
       return;
     }
 
@@ -1202,4 +1202,58 @@ IN_PROC_BROWSER_TEST_P(
 
   EXPECT_FALSE(remote_1.is_bound());
   EXPECT_TRUE(remote_.is_bound());
+}
+
+class
+    SearchEnginePreconnectorWithAdjustPreconnectRetryIntervalFeatureBrowserTest
+    : public SearchEnginePreconnectorWithPreconnect2FeatureBrowserTest {
+ public:
+  constexpr static double kBackoffMultiplier = 2.0;
+  SearchEnginePreconnectorWithAdjustPreconnectRetryIntervalFeatureBrowserTest() {
+    feature_list_.Reset();
+    std::vector<base::test::FeatureRefAndParams> enabled_features{
+        {features::kPreconnectToSearch, {{"startup_delay_ms", "1000000"}}},
+        {net::features::kSearchEnginePreconnectInterval,
+         {{"preconnect_interval", "0"}}},
+        {net::features::kSearchEnginePreconnect2,
+         {{"FallbackInLowPowerMode", "true"}}},
+        {features::kAdjustPreconnectRetryInterval,
+         {{"kPreconnectBackoffMultiplier",
+           base::NumberToString(kBackoffMultiplier)}}}};
+
+    std::vector<base::test::FeatureRef> disabled_features;
+
+    if (PreconnectFromKeyedServiceEnabled()) {
+      enabled_features.push_back(
+          {features::kPreconnectFromKeyedService, {{"run_on_otr", "false"}}});
+    } else {
+      disabled_features.emplace_back(features::kPreconnectFromKeyedService);
+    }
+
+    feature_list_.InitWithFeaturesAndParameters(enabled_features,
+                                                disabled_features);
+  }
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    All,
+    SearchEnginePreconnectorWithAdjustPreconnectRetryIntervalFeatureBrowserTest,
+    ::testing::Bool());
+
+IN_PROC_BROWSER_TEST_P(
+    SearchEnginePreconnectorWithAdjustPreconnectRetryIntervalFeatureBrowserTest,
+    CalculateBackoffMultiplier) {
+  GetSearchEnginePreconnector()->StopPreconnecting();
+
+  for (int failures = 0; base::ClampedNumeric<int32_t>(
+                             std::pow(kBackoffMultiplier, failures - 1)) <
+                         std::numeric_limits<int32_t>::max();
+       failures++) {
+    GetSearchEnginePreconnector()->SetConsecutiveFailureForTesting(failures);
+    ASSERT_EQ(failures, GetSearchEnginePreconnector()
+                            ->GetConsecutiveConnectionFailureForTesting());
+    ASSERT_EQ(base::ClampedNumeric<int32_t>(
+                  std::pow(kBackoffMultiplier, failures - 1)),
+              GetSearchEnginePreconnector()->CalculateBackoffMultiplier());
+  }
 }

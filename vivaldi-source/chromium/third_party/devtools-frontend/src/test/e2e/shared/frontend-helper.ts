@@ -2,33 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chai';
+import {createWriteStream} from 'node:fs';
+import {join} from 'node:path';
 import type * as puppeteer from 'puppeteer-core';
 
-import {AsyncScope} from '../../conductor/async-scope.js';
 import {installPageErrorHandlers} from '../../conductor/events.js';
-import {platform} from '../../conductor/platform.js';
 import {TestConfig} from '../../conductor/test_config.js';
 
 import {PageWrapper} from './page-wrapper.js';
 import type {InspectedPage} from './target-helper.js';
 
-export type Action = (element: puppeteer.ElementHandle) => Promise<void>;
-
-export interface ClickOptions {
-  root?: puppeteer.ElementHandle;
-  clickOptions?: puppeteer.ClickOptions;
-  maxPixelsFromLeft?: number;
-}
-
 const envLatePromises = process.env['LATE_PROMISES'] !== undefined ?
     ['true', ''].includes(process.env['LATE_PROMISES'].toLowerCase()) ? 10 : Number(process.env['LATE_PROMISES']) :
     0;
-
-type DeducedElementType<ElementType extends Element|null, Selector extends string> =
-    ElementType extends null ? puppeteer.NodeFor<Selector>: ElementType;
-
-const CONTROL_OR_META = platform === 'mac' ? 'Meta' : 'Control';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const globalThis: any = global;
@@ -38,6 +24,7 @@ interface DevToolsReloadParams {
   panel?: string;
 }
 
+let heapSnapshotCounter = 0;
 export class DevToolsPage extends PageWrapper {
   screenshotLog: Record<string, string> = {};
   #currentHighlightedElement?: HighlightedElement;
@@ -128,19 +115,28 @@ export class DevToolsPage extends PageWrapper {
     const devToolsVeLogging = {enabled: true, testing: true};
     await this.evaluateOnNewDocument(`globalThis.hostConfigForTesting = ${JSON.stringify({devToolsVeLogging})};`);
     await this.waitForFunction(async () => {
-      const result = await this.page.evaluate(`(async function() {
-        const Main = await import('./entrypoints/main/main.js');
-        return Main.MainImpl.MainImpl.instanceForTest !== null;
-      })()`);
-      return result;
+      try {
+        const result = await this.page.evaluate(async function() {
+          // @ts-expect-error Executed in DevTools realm
+          const Main = await import('./entrypoints/main/main.js');
+          return Main.MainImpl.MainImpl.instanceForTest !== null;
+        });
+        return result;
+      } catch (err) {
+        // We might be navigating, so we retry execution context destroyed
+        // errors.
+        if (err.message.startsWith('Execution context was destroyed')) {
+          return false;
+        }
+        throw err;
+      }
     });
 
-    await this.evaluate(`
-      (async function() {
-        const Main = await import('./entrypoints/main/main.js');
-        await Main.MainImpl.MainImpl.instanceForTest.readyForTest();
-      })();
-    `);
+    await this.evaluate(async () => {
+      // @ts-expect-error Executed in DevTools realm
+      const Main = await import('./entrypoints/main/main.js');
+      await Main.MainImpl.MainImpl.instanceForTest.readyForTest();
+    });
   }
 
   async useSoftMenu() {
@@ -150,14 +146,9 @@ export class DevToolsPage extends PageWrapper {
     });
   }
 
-  /**
-   * Get a single element handle. Uses `pierce` handler per default for piercing Shadow DOM.
-   */
-  async $<ElementType extends Element|null = null, Selector extends string = string>(
+  override async $<ElementType extends Element|null = null, Selector extends string = string>(
       selector: Selector, root?: puppeteer.ElementHandle, handler = 'pierce') {
-    const rootElement = root ? root : this.page;
-    const element = await rootElement.$(`${handler}/${selector}`) as
-        puppeteer.ElementHandle<DeducedElementType<ElementType, Selector>>;
+    const element = await super.$<ElementType, Selector>(selector, root, handler);
     await this.#maybeHighlight(element);
     return element;
   }
@@ -176,172 +167,6 @@ export class DevToolsPage extends PageWrapper {
     await this.#currentHighlightedElement.highlight();
   }
 
-  async performActionOnSelector(selector: string, options: {root?: puppeteer.ElementHandle}, action: Action):
-      Promise<puppeteer.ElementHandle> {
-    // TODO(crbug.com/1410168): we should refactor waitFor to be compatible with
-    // Puppeteer's syntax for selectors.
-    const queryHandlers = new Set([
-      'pierceShadowText',
-      'pierce',
-      'aria',
-      'xpath',
-      'text',
-    ]);
-    let queryHandler = 'pierce';
-    for (const handler of queryHandlers) {
-      const prefix = handler + '/';
-      if (selector.startsWith(prefix)) {
-        queryHandler = handler;
-        selector = selector.substring(prefix.length);
-        break;
-      }
-    }
-    return await this.waitForFunction(async () => {
-      const element = await this.waitFor(selector, options?.root, undefined, queryHandler);
-      try {
-        await action(element);
-        await this.drainTaskQueue();
-        return element;
-      } catch {
-        return undefined;
-      }
-    });
-  }
-
-  async waitFor<ElementType extends Element|null = null, Selector extends string = string>(
-      selector: Selector, root?: puppeteer.ElementHandle, asyncScope = new AsyncScope(), handler?: string) {
-    return await asyncScope.exec(() => this.waitForFunction(async () => {
-      const element = await this.$<ElementType, typeof selector>(selector, root, handler);
-      return (element || undefined);
-    }, asyncScope), `Waiting for element matching selector '${handler ? `${handler}/` : ''}${selector}'`);
-  }
-
-  /**
-   * Schedules a task in the frontend page that ensures that previously
-   * handled tasks have been handled.
-   */
-  async drainTaskQueue(): Promise<void> {
-    await this.evaluate(async () => {
-      await new Promise(resolve => setTimeout(resolve, 0));
-    });
-  }
-
-  async typeText(text: string, opts?: {delay: number}) {
-    await this.page.keyboard.type(text, opts);
-    await this.drainTaskQueue();
-  }
-
-  async click(selector: string, options?: ClickOptions) {
-    return await this.performActionOnSelector(
-        selector,
-        {root: options?.root},
-        element => element.click(options?.clickOptions),
-    );
-  }
-
-  async hover(selector: string, options?: {root?: puppeteer.ElementHandle}) {
-    return await this.performActionOnSelector(
-        selector,
-        {root: options?.root},
-        element => element.hover(),
-    );
-  }
-
-  waitForAria<ElementType extends Element = Element>(
-      selector: string, root?: puppeteer.ElementHandle, asyncScope = new AsyncScope()) {
-    return this.waitFor<ElementType>(selector, root, asyncScope, 'aria');
-  }
-
-  async waitForNone(selector: string, root?: puppeteer.ElementHandle, asyncScope = new AsyncScope(), handler?: string) {
-    return await asyncScope.exec(() => this.waitForFunction(async () => {
-      const elements = await this.$$(selector, root, handler);
-      if (elements.length === 0) {
-        return true;
-      }
-      return false;
-    }, asyncScope), `Waiting for no elements to match selector '${handler ? `${handler}/` : ''}${selector}'`);
-  }
-
-  /**
-   * Get multiple element handles. Uses `pierce` handler per default for piercing Shadow DOM.
-   */
-  async $$<ElementType extends Element|null = null, Selector extends string = string>(
-      selector: Selector, root?: puppeteer.JSHandle, handler = 'pierce') {
-    const rootElement = root ? root.asElement() || this.page : this.page;
-    const elements = await rootElement.$$(`${handler}/${selector}`) as
-        Array<puppeteer.ElementHandle<DeducedElementType<ElementType, Selector>>>;
-    return elements;
-  }
-
-  /**
-   * @deprecated This method is not able to recover from unstable DOM. Use click(selector) instead.
-   */
-  async clickElement(element: puppeteer.ElementHandle, options?: ClickOptions): Promise<void> {
-    // Retries here just in case the element gets connected to DOM / becomes visible.
-    await this.waitForFunction(async () => {
-      try {
-        await element.click(options?.clickOptions);
-        await this.drainTaskQueue();
-        return true;
-      } catch {
-        return false;
-      }
-    });
-  }
-
-  waitForElementWithTextContent(textContent: string, root?: puppeteer.ElementHandle, asyncScope = new AsyncScope()) {
-    return this.waitFor(textContent, root, asyncScope, 'pierceShadowText');
-  }
-
-  async scrollElementIntoView(selector: string, root?: puppeteer.ElementHandle) {
-    const element = await this.$(selector, root);
-
-    if (!element) {
-      throw new Error(`Unable to find element with selector "${selector}"`);
-    }
-
-    await element.evaluate(el => {
-      el.scrollIntoView({
-        behavior: 'instant',
-        block: 'center',
-        inline: 'center',
-      });
-    });
-  }
-
-  /**
-   * Search for all elements based on their textContent
-   *
-   * @param textContent The text content to search for.
-   * @param root The root of the search.
-   */
-  async $$textContent(textContent: string, root?: puppeteer.ElementHandle) {
-    return await this.$$(textContent, root, 'pierceShadowText');
-  }
-
-  waitForNoElementsWithTextContent(textContent: string, root?: puppeteer.ElementHandle, asyncScope = new AsyncScope()) {
-    return asyncScope.exec(() => this.waitForFunction(async () => {
-      const elems = await this.$$textContent(textContent, root);
-      if (elems?.length === 0) {
-        return true;
-      }
-
-      return false;
-    }, asyncScope), `Waiting for no elements with textContent '${textContent}'`);
-  }
-
-  async withControlOrMetaKey(action: () => Promise<void>, root = this.page) {
-    await this.waitForFunction(async () => {
-      await root.keyboard.down(CONTROL_OR_META);
-      try {
-        await action();
-        return true;
-      } finally {
-        await root.keyboard.up(CONTROL_OR_META);
-      }
-    });
-  }
-
   /**
    * @deprecated This method is not able to recover from unstable DOM. Use hover(selector) instead.
    */
@@ -358,190 +183,11 @@ export class DevToolsPage extends PageWrapper {
     });
   }
 
-  async doubleClick(
-      selector: string, options?: {root?: puppeteer.ElementHandle, clickOptions?: puppeteer.ClickOptions}) {
-    const passedClickOptions = (options?.clickOptions) || {};
-    const clickOptionsWithDoubleClick: puppeteer.ClickOptions = {
-      ...passedClickOptions,
-      clickCount: 2,
-    };
-    return await this.click(selector, {
-      ...options,
-      clickOptions: clickOptionsWithDoubleClick,
-    });
-  }
-
-  async pasteText(text: string) {
-    await this.page.keyboard.sendCharacter(text);
-    await this.drainTaskQueue();
-  }
-
-  /**
-   * Search for an element based on its textContent.
-   *
-   * @param textContent The text content to search for.
-   * @param root The root of the search.
-   */
-  async $textContent(textContent: string, root?: puppeteer.ElementHandle) {
-    return await this.$(textContent, root, 'pierceShadowText');
-  }
-
-  async getTextContent<ElementType extends Element = Element>(selector: string, root?: puppeteer.ElementHandle) {
-    const text = await (await this.$<ElementType, typeof selector>(selector, root))?.evaluate(node => node.textContent);
-    return text ?? undefined;
-  }
-
-  async getAllTextContents(selector: string, root?: puppeteer.JSHandle, handler = 'pierce'):
-      Promise<Array<string|null>> {
-    const allElements = await this.$$(selector, root, handler);
-    return await Promise.all(allElements.map(e => e.evaluate(e => e.textContent)));
-  }
-
-  /**
-   * Match multiple elements based on a selector and return their textContents, but only for those
-   * elements that are visible.
-   *
-   * @param selector jquery selector to match
-   * @returns array containing text contents from visible elements
-   */
-  async getVisibleTextContents(selector: string) {
-    const allElements = await this.$$(selector);
-    const texts = await Promise.all(
-        allElements.map(el => el.evaluate(node => node.checkVisibility() ? node.textContent?.trim() : undefined)));
-    return texts.filter(content => typeof (content) === 'string');
-  }
-
-  async waitForVisible<ElementType extends Element|null = null, Selector extends string = string>(
-      selector: Selector, root?: puppeteer.ElementHandle, asyncScope = new AsyncScope(), handler?: string) {
-    return await asyncScope.exec(() => this.waitForFunction(async () => {
-      const element = await this.$<ElementType, typeof selector>(selector, root, handler);
-      const visible = await element.evaluate(node => node.checkVisibility());
-      return visible ? element : undefined;
-    }, asyncScope), `Waiting for element matching selector '${handler ? `${handler}/` : ''}${selector}' to be visible`);
-  }
-
-  async waitForMany<ElementType extends Element|null = null, Selector extends string = string>(
-      selector: Selector, count: number, root?: puppeteer.ElementHandle, asyncScope = new AsyncScope(),
-      handler?: string) {
-    return await asyncScope.exec(
-        () => this.waitForFunction(
-            async () => {
-              const elements = await this.$$<ElementType, typeof selector>(selector, root, handler);
-              return elements.length >= count ? elements : undefined;
-            },
-            asyncScope, undefined),
-        `Waiting for ${count} elements to match selector '${handler ? `${handler}/` : ''}${selector}'`);
-  }
-
-  async waitForManyWithTries<ElementType extends Element|null = null, Selector extends string = string>(
-      selector: Selector, count: number, tries: number, root?: puppeteer.ElementHandle, asyncScope = new AsyncScope(),
-      handler?: string) {
-    return await asyncScope.exec(
-        () => this.waitForFunctionWithTries(
-            async () => {
-              const elements = await this.$$<ElementType, typeof selector>(selector, root, handler);
-              return elements.length >= count ? elements : undefined;
-            },
-            {tries}, asyncScope),
-        `Waiting for ${count} elements to match selector '${handler ? `${handler}/` : ''}${selector}'`);
-  }
-
-  waitForAriaNone = (selector: string, root?: puppeteer.ElementHandle, asyncScope = new AsyncScope()) => {
-    return this.waitForNone(selector, root, asyncScope, 'aria');
-  };
-
-  waitForElementsWithTextContent(textContent: string, root?: puppeteer.ElementHandle, asyncScope = new AsyncScope()) {
-    return asyncScope.exec(() => this.waitForFunction(async () => {
-      const elems = await this.$$textContent(textContent, root);
-      if (elems?.length) {
-        return elems;
-      }
-
-      return undefined;
-    }, asyncScope), `Waiting for elements with textContent '${textContent}'`);
-  }
-
-  async waitForFunctionWithTries<T>(
-      fn: () => Promise<T|undefined>, options: {tries: number} = {
-        tries: Number.MAX_SAFE_INTEGER,
-      },
-      asyncScope = new AsyncScope()) {
-    return await asyncScope.exec(async () => {
-      let tries = 0;
-      while (tries++ < options.tries) {
-        const result = await fn();
-        if (result) {
-          return result;
-        }
-        await this.timeout(100);
-      }
-      return undefined;
-    });
-  }
-
-  async waitForWithTries(
-      selector: string, root?: puppeteer.ElementHandle, options: {tries: number} = {
-        tries: Number.MAX_SAFE_INTEGER,
-      },
-      asyncScope = new AsyncScope(), handler?: string) {
-    return await asyncScope.exec(() => this.waitForFunctionWithTries(async () => {
-      const element = await this.$(selector, root, handler);
-      return (element || undefined);
-    }, options, asyncScope));
-  }
-
   debuggerStatement() {
     return this.page.evaluate(() => {
       // eslint-disable-next-line no-debugger
       debugger;
     });
-  }
-
-  async waitForAnimationFrame() {
-    await this.page.waitForFunction(() => {
-      return new Promise(resolve => {
-        requestAnimationFrame(resolve);
-      });
-    });
-  }
-
-  async activeElement() {
-    await this.waitForAnimationFrame();
-
-    return await this.page.evaluateHandle(() => {
-      let activeElement = document.activeElement;
-
-      while (activeElement?.shadowRoot) {
-        activeElement = activeElement.shadowRoot.activeElement;
-      }
-
-      if (!activeElement) {
-        throw new Error('No active element found');
-      }
-
-      return activeElement;
-    });
-  }
-
-  async activeElementTextContent() {
-    const element = await this.activeElement();
-    return await element.evaluate(node => node.textContent);
-  }
-
-  async activeElementAccessibleName() {
-    const element = await this.activeElement();
-    return await element.evaluate(node => node.getAttribute('aria-label') || node.getAttribute('title'));
-  }
-
-  async tabForward(page?: puppeteer.Page) {
-    await (page ?? this.page).keyboard.press('Tab');
-  }
-
-  async tabBackward(page?: puppeteer.Page) {
-    const targetPage = page ?? this.page;
-    await targetPage.keyboard.down('Shift');
-    await targetPage.keyboard.press('Tab');
-    await targetPage.keyboard.up('Shift');
   }
 
   async clickMoreTabsButton(root?: puppeteer.ElementHandle<Element>) {
@@ -619,32 +265,12 @@ export class DevToolsPage extends PageWrapper {
   getPendingEvents(eventType: string): Promise<Event[]|undefined> {
     return this.page.evaluate(eventType => {
       if (!('__pendingEvents' in window)) {
-        return undefined;
+        return;
       }
       const pendingEvents = window.__pendingEvents.get(eventType);
       window.__pendingEvents.set(eventType, []);
       return pendingEvents;
     }, eventType);
-  }
-
-  async hasClass(element: puppeteer.ElementHandle<Element>, classname: string) {
-    return await element.evaluate((el, classname) => el.classList.contains(classname), classname);
-  }
-
-  async waitForClass(element: puppeteer.ElementHandle<Element>, classname: string) {
-    await this.waitForFunction(async () => {
-      return await this.hasClass(element, classname);
-    });
-  }
-
-  waitForTextNotMatching(element: puppeteer.ElementHandle<Element>, regex: RegExp): Promise<string> {
-    return this.waitForFunction(async () => {
-      const text = await element.evaluate(e => e.textContent);
-      if (text.match(regex)) {
-        return undefined;
-      }
-      return text;
-    });
   }
 
   async renderCoordinatorQueueEmpty() {
@@ -658,15 +284,6 @@ export class DevToolsPage extends PageWrapper {
         globalThis.addEventListener('renderqueueempty', resolve, {once: true});
       });
     });
-  }
-
-  async setCheckBox(selector: string, wantChecked: boolean) {
-    const checkbox = await this.waitFor(selector);
-    const checked = await checkbox.evaluate(box => (box as HTMLInputElement).checked);
-    if (checked !== wantChecked) {
-      await this.click(`${selector} + label`);
-    }
-    assert.strictEqual(await checkbox.evaluate(box => (box as HTMLInputElement).checked), wantChecked);
   }
 
   async summonSearchBox() {
@@ -756,6 +373,43 @@ export class DevToolsPage extends PageWrapper {
     const fullName = index + ' ' + (name ?? 'screenshot');
     this.screenshotLog[fullName] = await this.screenshot();
   }
+
+  /**
+   * A helper that takes heap snapshots of the DevTools page that can be used to
+   * detect memory leaks. The snapshots are stored in out/<OutDir>.
+   *
+   * Usage:
+   *
+   * ```
+   *   ... prepare test state ...
+   *   await devToolsPsage.captureHeapSnapshot();
+   *   ... perform actions that trigger the leak ...
+   *   await devToolsPsage.captureHeapSnapshot();
+   * ```
+   *
+   * Now `out/<OutDir>/heap-snapshot-0.heapsnapshot` and
+   * `out/<OutDir>/heap-snapshot-1.heapsnapshot` are two snapshots that can be
+   * compared in the Memory panel of DevTools.
+   */
+  async captureHeapSnapshot(snapshotName = 'heap-snapshot') {
+    const session = await this.page.createCDPSession();
+    await session.send('HeapProfiler.enable');
+    await session.send('HeapProfiler.collectGarbage');
+
+    const snapshotId = heapSnapshotCounter++;
+    const fileName = `${snapshotName}-${snapshotId}.heapsnapshot`;
+    const filePath = join(process.cwd(), fileName);
+    const stream = createWriteStream(filePath);
+    session.on('HeapProfiler.addHeapSnapshotChunk', ({chunk}) => {
+      stream.write(chunk);
+    });
+    await session.send('HeapProfiler.takeHeapSnapshot', {reportProgress: false});
+    await new Promise<void>(resolve => {
+      stream.end(() => resolve());
+    });
+    await session.detach();
+    console.warn(`Heap snapshot saved to: ${filePath}`);
+  }
 }
 
 export interface DevtoolsSettings {
@@ -773,7 +427,7 @@ export interface DevtoolsSettings {
    *
    * To reload into a panel use {@link DevToolsPage.reloadWithParams}
    */
-  panel: string|undefined;
+  panel?: string;
 }
 
 export const DEFAULT_DEVTOOLS_SETTINGS: DevtoolsSettings = {

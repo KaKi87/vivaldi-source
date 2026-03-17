@@ -13,16 +13,15 @@ class SyncedFileStore;
 
 class SyncedFileStoreAndroid {
  public:
-  SyncedFileStoreAndroid(
-      JNIEnv* env,
-      const base::android::JavaRef<jobject>& obj);
+  SyncedFileStoreAndroid(JNIEnv* env,
+                         const base::android::JavaRef<jobject>& obj);
   ~SyncedFileStoreAndroid();
   SyncedFileStoreAndroid(const SyncedFileStoreAndroid&) = delete;
   SyncedFileStoreAndroid& operator=(const SyncedFileStoreAndroid&) = delete;
 
   void GetFile(JNIEnv* env,
-               const base::android::JavaParamRef<jstring>& checksum,
-               const base::android::JavaParamRef<jobject> callback);
+               const base::android::JavaRef<jstring>& checksum,
+               const base::android::JavaRef<jobject>& callback);
 
  private:
   raw_ptr<file_sync::SyncedFileStore> file_store_;

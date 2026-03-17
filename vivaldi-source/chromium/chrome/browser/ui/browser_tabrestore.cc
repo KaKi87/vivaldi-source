@@ -8,6 +8,7 @@
 #include <memory>
 #include <utility>
 
+#include "base/containers/span.h"
 #include "build/build_config.h"
 #include "chrome/browser/apps/app_service/web_contents_app_id_utils.h"
 #include "chrome/browser/profiles/profile.h"
@@ -23,6 +24,7 @@
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/webui_browser/webui_browser.h"
+#include "chrome/common/buildflags.h"
 #include "components/sessions/content/content_serialized_navigation_builder.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tabs/public/tab_group.h"
@@ -35,6 +37,10 @@
 #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/range/range.h"
+
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+#include "chrome/browser/glic/glic_tab_restore_helper.h"
+#endif
 
 #include "app/vivaldi_apptools.h"
 #include "components/page_actions/page_actions_service.h"
@@ -55,7 +61,7 @@ namespace {
 
 std::unique_ptr<WebContents> CreateRestoredTab(
     Browser* browser,
-    const std::vector<SerializedNavigationEntry>& navigations,
+    base::span<const SerializedNavigationEntry> navigations,
     int selected_navigation,
     const std::string& extension_app_id,
     base::TimeTicks last_active_time_ticks,
@@ -67,7 +73,7 @@ std::unique_ptr<WebContents> CreateRestoredTab(
     bool from_session_restore,
     const std::map<std::string, bool> viv_page_action_overrides,
     const std::string& viv_ext_data) {
-  GURL restore_url = navigations.at(selected_navigation).virtual_url();
+  GURL restore_url = navigations[selected_navigation].virtual_url();
   // TODO(ajwong): Remove the temporary session_storage_namespace_map when
   // we teach session restore to understand that one tab can have multiple
   // SessionStorageNamespace objects. Also remove the
@@ -95,6 +101,10 @@ std::unique_ptr<WebContents> CreateRestoredTab(
   }
   apps::SetAppIdForWebContents(browser->profile(), web_contents.get(),
                                extension_app_id);
+
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+  glic::RestoreGlicStateFromExtraData(web_contents.get(), extra_data);
+#endif
 
   std::vector<std::unique_ptr<NavigationEntry>> entries =
       ContentSerializedNavigationBuilder::ToNavigationEntries(
@@ -219,8 +229,7 @@ WebContents* AddRestoredTabImpl(std::unique_ptr<WebContents> web_contents,
     // the throbber when a background restored tab is loading.
     tabs::TabInterface* const tab_interface =
         tabs::TabInterface::GetFromContents(raw_web_contents);
-    tabs::TabFeatures* const tab_features = tab_interface->GetTabFeatures();
-    tab_features->tab_ui_helper()->set_created_by_session_restore(true);
+    TabUIHelper::From(tab_interface)->set_created_by_session_restore(true);
   }
 
   // We set the size of the view here, before Blink does its initial layout.
@@ -296,7 +305,7 @@ WebContents* AddRestoredTabImpl(std::unique_ptr<WebContents> web_contents,
 
 WebContents* AddRestoredTab(
     Browser* browser,
-    const std::vector<SerializedNavigationEntry>& navigations,
+    base::span<const SerializedNavigationEntry> navigations,
     int tab_index,
     int selected_navigation,
     const std::string& extension_app_id,
@@ -327,7 +336,7 @@ WebContents* AddRestoredTab(
 
 WebContents* ReplaceRestoredTab(
     Browser* browser,
-    const std::vector<SerializedNavigationEntry>& navigations,
+    base::span<const SerializedNavigationEntry> navigations,
     int selected_navigation,
     const std::string& extension_app_id,
     content::SessionStorageNamespace* session_storage_namespace,
@@ -357,8 +366,7 @@ WebContents* ReplaceRestoredTab(
     // the throbber when a background restored tab is loading.
     tabs::TabInterface* const tab_interface =
         tabs::TabInterface::GetFromContents(raw_web_contents);
-    tabs::TabFeatures* const tab_features = tab_interface->GetTabFeatures();
-    tab_features->tab_ui_helper()->set_created_by_session_restore(true);
+    TabUIHelper::From(tab_interface)->set_created_by_session_restore(true);
   }
 
   tab_strip->CloseWebContentsAt(insertion_index, TabCloseTypes::CLOSE_NONE);

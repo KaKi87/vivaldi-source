@@ -12,19 +12,19 @@
 #import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/utils/observable_boolean.h"
-#import "ios/ui/settings/appearance/vivaldi_appearance_settings_prefs_helper.h"
 #import "ios/ui/settings/appearance/vivaldi_appearance_settings_prefs.h"
+#import "ios/ui/settings/appearance/vivaldi_appearance_settings_prefs_helper.h"
 #import "ios/ui/settings/appearance/vivaldi_appearance_settings_swift.h"
 #import "ios/web/public/js_messaging/web_frame.h"
-#import "ios/web/public/js_messaging/web_frames_manager_observer_bridge.h"
 #import "ios/web/public/js_messaging/web_frames_manager.h"
-#import "ios/web/public/web_state_observer_bridge.h"
+#import "ios/web/public/js_messaging/web_frames_manager_observer_bridge.h"
 #import "ios/web/public/web_state.h"
+#import "ios/web/public/web_state_observer_bridge.h"
 #import "ios/website_dark_mode/website_dark_mode_java_script_feature.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 @interface WebsiteDarkModeAgent () <CRWWebStateObserver,
-                             CRWWebFramesManagerObserver> {
+                                    CRWWebFramesManagerObserver> {
   // The WebState this instance is observing. Will be null after
   // -webStateDestroyed: has been called.
   web::WebState* _webState;
@@ -68,12 +68,11 @@
             _webState);
     framesManager->AddObserver(_webFramesManagerObserverBridge.get());
 
-    _forceDarkWebPagesEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:prefService
-                prefName:vivaldiprefs::kVivaldiWebsiteAppearanceForceDarkTheme];
+    _forceDarkWebPagesEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:prefService
+                   prefName:vivaldiprefs::
+                                kVivaldiWebsiteAppearanceForceDarkTheme];
     [self forceReloadWebpageIfNeeded];
-
   }
   return self;
 }
@@ -121,8 +120,8 @@
 
 - (BOOL)isBrowserOrSystemThemeDark {
   return [VivaldiAppearanceSettingsPrefsHelper isBrowserThemeDark] ||
-      UITraitCollection.currentTraitCollection.userInterfaceStyle ==
-          UIUserInterfaceStyleDark;
+         UITraitCollection.currentTraitCollection.userInterfaceStyle ==
+             UIUserInterfaceStyleDark;
 }
 
 - (void)forceReloadWebpageIfNeeded {

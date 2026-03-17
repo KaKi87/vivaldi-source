@@ -5,8 +5,8 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
 #include "chrome/browser/ui/views/overlay/video_overlay_window_views.h"
-#include "components/prefs/scoped_user_pref_update.h"
 #include "components/prefs/pref_service.h"
+#include "components/prefs/scoped_user_pref_update.h"
 #include "content/public/browser/picture_in_picture_window_controller.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/compositor/layer.h"
@@ -14,11 +14,11 @@
 #include "ui/views/controls/mute_button.h"
 #include "ui/views/controls/volume_slider.h"
 
-#include "prefs/vivaldi_pref_names.h"
 #include "app/vivaldi_apptools.h"
+#include "prefs/vivaldi_pref_names.h"
 
-// The file contains the vivaldi specific code for the VideoOverlayWindowViews class
-// used for the Picture-in-Picture window.
+// The file contains the vivaldi specific code for the VideoOverlayWindowViews
+// class used for the Picture-in-Picture window.
 
 constexpr int kVolumeSliderHeight = 30;
 constexpr gfx::Size kVivaldiButtonControlSize(20, 20);
@@ -29,8 +29,8 @@ class VideoPipControllerDelegate
   VideoPipControllerDelegate(vivaldi::MuteButton* mute_button,
                              vivaldi::VolumeSlider* volume_slider)
       : vivaldi::VideoPIPController::Delegate(),
-        mute_button_(mute_button), volume_slider_(volume_slider) {
-  }
+        mute_button_(mute_button),
+        volume_slider_(volume_slider) {}
   ~VideoPipControllerDelegate() override {}
 
   void AudioMutingStateChanged(bool muted) override {
@@ -68,7 +68,7 @@ void VideoOverlayWindowViews::InitVivaldiControls() {
     return;
 
   video_pip_controller_ = std::make_unique<vivaldi::VideoPIPController>(
-        video_pip_delegate_.get(), controller_->GetWebContents());
+      video_pip_delegate_.get(), controller_->GetWebContents());
 
   auto mute_button = std::make_unique<vivaldi::MuteButton>(base::BindRepeating(
       [](VideoOverlayWindowViews* overlay) {
@@ -110,12 +110,12 @@ void VideoOverlayWindowViews::UpdateVivaldiControlsBounds(int primary_control_y,
   if (!vivaldi::IsVivaldiRunning())
     return;
 
-//  <MUTE> #######volume####### <Prev>[<PLAY/PAUSE>]
+  //  <MUTE> #######volume####### <Prev>[<PLAY/PAUSE>]
 
-  gfx::Point mutebutton_position =
-      gfx::Point(margin, GetBounds().size().height() -
-                             ((kVivaldiButtonControlSize.height()) +
-                             (kVolumeSliderHeight)/2));
+  gfx::Point mutebutton_position = gfx::Point(
+      margin,
+      GetBounds().size().height() -
+          ((kVivaldiButtonControlSize.height()) + (kVolumeSliderHeight) / 2));
 
   mute_button_->SetSize(kVivaldiButtonControlSize);
   mute_button_->SetPosition(mutebutton_position);

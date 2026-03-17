@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "base/base64.h"
+#include "base/functional/callback_helpers.h"
 #include "base/i18n/string_compare.h"
 #include "base/i18n/string_search.h"
 #include "base/memory/ptr_util.h"

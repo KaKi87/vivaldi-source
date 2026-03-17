@@ -71,8 +71,8 @@ public class HistoryItemView extends SelectableItemView<HistoryItem> {
         super(context, attrs);
 
         if (!ChromeApplicationImpl.isVivaldi())
-        mMinIconSize = getResources().getDimensionPixelSize(R.dimen.default_favicon_min_size);
-        else {
+        mMinIconSize = FaviconUtils.getDefaultFaviconSize(context);
+        else { // Vivaldi
             mMinIconSize = BookmarkViewUtils.getFaviconFetchSize(context.getResources());
         } // End Vivaldi
         mDisplayedIconSize = getResources().getDimensionPixelSize(R.dimen.default_favicon_size);
@@ -132,6 +132,7 @@ public class HistoryItemView extends SelectableItemView<HistoryItem> {
                 textView.setText(formatted);
             }
         } // End Vivaldi
+
         mTitleView.setText(item.getTitle());
         mDescriptionView.setText(item.getDomain());
         // Try to make the TLD part of the URL string visible.

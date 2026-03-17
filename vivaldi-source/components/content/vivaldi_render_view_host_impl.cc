@@ -12,7 +12,8 @@ void RenderViewHostImpl::SetImagesEnabled(const bool show_images) {
 
 void RenderViewHostImpl::SetServeResourceFromCacheOnly(const bool only_cache) {
   if (GetWidget()->GetAssociatedFrameWidget()) {
-    GetWidget()->GetAssociatedFrameWidget()->SetServeResourceFromCacheOnly(only_cache);
+    GetWidget()->GetAssociatedFrameWidget()->SetServeResourceFromCacheOnly(
+        only_cache);
   }
 }
 

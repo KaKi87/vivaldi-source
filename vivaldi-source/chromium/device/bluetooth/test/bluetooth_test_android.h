@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "base/android/scoped_java_ref.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/test/task_environment.h"
 #include "device/bluetooth/bluetooth_common.h"
@@ -29,7 +30,6 @@ class BluetoothTestAndroid : public BluetoothTestBase {
   void TearDown() override;
 
   // BluetoothTestBase overrides:
-  bool PlatformSupportsLowEnergy() override;
   void InitWithDefaultAdapter() override;
   void InitWithoutDefaultAdapter() override;
   void InitWithFakeAdapter() override;
@@ -187,7 +187,7 @@ class BluetoothTestAndroid : public BluetoothTestBase {
   // Records that Java FakeBluetoothGatt writeCharacteristic was called.
   void OnFakeBluetoothGattWriteCharacteristic(
       JNIEnv* env,
-      const base::android::JavaParamRef<jbyteArray>& value);
+      const base::android::JavaRef<jbyteArray>& value);
 
   // Records that Java FakeBluetoothGatt readDescriptor was called.
   void OnFakeBluetoothGattReadDescriptor(JNIEnv* env);
@@ -195,20 +195,17 @@ class BluetoothTestAndroid : public BluetoothTestBase {
   // Records that Java FakeBluetoothGatt writeDescriptor was called.
   void OnFakeBluetoothGattWriteDescriptor(
       JNIEnv* env,
-      const base::android::JavaParamRef<jbyteArray>& value);
+      const base::android::JavaRef<jbyteArray>& value);
 
   // Records that Java FakeBluetoothAdapter onAdapterStateChanged was called.
   void OnFakeAdapterStateChanged(JNIEnv* env, const bool powered);
 
   // Posts a task to be run on the current message loop.
-  void PostTaskFromJava(JNIEnv* env,
-                        const base::android::JavaParamRef<jobject>& runnable);
+  void PostTaskFromJava(base::OnceClosure&& runnable);
 
   // Posts a delayed task to be run on the current message loop.
-  void PostDelayedTaskFromJava(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& runnable,
-      jlong delayMillis);
+  void PostDelayedTaskFromJava(base::OnceClosure&& runnable,
+                               int64_t delayMillis);
 
   base::android::ScopedJavaGlobalRef<jobject> j_default_bluetooth_adapter_;
   base::android::ScopedJavaGlobalRef<jobject> j_fake_bluetooth_adapter_;

@@ -18,7 +18,7 @@
 namespace vivaldi {
 class NoteModel;
 class NoteNode;
-}
+}  // namespace vivaldi
 
 typedef NS_ENUM(NSInteger, NoteHomeSectionIdentifier) {
   NoteHomeSectionIdentifierPromo = kSectionIdentifierEnumZero,
@@ -105,8 +105,7 @@ typedef NS_ENUM(NSInteger, NoteHomeItemType) {
 + (CGFloat)keyboardSpacingPt;
 
 - (instancetype)initWithNotesModel:(vivaldi::NotesModel*)notesModel
-                    displayedRootNode:
-                        (const vivaldi::NoteNode*)displayedRootNode
+                 displayedRootNode:(const vivaldi::NoteNode*)displayedRootNode
     NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 

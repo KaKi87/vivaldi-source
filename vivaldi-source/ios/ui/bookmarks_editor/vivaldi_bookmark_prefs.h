@@ -19,8 +19,7 @@ class PrefService;
 + (PrefService*)prefService;
 
 /// Static method to set the PrefService
-+ (void)setPrefService:(PrefService *)pref;
-
++ (void)setPrefService:(PrefService*)pref;
 
 + (void)registerBrowserStatePrefs:(user_prefs::PrefRegistrySyncable*)registry;
 
@@ -32,7 +31,8 @@ class PrefService;
 /// Returns to show all folders or only speed dial
 /// folders on bookmark folder view controller.
 + (BOOL)getFolderViewMode;
-
+/// Returns whether Safari import entry point has been shown.
++ (BOOL)getSafariImportEntryPointShown;
 
 #pragma mark - Setters
 /// Sets the bookmarks sorting mode to the prefs.
@@ -43,6 +43,8 @@ class PrefService;
 /// folders or all folders in bookmark folder view
 /// controller.
 + (void)setFolderViewMode:(BOOL)showOnlySpeedDials;
+/// Sets whether Safari import entry point has been shown.
++ (void)setSafariImportEntryPointShown:(BOOL)shown;
 
 @end
 

@@ -23,7 +23,7 @@ class Accelerator;
 namespace vivaldi {
 struct BookmarkMenuContainer;
 class MenubarController;
-}
+}  // namespace vivaldi
 
 namespace extensions {
 
@@ -51,7 +51,8 @@ class MenubarMenuAPI : public BrowserContextKeyedAPI {
   static void SendOpen(content::BrowserContext* browser_context, int menu_id);
   static void SendClose(content::BrowserContext* browser_context);
   static void SendHover(content::BrowserContext* browser_context,
-                        int window_id, const std::string& url);
+                        int window_id,
+                        const std::string& url);
   static void SendError(content::BrowserContext* browser_context,
                         const std::string& text);
 
@@ -91,8 +92,6 @@ class MenubarMenuGetMaxIdFunction : public ExtensionFunction {
   // ExtensionFunction:
   ResponseAction Run() override;
 };
-
-
 
 }  // namespace extensions
 

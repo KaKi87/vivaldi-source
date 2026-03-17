@@ -757,8 +757,7 @@ void StatsReporterImpl::DoReporting(FileHolder os_profile_reporting_data_file,
 
   std::optional<base::Value> os_profile_reporting_data_json;
   if (!os_profile_reporting_data.empty()) {
-    std::string_view fixed_os_profile_reporting_data(
-        os_profile_reporting_data);
+    std::string_view fixed_os_profile_reporting_data(os_profile_reporting_data);
     os_profile_reporting_data_json = base::JSONReader::Read(
         fixed_os_profile_reporting_data, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
 
@@ -820,7 +819,7 @@ void StatsReporterImpl::OnURLLoadComplete(
     ReportingData local_state_reporting_data,
     std::optional<base::Value> os_profile_reporting_data_json,
     base::TimeDelta next_reporting_time_interval_,
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   bool success = url_loader_->NetError() == net::OK;
   url_loader_.reset();
 

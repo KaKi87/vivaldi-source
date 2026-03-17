@@ -466,7 +466,7 @@ class TextureVk : public TextureImpl, public angle::ObserverInterface
                                                   gl::LevelIndex sourceLevelGL,
                                                   uint32_t layerCount,
                                                   const gl::Box &sourceArea,
-                                                  RenderPassClosureReason reason,
+                                                  QueueSubmitReason reason,
                                                   vk::BufferHelper *copyBuffer,
                                                   uint8_t **outDataPtr);
 
@@ -652,6 +652,7 @@ class TextureVk : public TextureImpl, public angle::ObserverInterface
     UniqueSerial mImageSiblingSerial;
 
     bool mRequiresMutableStorage;
+    vk::ImageFormatReinterpretability mFormatReinterpretability;
     vk::ImageFormatSupport mRequiredFormatSupport;
     bool mImmutableSamplerDirty;
 

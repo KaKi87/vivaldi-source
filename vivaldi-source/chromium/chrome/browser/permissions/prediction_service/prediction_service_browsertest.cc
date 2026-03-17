@@ -4,6 +4,7 @@
 
 #include "components/permissions/prediction_service/prediction_service.h"
 
+#include <variant>
 #include <vector>
 
 #include "base/base_paths.h"
@@ -12,6 +13,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
+#include "base/strings/strcat.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
@@ -33,6 +35,7 @@
 #include "chrome/common/chrome_features.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
+#include "components/content_settings/core/common/content_settings_types.h"
 #include "components/content_settings/core/common/features.h"
 #include "components/content_settings/core/common/pref_names.h"
 #include "components/metrics/content/subprocess_metrics_provider.h"
@@ -41,7 +44,7 @@
 #include "components/optimization_guide/core/delivery/test_optimization_guide_model_provider.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
 #include "components/optimization_guide/proto/models.pb.h"
-#include "components/passage_embeddings/passage_embeddings_test_util.h"
+#include "components/passage_embeddings/core/passage_embeddings_test_util.h"
 #include "components/permissions/features.h"
 #include "components/permissions/permission_request_manager.h"
 #include "components/permissions/permission_uma_util.h"
@@ -328,7 +331,7 @@ PredictionRequestFeatures BuildRequestFeatures(
     ExperimentId experiment_id,
     PermissionRequestRelevance permission_relevance) {
   return PredictionRequestFeatures{
-      .gesture = PermissionRequestGestureType::NO_GESTURE,
+      .gesture = PermissionRequestGestureType::GESTURE,
       .type = request_type,
       .requested_permission_counts = {},
       .all_permission_counts = {},
@@ -448,7 +451,8 @@ class PredictionServiceBrowserTestBase : public InProcessBrowserTest {
     ASSERT_TRUE(ui_test_utils::NavigateToURL(browser(), url));
     SetTranslateSourceLanguage(translate_source_language);
 
-    auto req = std::make_unique<MockPermissionRequest>(request_type());
+    auto req = std::make_unique<MockPermissionRequest>(
+        request_type(), PermissionRequestGestureType::GESTURE);
     manager->AddRequest(primary_main_frame(), std::move(req));
 
     WaitForModelExecutionIfNecessary();
@@ -474,9 +478,15 @@ class PredictionServiceBrowserTestBase : public InProcessBrowserTest {
     EXPECT_EQ(expected_prediction_likelihood,
               manager->prediction_grant_likelihood_for_testing());
     if (permission_action == PermissionAction::DISMISSED) {
-      manager->Dismiss();
+      manager->Dismiss(/*prompt_options=*/std::monostate());
     } else if (permission_action == PermissionAction::GRANTED) {
-      manager->Accept();
+      PromptOptions prompt_options =
+          manager->Requests()[0]->GetContentSettingsType() ==
+                  ContentSettingsType::GEOLOCATION_WITH_OPTIONS
+              ? PromptOptions(GeolocationPromptOptions(
+                    {.selected_accuracy = GeolocationAccuracy::kPrecise}))
+              : std::monostate();
+      manager->Accept(prompt_options);
     }
   }
 
@@ -1867,6 +1877,7 @@ class PredictionServiceGeolocationAccuracyBrowserTest
 IN_PROC_BROWSER_TEST_P(PredictionServiceGeolocationAccuracyBrowserTest,
                        UseGeolocationAccuracyFromResponse) {
   ASSERT_TRUE(embedded_test_server()->Start());
+  ukm::TestAutoSetUkmRecorder ukm_recorder;
 
   GeneratePredictionsResponse prediction_service_response =
       BuildPredictionServiceResponse(kLikelihoodLikely);
@@ -1891,6 +1902,20 @@ IN_PROC_BROWSER_TEST_P(PredictionServiceGeolocationAccuracyBrowserTest,
   EXPECT_FALSE(manager->ShouldCurrentRequestUseQuietUI());
   EXPECT_EQ(GetParam().expected_accuracy,
             manager->GetInitialGeolocationAccuracySelection());
+
+  // It doesn't actually matter what the user selects for the purpose of this
+  // test.
+  manager->Accept(GeolocationPromptOptions{.selected_accuracy =
+                                               GeolocationAccuracy::kPrecise});
+
+  auto entries =
+      ukm_recorder.GetEntriesByName(ukm::builders::Permission::kEntryName);
+  ASSERT_FALSE(entries.empty());
+  const ukm::mojom::UkmEntry* entry = entries.back().get();
+  ukm_recorder.ExpectEntryMetric(
+      entry,
+      ukm::builders::Permission::kInitialGeolocationAccuracySelectionName,
+      static_cast<int64_t>(GetParam().expected_accuracy));
 }
 
 INSTANTIATE_TEST_SUITE_P(

@@ -15,14 +15,14 @@
 #include "base/scoped_multi_source_observation.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/extensions/commands/command_service.h"
-#include "chrome/browser/extensions/external_install_error.h"
 #include "chrome/browser/extensions/extension_uninstall_dialog.h"
+#include "chrome/browser/extensions/external_install_error.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/browser/ui/global_error/global_error.h"
+#include "components/infobars/core/confirm_infobar_delegate.h"
 #include "components/keyed_service/content/browser_context_keyed_service_factory.h"
 #include "components/keyed_service/core/keyed_service.h"
-#include "components/infobars/core/confirm_infobar_delegate.h"
 #include "content/public/browser/navigation_handle.h"
 #include "extensions/browser/extension_registry_observer.h"
 #include "extensions/schema/browser_action_utilities.h"
@@ -125,7 +125,7 @@ class VivaldiRootDocumentHandler : public KeyedService,
   raw_ptr<::vivaldi::InfoBarContainerWebProxy> InfoBarContainer() {
     return infobar_container_.get();
   }
-///
+  ///
   void AddGlobalError(
       std::unique_ptr<VivaldiExtensionDisabledGlobalError> error);
 

@@ -17,8 +17,7 @@ NativeSettingsObserver* NativeSettingsObserver::Create(Profile* profile) {
   return new NativeSettingsObserverWin(profile);
 }
 
-NativeSettingsObserverWin::~NativeSettingsObserverWin() {
-}
+NativeSettingsObserverWin::~NativeSettingsObserverWin() {}
 
 NativeSettingsObserverWin::NativeSettingsObserverWin(Profile* profile)
     : NativeSettingsObserver(profile) {

@@ -5,8 +5,6 @@
 #ifndef CHROME_BROWSER_SAFE_BROWSING_CHROME_PASSWORD_PROTECTION_SERVICE_H_
 #define CHROME_BROWSER_SAFE_BROWSING_CHROME_PASSWORD_PROTECTION_SERVICE_H_
 
-#include <map>
-
 #include "base/callback_list.h"
 #include "base/functional/callback_forward.h"
 #include "base/gtest_prod_util.h"
@@ -583,6 +581,15 @@ class ChromePasswordProtectionService
   password_manager::PasswordStoreInterface* GetStoreForReusedCredential(
       const password_manager::MatchingReusedCredential& reused_credential);
 
+  void OnGetVisibleVisitCountToHost(
+      const TriggerType trigger_type,
+      WebContentsKey web_contents_key,
+      const base::TimeDelta& delay,
+      bool did_proceed,
+      const TriggerManager::DataCollectionPermissions&
+          data_collection_permissions,
+      history::VisibleVisitCountToHostResult result);
+
   scoped_refptr<SafeBrowsingUIManager> ui_manager_;
   raw_ptr<TriggerManager, DanglingUntriaged> trigger_manager_;
   // Profile associated with this instance.
@@ -627,6 +634,8 @@ class ChromePasswordProtectionService
   // Used on android to launch Password Checkup.
   std::unique_ptr<PasswordCheckupLauncherHelper> checkup_launcher_;
 #endif
+
+  base::CancelableTaskTracker task_tracker_;
 
   base::WeakPtrFactory<ChromePasswordProtectionService> weak_ptr_factory_{this};
 };

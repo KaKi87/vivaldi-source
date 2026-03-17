@@ -16,7 +16,6 @@
 #include "base/check_op.h"
 #include "base/command_line.h"
 #include "base/containers/adapters.h"
-#include "base/containers/contains.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/feature_list.h"
 #include "base/format_macros.h"
@@ -61,6 +60,9 @@
 #if BUILDFLAG(ENABLE_BUILTIN_SEARCH_PROVIDER_ASSETS) && !BUILDFLAG(IS_ANDROID)
 #include "third_party/search_engines_data/search_engine_descriptions_strings_map.h"
 #endif
+
+#include "app/vivaldi_apptools.h"
+#include "components/search_engines/vivaldi_template_url_helper.h"
 
 namespace {
 
@@ -282,6 +284,7 @@ size_t TemplateURLRef::SearchTermsArgs::EstimateMemoryUsage() const {
   res += base::trace_event::EstimateMemoryUsage(image_thumbnail_content_type);
   res += base::trace_event::EstimateMemoryUsage(image_url);
   res += base::trace_event::EstimateMemoryUsage(contextual_search_params);
+  res += base::trace_event::EstimateMemoryUsage(input_state);
   res += base::trace_event::EstimateMemoryUsage(image_translate_source_locale);
   res += base::trace_event::EstimateMemoryUsage(image_translate_target_locale);
 
@@ -879,18 +882,9 @@ bool TemplateURLRef::ParseParameter(size_t start,
     if (!optional) {
       url->insert(start, "1");
     }
-  } else if (parameter == "ddg:Referral") {
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
-    url->insert(start, "t=vivaldim");
-#else
-    url->insert(start, "t=vivaldi");
-#endif
-  } else if (parameter == "yandex:vivaldiReferralID") {
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
-    url->insert(start, "clid=2358106");
-#else
-    url->insert(start, "clid=2207714");
-#endif
+  } else if (vivaldi::IsVivaldiRunning()) {
+    vivaldi::TemplateURLHelper::ParseParameters(parameter, start, end, url,
+                                                replacements);
   } else {
     // Despite Chrome normally relying on prepopulated_engines.json file, there
     // are other mechanisms that can supply overrides - see:
@@ -1418,6 +1412,7 @@ std::string TemplateURLRef::HandleReplacements(
           case RequestSource::SEARCHBOX:
           case RequestSource::CROS_APP_LIST:
           case RequestSource::NTP_COMPOSEBOX:
+          case RequestSource::NTP_ACTION_CHIPS:
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
             HandleReplacement("sourceid", "chrome-mobile", replacement, &url);
 #else
@@ -1474,6 +1469,14 @@ std::string TemplateURLRef::HandleReplacements(
 #endif
             break;
           case RequestSource::NTP_COMPOSEBOX: {
+            // Co-browsing composebox uses a different client since its zps
+            // behave differently.
+            if (search_terms_args.page_classification ==
+                metrics::OmniboxEventProto::CO_BROWSING_COMPOSEBOX) {
+              HandleReplacement(std::string(), "chrome-cobrowse-compose",
+                                replacement, &url);
+              break;
+            }
             // RequestSource::NTP_COMPOSEBOX will use "chrome-omni" for delayed
             // context uploads. TODO(crbug.com/460858102) Figure out how to
             // support delayed uploads using "chrome-compose."
@@ -1484,9 +1487,14 @@ std::string TemplateURLRef::HandleReplacements(
                                    metrics::OmniboxEventProto::NTP_COMPOSEBOX &&
                                !search_terms_args.current_page_url.empty()
                            ? "chrome-omni"
-                           : "chrome-compose")
+                           : omnibox::kComposeboxClientOverride.Get())
                     : "chrome-omni";
             HandleReplacement(std::string(), client_replacement, replacement,
+                              &url);
+            break;
+          }
+          case RequestSource::NTP_ACTION_CHIPS: {
+            HandleReplacement(std::string(), "chrome-ntp-action", replacement,
                               &url);
             break;
           }
@@ -1522,6 +1530,7 @@ std::string TemplateURLRef::HandleReplacements(
           case RequestSource::NTP_MODULE:
           case RequestSource::LENS_OVERLAY:
           case RequestSource::NTP_COMPOSEBOX:
+          case RequestSource::NTP_ACTION_CHIPS:
             // No replacement. `gs_ri` is longer recommended for new clients.
             // New identifiers should be based on their client names.
             break;
@@ -1660,6 +1669,8 @@ std::string TemplateURLRef::HandleReplacements(
         }
         break;
       }
+      // Vivaldi
+      VIVALDI_TEMPLATE_URL_HANDLE_REPLACEMENTS
 
       default:
         NOTREACHED();
@@ -1775,7 +1786,8 @@ bool TemplateURL::IsBetterThanConflictingEngine(
         // Favor prepopulated engines over other auto-generated engines.
         engine->prepopulate_id() > 0,
         // Favor starter pack engines over other auto-generated engines.
-        engine->starter_pack_id() > 0,
+        engine->starter_pack_id() !=
+            template_url_starter_pack_data::StarterPackId::kNone,
         // Favor engines derived from OpenSearch descriptions over
         // autogenerated engines heuristically generated from searchable forms.
         engine->originating_url().is_valid(),
@@ -1992,19 +2004,20 @@ SearchEngineType TemplateURL::GetEngineType(
 BuiltinEngineType TemplateURL::GetBuiltinEngineType() const {
   if (data().prepopulate_id != 0) {
     return KEYWORD_MODE_PREPOPULATED_ENGINE;
-  } else if (starter_pack_id() != 0) {
+  } else if (starter_pack_id() !=
+             template_url_starter_pack_data::StarterPackId::kNone) {
     switch (starter_pack_id()) {
-      case template_url_starter_pack_data::kBookmarks:
+      case template_url_starter_pack_data::StarterPackId::kBookmarks:
         return KEYWORD_MODE_STARTER_PACK_BOOKMARKS;
-      case template_url_starter_pack_data::kHistory:
+      case template_url_starter_pack_data::StarterPackId::kHistory:
         return KEYWORD_MODE_STARTER_PACK_HISTORY;
-      case template_url_starter_pack_data::kTabs:
+      case template_url_starter_pack_data::StarterPackId::kTabs:
         return KEYWORD_MODE_STARTER_PACK_TABS;
-      case template_url_starter_pack_data::kGemini:
+      case template_url_starter_pack_data::StarterPackId::kGemini:
         return KEYWORD_MODE_STARTER_PACK_GEMINI;
-      case template_url_starter_pack_data::kPage:
+      case template_url_starter_pack_data::StarterPackId::kPage:
         return KEYWORD_MODE_STARTER_PACK_PAGE;
-      case template_url_starter_pack_data::kAiMode:
+      case template_url_starter_pack_data::StarterPackId::kAiMode:
         return KEYWORD_MODE_STARTER_PACK_AI_MODE;
       default:
         // In theory, this code path should never be reached.  However, it's
@@ -2060,7 +2073,7 @@ bool TemplateURL::KeepSearchTermsInURL(const GURL& url,
   std::vector<std::string> query_params;
   if (keep_search_intent_params && !data().search_intent_params.empty()) {
     for (net::QueryIterator it(url); !it.IsAtEnd(); it.Advance()) {
-      if (!base::Contains(data().search_intent_params, it.GetKey())) {
+      if (!std::ranges::contains(data().search_intent_params, it.GetKey())) {
         continue;
       }
       query_params.push_back(base::StrCat({it.GetKey(), "=", it.GetValue()}));
@@ -2138,7 +2151,7 @@ void TemplateURL::EncodeSearchTerms(
     std::u16string* encoded_terms,
     std::u16string* encoded_original_query, bool is_in_post) const {
   std::vector<std::string> encodings(input_encodings());
-  if (!base::Contains(encodings, "UTF-8")) {
+  if (!std::ranges::contains(encodings, "UTF-8")) {
     encodings.push_back("UTF-8");
   }
   for (auto i = encodings.begin(); i != encodings.end(); ++i) {
@@ -2405,6 +2418,21 @@ bool TemplateURL::CanPolicyBeOverridden() const {
     case TemplateURLData::PolicyOrigin::kNoPolicy:
       return false;
   }
+}
+
+std::u16string TemplateURL::GetFullName() const {
+  std::u16string short_name = AdjustedShortNameForLocaleDirection();
+
+  if (is_ask_type()) {
+    return l10n_util::GetStringFUTF16(IDS_OMNIBOX_SELECTED_KEYWORD_ASK_TEXT,
+                                      short_name);
+  } else if (starter_pack_id() ==
+             template_url_starter_pack_data::StarterPackId::kPage) {
+    return l10n_util::GetStringUTF16(IDS_STARTER_PACK_PAGE_KEYWORD_TEXT);
+  } else if (type() == TemplateURL::OMNIBOX_API_EXTENSION) {
+    return short_name;
+  }
+  return l10n_util::GetStringFUTF16(IDS_OMNIBOX_KEYWORD_TEXT_MD, short_name);
 }
 
 void TemplateURL::set_vivaldi_position(syncer::UniquePosition position) {

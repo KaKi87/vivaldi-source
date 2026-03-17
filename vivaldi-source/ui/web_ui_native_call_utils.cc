@@ -18,7 +18,8 @@ void closeActivity(content::WebContents* webContents) {
   JNIEnv* env = base::android::AttachCurrentThread();
   Java_WebUINativeCallUtils_closeActivity(env, webContents);
 }
-void createPrivacyReportNotification(int64_t adsBlocked, int64_t trackersBlocked) {
+void createPrivacyReportNotification(int64_t adsBlocked,
+                                     int64_t trackersBlocked) {
   JNIEnv* env = base::android::AttachCurrentThread();
   Java_WebUINativeCallUtils_createPrivacyReportNotification(env, adsBlocked,
                                                             trackersBlocked);

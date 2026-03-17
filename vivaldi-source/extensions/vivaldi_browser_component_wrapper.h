@@ -6,12 +6,14 @@
 #include <memory>
 #include <vector>
 
+#include "base/functional/callback.h"
 #include "base/notreached.h"
 
 // Helper instance to allow access code from non-linked components.
 
 // Only forward declarations are allowed here.
 class Browser;
+class BrowserWindowInterface;
 class Profile;
 class GURL;
 class TabStripModel;
@@ -209,10 +211,9 @@ class VivaldiBrowserComponentWrapper {
 
   // Add functions here.
   virtual int BrowserListGetCount() = 0;
-  virtual bool BrowserListHasActive() = 0;
+  virtual bool BrowserListHasActive(Profile* profile) = 0;
   virtual void BrowserListInitVivaldiCommandState() = 0;
   virtual Browser* FindBrowserWithTab(content::WebContents* tab) = 0;
-  virtual Browser* FindBrowserWithWindowId(int window_id) = 0;
   virtual Browser* FindLastActiveBrowserWithProfile(Profile* profile) = 0;
   virtual void BrowserDoCloseContents(content::WebContents* tab) = 0;
   virtual Browser* FindBrowserForEmbedderWebContents(
@@ -291,6 +292,8 @@ class VivaldiBrowserComponentWrapper {
       const std::string& tab_url,
       base::OnceCallback<void(VivaldiBrowserWindow* window)> callback) = 0;
   virtual Browser* FindBrowserByWindowId(
+      int32_t /*SessionId::id_type*/ window_id) = 0;
+  virtual BrowserWindowInterface* FindBrowserWindowInterfaceByWindowId(
       int32_t /*SessionId::id_type*/ window_id) = 0;
   virtual content::WebContents* FindActiveTabContentsInThisProfile(
       content::BrowserContext* context) = 0;

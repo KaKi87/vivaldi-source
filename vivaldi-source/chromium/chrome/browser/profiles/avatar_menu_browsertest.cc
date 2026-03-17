@@ -16,7 +16,6 @@
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/profiles/profile_picker.h"
 #include "chrome/browser/ui/profiles/profile_ui_test_utils.h"
@@ -90,8 +89,9 @@ IN_PROC_BROWSER_TEST_F(AvatarMenuBrowserTest, EditProfile_NoBrowser) {
   ScopedKeepAlive keep_alive(KeepAliveOrigin::BROWSER,
                              KeepAliveRestartOption::DISABLED);
   Profile* profile = browser()->profile();
-  BrowserList::CloseAllBrowsersWithProfile(profile);
-  ui_test_utils::WaitForBrowserToClose(browser());
+  ui_test_utils::BrowserDestroyedObserver observer(browser());
+  chrome::CloseAllBrowsersWithProfile(profile);
+  observer.Wait();
   EXPECT_EQ(chrome::GetBrowserCount(profile), 0U);
 
   std::optional<size_t> active_profile_index = menu()->GetActiveProfileIndex();
@@ -125,8 +125,9 @@ IN_PROC_BROWSER_TEST_F(AvatarMenuBrowserTest, EditProfile_SigninRequired) {
   // Keep the browser process running while browsers are closed.
   ScopedKeepAlive keep_alive(KeepAliveOrigin::BROWSER,
                              KeepAliveRestartOption::DISABLED);
-  BrowserList::CloseAllBrowsersWithProfile(profile);
-  ui_test_utils::WaitForBrowserToClose(browser());
+  ui_test_utils::BrowserDestroyedObserver observer(browser());
+  chrome::CloseAllBrowsersWithProfile(profile);
+  observer.Wait();
   EXPECT_EQ(chrome::GetBrowserCount(profile), 0U);
 
   std::optional<size_t> active_profile_index = menu()->GetActiveProfileIndex();
@@ -180,8 +181,9 @@ IN_PROC_BROWSER_TEST_F(AvatarMenuBrowserTest, Guest) {
   // Keep the browser process running while browsers are closed.
   ScopedKeepAlive keep_alive(KeepAliveOrigin::BROWSER,
                              KeepAliveRestartOption::DISABLED);
+  ui_test_utils::BrowserDestroyedObserver observer(browser());
   CloseAllBrowsers();
-  ui_test_utils::WaitForBrowserToClose(browser());
+  observer.Wait();
   EXPECT_EQ(chrome::GetTotalBrowserCount(), 0U);
 
   profiles::SwitchToGuestProfile();

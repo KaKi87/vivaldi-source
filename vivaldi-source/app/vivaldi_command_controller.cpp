@@ -55,14 +55,6 @@ bool GetIsSupportedInSettings(int action) {
 #endif
 }
 
-bool HasActiveWindow() {
-#if BUILDFLAG(ENABLE_EXTENSIONS)
-  return extensions::MenubarAPI::HasActiveWindow();
-#else
-  return false;
-#endif
-}
-
 void UpdateCommandsForVivaldi(CommandUpdater* command_updater_) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   extensions::MenubarAPI::UpdateCommandEnabled(command_updater_);
@@ -72,8 +64,8 @@ void UpdateCommandsForVivaldi(CommandUpdater* command_updater_) {
 bool ExecuteVivaldiCommands(Browser* browser, int id) {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   Profile* profile = browser->profile()->GetOriginalProfile();
-  return extensions::MenubarAPI::HandleActionById(profile,
-      browser->session_id().id(), id);
+  return extensions::MenubarAPI::HandleActionById(
+      profile, browser->session_id().id(), id);
 #else
   return false;
 #endif

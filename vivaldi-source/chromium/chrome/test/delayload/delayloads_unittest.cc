@@ -74,7 +74,7 @@ class DelayloadsTest : public testing::Test {
     CHECK(module_mmap.Initialize(module_path));
 
     base::win::PEImageAsData pe_image_data(
-        reinterpret_cast<HMODULE>(const_cast<uint8_t*>(module_mmap.data())));
+        reinterpret_cast<HMODULE>(module_mmap.mutable_bytes().data()));
     pe_image_data.EnumImportChunks(DelayloadsTest::ImportsCallback, &imports,
                                    nullptr);
     return imports;
@@ -163,7 +163,7 @@ class MinimumWindowsSupportTest : public DelayloadsTest {
 
     CHECK(module_mmap.Initialize(module_path));
     base::win::PEImageAsData pe_image_data(
-        reinterpret_cast<HMODULE>(const_cast<uint8_t*>(module_mmap.data())));
+        reinterpret_cast<HMODULE>(module_mmap.mutable_bytes().data()));
     pe_image_data.EnumAllImports(
         MinimumWindowsSupportTest::DetailedImportsCallback, &imports, nullptr);
     return imports;
@@ -242,19 +242,12 @@ TEST_F(DelayloadsTest, ChromeDllDelayloadsCheck) {
          "target was built, instead of delayloads_unittests.exe";
 
   static const char* const kValidFilePatterns[] = {
-      "KERNEL32.dll",
       "chrome_elf.dll",
-      "DWrite.dll",
       "CRYPT32.dll",
-      "dhcpcsvc.DLL",
-      "IPHLPAPI.DLL",
+      "DWrite.dll",
+      "KERNEL32.dll",
       "ntdll.dll",
-      "Secur32.dll",
-      "USERENV.dll",
-      "WINHTTP.dll",
       "WINMM.dll",
-      "WINSPOOL.DRV",
-      "WINTRUST.dll",
       "WS2_32.dll",
       // On 64 bit the Version API's like VerQueryValue come from VERSION.dll.
       // It depends on kernel32, advapi32 and api-ms-win-crt*.dll. This should

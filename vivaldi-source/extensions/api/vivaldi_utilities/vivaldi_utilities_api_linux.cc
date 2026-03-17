@@ -130,22 +130,23 @@ bool UtilitiesGetSystemDateFormatFunction::ReadDateFormats(
   return true;
 }
 
-std::optional<bool>
-UtilitiesIsVivaldiPinnedToLaunchBarFunction::CheckIsPinned() {
+void UtilitiesIsVivaldiPinnedToLaunchBarFunction::CheckIsPinned(
+    IsPinnedCallback callback) {
   if (dock::GnomeLaunchBar::IsGnomeRunning()) {
-    return dock::GnomeLaunchBar::IsVivaldiPinned();
+    std::move(callback).Run(dock::GnomeLaunchBar::IsVivaldiPinned());
+  } else {
+    LOG(INFO) << "Pinning is not suppported by the current linux environment.";
+    std::move(callback).Run(std::nullopt);
   }
-
-  LOG(INFO) << "Pinning is not suppported by the current linux environment.";
-  return std::nullopt;
 }
 
-bool UtilitiesPinVivaldiToLaunchBarFunction::PinToLaunchBar() {
+void UtilitiesPinVivaldiToLaunchBarFunction::PinToLaunchBar(
+    HasPinnedCallback callback) {
+  bool result = false;
   if (dock::GnomeLaunchBar::IsGnomeRunning()) {
-    return dock::GnomeLaunchBar::PinVivaldi();
+    result = dock::GnomeLaunchBar::PinVivaldi();
   }
-
-  return false;
+  std::move(callback).Run(result);
 }
 
 }  // namespace extensions

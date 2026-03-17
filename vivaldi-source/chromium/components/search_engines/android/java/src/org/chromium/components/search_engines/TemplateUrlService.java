@@ -5,6 +5,7 @@
 package org.chromium.components.search_engines;
 
 import org.jni_zero.CalledByNative;
+import org.jni_zero.JniType;
 import org.jni_zero.NativeMethods;
 
 import org.chromium.base.ObserverList;
@@ -390,6 +391,19 @@ public class TemplateUrlService {
     }
 
     /**
+     * Finds the full name for the given keyword.
+     *
+     * @param keyword The templateUrl keyword to look up.
+     * @return The full name of the specified search engine that contains the keyword.
+     */
+    public @Nullable String getFullNameFromTemplateUrl(String keyword) {
+        String fullName =
+                TemplateUrlServiceJni.get()
+                        .getFullNameFromTemplateUrl(mNativeTemplateUrlServiceAndroid, keyword);
+        return fullName.isEmpty() ? null : fullName;
+    }
+
+    /**
      * Adds a search engine, set by Play API.
      *
      * @param name The name of the search engine to be added.
@@ -497,6 +511,10 @@ public class TemplateUrlService {
 
         int getSearchEngineTypeFromTemplateUrl(
                 long nativeTemplateUrlServiceAndroid, String keyword);
+
+        @JniType("std::u16string")
+        String getFullNameFromTemplateUrl(
+                long nativeTemplateUrlServiceAndroid, @JniType("std::u16string") String keyword);
 
         String addSearchEngineForTesting(
                 long nativeTemplateUrlServiceAndroid, String keyword, int offset);

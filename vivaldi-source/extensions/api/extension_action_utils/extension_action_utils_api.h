@@ -10,10 +10,10 @@
 
 #include "base/memory/singleton.h"
 #include "chrome/browser/extensions/api/extension_action/extension_action_api.h"
-//#include "chrome/browser/extensions/commands/command_service.h"
-#include "chrome/browser/extensions/external_install_error.h"
+// #include "chrome/browser/extensions/commands/command_service.h"
 #include "chrome/browser/extensions/extension_error_ui.h"
 #include "chrome/browser/extensions/extension_uninstall_dialog.h"
+#include "chrome/browser/extensions/external_install_error.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_list_observer.h"
 #include "components/keyed_service/content/browser_context_keyed_service_factory.h"
@@ -82,8 +82,6 @@ class ExtensionActionUtil : public KeyedService,
   void GetExtensionsInfo(const ExtensionSet& extensions,
                          extensions::ToolbarExtensionInfoList* extension_list);
 
-
-
  private:
   // KeyedService implementation.
   void Shutdown() override;
@@ -107,8 +105,6 @@ class ExtensionActionUtil : public KeyedService,
   std::unique_ptr<PrefChangeRegistrar> prefs_registrar_;
 
   const raw_ptr<Profile> profile_;
-
-
 };
 
 class ExtensionActionUtilsGetToolbarExtensionsFunction
@@ -220,7 +216,6 @@ class ExtensionActionUtilsTriggerGlobalErrorsFunction
 };
 
 ////////
-
 
 }  // namespace extensions
 

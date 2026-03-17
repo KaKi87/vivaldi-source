@@ -18,10 +18,11 @@ class ExtensionActionDispatcherBridgeImpl
       observers_;
 
  public:
-  void AddObserver(content::BrowserContext* context,
+  void AddObserver(
+      content::BrowserContext* context,
       VivaldiBrowserComponentWrapper::ExtensionActionDispatcherBridge::Observer*
           observer) {
-    if (observers_.empty()) { // First call.
+    if (observers_.empty()) {  // First call.
       extensions::ExtensionActionDispatcher::Get(context)->AddObserver(this);
     }
     observers_.AddObserver(observer);
@@ -32,7 +33,7 @@ class ExtensionActionDispatcherBridgeImpl
       VivaldiBrowserComponentWrapper::ExtensionActionDispatcherBridge::Observer*
           observer) {
     observers_.RemoveObserver(observer);
-    if (observers_.empty()) { // Last call.
+    if (observers_.empty()) {  // Last call.
       extensions::ExtensionActionDispatcher::Get(context)->RemoveObserver(this);
     }
   }
@@ -47,33 +48,31 @@ class ExtensionActionDispatcherBridgeImpl
 };
 
 class TabResourceUsageCollectorBridgeImpl
-  : public TabResourceUsageCollector::Observer {
-
-  base::ObserverList<
-      VivaldiBrowserComponentWrapper::TabResourceUsageCollectorBridge::Observer>::
-      Unchecked
+    : public TabResourceUsageCollector::Observer {
+  base::ObserverList<VivaldiBrowserComponentWrapper::
+                         TabResourceUsageCollectorBridge::Observer>::Unchecked
       observers_;
 
-  public:
+ public:
+  void AddObserver(
+      VivaldiBrowserComponentWrapper::TabResourceUsageCollectorBridge::Observer*
+          observer) {
+    if (observers_.empty()) {
+      TabResourceUsageCollector::Get()->AddObserver(this);
+    }
+    observers_.AddObserver(observer);
+  }
 
-  void AddObserver(VivaldiBrowserComponentWrapper::
-                        TabResourceUsageCollectorBridge::Observer* observer) {
-     if (observers_.empty()) {
-       TabResourceUsageCollector::Get()->AddObserver(this);
-     }
-     observers_.AddObserver(observer);
-   }
+  void RemoveObserver(
+      VivaldiBrowserComponentWrapper::TabResourceUsageCollectorBridge::Observer*
+          observer) {
+    observers_.RemoveObserver(observer);
+    if (observers_.empty()) {
+      TabResourceUsageCollector::Get()->RemoveObserver(this);
+    }
+  }
 
-   void RemoveObserver(
-       VivaldiBrowserComponentWrapper::TabResourceUsageCollectorBridge::
-           Observer* observer) {
-     observers_.RemoveObserver(observer);
-     if (observers_.empty()) {
-       TabResourceUsageCollector::Get()->RemoveObserver(this);
-     }
-   }
-
-  //TabResourceUsageCollector::Observer
+  // TabResourceUsageCollector::Observer
   void OnTabResourceMetricsRefreshed() override;
 };
 
@@ -138,14 +137,14 @@ class VivaldiBrowserComponentWrapperImpl
       ContentSettingChangedBridge::Observer* observer) override;
 
   void AddTabResourceUsageObserver(
-    VivaldiBrowserComponentWrapper::TabResourceUsageCollectorBridge::Observer*
-    observer) override {
+      VivaldiBrowserComponentWrapper::TabResourceUsageCollectorBridge::Observer*
+          observer) override {
     tab_resource_usage_bridge_impl_.AddObserver(observer);
   }
 
   void RemoveTabResourceUsageObserver(
-    VivaldiBrowserComponentWrapper::TabResourceUsageCollectorBridge::Observer*
-    observer) override {
+      VivaldiBrowserComponentWrapper::TabResourceUsageCollectorBridge::Observer*
+          observer) override {
     tab_resource_usage_bridge_impl_.RemoveObserver(observer);
   }
 
@@ -163,10 +162,9 @@ class VivaldiBrowserComponentWrapperImpl
 
   // Add functions here.
   int BrowserListGetCount() override;
-  bool BrowserListHasActive() override;
+  bool BrowserListHasActive(Profile* profile) override;
   void BrowserListInitVivaldiCommandState() override;
   Browser* FindBrowserWithTab(content::WebContents* tab) override;
-  Browser* FindBrowserWithWindowId(int window_id) override;
   Browser* FindLastActiveBrowserWithProfile(Profile* profile) override;
   void BrowserDoCloseContents(content::WebContents* tab) override;
   Browser* FindBrowserForEmbedderWebContents(
@@ -188,9 +186,8 @@ class VivaldiBrowserComponentWrapperImpl
       content::WebContents* guest_webcontents,
       content::WebContents* source,
       const content::OpenURLParams& params) override;
-  bool HandleNonNavigationAboutURL(
-      const GURL& url,
-      content::WebContents* webcontents) override;
+  bool HandleNonNavigationAboutURL(const GURL& url,
+                                   content::WebContents* webcontents) override;
   int GetContentSetting(
       content::WebContents* contents,
       const GURL& primary_url,
@@ -225,8 +222,9 @@ class VivaldiBrowserComponentWrapperImpl
       std::string content_setting_string) override;
 
   Browser* GetWorkspaceBrowser(const double workspace_id) override;
-  content::WebContents* GetFollowerTab(Browser* browser,
-                                       const std::string follower_ext_id) override;
+  content::WebContents* GetFollowerTab(
+      Browser* browser,
+      const std::string follower_ext_id) override;
   int CountTabsInWorkspace(TabStripModel* tab_strip,
                            const double workspace_id) override;
   VivaldiBrowserWindow* VivaldiBrowserWindowFromId(int id) override;
@@ -245,6 +243,8 @@ class VivaldiBrowserComponentWrapperImpl
       base::OnceCallback<void(VivaldiBrowserWindow* window)> callback) override;
 
   Browser* FindBrowserByWindowId(int32_t window_id) override;
+  BrowserWindowInterface* FindBrowserWindowInterfaceByWindowId(
+      int32_t window_id) override;
   content::WebContents* FindActiveTabContentsInThisProfile(
       content::BrowserContext* context) override;
   void UpdateMuting(content::WebContents* active_web_contents,
@@ -257,10 +257,10 @@ class VivaldiBrowserComponentWrapperImpl
       int tab_id,
       std::string* error) override;
   void DoBeforeUnloadFired(content::WebContents* web_contents,
-                                   bool proceed,
-                                   bool* proceed_to_fire_unload) override;
+                           bool proceed,
+                           bool* proceed_to_fire_unload) override;
   void GetTabPerformanceData(content::WebContents* web_contents,
-                                     uint64_t& memory_usage) override;
+                             uint64_t& memory_usage) override;
   void LoadTabContentsIfNecessary(content::WebContents* web_contents) override;
   std::vector<tabs::TabAlert> GetTabAlertStatesForContents(
       content::WebContents* contents) override;
@@ -269,11 +269,13 @@ class VivaldiBrowserComponentWrapperImpl
       std::string& original_language,
       std::string& target_language) override;
   void RevertTranslation(content::WebContents* web_contents) override;
-  void ActivateWebContentsInTabStrip(content::WebContents* web_contents) override;
-  bool ShowGlobalError(content::BrowserContext* context, int command_id, int window_id) override;
-  bool GetGlobalErrors(
-      content::BrowserContext* context,
-      std::vector<ExtensionInstallError*>& jserrors) override;
+  void ActivateWebContentsInTabStrip(
+      content::WebContents* web_contents) override;
+  bool ShowGlobalError(content::BrowserContext* context,
+                       int command_id,
+                       int window_id) override;
+  bool GetGlobalErrors(content::BrowserContext* context,
+                       std::vector<ExtensionInstallError*>& jserrors) override;
   void AddGuestToTabStripModel(content::WebContents* source_content,
                                content::WebContents* guest_content,
                                int windowId,
@@ -293,7 +295,6 @@ class VivaldiBrowserComponentWrapperImpl
                                   int* out_tab_index) override;
   int ExtensionTabUtilGetTabId(const content::WebContents* contents) override;
 
-
   bool TopSitesFactoryUpdateNow(
       content::BrowserContext* browser_context) override;
   void TopSitesFactoryAddObserver(content::BrowserContext* browser_context,
@@ -305,8 +306,8 @@ class VivaldiBrowserComponentWrapperImpl
   bookmarks::BookmarkModel* GetBookmarkModelForBrowserContext(
       content::BrowserContext* browser_context) override;
   const bookmarks::BookmarkNode* GetBookmarkNodeByID(
-      bookmarks::BookmarkModel* model, int64_t id) override;
-
+      bookmarks::BookmarkModel* model,
+      int64_t id) override;
 
   bool GetControllerFromWindowID(ExtensionFunction* function,
                                  int window_id,
@@ -339,11 +340,10 @@ class VivaldiBrowserComponentWrapperImpl
   bool GetSendTabToSelfTargets(
       Profile* profile,
       std::vector<SendTabToSelfTarget*>& items) override;
-  bool SendTabToSelfAddToModel(
-      Profile* profile,
-      GURL url,
-      std::string title,
-      std::string guid) override;
+  bool SendTabToSelfAddToModel(Profile* profile,
+                               GURL url,
+                               std::string title,
+                               std::string guid) override;
 
   extensions::DevtoolsConnectorItem* ConnectDevToolsWindow(
       content::BrowserContext* browser_context,
@@ -396,19 +396,20 @@ class VivaldiBrowserComponentWrapperImpl
       content::WebContents* web_contents) override;
 
   extensions::VivaldiPrivateTabObserver*
-  VivaldiPrivateTabObserverFromWebContents(content::WebContents* contents) override;
+  VivaldiPrivateTabObserverFromWebContents(
+      content::WebContents* contents) override;
 
   void OpenExtensionOptionPage(const extensions::Extension* extension,
-                                       Browser* browser) override;
+                               Browser* browser) override;
 
   const std::vector<std::unique_ptr<extensions::MenuItem>>*
   GetExtensionMenuItems(content::BrowserContext* context,
                         std::string id) override;
 
   bool ExecuteCommandMenuItem(content::BrowserContext* browser_context,
-                                      std::string extension_id,
-                                      int32_t window_id,
-                                      std::string menu_id) override;
+                              std::string extension_id,
+                              int32_t window_id,
+                              std::string menu_id) override;
 
   //<..>
 };

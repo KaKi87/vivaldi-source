@@ -28,5 +28,5 @@ class PickerFrame : public views::FrameView {
   raw_ptr<ProfilePickerView> profile_picker_;
 };
 
-}
+}  // namespace vivaldi
 #endif

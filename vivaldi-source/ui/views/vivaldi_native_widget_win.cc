@@ -46,7 +46,6 @@ class VivaldiDesktopNativeWidgetWin : public views::DesktopNativeWidgetAura {
   raw_ptr<VivaldiBrowserWindow> window_;
   // Owned by superclass DesktopNativeWidgetAura.
   raw_ptr<views::DesktopWindowTreeHost> tree_host_;
-
 };
 
 }  // namespace

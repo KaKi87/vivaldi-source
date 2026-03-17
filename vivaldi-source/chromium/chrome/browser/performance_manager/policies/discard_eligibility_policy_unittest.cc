@@ -8,8 +8,8 @@
 #include <string>
 #include <utility>
 
-#include "base/containers/contains.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/test/metrics/histogram_tester.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
@@ -275,8 +275,6 @@ TEST_F(DiscardEligibilityPolicyTest, TestCannotDiscardPdf) {
       page_node(),
       {DiscardReason::EXTERNAL, DiscardReason::FROZEN_WITH_GROWING_MEMORY});
 }
-
-// TODO(crbug.com/422767952): Add a test case for Glic-pinned tabs.
 
 TEST_F(DiscardEligibilityPolicyTest, TestCannotDiscardPageWithoutMainFrame) {
   ResetFrameNode();
@@ -588,6 +586,34 @@ TEST_F(DiscardEligibilityPolicyTest, TestAlwaysDiscardForTesting) {
       ->SetIsActiveTabForTesting(true);
 
   ExpectCanDiscardEligibleAllReasons(page_node());
+}
+
+TEST_F(DiscardEligibilityPolicyTest, RecordsDiscardDecisionMetrics) {
+  base::HistogramTester histogram_tester;
+
+  // Set the page as visible so that the discard attempt is rejected.
+  page_node()->SetIsVisible(true);
+
+  // Create a vector to capture the reasons.
+  std::vector<CannotDiscardReason> reasons;
+
+  const auto* policy = DiscardEligibilityPolicy::GetFromGraph(graph());
+
+  // Pass the address of 'reasons' instead of nullptr
+  policy->CanDiscard(page_node(), DiscardReason::URGENT, base::TimeDelta(),
+                     &reasons);
+
+  histogram_tester.ExpectBucketCount(
+      "PerformanceManager.Discarding.DecisionResult",
+      CanDiscardResult::kProtected, 1);
+
+  histogram_tester.ExpectBucketCount(
+      "PerformanceManager.Discarding.DecisionResult.Urgent",
+      CanDiscardResult::kProtected, 1);
+
+  histogram_tester.ExpectBucketCount(
+      "PerformanceManager.Discarding.ProtectionReason",
+      CannotDiscardReason::kVisible, 1);
 }
 
 }  // namespace performance_manager::policies

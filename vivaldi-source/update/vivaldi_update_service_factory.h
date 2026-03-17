@@ -26,7 +26,7 @@ class VivaldiUpdateServiceFactory : public BrowserContextKeyedServiceFactory {
   static VivaldiUpdateService* GetForProfile(Profile* profile);
 
   static VivaldiUpdateService* GetForProfileIfExists(Profile* profile,
-                                              ServiceAccessType sat);
+                                                     ServiceAccessType sat);
 
   static VivaldiUpdateService* GetForProfileWithoutCreating(Profile* profile);
 

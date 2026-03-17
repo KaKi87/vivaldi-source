@@ -27,8 +27,8 @@
 #include "chrome/browser/sessions/exit_type_service.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_finder.h"
-#include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/common/buildflags.h"
 #include "chrome/common/pref_names.h"
 #include "components/keep_alive_registry/keep_alive_registry.h"
@@ -40,6 +40,7 @@
 #if BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ash/boot_times_recorder/boot_times_recorder.h"
 #include "chrome/browser/lifetime/application_lifetime_chromeos.h"
+#include "chromeos/ash/components/login/session/session_termination_manager.h"
 #else  // !BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/ui/profiles/profile_picker.h"
 #endif  // BUILDFLAG(IS_CHROMEOS)
@@ -53,7 +54,7 @@
 #include "chrome/browser/sessions/session_data_service_factory.h"
 #endif  // BUILDFLAG(ENABLE_SESSION_SERVICE)
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/background/glic/glic_background_mode_manager.h"
 #endif
 
@@ -91,10 +92,11 @@ void AttemptRestartInternal(IgnoreUnloadHandlers ignore_unload_handlers) {
   KeepAliveRegistry::GetInstance()->SetRestarting();
 
 #if BUILDFLAG(IS_CHROMEOS)
-  DCHECK(!chrome::IsSendingStopRequestToSessionManager());
+  DCHECK(
+      !ash::SessionTerminationManager::IsSendingStopRequestToSessionManager());
 
   ash::BootTimesRecorder::Get()->set_restart_requested();
-  chrome::SetSendStopRequestToSessionManager(false);
+  ash::SessionTerminationManager::SetSendStopRequestToSessionManager(false);
 
   // If an update is pending StopSession() will trigger a system reboot,
   // which in turn will send SIGTERM to Chrome, and that ends up processing
@@ -128,7 +130,7 @@ void ShutdownIfNoBrowsers() {
   // Tell everyone that we are shutting down.
   browser_shutdown::SetTryingToQuit(true);
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   auto* glic_background_mode_manager =
       glic::GlicBackgroundModeManager::GetInstance();
   if (glic_background_mode_manager) {
@@ -310,7 +312,7 @@ void MarkAsCleanShutdown() {
 }
 
 bool AreAllBrowsersCloseable() {
-  if (BrowserList::GetInstance()->empty()) {
+  if (GlobalBrowserCollection::GetInstance()->IsEmpty()) {
     return true;
   }
 

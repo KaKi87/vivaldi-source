@@ -678,7 +678,8 @@ ImportResult OperaImporter::ImportWand() {
     return import_result::Error(IDS_IMPORT_ERROR_OPERA_WAND_FILE_NOT_FOUND);
   }
   if (master_password_required_ && !GetMasterPasswordInfo()) {
-    return import_result::Error(IDS_IMPORT_ERROR_OPERA_MASTER_PASSWORD_REQUIRED);
+    return import_result::Error(
+        IDS_IMPORT_ERROR_OPERA_MASTER_PASSWORD_REQUIRED);
   }
   base::FilePath file(wandfilename_);
 

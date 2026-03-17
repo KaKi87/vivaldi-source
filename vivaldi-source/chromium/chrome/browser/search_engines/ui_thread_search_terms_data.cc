@@ -23,6 +23,11 @@
 #include "components/rlz/rlz_tracker.h"  // nogncheck crbug.com/1125897
 #endif
 
+// Vivaldi
+#include "chrome/browser/profiles/profile_manager.h"
+#include "components/prefs/pref_service.h"
+#include "prefs/vivaldi_pref_names.h"
+
 using content::BrowserThread;
 
 UIThreadSearchTermsData::UIThreadSearchTermsData() {
@@ -96,4 +101,22 @@ std::string UIThreadSearchTermsData::GoogleImageSearchSource() const {
 
 size_t UIThreadSearchTermsData::EstimateMemoryUsage() const {
   return 0;
+}
+
+std::string_view UIThreadSearchTermsData::VivaldiGetKagiToken() const {
+  DCHECK(!content::BrowserThread::IsThreadInitialized(
+             content::BrowserThread::UI) ||
+         content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
+  const Profile* profile =
+      g_browser_process->profile_manager()->GetLastUsedProfileIfLoaded();
+  if (!profile) {
+    return "";
+  }
+
+  const PrefService* prefs = profile->GetOriginalProfile()->GetPrefs();
+  if (!prefs) {
+    return "";
+  }
+
+  return prefs->GetString(vivaldiprefs::kVivaldiSearchEnginesKagiToken);
 }

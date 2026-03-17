@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include "base/base64.h"
+#include "base/strings/strcat.h"
 #include "base/test/run_until.h"
 #include "base/test/scoped_feature_list.h"
 #include "cc/test/pixel_comparator.h"
@@ -42,7 +43,7 @@ const SkBitmap GenerateSquareBitmap(int size, SkColor color) {
 
 class MockExecutionEngine : public ExecutionEngine {
  public:
-  explicit MockExecutionEngine(Profile* profile) : ExecutionEngine(profile) {}
+  explicit MockExecutionEngine(ActorTask& task) : ExecutionEngine(task) {}
   ~MockExecutionEngine() override = default;
 
   MOCK_METHOD(actor_login::ActorLoginService&,
@@ -52,8 +53,18 @@ class MockExecutionEngine : public ExecutionEngine {
   MOCK_METHOD(favicon::FaviconService*, GetFaviconService, (), (override));
 };
 
-using AttemptLoginToolInteractiveUiTestBase =
-    InteractiveBrowserTestMixin<ActorToolsTest>;
+class AttemptLoginToolInteractiveUiTestBase
+    : public InteractiveBrowserTestMixin<ActorToolsTest> {
+ public:
+  AttemptLoginToolInteractiveUiTestBase() {
+    scoped_feature_list_.InitAndEnableFeatureWithParameters(
+        features::kGlicActor,
+        {{features::kGlicActorPolicyControlExemption.name, "true"}});
+  }
+
+ private:
+  base::test::ScopedFeatureList scoped_feature_list_;
+};
 
 // TODO(crbug.com/441533831): We should migrate the Javascript tests to
 // typescript.
@@ -100,7 +111,7 @@ class AttemptLoginToolInteractiveUiTest
     ASSERT_TRUE(embedded_https_test_server().Start());
 
     // Open glic window and track instance.
-    RunTestSequence(OpenGlicWindow(GlicWindowMode::kDetached));
+    RunTestSequence(OpenGlic());
     TrackGlicInstanceWithTabIndex(
         InProcessBrowserTest::browser()->tab_strip_model()->active_index());
     // Create new task with instance as ActorTaskDelegate.
@@ -120,8 +131,6 @@ class AttemptLoginToolInteractiveUiTest
     auto create_task_result = create_task_future.Get();
     ASSERT_TRUE(create_task_result.has_value());
     task_id_ = TaskId(create_task_result.value());
-    actor_task().SetExecutionEngineForTesting(
-        CreateExecutionEngine(InProcessBrowserTest::browser()->profile()));
 
     ON_CALL(mock_execution_engine(), GetActorLoginService())
         .WillByDefault(ReturnRef(mock_login_service_));
@@ -148,9 +157,9 @@ class AttemptLoginToolInteractiveUiTest
         AttemptLoginToolInteractiveUiTestBase>::SetUpCommandLine(command_line);
   }
 
-  std::unique_ptr<ExecutionEngine> CreateExecutionEngine(
-      Profile* profile) override {
-    return std::make_unique<NiceMock<MockExecutionEngine>>(profile);
+  static std::unique_ptr<ExecutionEngine> CreateExecutionEngine(
+      ActorTask& task) {
+    return std::make_unique<NiceMock<MockExecutionEngine>>(task);
   }
 
   MockActorLoginService& mock_login_service() { return mock_login_service_; }
@@ -176,6 +185,9 @@ class AttemptLoginToolInteractiveUiTest
   base::test::ScopedFeatureList scoped_feature_list_;
 
   actor_login::Credential::Id::Generator credential_id_generator_;
+  ScopedExecutionEngineFactory mock_execution_engine_factory_{
+      base::BindRepeating(
+          AttemptLoginToolInteractiveUiTest::CreateExecutionEngine)};
 };
 
 }  // namespace
@@ -200,12 +212,10 @@ IN_PROC_BROWSER_TEST_P(AttemptLoginToolInteractiveUiTest, MAYBE_SmokeTest) {
       actor_login::LoginStatusResult::kSuccessUsernameAndPasswordFilled);
 
   // Toggle the glic window.
-  RunTestSequence(
-      InAnyContext(WithElement(
-          glic::test::kGlicContentsElementId,
-          [](::ui::TrackedElement* el) mutable {
-            static constexpr char kHandleDialogRequest[] =
-                R"js(
+  RunTestSequence(InAnyContext(WithElement(
+      glic::test::kGlicContentsElementId, [](::ui::TrackedElement* el) mutable {
+        static constexpr char kHandleDialogRequest[] =
+            R"js(
       (() => {
         /** Converts a PNG (Blob) to a base64 encoded string. */
         function blobToBase64(blob) {
@@ -259,10 +269,10 @@ IN_PROC_BROWSER_TEST_P(AttemptLoginToolInteractiveUiTest, MAYBE_SmokeTest) {
         });
       })();
               )js";
-            content::WebContents* glic_contents =
-                AsInstrumentedWebContents(el)->web_contents();
-            ASSERT_TRUE(content::ExecJs(glic_contents, kHandleDialogRequest));
-          })));
+        content::WebContents* glic_contents =
+            AsInstrumentedWebContents(el)->web_contents();
+        ASSERT_TRUE(content::ExecJs(glic_contents, kHandleDialogRequest));
+      })));
 
   std::unique_ptr<ToolRequest> action = MakeAttemptLoginRequest(*active_tab());
   ActResultFuture result;
@@ -271,36 +281,47 @@ IN_PROC_BROWSER_TEST_P(AttemptLoginToolInteractiveUiTest, MAYBE_SmokeTest) {
   // shouldn't be placed inside `RunTestSequence()`.
   ExpectOkResult(result);
 
-  // Note that the URL here is actually different from the URL for
-  // `red_bitmap()`. The differences are the metadata but not the pixel values.
-  // The test will compare the pixel values.
+  // Note that the URL here is the bitmap encoded `red_bitmap()` image, as
+  // bitmap encoding is what glic vends. I visually confirmed this is the same
+  // image.
   constexpr char kExpectedIconBase64Url[] =
-      "iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+"
-      "9AAAAI0lEQVR4AeyQMQ0AAAyDSP177hwsCCgJHxcp1BgkC99Res8BAAD//"
-      "+wxhQIAAAAGSURBVAMAZIwUAbOgDh0AAAAASUVORK5CYII=";
+      "Qk0aAgAAAAAAAIoAAAB8AAAACgAAAPb///"
+      "8BACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/"
+      "yBuaVcAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEA"
+      "AAAAAAAAAAAAAAAAAAAAAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//"
+      "wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//"
+      "8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//"
+      "AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//"
+      "wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//"
+      "8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//"
+      "AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//"
+      "wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//w==";
   const std::string kExpectedIconDataUrl =
-      base::StrCat({"data:image/png;base64,", kExpectedIconBase64Url});
+      base::StrCat({"data:image/bmp;base64,", kExpectedIconBase64Url});
   const std::string expected_request_origin =
       url::Origin::Create(url).Serialize();
+  const std::string expected_display_origin = "example.com:12345";
   auto expected_request =
-      base::Value::Dict()
+      base::DictValue()
           .Set("taskId", actor_task().id().value())
           .Set("showDialog", true)
           .Set("credentials",
-               base::Value::List()
-                   .Append(base::Value::Dict()
+               base::ListValue()
+                   .Append(base::DictValue()
                                .Set("id", GenerateCredentialId().value())
                                .Set("username", "username1")
                                .Set("sourceSiteOrApp",
                                     url.GetWithEmptyPath().spec())
                                .Set("requestOrigin", expected_request_origin)
+                               .Set("displayOrigin", expected_display_origin)
                                .Set("icon", kExpectedIconDataUrl))
-                   .Append(base::Value::Dict()
+                   .Append(base::DictValue()
                                .Set("id", GenerateCredentialId().value())
                                .Set("username", "username2")
                                .Set("sourceSiteOrApp",
                                     url.GetWithEmptyPath().spec())
                                .Set("requestOrigin", expected_request_origin)
+                               .Set("displayOrigin", expected_display_origin)
                                .Set("icon", kExpectedIconDataUrl)));
 
   // Verify the dialog request content.
@@ -317,13 +338,6 @@ IN_PROC_BROWSER_TEST_P(AttemptLoginToolInteractiveUiTest, MAYBE_SmokeTest) {
         auto eval_result = content::EvalJs(glic_contents, kGetRequestData);
         const auto& actual_request = eval_result.ExtractDict();
         ASSERT_EQ(expected_request, actual_request);
-        // Decode the icon from the web client, and compare the pixel values.
-        std::optional<std::vector<uint8_t>> decoded_icon =
-            base::Base64Decode(kExpectedIconBase64Url);
-        ASSERT_TRUE(decoded_icon.has_value());
-        ASSERT_TRUE(cc::MatchesBitmap(red_bitmap(),
-                                      gfx::PNGCodec::Decode(*decoded_icon),
-                                      cc::ExactPixelComparator()));
       })));
 
   // We selected the second credential in the dialog.

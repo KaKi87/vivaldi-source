@@ -303,7 +303,6 @@
 <translation id="5624959475330585145">Spyrja áður en ótryggar tengingar eru notaðar</translation>
 <translation id="5638309510554459422">Þú finnur viðbætur og þemu í <ph name="BEGIN_LINK" />vefverslun Chrome<ph name="END_LINK" /></translation>
 <translation id="5677928146339483299">Hamlað</translation>
-<translation id="5707185214361380026">Mistókst að hlaða upp viðbót frá:</translation>
 <translation id="5713171467967533494">Opna í Vivaldi vafra</translation>
 <translation id="5746169159649715125">Vista sem PDF</translation>
 <translation id="5747809636523347288">Líma og opna <ph name="URL" /></translation>
@@ -437,8 +436,8 @@ Geymdu lyklaskrána þína á öruggum stað. Þú munt þurfa á henni að hald
 <translation id="8023801379949507775">Uppfæra viðbætur núna</translation>
 <translation id="8071432093239591881">Prenta sem mynd</translation>
 <translation id="8118448640060360549">{EXTENSIONS_COUNT, plural,
-        =1 {# bookmark}
-        other {# bookmarks}}</translation>
+        =1 {# bókamerki}
+        other {# bókamerki}}</translation>
 <translation id="8135557862853121765"><ph name="NUM_KILOBYTES" />kB</translation>
 <translation id="8212008074015601248">{NUM_DOWNLOAD, plural,
         =1 {Niðurhal í gangi} other {Niðurhöl í gangi}}</translation>

@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">Apri in nuovo gruppo schede</translation>
 <translation id="1925021887439448749">Inserisci indirizzo web personalizzato</translation>
 <translation id="2038563949887743358">Attiva Richiedi sito desktop</translation>
+<translation id="2072027001582274150">Schede inutilizzate o duplicate</translation>
 <translation id="208033313373016095">Modalità lettura per le pagine web</translation>
 <translation id="2149973817440762519">Modifica segnalibro</translation>
 <translation id="2306442503286132111">Segnalibro salvato nella cartella <ph name="FOLDER_NAME" /></translation>
@@ -46,6 +47,10 @@
 <translation id="385051799172605136">Indietro</translation>
 <translation id="3987993985790029246">Copia il link</translation>
 <translation id="399014816462153200">Articoli letti:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> scheda}
+          other {<ph name="TAB_COUNT_MANY" /> schede, <ph name="TAB_COUNT_INCOGNITO" /> private}}</translation>
+<translation id="408336132633586393">Finestra privata</translation>
 <translation id="4121750346708795461">Se utilizzi questa applicazione, accetti il <ph name="BEGIN_LINK1" />Contratto di licenza per l'utente finale<ph name="END_LINK1" /> e l'<ph name="BEGIN_LINK2" />Informativa sulla privacy<ph name="END_LINK2" /> di Vivaldi.</translation>
 <translation id="4137746084635924146">Lingua del dispositivo</translation>
 <translation id="4167670741834902166">Nuova scheda privata</translation>
@@ -55,9 +60,7 @@
 <translation id="4269820728363426813">Copia indirizzo link</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Attiva il blocco schermo nelle impostazioni Android<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Gestore password</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {Schede e gruppi non utilizzati da 1 giorno o più}
-          other {Schede e gruppi non utilizzati da # giorni o più}}</translation>
+<translation id="441100617989818073">Schede e gruppi inutilizzati o duplicati</translation>
 <translation id="451872707440238414">Cerca nei segnalibri</translation>
 <translation id="4526803704855831732">Schede private</translation>
 <translation id="4532845899244822526">Scegli cartella</translation>
@@ -71,6 +74,9 @@ Tocca per cercare è una funzione disponibile solo quando Google è impostato co
 <translation id="4883379392681899581">Esci dalla modalità privata</translation>
 <translation id="4943872375798546930">Nessun risultato</translation>
 <translation id="49576331685473090">Blocco contenuti</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> scheda privata}
+          other {<ph name="TAB_COUNT_NORMAL" /> schede private}}</translation>
 <translation id="5079259810715830221">Quando un sito di Google chiede di precaricare privatamente i collegamenti sulla propria pagina, Vivaldi crittografa e precarica le pagine attraverso i server di Google senza cookie. Questo nasconde la tua identità dal sito precaricato.</translation>
 <translation id="5118676864324397542">Spazio di archiviazione di <ph name="APP_NAME" /></translation>
 <translation id="5144385790872094440">Alcune delle pagine che visiti sono precaricate. Le pagine potrebbero essere precaricate tramite i server di Google se collegate da un sito o un'app di Google.</translation>
@@ -103,6 +109,7 @@ Per modificare il termine di ricerca, premere a lungo per selezionare. Per perfe
 <translation id="6909589135458168665">Precarica le pagine</translation>
 <translation id="7029995644714925509">Quando un sito chiede di precaricare privatamente i link sulla propria pagina, Vivaldi crittografa e precarica le pagine attraverso i server di Google senza cookie. Questo nasconde la tua identità dal sito precaricato.</translation>
 <translation id="706339621163631076">Informativa sulla privacy di Vivaldi</translation>
+<translation id="7100573672995171864">Personalizza e controlla Vivaldi</translation>
 <translation id="732145680195464316">Segnalibro salvato in <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Invia una richiesta "Non tracciare"</translation>
 <translation id="7359002509206457351">Accedi ai metodi di pagamento</translation>
@@ -124,14 +131,11 @@ Per modificare il termine di ricerca, premere a lungo per selezionare. Per perfe
 <translation id="8348430946834215779">Usa HTTPS quando possibile e ricevi un avviso prima di caricare i siti che non lo supportano</translation>
 <translation id="8560602726703398413">Trova la tua lista di lettura nei segnalibri</translation>
 <translation id="85991616550051997">Vai alla pagina iniziale</translation>
-<translation id="8693232767599693749">Visualizza la modalità di lettura?</translation>
+<translation id="8738163682604285902">Visualizza modalità lettura?</translation>
 <translation id="8820817407110198400">Segnalibri</translation>
 <translation id="9042893549633094279">Privacy e Sicurezza</translation>
 <translation id="9063523880881406963">Disattiva Richiedi sito desktop</translation>
 <translation id="9080642952018487277">Entra in modalità privata</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {Non usato per 1 giorno o più}
-          other {Non usato per # giorni o più}}</translation>
 <translation id="930124987204876019">Cancella cronologia, cookie, dati dei siti, cache…</translation>
 <translation id="961856697154696964">Cancella dati di navigazione</translation>
 </translationbundle>

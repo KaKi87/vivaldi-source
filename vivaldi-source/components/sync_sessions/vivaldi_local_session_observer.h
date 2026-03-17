@@ -12,7 +12,7 @@ class ProfileIOS;
 using ProfileClass = ProfileIOS;
 
 namespace sync_sessions {
-  class SyncSessionsClient;
+class SyncSessionsClient;
 }
 #else
 class Profile;
@@ -62,6 +62,6 @@ class VivaldiLocalSessionObserver : public syncer::DeviceInfoTracker::Observer {
   base::WeakPtrFactory<VivaldiLocalSessionObserver> weak_factory_{this};
 };
 
-} // namespace vivaldi
+}  // namespace vivaldi
 
-#endif // COMPONENTS_SYNC_SESSIONS_VIV_SPECIFIC_OBSERVER_H_
+#endif  // COMPONENTS_SYNC_SESSIONS_VIV_SPECIFIC_OBSERVER_H_

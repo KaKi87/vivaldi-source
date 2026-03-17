@@ -86,7 +86,6 @@ Derbarê vê hişyariyê bêtir fêr bibe
 <translation id="4250431568374086873">Girêdana te ya bi vê malperê bi tevahî ne ewledar e</translation>
 <translation id="4265872034478892965">Ji aliyê rêbera te ve maf hatiye dayîn</translation>
 <translation id="4305666528087210886">Gihîştin bo pelê te pêk nayê</translation>
-<translation id="4408413947728134509">Kilor <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> sertîfîkaya têketina te nehat pejirandin an jî belkî yek nehatibe peydakirin.</translation>
 <translation id="4506599922270137252">Bi rêbera pergalê re têkilî deynî</translation>
 <translation id="4522570452068850558">Hûrgilî</translation>
@@ -101,7 +100,6 @@ Derbarê vê hişyariyê bêtir fêr bibe
 <translation id="483241715238664915">Hişyariyan vêxîne</translation>
 <translation id="4943872375798546930">Encam tune ye</translation>
 <translation id="5023310440958281426">Polîtîkayên rêbera xwe kontrol bike</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 bi kar tîne)} other {(# bi kar tîne)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Navnîşana nûnerê kontrol bike<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bit)</translation>
 <translation id="5355557959165512791">Tu nikarî niha biçî seredana <ph name="SITE" />ê. Ji ber ku sertîfîkaya te hatiye betalkirin. Çewtî û êrişên torê bi gelemperî demkî ne, loma dibe ku ev rûpel paşê bixebite.</translation>
@@ -121,7 +119,6 @@ Derbarê vê hişyariyê bêtir fêr bibe
 <translation id="5810442152076338065">Girêdana te bo <ph name="DOMAIN" />ê bi rêbaza kevn hatiye şîfrekirin.</translation>
 <translation id="5838278095973806738">Divê tu li ser vê malperê zanyariyên hestyarî (mînak pêborîn an kartên krediyê) nenivîsinî, ji ber ku êrîşkar dikarin wan bidizin.</translation>
 <translation id="5869405914158311789">Ev malper nayê gihîştin</translation>
-<translation id="5920262536204764679">{NUM_COOKIES, plural, =1 {1 dane tê bikaranîn} other {# dane tê bikaranîn }}</translation>
 <translation id="5932224571077948991">Malper reklamên nederbasdar an xapînok nîşan dide</translation>
 <translation id="6051221802930200923">Tu nikarî niha biçî seredana <ph name="SITE" /> ê. Ji ber ku malper sertîfîkaya westarî bi kar tîne. Çewtî û êrişên torê bi gelemperî demkî ne, loma dibe ku ev rûpel paşê bixebite.</translation>
 <translation id="6146055958333702838">Kabloyan kontrol bike û amûrên ku tu bi kar tînî -berhêlker, modem

@@ -8,13 +8,14 @@
 #import "ios/chrome/browser/bookmarks/ui_bundled/bookmark_utils_ios.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
 
-using vivaldi_bookmark_kit::GetNickname;
-using vivaldi_bookmark_kit::GetThumbnail;
-using vivaldi_bookmark_kit::GetSpeeddial;
 using vivaldi_bookmark_kit::GetDescription;
 using vivaldi_bookmark_kit::GetDisplayURL;
+using vivaldi_bookmark_kit::GetNickname;
+using vivaldi_bookmark_kit::GetSpeeddial;
+using vivaldi_bookmark_kit::GetThumbnail;
 
-@interface VivaldiSpeedDialItem() <NSItemProviderWriting>{}
+@interface VivaldiSpeedDialItem () <NSItemProviderWriting> {
+}
 @end
 
 @implementation VivaldiSpeedDialItem
@@ -37,8 +38,7 @@ using vivaldi_bookmark_kit::GetDisplayURL;
   return self;
 }
 
-- (instancetype)initWithTitle:(NSString*)title
-                          url:(GURL)url {
+- (instancetype)initWithTitle:(NSString*)title url:(GURL)url {
   self = [super init];
   if (self) {
     _title = title;
@@ -51,13 +51,14 @@ using vivaldi_bookmark_kit::GetDisplayURL;
 }
 
 #pragma mark - NSITEMPROVIDER_WRITING
-+ (NSArray<NSString *> *)writableTypeIdentifiersForItemProvider {
-  return @[@"public.url"];
++ (NSArray<NSString*>*)writableTypeIdentifiersForItemProvider {
+  return @[ @"public.url" ];
 }
 
-- (nullable NSProgress*)loadDataWithTypeIdentifier:(NSString *)typeIdentifier
-      forItemProviderCompletionHandler: (void (^)(NSData * _Nullable data,
-          NSError * _Nullable error))completionHandler {
+- (nullable NSProgress*)loadDataWithTypeIdentifier:(NSString*)typeIdentifier
+                  forItemProviderCompletionHandler:
+                      (void (^)(NSData* _Nullable data,
+                                NSError* _Nullable error))completionHandler {
   return [NSProgress new];
 }
 
@@ -92,11 +93,11 @@ using vivaldi_bookmark_kit::GetDisplayURL;
 
   NSString* replaceRange = @"www.";
   if (([host length] >= [replaceRange length]) &&
-      ([[host substringToIndex: [replaceRange length]]
-        isEqualToString:replaceRange]))
-    return [host substringFromIndex: [replaceRange length]];
+      ([[host substringToIndex:[replaceRange length]]
+          isEqualToString:replaceRange]))
+    return [host substringFromIndex:[replaceRange length]];
   else
-      return host;
+    return host;
 }
 
 - (BOOL)isInternalPage {

@@ -7,14 +7,17 @@
 
 #import "base/values.h"
 
-typedef void (^ServerRequestCompletionHandler)
-    (NSData* data, NSURLResponse* response, NSError* error);
+typedef void (^ServerRequestCompletionHandler)(NSData* data,
+                                               NSURLResponse* response,
+                                               NSError* error);
 
 std::optional<base::Value> NSDataToDict(NSData* data);
 
-void sendRequestToServer(base::Value::Dict dict, NSURL* url,
-    ServerRequestCompletionHandler handler, NSURLSessionDataTask* task);
+void sendRequestToServer(base::DictValue dict,
+                         NSURL* url,
+                         ServerRequestCompletionHandler handler,
+                         NSURLSessionDataTask* task);
 
 NSString* GetDocumentsFolderPath();
 
-#endif // IOS_UI_SETTINGS_SYNC_VIVALDI_CREATE_ACCOUNT_UI_HELPER_H_
+#endif  // IOS_UI_SETTINGS_SYNC_VIVALDI_CREATE_ACCOUNT_UI_HELPER_H_

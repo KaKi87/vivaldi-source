@@ -8,8 +8,8 @@
 #include <utility>
 #include <vector>
 
-#include "base/values.h"
 #include "base/synchronization/waitable_event.h"
+#include "base/values.h"
 #include "ui/base/models/tree_node_model.h"
 
 class Profile;
@@ -26,7 +26,7 @@ class IndexLoadDetails;
 
 class Index_Node : public ui::TreeNode<Index_Node> {
  public:
-  enum Type {kNode=0, kFolder=1};
+  enum Type { kNode = 0, kFolder = 1 };
 
   Index_Node(const std::string& guid, int64_t id, Type type = kNode);
   ~Index_Node() override;
@@ -89,14 +89,14 @@ class Index_Node : public ui::TreeNode<Index_Node> {
   int tabs_count() const { return tabs_count_; }
   void SetQuarantineCount(int count) { quarantine_count_ = count; }
   int quarantine_count() const { return quarantine_count_; }
-  void SetWorkspaces(base::Value::List workspaces) {
+  void SetWorkspaces(base::ListValue workspaces) {
     workspaces_ = std::move(workspaces);
   }
-  const base::Value::List &workspaces() const { return workspaces_; }
-  void SetGroupNames(base::Value::Dict group_names) {
+  const base::ListValue& workspaces() const { return workspaces_; }
+  void SetGroupNames(base::DictValue group_names) {
     group_names_ = std::move(group_names);
   }
-  const base::Value::Dict &group_names() const { return group_names_; }
+  const base::DictValue& group_names() const { return group_names_; }
 
  private:
   friend class Index_Model;
@@ -137,8 +137,8 @@ class Index_Node : public ui::TreeNode<Index_Node> {
   std::string container_guid_;
   int64_t id_;
   Type type_;
-  base::Value::List workspaces_;
-  base::Value::Dict group_names_;
+  base::ListValue workspaces_;
+  base::DictValue group_names_;
 
   // Next available id is copied from this value.
   static int64_t id_counter;

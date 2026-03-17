@@ -53,7 +53,6 @@ void OmniboxServiceFactory::ShutdownForProfile(Profile* profile) {
   factory->BrowserContextDestroyed(profile);
 }
 
-
 bool OmniboxServiceFactory::ServiceIsCreatedWithBrowserContext() const {
   return true;
 }

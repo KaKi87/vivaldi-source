@@ -20,7 +20,7 @@ constexpr char kHeartBeatHeader[] = "heart-beat";
 constexpr char kReceiptIdHeader[] = "receipt-id";
 constexpr char kExpectedSubscriptionReceipt[] = "sync-subscribed";
 constexpr char kContentLengthHeader[] = "content-length";
-}
-}
+}  // namespace stomp
+}  // namespace vivaldi
 
 #endif  // SYNC_INVALIDATIONS_STOMP_CONSTANTS_H_

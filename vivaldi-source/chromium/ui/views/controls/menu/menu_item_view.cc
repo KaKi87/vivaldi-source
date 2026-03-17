@@ -10,11 +10,12 @@
 #include <algorithm>
 #include <memory>
 #include <numeric>
+#include <optional>
+#include <string>
 #include <utility>
 
 #include "base/auto_reset.h"
 #include "base/containers/adapters.h"
-#include "base/containers/contains.h"
 #include "base/i18n/case_conversion.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
@@ -57,6 +58,7 @@
 #include "ui/views/controls/menu/menu_separator.h"
 #include "ui/views/controls/menu/submenu_view.h"
 #include "ui/views/controls/separator.h"
+#include "ui/views/property_effects.h"
 #include "ui/views/style/typography.h"
 #include "ui/views/style/typography_provider.h"
 #include "ui/views/vector_icons.h"
@@ -97,6 +99,14 @@ VerticalSeparator::VerticalSeparator() {
 BEGIN_METADATA(VerticalSeparator)
 END_METADATA
 
+std::u16string GetBadgeString(ui::NewBadgeType new_badge_type) {
+  switch (new_badge_type) {
+    case ui::NewBadgeType::kNew:
+      return l10n_util::GetStringUTF16(IDS_NEW_BADGE);
+    case ui::NewBadgeType::kPreview:
+      return l10n_util::GetStringUTF16(IDS_PREVIEW_BADGE);
+  }
+}
 }  // namespace
 
 // MenuItemView ---------------------------------------------------------------
@@ -285,7 +295,7 @@ bool MenuItemView::IsBubble(MenuAnchorPosition anchor) {
 std::u16string MenuItemView::GetAccessibleNameForMenuItem(
     const std::u16string& item_text,
     const std::u16string& minor_text,
-    bool is_new_feature) {
+    std::optional<ui::NewBadgeType> new_badge_type) {
   std::u16string accessible_name = item_text;
 
   // Filter out the "&" for accessibility clients.
@@ -308,9 +318,19 @@ std::u16string MenuItemView::GetAccessibleNameForMenuItem(
     accessible_name.append(minor_text);
   }
 
-  if (is_new_feature) {
+  if (new_badge_type.has_value()) {
     accessible_name.push_back(' ');
-    accessible_name.append(GetNewBadgeAccessibleDescription());
+
+    switch (new_badge_type.value()) {
+      case ui::NewBadgeType::kNew:
+        accessible_name.append(
+            l10n_util::GetStringUTF16(IDS_NEW_BADGE_SCREEN_READER_MESSAGE));
+        break;
+      case ui::NewBadgeType::kPreview:
+        accessible_name.append(
+            l10n_util::GetStringUTF16(IDS_PREVIEW_BADGE_SCREEN_READER_MESSAGE));
+        break;
+    }
   }
 
   return accessible_name;
@@ -493,7 +513,11 @@ bool MenuItemView::HasSubmenu() const {
   return (submenu_ != nullptr);
 }
 
-SubmenuView* MenuItemView::GetSubmenu() const {
+SubmenuView* MenuItemView::GetSubmenu() {
+  return submenu_.get();
+}
+
+const SubmenuView* MenuItemView::GetSubmenu() const {
   return submenu_.get();
 }
 
@@ -691,9 +715,16 @@ const MenuItemView* MenuItemView::GetRootMenuItem() const {
 }
 
 char16_t MenuItemView::GetMnemonic() {
+  if (vivaldi_has_local_mnemonics_info_) {
+    if (!has_mnemonics_ || !MenuConfig::instance().use_mnemonics ||
+        !may_have_mnemonics()) {
+      return 0;
+    }
+  } else {
   if (!GetRootMenuItem()->has_mnemonics_ ||
       !MenuConfig::instance().use_mnemonics || !may_have_mnemonics()) {
     return 0;
+  }
   }
 
   size_t index = 0;
@@ -872,10 +903,6 @@ void MenuItemView::SetAlerted() {
   SchedulePaint();
 }
 
-bool MenuItemView::ShouldShowNewBadge() const {
-  return is_new_;
-}
-
 bool MenuItemView::IsTraversableByKeyboard() const {
   bool ignore_enabled =
       ui::AXPlatform::GetInstance().GetMode().has_mode(ui::AXMode::kNativeAPIs);
@@ -890,14 +917,11 @@ int MenuItemView::GetItemHorizontalBorder() const {
              : config.item_horizontal_border_padding;
 }
 
-std::u16string MenuItemView::GetNewBadgeAccessibleDescription() {
-  return l10n_util::GetStringUTF16(IDS_NEW_BADGE_SCREEN_READER_MESSAGE);
-}
-
 MenuItemView::MenuItemView(MenuItemView* parent,
                            int command,
                            MenuItemView::Type type)
-    : MenuItemView(parent, command, type, /* delegate */ nullptr) {}
+    : MenuItemView(parent, command, type, /* delegate */ nullptr) {
+}
 
 MenuItemView::MenuItemView(MenuItemView* parent,
                            int command,
@@ -970,11 +994,20 @@ int MenuItemView::GetDrawStringFlags() const {
   int flags = base::i18n::IsRTL() ? gfx::Canvas::TEXT_ALIGN_RIGHT
                                   : gfx::Canvas::TEXT_ALIGN_LEFT;
 
+  if (vivaldi_has_local_mnemonics_info_) {
+    if (has_mnemonics_ && may_have_mnemonics()) {
+      flags |= (MenuConfig::instance().show_mnemonics ||
+                show_mnemonics_)
+                   ? gfx::Canvas::SHOW_PREFIX
+                   : gfx::Canvas::HIDE_PREFIX;
+    }
+  } else {
   if (GetRootMenuItem()->has_mnemonics_ && may_have_mnemonics()) {
     flags |= (MenuConfig::instance().show_mnemonics ||
               GetRootMenuItem()->show_mnemonics_)
                  ? gfx::Canvas::SHOW_PREFIX
                  : gfx::Canvas::HIDE_PREFIX;
+  }
   }
   return flags;
 }
@@ -1125,12 +1158,12 @@ void MenuItemView::OnPaintImpl(gfx::Canvas* canvas, PaintMode mode) {
                                     colors.minor_fg_color, text_bounds, flags);
   }
 
-  if (ShouldShowNewBadge()) {
-    BadgePainter::PaintBadge(canvas, this,
-                             label_start +
-                                 gfx::GetStringWidth(title(), font_list) +
-                                 BadgePainter::kBadgeHorizontalMargin,
-                             top_margin, new_badge_text_, font_list);
+  if (new_badge_type_.has_value()) {
+    BadgePainter::PaintBadge(
+        canvas, this,
+        label_start + gfx::GetStringWidth(title(), font_list) +
+            BadgePainter::kBadgeHorizontalMargin,
+        top_margin, GetBadgeString(new_badge_type_.value()), font_list);
   }
 
   PaintMinorIconAndText(canvas, colors.minor_fg_color);
@@ -1319,8 +1352,9 @@ std::u16string MenuItemView::CalculateAccessibleName() const {
   } else {
     item_text = title_;
   }
+
   return GetAccessibleNameForMenuItem(item_text, GetMinorText(),
-                                      ShouldShowNewBadge());
+                                      new_badge_type_);
 }
 
 void MenuItemView::DestroyAllMenuHosts() {
@@ -1395,10 +1429,12 @@ MenuItemView::MenuItemDimensions MenuItemView::CalculateDimensions() const {
     dimensions.standard_width += LayoutProvider::Get()->GetDistanceMetric(
         views::DISTANCE_RELATED_LABEL_HORIZONTAL);
   }
-  if (ShouldShowNewBadge()) {
+  if (new_badge_type_.has_value()) {
     dimensions.standard_width +=
         BadgePainter::kBadgeHorizontalMargin +
-        views::BadgePainter::GetBadgeSize(new_badge_text_, font_list).width();
+        views::BadgePainter::GetBadgeSize(
+            GetBadgeString(new_badge_type_.value()), font_list)
+            .width();
   }
 
   if (use_ash_system_ui_layout) {
@@ -1593,12 +1629,24 @@ void MenuItemView::UpdateSelectionBasedState(bool paint_as_selected) {
           icon_color_.has_value() ? icon_color_.value() : colors.icon_color;
 
       if (!GetEnabledInViewsSubtree()) {
+        // Disabled color.
         icon_color = GetColorProvider()->GetColor(ui::kColorMenuIconDisabled);
-      } else if (foreground_color_id_.has_value() && paint_as_selected &&
-                 !selected_color_id_.has_value()) {
-        icon_color = GetColorProvider()->GetColor(foreground_color_id_.value());
       } else if (paint_as_selected) {
-        icon_color = colors.icon_color;
+        // Selected color.
+        if (foreground_color_id_.has_value() &&
+            !selected_color_id_.has_value()) {
+          // Use foreground color if selected color is unset.
+          icon_color =
+              GetColorProvider()->GetColor(foreground_color_id_.value());
+        } else {
+          // Use calculated icon color if icon color is unset or default.
+          const bool is_default_icon =
+              !icon_color_.has_value() ||
+              icon_color_.value() == ui::kColorMenuIcon;
+          if (is_default_icon) {
+            icon_color = colors.icon_color;
+          }
+        }
       }
       const ui::ImageModel& image_model =
           ui::ImageModel::FromVectorIcon(*icon, icon_color, model.icon_size());
@@ -1617,7 +1665,7 @@ bool MenuItemView::ShouldPaintAsSelected(PaintMode mode) const {
 
 bool MenuItemView::IsScheduledForDeletion() const {
   return parent_menu_item_ &&
-         (base::Contains(parent_menu_item_->removed_items_, this) ||
+         (std::ranges::contains(parent_menu_item_->removed_items_, this) ||
           parent_menu_item_->IsScheduledForDeletion());
 }
 

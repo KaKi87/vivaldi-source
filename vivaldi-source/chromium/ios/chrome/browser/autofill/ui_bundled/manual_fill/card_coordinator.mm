@@ -7,6 +7,7 @@
 #import "base/functional/callback_helpers.h"
 #import "base/memory/raw_ptr.h"
 #import "base/memory/ref_counted.h"
+#import "base/strings/sys_string_conversions.h"
 #import "components/autofill/core/browser/data_manager/personal_data_manager.h"
 #import "components/autofill/core/browser/data_model/payments/credit_card.h"
 #import "components/autofill/ios/browser/autofill_driver_ios.h"
@@ -18,14 +19,15 @@
 #import "ios/chrome/browser/autofill/ui_bundled/manual_fill/manual_fill_constants.h"
 #import "ios/chrome/browser/autofill/ui_bundled/manual_fill/manual_fill_full_card_requester.h"
 #import "ios/chrome/browser/autofill/ui_bundled/manual_fill/manual_fill_injection_handler.h"
+#import "ios/chrome/browser/autofill/ui_bundled/manual_fill/manual_fill_virtual_card_cache.h"
 #import "ios/chrome/browser/net/model/crurl.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/model/web_state_list/web_state_list.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/browser_coordinator_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/open_new_tab_command.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_navigation_controller.h"
 #import "ios/chrome/common/ui/reauthentication/reauthentication_event.h"
 #import "ios/chrome/common/ui/reauthentication/reauthentication_module.h"
@@ -37,7 +39,7 @@
 @interface CardCoordinator () <CardListDelegate> {
   // Opening links on the enrollment bottom sheet is delegated to this
   // dispatcher.
-  __weak id<ApplicationCommands> _dispatcher;
+  __weak id<SceneCommands> _dispatcher;
 
   // Reauthentication Module used for re-authentication.
   ReauthenticationModule* _reauthenticationModule;
@@ -96,8 +98,8 @@
         initWithProfile:super.browser->GetProfile()->GetOriginalProfile()
            webStateList:super.browser->GetWebStateList()
          resultDelegate:_cardMediator];
-    _dispatcher = HandlerForProtocol(self.browser->GetCommandDispatcher(),
-                                     ApplicationCommands);
+    _dispatcher =
+        HandlerForProtocol(self.browser->GetCommandDispatcher(), SceneCommands);
   }
   return self;
 }
@@ -165,15 +167,7 @@
                     fieldType:(manual_fill::PaymentFieldType)fieldType {
   __weak __typeof(self) weakSelf = self;
   [self dismissIfNecessaryThenDoCompletion:^{
-    std::optional<const autofill::CreditCard> autofillCreditCard =
-        [weakSelf.cardMediator findCreditCardfromGUID:card.GUID];
-    if (!autofillCreditCard) {
-      return;
-    }
-    [weakSelf.cardRequester requestFullCreditCard:*autofillCreditCard
-                           withBaseViewController:weakSelf.baseViewController
-                                       recordType:card.recordType
-                                        fieldType:fieldType];
+    [weakSelf onDismissCompleted:card fieldType:fieldType];
   }];
 }
 
@@ -186,6 +180,41 @@
 }
 
 #pragma mark - Private
+
+- (void)onDismissCompleted:(ManualFillCreditCard*)card
+                 fieldType:(manual_fill::PaymentFieldType)fieldType {
+  std::optional<const autofill::CreditCard> autofillCreditCard =
+      [self.cardMediator findCreditCardfromGUID:card.GUID];
+  if (!autofillCreditCard) {
+    return;
+  }
+
+  // Check if the card is already unmasked in the tab's virtual card cache.
+  web::WebState* activeWebState =
+      self.browser->GetWebStateList()->GetActiveWebState();
+
+  if (activeWebState) {
+    ManualFillVirtualCardCache* cache =
+        ManualFillVirtualCardCache::FromWebState(activeWebState);
+    if (cache) {
+      const autofill::CreditCard* cachedCard =
+          cache->GetUnmaskedCard(autofillCreditCard->guid());
+
+      if (cachedCard) {
+        // Cache Hit: Skip network request and fill directly.
+        [self.cardMediator onFullCardRequestSucceeded:*cachedCard
+                                            fieldType:fieldType
+                                          forWebState:activeWebState];
+        return;
+      }
+    }
+  }
+
+  [self.cardRequester requestFullCreditCard:*autofillCreditCard
+                     withBaseViewController:self.baseViewController
+                                 recordType:card.recordType
+                                  fieldType:fieldType];
+}
 
 - (void)didTriggerOpenCardDetails:(autofill::CreditCard)card
                        inEditMode:(BOOL)editMode {
@@ -200,6 +229,10 @@
       weakSelf, std::move(card), editMode);
   [self dismissIfNecessaryThenDoCompletion:base::CallbackToBlock(
                                                std::move(callback))];
+}
+
+- (void)cardSelectionFinished {
+  [self.delegate cardCoordinatorDidCompleteManualFill:self];
 }
 
 @end

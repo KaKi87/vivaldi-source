@@ -23,6 +23,7 @@
 <translation id="2565593432251168402">Організуйте вкладки, створивши групи</translation>
 <translation id="2783161812871838616">Версія для ПК</translation>
 <translation id="2806957659107692459">Створити групу</translation>
+<translation id="2830375794722738493">Приховати приватні вкладки</translation>
 <translation id="2899836479226240291">Ви можете автоматично відкривати посилання у Vivaldi, призначивши його типовим браузером.</translation>
 <translation id="3365529507898144230">Зберегти у Фото</translation>
 <translation id="3434473769478814796">Вставити й перейти</translation>
@@ -61,6 +62,9 @@
 <translation id="5431239785743546285">Прочитані сторінки</translation>
 <translation id="5521301883748677039">Видалити групу?</translation>
 <translation id="5544011153887687593">Вкладка в групі. <ph name="TAB_INDEX_IN_GROUP" /> з <ph name="NUMBER_OF_TABS_IN_GROUP" />.</translation>
+<translation id="5548760955356983418">Функція Handoff дозволяє вам розпочати перегляд сайту на цьому пристрої, а потім легко продовжити на вашому Mac. Поточний відкритий веб-сайт з’явиться в Dock вашого Mac.
+
+Функція Handoff також має бути ввімкненою в розділі «Загальні» в налаштуваннях, а ваші пристрої повинні використовувати той самий обліковий запис iCloud.</translation>
 <translation id="5614553682702429503">Зберегти пароль?</translation>
 <translation id="5620163320393916465">Немає збережених паролів</translation>
 <translation id="570209299585559496">Ви можете змінити режим перегляду сайту за умовчанням у меню Налаштування &gt; Налаштування вмісту</translation>
@@ -73,9 +77,11 @@
 <translation id="6233792867654386826">Відкриває введені адреси у Vivaldi.</translation>
 <translation id="6271462272606946663">Сховати запит мобільної версії сайту</translation>
 <translation id="6309282378909663947">Паролі з менеджера паролів Vivaldi</translation>
+<translation id="6464648082977038075">Закрити приватні вкладки</translation>
 <translation id="6478587527114893588">Закрити групу.</translation>
 <translation id="6527405730445064713">Група. Розгорнута.</translation>
 <translation id="6532106788206463496">Зберегти зміни</translation>
+<translation id="6575010608310776688">Продовжити в приватному режимі</translation>
 <translation id="6636411080833380839">Видалити з групи</translation>
 <translation id="6644512095122093795">Пропонувати збережені паролі</translation>
 <translation id="6666425778700353369">Групу буде видалено з усіх пристроїв, на яких ви увійшли в обліковий запис <ph name="USER_EMAIL" />.</translation>
@@ -114,6 +120,8 @@
 <translation id="8951084872625418241">Нова вкладка в групі</translation>
 <translation id="9042893549633094279">Конфіденційність і безпека</translation>
 <translation id="9094033019050270033">Оновити пароль</translation>
+<translation id="9203116392574189331">Handoff</translation>
 <translation id="944434461715569989">Покинути групу</translation>
 <translation id="959061183386231608">Вкладки залишаться відкритими на цьому пристрої, але групу буде видалено назавжди.</translation>
+<translation id="988141524645182168">Інші пристрої</translation>
 </translationbundle>

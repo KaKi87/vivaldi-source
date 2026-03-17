@@ -2,6 +2,7 @@
 <!DOCTYPE translationbundle>
 <translationbundle lang="lv">
 <translation id="1158211211994409885"><ph name="HOST_NAME" /> negaidīti pārtrauca savienojumu.</translation>
+<translation id="1161325031994447685">Atkārtoti izveidojiet savienojumu ar Wi-Fi tīklu</translation>
 <translation id="1375198122581997741">Par versiju</translation>
 <translation id="139305205187523129"><ph name="HOST_NAME" /> nenosūtīja nekādus datus.</translation>
 <translation id="1559528461873125649">Nav tāda faila vai direktorija</translation>
@@ -9,7 +10,6 @@
 <translation id="2166378884831602661">Šī vietne nevar garantēt drošu savienojumu</translation>
 <translation id="2292556288342944218">Piekļuve internetam ir bloķēta</translation>
 <translation id="255002559098805027"><ph name="HOST_NAME" /> nosūtīja nederīgu atbildi.</translation>
-<translation id="2650446666397867134">Piekļuve failam tika noraidīta.</translation>
 <translation id="2705137772291741111">Nevar nolasīt šīs vietnes saglabāto (kešatmiņā ievietoto) kopiju.</translation>
 <translation id="2784949926578158345">Savienojums tika atiestatīts.</translation>
 <translation id="2909946352844186028">Konstatētas tīkla izmaiņas.</translation>

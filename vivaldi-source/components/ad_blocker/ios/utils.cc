@@ -8,8 +8,8 @@
 
 namespace adblock_filter {
 namespace {
-constexpr int kIntermediateRepresentationVersionNumber = 2;
-constexpr int kOrganizedRulesVersionNumber = 2;
+constexpr int kIntermediateRepresentationVersionNumber = 3;
+constexpr int kOrganizedRulesVersionNumber = 3;
 }  // namespace
 
 int GetIntermediateRepresentationVersionNumber() {
@@ -28,8 +28,8 @@ std::string CalculateBufferChecksum(const std::string& data) {
 // possible to make inserting into a map or set fast. We don't care about
 // whether the order makes any logical sense.
 bool ContentInjectionArgumentsCompare::operator()(
-    const base::Value::List* lhs,
-    const base::Value::List* rhs) const {
+    const base::ListValue* lhs,
+    const base::ListValue* rhs) const {
   if (lhs->size() < rhs->size())
     return true;
 

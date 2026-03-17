@@ -233,14 +233,12 @@ void BookmarkContextMenuController::BuildMenu() {
   }
   if (selection_.size() == 1 && selection_[0]->is_url()) {
     AddItem(IDC_BOOKMARK_BAR_OPEN_ALL, IDS_BOOKMARK_BAR_OPEN_IN_NEW_TAB);
+    AddItem(IDC_BOOKMARK_BAR_OPEN_SPLIT_VIEW,
+            IDS_BOOKMARK_BAR_OPEN_IN_SPLIT_VIEW);
     AddItem(IDC_BOOKMARK_BAR_OPEN_ALL_NEW_WINDOW,
             IDS_BOOKMARK_BAR_OPEN_IN_NEW_WINDOW);
     AddItem(IDC_BOOKMARK_BAR_OPEN_ALL_INCOGNITO,
             IDS_BOOKMARK_BAR_OPEN_INCOGNITO);
-    if (base::FeatureList::IsEnabled(features::kSideBySide)) {
-      AddItem(IDC_BOOKMARK_BAR_OPEN_SPLIT_VIEW,
-              IDS_BOOKMARK_BAR_OPEN_IN_SPLIT_VIEW);
-    }
   } else {
     int count = bookmarks::OpenCount(selection_);
     AddItem(IDC_BOOKMARK_BAR_OPEN_ALL,
@@ -628,9 +626,7 @@ bool BookmarkContextMenuController::IsCommandIdEnabled(int command_id) const {
              incognito_avail != policy::IncognitoModeAvailability::kDisabled;
 
     case IDC_BOOKMARK_BAR_OPEN_ALL_INCOGNITO:
-      return bookmarks::HasBookmarkURLsAllowedInIncognitoMode(selection_) &&
-             !profile_->IsOffTheRecord() &&
-             incognito_avail != policy::IncognitoModeAvailability::kDisabled;
+      return bookmarks::IsOpenInIncognitoAllowed(selection_, profile_);
     case IDC_BOOKMARK_BAR_OPEN_ALL:
     case IDC_BOOKMARK_BAR_OPEN_ALL_NEW_TAB_GROUP:
       return bookmarks::HasBookmarkURLs(selection_);
@@ -638,7 +634,6 @@ bool BookmarkContextMenuController::IsCommandIdEnabled(int command_id) const {
       tabs::TabInterface* active_tab =
           browser_ ? browser_->GetActiveTabInterface() : nullptr;
       return bookmarks::HasBookmarkURLs(selection_) &&
-             base::FeatureList::IsEnabled(features::kSideBySide) &&
              active_tab && !active_tab->IsSplit();
     }
     case IDC_BOOKMARK_BAR_OPEN_ALL_NEW_WINDOW:

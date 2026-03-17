@@ -43,4 +43,4 @@ class RecentTypedHistoryProvider : public AutocompleteProvider {
   const raw_ptr<AutocompleteProviderClient> client_;
 };
 
-#endif //RECENT_TYPED_HISTORY_PROVIDER_H_
+#endif  // RECENT_TYPED_HISTORY_PROVIDER_H_

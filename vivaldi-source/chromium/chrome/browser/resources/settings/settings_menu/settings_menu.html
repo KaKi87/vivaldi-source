@@ -57,23 +57,13 @@
           $i18n{peoplePageTitle}
           <cr-ripple></cr-ripple>
         </a>
-        <a role="menuitem" id="yourSavedInfo" href="/yourSavedInfo"
-            hidden="[[!showYourSavedInfoPageMenuItem_(
-                enableYourSavedInfoSettingsPage_,
-                pageVisibility_.yourSavedInfo)]]"
-            on-click="onYourSavedInfoClick_"
-            class="cr-nav-menu-item">
-          <cr-icon icon="settings20:person-text"></cr-icon>
-          $i18n{yourSavedInfoPageTitle}
-          <cr-ripple></cr-ripple>
-        </a>
         <a role="menuitem" id="autofill" href="/autofill"
-            hidden="[[!showAutofillPageMenuItem_(
-                enableYourSavedInfoSettingsPage_,
-                pageVisibility_.autofill)]]"
             on-click="onAutofillClick_"
-            class="cr-nav-menu-item">
-          <cr-icon icon="[[autofillIcon_]]"></cr-icon>
+            class="cr-nav-menu-item"
+            hidden="[[!showAutofillMenuItem_(
+                enableYourSavedInfoSettingsPage_,
+                pageVisibility_.yourSavedInfo, pageVisibility_.autofill)]]">
+          <cr-icon icon="settings:assignment"></cr-icon>
           $i18n{autofillPageTitle}
           <cr-ripple></cr-ripple>
         </a>
@@ -113,7 +103,7 @@
           <cr-ripple></cr-ripple>
         </a>
         </if> <!-- Vivaldi -->
-<if expr="not is_chromeos">
+<if expr="_google_chrome and not is_chromeos">
         <a role="menuitem" id="defaultBrowser" class="cr-nav-menu-item"
           href="/defaultBrowser"
           hidden="[[!pageVisibility_.defaultBrowser]]">

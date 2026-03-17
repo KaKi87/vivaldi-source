@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Tenging þín við þessa síðu er ekki fullkomlega örugg</translation>
 <translation id="4265872034478892965">Leyfi gefið af kerfisstjóra</translation>
 <translation id="4305666528087210886">Ekki var hægt að opna skrána þína</translation>
-<translation id="4408413947728134509">Vafrakökur <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> ekki tókst að sannreyna innskráningarskilríkin þín, eða skilríkin vantar.</translation>
 <translation id="4506599922270137252">Hafðu samband við kerfisstóra</translation>
 <translation id="4522570452068850558">Frekari upplýsingar</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Engin niðurstaða</translation>
 <translation id="5017554619425969104">Texti sem þú afritaðir</translation>
 <translation id="5023310440958281426">Athugaðu notendaskilyrði kerfisstjóra</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 í notkun)} other {(# í notkun)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" /> Athuga proxy-veffang<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 bita)</translation>
 <translation id="5216942107514965959">Síðast heimsótt í dag</translation>
@@ -133,7 +131,6 @@ Hafðu samband við kerfisstjóra.</translation>
 <translation id="5838278095973806738">Þú ættir ekki að skrá inn neinar viðkvæmar upplýsingar á þessari síðu (til dæmis lykilorð og kreditkort) þar sem að upplýsingunum gæti verið stolið af tölvuþrjótum.</translation>
 <translation id="5863515189965725638">Breyta IBAN</translation>
 <translation id="5869405914158311789">Ekki náðist í síðu</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{Ein í notkun}other{# í notkun}}</translation>
 <translation id="5932224571077948991">Síða sýnir uppáþrengjandi eða villandi auglýsingar</translation>
 <translation id="6051221802930200923">Þú getur ekki heimsótt <ph name="SITE" /> núna þar sem að vefsíðan notar vottorðs festingu (e. certificate pinning). Tengi vandamál og netárásir eru yfirleitt tímabundnar þannnig að síðan mun líklega virka aftur síðar.</translation>
 <translation id="6146055958333702838">Athugaðu allar snúrur og endurræstu alla beina (e. router) og mótöld (e. modem) eða önnur

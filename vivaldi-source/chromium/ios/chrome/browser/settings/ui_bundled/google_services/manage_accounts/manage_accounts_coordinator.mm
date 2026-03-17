@@ -29,8 +29,8 @@
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/features.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/public/commands/show_signin_command.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
@@ -97,6 +97,10 @@ using signin_metrics::PromoAction;
     _showDoneButton = showDoneButton;
   }
   return self;
+}
+
+- (void)dealloc {
+  CHECK(!_mediator, base::NotFatalUntil::M152);
 }
 
 - (void)start {
@@ -252,6 +256,12 @@ using signin_metrics::PromoAction;
                       }];
   _signoutCoordinator.delegate = self;
   [_signoutCoordinator start];
+}
+
+- (void)manageAccountsMediatorWantsToBeStopped:
+    (ManageAccountsMediator*)manageAccountsMediator {
+  CHECK_EQ(_mediator, manageAccountsMediator, base::NotFatalUntil::M152);
+  [self closeSettings];
 }
 
 #pragma mark - Private

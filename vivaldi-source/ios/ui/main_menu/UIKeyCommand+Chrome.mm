@@ -67,7 +67,7 @@ const char kMobileKeyCommandClose[] = "MobileKeyCommandClose";
                      modifierFlags:AltShiftCommand
                             action:@selector(keyCommand_openNewIncognitoWindow)
                    titleIDAsString:@"IDS_IOS_KEYBOARD_NEW_INCOGNITO_WINDOW"
-                             image:nil]; // No icon for vivaldi
+                             image:nil];  // No icon for vivaldi
 }
 
 + (UIKeyCommand*)cr_reopenLastClosedTab {

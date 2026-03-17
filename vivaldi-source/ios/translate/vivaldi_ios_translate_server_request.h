@@ -4,6 +4,7 @@
 #define IOS_TRANSLATE_VIVALDI_IOS_TRANSLATE_SERVER_REQUEST_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -30,12 +31,12 @@ class VivaldiIOSTranslateServerRequestTest;
 
 enum TranslateError {
   kNoError = 0,
-  kNetwork,                    // No connectivity.
-  kUnknownLanguage,            // The page's language could not be detected.
-  kUnsupportedLanguage,        // The server detected a language that the browser
-                               // does not know.
-  kTranslationError,           // General translation error.
-  kTranslationTimeout,         // Timeout during translation.
+  kNetwork,              // No connectivity.
+  kUnknownLanguage,      // The page's language could not be detected.
+  kUnsupportedLanguage,  // The server detected a language that the browser
+                         // does not know.
+  kTranslationError,     // General translation error.
+  kTranslationTimeout,   // Timeout during translation.
 };
 
 typedef void (^VivaldiTranslateTextCallback)(
@@ -51,9 +52,10 @@ class VivaldiIOSTranslateServerRequest {
   VivaldiIOSTranslateServerRequest();
 
   virtual ~VivaldiIOSTranslateServerRequest();
-  VivaldiIOSTranslateServerRequest(const VivaldiIOSTranslateServerRequest&) = delete;
-  VivaldiIOSTranslateServerRequest& operator=(const VivaldiIOSTranslateServerRequest&) =
+  VivaldiIOSTranslateServerRequest(const VivaldiIOSTranslateServerRequest&) =
       delete;
+  VivaldiIOSTranslateServerRequest& operator=(
+      const VivaldiIOSTranslateServerRequest&) = delete;
 
   // Given an array of strings and language codes, it will request
   // a translation from the server.
@@ -76,7 +78,7 @@ class VivaldiIOSTranslateServerRequest {
   std::string GenerateJSON(const std::vector<std::string>& data,
                            const std::string& source_language,
                            const std::string& destination_language);
-  void OnRequestResponse(std::unique_ptr<std::string> response_body);
+  void OnRequestResponse(std::optional<std::string> response_body);
   const std::string GetServer();
 
   void SetCallbackForTesting(VivaldiTranslateTextCallback callback) {

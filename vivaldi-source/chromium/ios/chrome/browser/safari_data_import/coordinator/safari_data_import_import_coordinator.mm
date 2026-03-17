@@ -21,10 +21,12 @@
 #import "ios/chrome/browser/affiliations/model/ios_chrome_affiliation_service_factory.h"
 #import "ios/chrome/browser/autofill/model/personal_data_manager_factory.h"
 #import "ios/chrome/browser/bookmarks/model/bookmark_model_factory.h"
+#import "ios/chrome/browser/data_import/public/credential_item_identifier.h"
 #import "ios/chrome/browser/data_import/public/password_import_item.h"
 #import "ios/chrome/browser/data_import/ui/data_import_credential_conflict_resolution_view_controller.h"
+#import "ios/chrome/browser/data_import/ui/data_import_credential_conflict_resolution_view_controller_delegate.h"
 #import "ios/chrome/browser/data_import/ui/data_import_import_stage_transition_handler.h"
-#import "ios/chrome/browser/data_import/ui/data_import_invalid_passwords_view_controller.h"
+#import "ios/chrome/browser/data_import/ui/data_import_invalid_credentials_view_controller.h"
 #import "ios/chrome/browser/data_import/ui/import_data_item_table_view.h"
 #import "ios/chrome/browser/favicon/model/ios_chrome_favicon_loader_factory.h"
 #import "ios/chrome/browser/history/model/history_service_factory.h"
@@ -36,6 +38,7 @@
 #import "ios/chrome/browser/safari_data_import/public/metrics.h"
 #import "ios/chrome/browser/safari_data_import/public/safari_data_import_stage.h"
 #import "ios/chrome/browser/safari_data_import/ui/safari_data_import_import_view_controller.h"
+#import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
@@ -53,6 +56,7 @@ constexpr NSInteger kExpectedItemsCount = 4;
 
 @interface SafariDataImportImportCoordinator () <
     PromoStyleViewControllerDelegate,
+    DataImportCredentialConflictResolutionViewControllerDelegate,
     DataImportImportStageTransitionHandler,
     UITableViewDelegate>
 
@@ -144,6 +148,7 @@ constexpr NSInteger kExpectedItemsCount = 4;
     syncer::SyncService* syncService =
         SyncServiceFactory::GetForProfile(profile);
     PrefService* prefService = profile->GetPrefs();
+    PrefService* localState = GetApplicationContext()->GetLocalState();
     FaviconLoader* faviconLoader =
         IOSChromeFaviconLoaderFactory::GetForProfile(profile);
     /// Initialize mediator.
@@ -156,6 +161,7 @@ constexpr NSInteger kExpectedItemsCount = 4;
                        readingListModel:readingListModel
                             syncService:syncService
                             prefService:prefService
+                             localState:localState
                           faviconLoader:faviconLoader];
     _mediator.importStageTransitionHandler = self;
     _mediator.itemConsumer = _tableView;
@@ -214,6 +220,7 @@ constexpr NSInteger kExpectedItemsCount = 4;
       NOTREACHED() << "button should be disabled";
     case SafariDataImportStage::kImported:
       [self presentViewController:self.fileDeletionAlert];
+      [self.mediator markSetUpListItemAsComplete];
       break;
     default:
       break;
@@ -236,12 +243,10 @@ constexpr NSInteger kExpectedItemsCount = 4;
 }
 
 - (void)resetToInitialImportStage:(DataImportResetReason)reason {
-  SafariDataImportStage currentStage = self.importStage;
-  CHECK_EQ(currentStage, SafariDataImportStage::kFileLoading)
-      << "Not supported for stage: " << static_cast<int>(currentStage);
-
+  if (self.importStage == SafariDataImportStage::kNotStarted) {
+    return;
+  }
   UIAlertController* alert = nil;
-
   switch (reason) {
     case DataImportResetReason::kUserInitiated:
       break;
@@ -283,12 +288,23 @@ constexpr NSInteger kExpectedItemsCount = 4;
   NSArray<PasswordImportItem*>* invalidPasswords =
       self.mediator.invalidPasswords;
   CHECK_GT(invalidPasswords.count, 0u);
-  DataImportInvalidPasswordsViewController* invalidPasswordsViewController =
-      [[DataImportInvalidPasswordsViewController alloc]
-          initWithInvalidPasswords:invalidPasswords];
+  DataImportInvalidCredentialsViewController* invalidPasswordsViewController =
+      [[DataImportInvalidCredentialsViewController alloc]
+          initWithInvalidCredentials:invalidPasswords
+                                type:CredentialType::kPassword];
   [self presentViewController:
             [[UINavigationController alloc]
                 initWithRootViewController:invalidPasswordsViewController]];
+}
+
+#pragma mark - DataImportCredentialConflictResolutionViewControllerDelegate
+
+- (void)cancelledConflictResolution {
+  [_containerViewController dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)resolvedCredentialConflicts {
+  [_containerViewController dismissViewControllerAnimated:YES completion:nil];
 }
 
 #pragma mark - Private
@@ -320,7 +336,7 @@ constexpr NSInteger kExpectedItemsCount = 4;
   CHECK(passwordConflicts);
   if (passwordConflicts.count == 0) {
     /// Continue to import passwords without conflict override.
-    [self.mediator continueToImportPasswords:[NSArray array]];
+    [self.mediator continueToImportPasswords:[NSArray array] passkeys:@[]];
     return;
   }
   /// Wraps the password conflict view in a navigation controller to display
@@ -328,8 +344,10 @@ constexpr NSInteger kExpectedItemsCount = 4;
   DataImportCredentialConflictResolutionViewController*
       conflictResolutionViewController =
           [[DataImportCredentialConflictResolutionViewController alloc]
-              initWithPasswordConflicts:passwordConflicts];
+              initWithPasswordConflicts:passwordConflicts
+                       passkeyConflicts:[NSArray array]];
   conflictResolutionViewController.mutator = self.mediator;
+  conflictResolutionViewController.delegate = self;
   UINavigationController* wrapper = [[UINavigationController alloc]
       initWithRootViewController:conflictResolutionViewController];
   wrapper.toolbarHidden = NO;

@@ -11,6 +11,7 @@
 #include "base/timer/timer.h"
 #include "base/unguessable_token.h"
 #include "content/public/browser/overlay_window.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 #include "third_party/blink/public/mojom/mediasession/media_session.mojom.h"
 #include "ui/android/window_android.h"
 #include "ui/android/window_android_observer.h"
@@ -35,9 +36,9 @@ class OverlayWindowAndroid : public content::VideoOverlayWindow,
 
   static OverlayWindowAndroid* OnActivityStart(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& token,
+      const base::android::JavaRef<jobject>& token,
 
-      const base::android::JavaParamRef<jobject>& jwindow_android);
+      const base::android::JavaRef<jobject>& jwindow_android);
   void DestroyStartedByJava(JNIEnv* env);
   void TogglePlayPause(JNIEnv* env, bool toggleOn);
   void NextTrack(JNIEnv* env);
@@ -50,8 +51,8 @@ class OverlayWindowAndroid : public content::VideoOverlayWindow,
   void Hide(JNIEnv* env);
   void CompositorViewCreated(
       JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& compositor_view);
-  void OnViewSizeChanged(JNIEnv* env, jint width, jint height);
+      const base::android::JavaRef<jobject>& compositor_view);
+  void OnViewSizeChanged(JNIEnv* env, int32_t width, int32_t height);
   void OnBackToTab(JNIEnv* env);
   void OnDismissal(JNIEnv* env);
 
@@ -91,8 +92,8 @@ class OverlayWindowAndroid : public content::VideoOverlayWindow,
   void SetSurfaceId(const viz::SurfaceId& surface_id) override;
 
   void Initialize(JNIEnv* env,
-                  const base::android::JavaParamRef<jobject>& self,
-                  const base::android::JavaParamRef<jobject>& jwindow_android);
+                  const base::android::JavaRef<jobject>& self,
+                  const base::android::JavaRef<jobject>& jwindow_android);
 
  private:
   // Notify PictureInPictureActivity that visible actions have changed.
@@ -116,7 +117,7 @@ class OverlayWindowAndroid : public content::VideoOverlayWindow,
   gfx::Size video_size_;
 
   PlaybackState playback_state_ = PlaybackState::kEndOfVideo;
-  std::unordered_set<int> visible_actions_;
+  absl::flat_hash_set<int> visible_actions_;
 
   bool microphone_muted_ = false;
   bool camera_on_ = false;

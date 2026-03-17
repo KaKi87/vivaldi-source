@@ -6,6 +6,7 @@
 
 #include <stddef.h>
 
+#include <algorithm>
 #include <memory>
 #include <optional>
 #include <set>
@@ -31,7 +32,6 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "chrome/app/chrome_command_ids.h"
-#include "chrome/browser/apps/app_service/app_launch_params.h"
 #include "chrome/browser/banners/app_banner_manager_desktop.h"
 #include "chrome/browser/browser_features.h"
 #include "chrome/browser/devtools/protocol/browser_handler.h"
@@ -51,6 +51,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
+#include "chrome/browser/ui/omnibox/omnibox_tab_helper.h"
 #include "chrome/browser/ui/page_info/page_info_dialog.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/toolbar/app_menu_model.h"
@@ -63,6 +64,7 @@
 #include "chrome/browser/ui/web_applications/web_app_ui_utils.h"
 #include "chrome/browser/ui/window_sizer/window_sizer.h"
 #include "chrome/browser/web_applications/external_install_options.h"
+#include "chrome/browser/web_applications/model/display_override.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom-shared.h"
 #include "chrome/browser/web_applications/os_integration/os_integration_manager.h"
 #include "chrome/browser/web_applications/os_integration/web_app_shortcut.h"
@@ -73,6 +75,7 @@
 #include "chrome/browser/web_applications/web_app_command_manager.h"
 #include "chrome/browser/web_applications/web_app_command_scheduler.h"
 #include "chrome/browser/web_applications/web_app_constants.h"
+#include "chrome/browser/web_applications/web_app_filter.h"
 #include "chrome/browser/web_applications/web_app_helpers.h"
 #include "chrome/browser/web_applications/web_app_install_finalizer.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
@@ -86,6 +89,7 @@
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "chrome/test/base/web_feature_histogram_tester.h"
+#include "components/services/app_service/public/cpp/app_launch_params.h"
 #include "components/services/app_service/public/cpp/app_launch_util.h"
 #include "components/webapps/browser/features.h"
 #include "components/webapps/browser/installable/installable_metrics.h"
@@ -234,13 +238,20 @@ class WebAppBrowserTest : public WebAppBrowserTestBase {
         base::StringPrintf("/web_apps/basic.html?index=%d", index++));
     auto web_app_info =
         WebAppInstallInfo::CreateWithStartUrlForTesting(app_url);
-    web_app_info->scope = app_url;
+    {
+      // Remove the query argument and filename for the scope.
+      GURL::Replacements replacements;
+      replacements.ClearQuery();
+      web_app_info->scope =
+          app_url.ReplaceComponents(replacements).GetWithoutFilename();
+    }
     web_app_info->display_mode = install_display_mode;
     web_app_info->user_display_mode = open_as_window
                                           ? mojom::UserDisplayMode::kStandalone
                                           : mojom::UserDisplayMode::kBrowser;
-    if (display_override_mode) {
-      web_app_info->display_override.push_back(*display_override_mode);
+    if (display_override_mode.has_value()) {
+      web_app_info->display_override.push_back(
+          DisplayOverride::Create(*display_override_mode));
     }
 
     webapps::AppId app_id = InstallWebApp(std::move(web_app_info));
@@ -446,7 +457,6 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserTest, ThemeColor) {
     manifest.start_url = start_url;
     manifest.id = GenerateManifestIdFromStartUrlOnly(start_url);
     manifest.scope = manifest.start_url.GetWithoutFilename();
-    manifest.has_theme_color = true;
     manifest.theme_color = theme_color;
     std::unique_ptr<WebAppInstallInfo> web_app_info =
         test::GetInstallInfoForCurrentManifest(
@@ -479,7 +489,6 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserTest, BackgroundColor) {
   manifest.start_url = GURL(kExampleURL);
   manifest.id = GenerateManifestIdFromStartUrlOnly(manifest.start_url);
   manifest.scope = GURL(kExampleURL);
-  manifest.has_background_color = true;
   manifest.background_color = SkColorSetA(SK_ColorBLUE, 0xF0);
   std::unique_ptr<WebAppInstallInfo> web_app_info =
       test::GetInstallInfoForCurrentManifest(
@@ -795,7 +804,19 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserTest, AppLastLaunchTime) {
 }
 
 IN_PROC_BROWSER_TEST_F(WebAppBrowserTest,
-                       WithMinimalUiButtons_ManifsetBrowser) {
+                       FullScreenDisplayModeOpensInWindowedContainer) {
+  auto web_app_info =
+      WebAppInstallInfo::CreateWithStartUrlForTesting(GURL(kExampleURL));
+  web_app_info->display_mode = DisplayMode::kFullscreen;
+  webapps::AppId app_id = InstallWebApp(std::move(web_app_info));
+
+  Browser* app_browser = LaunchWebAppBrowserAndWait(app_id);
+  EXPECT_NE(app_browser, nullptr);
+  EXPECT_TRUE(app_browser->app_controller());
+}
+
+IN_PROC_BROWSER_TEST_F(WebAppBrowserTest,
+                       WithMinimalUiButtons_ManifestBrowser) {
   EXPECT_TRUE(
       HasMinimalUiButtons(/*install_display_mode=*/DisplayMode::kBrowser,
                           /*app_display_mode_override=*/std::nullopt,
@@ -1912,8 +1933,8 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserTest, WebAppCreateAndDeleteShortcut) {
   run_loop_install.Run();
   app_loaded_observer.Wait();
 
-  EXPECT_EQ(proto::InstallState::INSTALLED_WITH_OS_INTEGRATION,
-            provider->registrar_unsafe().GetInstallState(app_id));
+  EXPECT_TRUE(provider->registrar_unsafe().AppMatches(
+      app_id, WebAppFilter::InstalledInOperatingSystemForTesting()));
   EXPECT_EQ(provider->registrar_unsafe().GetAppShortName(app_id),
             GetInstallableAppName());
 
@@ -1959,8 +1980,8 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserTest, RunOnOsLoginMetrics) {
   auto* provider = WebAppProvider::GetForTest(profile());
   const webapps::AppId& app_id = InstallPWA(pwa_url);
 
-  ASSERT_EQ(proto::InstallState::INSTALLED_WITH_OS_INTEGRATION,
-            provider->registrar_unsafe().GetInstallState(app_id));
+  EXPECT_TRUE(provider->registrar_unsafe().AppMatches(
+      app_id, WebAppFilter::InstalledInOperatingSystemForTesting()));
 
   base::HistogramTester tester;
   base::RunLoop run_loop;
@@ -1999,6 +2020,30 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserTest, ReparentLastBrowserTab) {
 
   ASSERT_TRUE(IsBrowserOpen(browser()));
   EXPECT_EQ(browser()->tab_strip_model()->count(), 1);
+}
+
+// Tests that omnibox state is cleared when reparenting a tab to a PWA window.
+IN_PROC_BROWSER_TEST_F(WebAppBrowserTest, ReparentWebAppClearsOmniboxState) {
+  const GURL app_url = GetSecureAppURL();
+  const webapps::AppId app_id = InstallPWA(app_url);
+  EXPECT_TRUE(ui_test_utils::NavigateToURL(browser(), app_url));
+
+  content::WebContents* web_contents =
+      browser()->tab_strip_model()->GetActiveWebContents();
+
+  // Simulate omnibox state being stored on the WebContents.
+  web_contents->SetUserData(OmniboxTabHelper::kOmniboxStateKey,
+                            std::make_unique<base::SupportsUserData::Data>());
+  ASSERT_NE(web_contents->GetUserData(OmniboxTabHelper::kOmniboxStateKey),
+            nullptr);
+
+  BrowserWindowInterface* const app_browser =
+      ReparentWebAppForActiveTab(browser());
+  ASSERT_EQ(AppBrowserController::From(app_browser)->app_id(), app_id);
+
+  // Verify the omnibox state was cleared during reparenting.
+  EXPECT_EQ(web_contents->GetUserData(OmniboxTabHelper::kOmniboxStateKey),
+            nullptr);
 }
 
 using WebAppBrowserTestUpdateShortcutResult = WebAppBrowserTest;
@@ -2041,7 +2086,8 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserTestUpdateShortcutResult, UpdateShortcut) {
   EXPECT_EQ(shortcut_info->title, u"test_app_2");
 
   test::UninstallAllWebApps(profile());
-  EXPECT_FALSE(provider->registrar_unsafe().IsInRegistrar(app_id));
+  EXPECT_FALSE(
+      provider->registrar_unsafe().GetInstallState(app_id).has_value());
 }
 
 // Tests that reparenting a display: browser app tab results in a minimal-ui
@@ -2628,8 +2674,9 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserTest_NoDestroyProfile, Shutdown) {
       WindowOpenDisposition::NEW_WINDOW, apps::LaunchSource::kFromTest);
 
   BrowserHandler handler(nullptr, std::string());
+  ui_test_utils::BrowserDestroyedObserver observer(browser());
   handler.Close();
-  ui_test_utils::WaitForBrowserToClose();
+  observer.Wait();
 
   web_app::WebAppProvider* provider =
       web_app::WebAppProvider::GetForLocalAppsUnchecked(profile);
@@ -2724,7 +2771,7 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserTest_FileHandler, FileAssociation) {
         GetFileExtensionsForProgId(file_handler_prog_id);
     for (const auto& file_extension : file_extensions) {
       const std::string extension = base::WideToUTF8(file_extension.substr(1));
-      EXPECT_TRUE(base::Contains(expected_extensions, extension))
+      EXPECT_TRUE(std::ranges::contains(expected_extensions, extension))
           << "Missing file extension: " << extension;
       const std::wstring reg_key =
           L"Software\\Classes\\" + file_extension + L"\\OpenWithProgids";
@@ -2827,8 +2874,8 @@ IN_PROC_BROWSER_TEST_F(WebAppBrowserTest, PRE_UninstallIncompleteUninstall) {
   const webapps::AppId app_id = test::InstallPwaForCurrentUrl(browser());
   run_loop_install.Run();
 
-  EXPECT_EQ(proto::InstallState::INSTALLED_WITH_OS_INTEGRATION,
-            provider->registrar_unsafe().GetInstallState(app_id));
+  EXPECT_TRUE(provider->registrar_unsafe().AppMatches(
+      app_id, WebAppFilter::InstalledInOperatingSystemForTesting()));
   EXPECT_EQ(provider->registrar_unsafe().GetAppShortName(app_id),
             GetInstallableAppName());
   // This does NOT uninstall the web app, it just flags it for uninstall on

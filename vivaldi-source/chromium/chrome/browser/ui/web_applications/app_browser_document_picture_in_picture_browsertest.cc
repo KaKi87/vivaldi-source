@@ -4,6 +4,7 @@
 
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "build/build_config.h"
 #include "chrome/browser/picture_in_picture/document_picture_in_picture_mixin_test_base.h"
@@ -118,8 +119,9 @@ IN_PROC_BROWSER_TEST_F(AppBrowserDocumentPictureInPictureBrowserTest,
 
   // Exit Picture-in-Picture.
   auto* pip_browser = chrome::FindBrowserWithTab(pip_web_contents);
+  ui_test_utils::BrowserDestroyedObserver observer(pip_browser);
   pip_browser->window()->Close();
-  ui_test_utils::WaitForBrowserToClose(pip_browser);
+  observer.Wait();
   EXPECT_FALSE(picture_in_picture_mixin_test_base_.window_controller()
                    ->GetChildWebContents());
 

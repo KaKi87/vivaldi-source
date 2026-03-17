@@ -123,9 +123,8 @@ void VivaldiAccountManagerRequestHandler::HandleRequest() {
 }
 
 void VivaldiAccountManagerRequestHandler::OnURLLoadComplete(
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   callback_.Run(std::move(url_loader_), std::move(response_body));
-
   if (!request_backoff_timer_.IsRunning()) {
     done_ = true;
   }

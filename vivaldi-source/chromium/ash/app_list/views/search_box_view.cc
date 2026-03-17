@@ -47,7 +47,6 @@
 #include "ash/user_education/welcome_tour/welcome_tour_metrics.h"
 #include "ash/wm/mru_window_tracker.h"
 #include "ash/wm/window_state.h"
-#include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/i18n/case_conversion.h"
 #include "base/i18n/rtl.h"
@@ -58,7 +57,6 @@
 #include "base/rand_util.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/types/cxx23_to_underlying.h"
 #include "chromeos/ash/services/assistant/public/cpp/assistant_browser_delegate.h"
 #include "chromeos/constants/chromeos_features.h"
 #include "chromeos/ui/vector_icons/vector_icons.h"
@@ -225,7 +223,7 @@ bool IsSubstringCaseInsensitive(std::u16string haystack_expr,
   std::u16string needle = base::i18n::ToLower(needle_expr);
 
   // Find substring in the given string
-  return base::Contains(haystack, needle);
+  return haystack.contains(needle);
 }
 
 void RecordAutocompleteMatchMetric(SearchBoxTextMatch match_type) {
@@ -433,7 +431,7 @@ class FilterMenuAdapter : public views::MenuModelAdapter {
   views::MenuItemView* GetFilterMenuItemByCategory(
       AppListSearchControlCategory category) {
     std::optional<size_t> index =
-        model_->GetIndexOfCommandId(base::to_underlying(category));
+        model_->GetIndexOfCommandId(std::to_underlying(category));
     CHECK(index.has_value());
     return GetFilterMenuItemByIdx(index.value());
   }
@@ -597,14 +595,14 @@ void SearchBoxView::ResetForShow() {
   ClearSearchAndDeactivateSearchBox();
 }
 
-void SearchBoxView::UpdateSearchTextfieldAccessibleActiveDescendantId() {
+void SearchBoxView::UpdateSearchTextfieldAccessibleActiveDescendantId(
+    views::View* active_descendant) {
   auto* const textfield = search_box();
   if (!textfield) {
     return;
   }
-  if (a11y_active_descendant_) {
-    textfield->GetViewAccessibility().SetActiveDescendant(
-        *a11y_active_descendant_);
+  if (active_descendant) {
+    textfield->GetViewAccessibility().SetActiveDescendant(*active_descendant);
   } else {
     textfield->GetViewAccessibility().ClearActiveDescendant();
   }
@@ -1319,8 +1317,7 @@ bool SearchBoxView::HasAutocompleteText() {
 }
 
 void SearchBoxView::OnBeforeUserAction(views::Textfield* sender) {
-  if (a11y_active_descendant_)
-    SetA11yActiveDescendant(std::nullopt);
+  SetA11yActiveDescendant(nullptr);
 }
 
 void SearchBoxView::SetAutocompleteText(
@@ -1416,7 +1413,7 @@ void SearchBoxView::ClearSearchAndDeactivateSearchBox() {
   if (!is_search_box_active())
     return;
 
-  SetA11yActiveDescendant(std::nullopt);
+  SetA11yActiveDescendant(nullptr);
   // Set search box as inactive first, because ClearSearch() eventually calls
   // into AppListMainView::QueryChanged() which will hide search results based
   // on `is_search_box_active_`.
@@ -1425,10 +1422,8 @@ void SearchBoxView::ClearSearchAndDeactivateSearchBox() {
   MaybeSetAutocompleteGhostText(std::u16string(), std::u16string());
 }
 
-void SearchBoxView::SetA11yActiveDescendant(
-    const std::optional<ui::AXPlatformNodeId>& active_descendant) {
-  a11y_active_descendant_ = active_descendant;
-  UpdateSearchTextfieldAccessibleActiveDescendantId();
+void SearchBoxView::SetA11yActiveDescendant(views::View* active_descendant) {
+  UpdateSearchTextfieldAccessibleActiveDescendantId(active_descendant);
 }
 
 void SearchBoxView::UseFixedPlaceholderTextForTest() {
@@ -1567,7 +1562,7 @@ bool SearchBoxView::HandleKeyEvent(views::Textfield* sender,
       DCHECK(close_button()->GetVisible());
       close_button()->RequestFocus();
 
-      SetA11yActiveDescendant(std::nullopt);
+      SetA11yActiveDescendant(nullptr);
       break;
     case ResultSelectionController::MoveResult::kSelectionCycleAfterLastResult:
       // If move was about to cycle, clear the selection and move the focus to
@@ -1583,7 +1578,7 @@ bool SearchBoxView::HandleKeyEvent(views::Textfield* sender,
       } else {
         close_button()->RequestFocus();
       }
-      SetA11yActiveDescendant(std::nullopt);
+      SetA11yActiveDescendant(nullptr);
       break;
     case ResultSelectionController::MoveResult::kResultChanged:
       UpdateSearchBoxForSelectedResult(
@@ -1751,8 +1746,8 @@ CategoryEnableStateMap SearchBoxView::GetSearchCategoryEnableState() {
   CategoryEnableStateMap category_to_state;
 
   // Initialize the map.
-  for (int i = base::to_underlying(AppListSearchControlCategory::kMinValue);
-       i <= base::to_underlying(AppListSearchControlCategory::kMaxValue); ++i) {
+  for (int i = std::to_underlying(AppListSearchControlCategory::kMinValue);
+       i <= std::to_underlying(AppListSearchControlCategory::kMaxValue); ++i) {
     auto category = static_cast<AppListSearchControlCategory>(i);
     // Cannot toggle is not a category.
     if (category == AppListSearchControlCategory::kCannotToggle) {

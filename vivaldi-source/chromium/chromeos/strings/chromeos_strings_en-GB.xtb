@@ -1181,7 +1181,6 @@
 <translation id="6205145102504628069">Cloud Flow</translation>
 <translation id="6213737986933151570">CDMA1XRTT</translation>
 <translation id="6223752125779001553">No scanners available</translation>
-<translation id="6231648282154119906">Suspicious files will be scanned automatically by Google Safe Browsing as part of the enhanced protection that you chose</translation>
 <translation id="6232017090690406397">Battery</translation>
 <translation id="6234024205316847054">Show outlines</translation>
 <translation id="6243280677745499710">Currently set</translation>
@@ -1411,7 +1410,6 @@
 <translation id="7177485034254901881">This <ph name="DEVICE_TYPE" /> is managed by <ph name="MANAGER" />. Administrators may remotely configure the device.</translation>
 <translation id="7180611975245234373">Refresh</translation>
 <translation id="7180865173735832675">Customise</translation>
-<translation id="7182063559013288142">Instant hotspot</translation>
 <translation id="7184043045742675738">Click on any key to customise your button. Reposition key with mouse or arrow keys.</translation>
 <translation id="7187669805838282391">on Wednesday</translation>
 <translation id="7205318498545665455">Choose your mic</translation>

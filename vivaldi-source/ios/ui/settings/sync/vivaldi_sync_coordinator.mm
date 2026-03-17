@@ -5,8 +5,8 @@
 #import "base/strings/sys_string_conversions.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_utils.h"
 #import "ios/chrome/browser/sync/model/sync_service_factory.h"
 #import "ios/ui/modal_page/modal_page_commands.h"
@@ -51,6 +51,7 @@
 @property(nonatomic, strong)
     VivaldiSyncSettingsViewController* syncSettingsViewController;
 @property(nonatomic, strong) VivaldiSyncMediator* mediator;
+@property(nonatomic, weak) id<ModalPageCommands> modalPageHandler;
 
 // Used to present sync view with create account page on top when YES.
 @property(nonatomic, assign) BOOL showCreateAccount;
@@ -65,8 +66,8 @@
                     (UINavigationController*)navigationController
                                          browser:(Browser*)browser
                                showCreateAccount:(BOOL)showCreateAccount {
-  self =
-      [super initWithBaseViewController:navigationController browser:browser];
+  self = [super initWithBaseViewController:navigationController
+                                   browser:browser];
   if (self) {
     _baseNavigationController = navigationController;
     _showCreateAccount = showCreateAccount;
@@ -87,9 +88,8 @@
 }
 
 - (void)start {
-  syncer::SyncService* sync_service =
-      SyncServiceFactory::GetForProfile(
-          self.browser->GetProfile()->GetOriginalProfile());
+  syncer::SyncService* sync_service = SyncServiceFactory::GetForProfile(
+      self.browser->GetProfile()->GetOriginalProfile());
   vivaldi::VivaldiAccountManager* account_manager =
       vivaldi::VivaldiAccountManagerFactory::GetForProfile(
           self.browser->GetProfile()->GetOriginalProfile());
@@ -106,7 +106,9 @@
 
 - (void)stop {
   [self.mediator disconnect];
+  [self.browser->GetCommandDispatcher() stopDispatchingToTarget:self];
   self.delegate = nil;
+  self.modalPageHandler = nil;
   self.syncLoginViewController = nil;
   self.syncSettingsViewController = nil;
   self.syncCreateEncryptionPasswordViewController = nil;
@@ -204,15 +206,9 @@
   }
 
   if (!self.syncCreateAccountPasswordViewController) {
-    [self.browser->GetCommandDispatcher()
-        startDispatchingToTarget:self
-                     forProtocol:@protocol(ModalPageCommands)];
-    id<ModalPageCommands> modalPageHandler = HandlerForProtocol(
-        self.browser->GetCommandDispatcher(), ModalPageCommands);
-
     self.syncCreateAccountPasswordViewController =
         [[VivaldiSyncCreateAccountPasswordViewController alloc]
-            initWithModalPageHandler:modalPageHandler
+            initWithModalPageHandler:[self modalPageHandlerForCurrentSession]
                                style:ChromeTableViewStyle()];
   }
   self.syncCreateAccountPasswordViewController.shouldHideDoneButton = YES;
@@ -293,8 +289,7 @@
   self.syncSettingsViewController.modelDelegate = self.mediator;
   self.syncSettingsViewController.serviceDelegate = self.mediator;
   self.syncSettingsViewController.applicationCommandsHandler =
-      HandlerForProtocol(
-          self.browser->GetCommandDispatcher(), ApplicationCommands);
+      HandlerForProtocol(self.browser->GetCommandDispatcher(), SceneCommands);
   self.mediator.settingsConsumer = self.syncSettingsViewController;
   [controllers addObject:self.syncSettingsViewController];
   [self.baseNavigationController setViewControllers:controllers animated:YES];
@@ -627,13 +622,8 @@
 
 - (void)addSyncLoginViewControllerToNavigationStack {
   if (!self.syncLoginViewController) {
-    [self.browser->GetCommandDispatcher()
-        startDispatchingToTarget:self
-                     forProtocol:@protocol(ModalPageCommands)];
-    id<ModalPageCommands> modalPageHandler = HandlerForProtocol(
-        self.browser->GetCommandDispatcher(), ModalPageCommands);
     self.syncLoginViewController = [[VivaldiSyncLoginViewController alloc]
-        initWithModalPageHandler:modalPageHandler
+        initWithModalPageHandler:[self modalPageHandlerForCurrentSession]
                            style:ChromeTableViewStyle()];
     if (self.showCancelButton) {
       [self.syncLoginViewController setupLeftCancelButton];
@@ -667,6 +657,22 @@
     }
   }
   return new_controllers;
+}
+
+- (id<ModalPageCommands>)modalPageHandlerForCurrentSession {
+  if (!self.modalPageHandler) {
+    // Ensure stale mappings from previous coordinators don't trip the
+    // dispatcher DCHECK when this coordinator takes ownership.
+    [self.browser->GetCommandDispatcher()
+        stopDispatchingForProtocol:@protocol(ModalPageCommands)];
+    [self.browser->GetCommandDispatcher()
+        startDispatchingToTarget:self
+                     forProtocol:@protocol(ModalPageCommands)];
+    self.modalPageHandler = HandlerForProtocol(
+        self.browser->GetCommandDispatcher(), ModalPageCommands);
+  }
+
+  return self.modalPageHandler;
 }
 
 @end

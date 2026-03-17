@@ -11,7 +11,8 @@ const wchar_t kVivaldiDeltaPatchFailed[] = L"DeltaPatchFailed";
 const wchar_t kVivaldiKey[] = VIVALDI_REGISTRY_KEY;
 const wchar_t kVivaldiAutoUpdateKey[] = VIVALDI_REGISTRY_KEY "\\AutoUpdate";
 const wchar_t kVivaldiPinToTaskbarValue[] = L"EnablePinToTaskbar";
-const wchar_t kVivaldiToastActivatorCLSID[] = VIVALDI_REGISTRY_KEY "\\ToastActivatorCLSID";
+const wchar_t kVivaldiToastActivatorCLSID[] =
+    VIVALDI_REGISTRY_KEY "\\ToastActivatorCLSID";
 
 // Vivaldi installer settings from last install.
 const wchar_t kVivaldiInstallerDestinationFolder[] = L"DestinationFolder";
@@ -21,8 +22,7 @@ const wchar_t kVivaldiInstallerRegisterBrowser[] = L"RegisterBrowser";
 const wchar_t kVivaldiInstallerAdvancedMode[] = L"AdvancedMode";
 const wchar_t kVivaldiInstallerDisableStandaloneAutoupdate[] =
     L"DisableStandaloneAutoupdate";
-const wchar_t kVivaldiInstallerUpLoadCrashReports[] =
-    L"UploadCrashReports";
+const wchar_t kVivaldiInstallerUpLoadCrashReports[] = L"UploadCrashReports";
 
 // Vivaldi paths and filenames
 
@@ -47,7 +47,8 @@ const char kVivaldiMini[] = VIVALDI_INSTALLER_SWITCH_MINI;
 // installation.
 const char kVivaldiRegisterStandalone[] = "vivaldi-register-standalone";
 
-// Enable crashlog uploading for the instance that gets started from the installer.
+// Enable crashlog uploading for the instance that gets started from the
+// installer.
 const char kVivaldiEnableCrashlogUpload[] = "vivaldi-enable-crashlog-uploading";
 
 // The update should run in the background with no interaction with the user.

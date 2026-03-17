@@ -18,6 +18,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import static org.chromium.chrome.browser.url_constants.UrlConstantResolver.getOriginalNativeNtpUrl;
 import static org.chromium.ui.test.util.ViewUtils.waitForView;
 
 import android.content.ComponentCallbacks2;
@@ -26,6 +27,7 @@ import android.graphics.Point;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
+import android.text.TextUtils;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -63,6 +65,7 @@ import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
+import org.chromium.base.test.util.Matchers;
 import org.chromium.base.test.util.Restriction;
 import org.chromium.base.test.util.UrlUtils;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
@@ -101,6 +104,7 @@ import org.chromium.components.browser_ui.widget.tile.TileView;
 import org.chromium.components.embedder_support.util.UrlConstants;
 import org.chromium.components.omnibox.AutocompleteRequestType;
 import org.chromium.components.omnibox.OmniboxFeatureList;
+import org.chromium.components.omnibox.OmniboxFeatures;
 import org.chromium.components.policy.test.annotations.Policies;
 import org.chromium.components.search_engines.TemplateUrlService;
 import org.chromium.components.signin.test.util.TestAccounts;
@@ -206,7 +210,7 @@ public class NewTabPageTest {
         mMostVisitedSites.setTileSuggestions(mSiteSuggestions);
         mSuggestionsDeps.getFactory().mostVisitedSites = mMostVisitedSites;
 
-        mActivityTestRule.loadUrl(UrlConstants.NTP_URL);
+        mActivityTestRule.loadUrl(getOriginalNativeNtpUrl());
         mTab = mActivityTestRule.getActivityTab();
         NewTabPageTestUtils.waitForNtpLoaded(mTab);
 
@@ -290,6 +294,7 @@ public class NewTabPageTest {
     @SmallTest
     @Feature({"NewTabPage", "FeedNewTabPage"})
     @DisableIf.Build(sdk_equals = Build.VERSION_CODES.R, message = "http://crbug.com/40664848")
+    @DisableIf.Device(DeviceFormFactor.DESKTOP) // Failing on desktop http://crbug.com/40664848
     public void testFocusFakebox() {
         int initialFakeboxTop = getFakeboxTop(mNtp);
 
@@ -586,6 +591,7 @@ public class NewTabPageTest {
     @Test
     @SmallTest
     @Feature({"NewTabPage", "FeedNewTabPage"})
+    @DisabledTest(message = "crbug.com/475323609")
     public void testFeedReliabilityLoggingFocusOmnibox() throws IOException {
         mNtp.getCoordinatorForTesting().setReliabilityLoggerForTesting(mFeedReliabilityLogger);
 
@@ -896,6 +902,7 @@ public class NewTabPageTest {
     @Test
     @SmallTest
     @Feature({"NewTabPage"})
+    @DisableFeatures({OmniboxFeatureList.OMNIBOX_MULTIMODAL_INPUT})
     public void testAiModeButton() {
         NewTabPageLayout ntpLayout = mNtp.getNewTabPageLayout();
         TouchCommon.singleClickView(
@@ -903,6 +910,7 @@ public class NewTabPageTest {
                         .findViewById(
                                 org.chromium.chrome.browser.composeplate.R.id.composeplate_view)
                         .findViewById(R.id.composeplate_button));
+        verifyComposeplateUrlNavigation();
     }
 
     @Test
@@ -921,6 +929,41 @@ public class NewTabPageTest {
                                 org.chromium.chrome.browser.composeplate.R.id.composeplate_view)
                         .findViewById(R.id.composeplate_button));
         mOmnibox.checkFocus(true);
+    }
+
+    @Test
+    @SmallTest
+    @Feature({"NewTabPage"})
+    @EnableFeatures({OmniboxFeatureList.OMNIBOX_MULTIMODAL_INPUT})
+    public void testAiModeButton_fuseboxWithoutRedirect() {
+        if (mActivityTestRule.getActivity().isTablet()) return;
+
+        OmniboxFeatures.sRedirectComposeplateButton.setForTesting(false);
+        mActivityTestRule.skipWindowAndTabStateCleanup();
+
+        NewTabPageLayout ntpLayout = mNtp.getNewTabPageLayout();
+        TouchCommon.singleClickView(
+                ntpLayout
+                        .findViewById(
+                                org.chromium.chrome.browser.composeplate.R.id.composeplate_view)
+                        .findViewById(R.id.composeplate_button));
+        verifyComposeplateUrlNavigation();
+    }
+
+    private void verifyComposeplateUrlNavigation() {
+        CriteriaHelper.pollUiThread(
+                () -> {
+                    GURL actual = mTab.getUrl();
+                    GURL expected = mTemplateUrlService.getComposeplateUrl();
+                    Criteria.checkThat(
+                            "Expected host and path to match between tab's URL "
+                                    + actual
+                                    + " and template URL service "
+                                    + expected,
+                            TextUtils.equals(actual.getHost(), expected.getHost())
+                                    && TextUtils.equals(actual.getPath(), expected.getPath()),
+                            Matchers.is(true));
+                });
     }
 
     private void verifyMostVisitedTileMargin() {

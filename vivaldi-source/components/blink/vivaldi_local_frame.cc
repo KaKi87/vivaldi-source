@@ -17,4 +17,4 @@ void WebLocalFrameImpl::VisibleTextSelectionChanged(
   GetFrame()->VisibleTextSelectionChanged(selection_text);
 }
 
-} // namespace blink
+}  // namespace blink

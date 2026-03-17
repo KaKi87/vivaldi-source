@@ -140,6 +140,9 @@ class DrawIndexedTest : public DawnTest {
 
 // The most basic DrawIndexed triangle draw.
 TEST_P(DrawIndexedTest, Uint32) {
+    // TODO(crbug.com/468047553): Fails on Win11/NVIDIA GTX 1660.
+    DAWN_SUPPRESS_TEST_IF(IsWindows11() && IsNvidia() && IsD3D12() && IsBackendValidationEnabled());
+
     utils::RGBA8 filled(0, 255, 0, 255);
     utils::RGBA8 notFilled(0, 0, 0, 0);
 
@@ -168,6 +171,9 @@ TEST_P(DrawIndexedTest, BaseVertex) {
 // Test the parameter 'baseVertex' of DrawIndexed() works.
 TEST_P(DrawIndexedTest, NegativeBaseVertex) {
     DAWN_TEST_UNSUPPORTED_IF(HasToggleEnabled("disable_base_vertex"));
+
+    // TODO(crbug.com/40238674): Fails on Pixel 10.
+    DAWN_SUPPRESS_TEST_IF(IsImgTec());
 
     // TODO(crbug.com/343178421): ANGLE/SwiftShader and ANGLE/D3D11 fail with negative baseVertex.
     DAWN_SUPPRESS_TEST_IF(IsANGLESwiftShader());

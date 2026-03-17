@@ -271,8 +271,14 @@ TEST(AdBlockRuleParserTest, OptionsParsing) {
   expected_rules.back().original_rule_text =
       "pattern$domain=   `example.com|vivaldi.com`  ,image";
   expected_rules.back().resource_types.Put(ResourceType::kImage);
-  expected_rules.back().included_domains.insert("example.com");
-  expected_rules.back().included_domains.insert("vivaldi.com");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "example.com"});
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "vivaldi.com"});
   expected_rules.back().resource_types.Put(ResourceType::kImage);
   expected_rules.back().pattern = "pattern";
 
@@ -832,7 +838,10 @@ TEST(AdBlockRuleParserTest, Domains) {
             rule_parser.Parse("bad-resource$domain=some.domain"));
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text = "bad-resource$domain=some.domain";
-  expected_rules.back().included_domains.insert("some.domain");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "some.domain"});
   expected_rules.back().resource_types.PutAll(RegularResourceTypes::All());
 
   expected_rules.back().pattern = "bad-resource";
@@ -844,9 +853,18 @@ TEST(AdBlockRuleParserTest, Domains) {
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =
       "bad-resource$domain=first.domain|second.domain|unicøde.domain";
-  expected_rules.back().included_domains.insert("first.domain");
-  expected_rules.back().included_domains.insert("second.domain");
-  expected_rules.back().included_domains.insert("xn--unicde-eya.domain");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "first.domain"});
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "second.domain"});
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "xn--unicde-eya.domain"});
   expected_rules.back().resource_types.PutAll(RegularResourceTypes::All());
 
   expected_rules.back().pattern = "bad-resource";
@@ -856,7 +874,10 @@ TEST(AdBlockRuleParserTest, Domains) {
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =
       "bad-resource$domain=~excepted.domain";
-  expected_rules.back().excluded_domains.insert("excepted.domain");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "excepted.domain"});
   expected_rules.back().resource_types.PutAll(RegularResourceTypes::All());
 
   expected_rules.back().pattern = "bad-resource";
@@ -867,8 +888,14 @@ TEST(AdBlockRuleParserTest, Domains) {
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =
       "bad-resource$domain=~first.excepted.domain|~second.excepted.domain";
-  expected_rules.back().excluded_domains.insert("first.excepted.domain");
-  expected_rules.back().excluded_domains.insert("second.excepted.domain");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "first.excepted.domain"});
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "second.excepted.domain"});
   expected_rules.back().resource_types.PutAll(RegularResourceTypes::All());
 
   expected_rules.back().pattern = "bad-resource";
@@ -879,8 +906,14 @@ TEST(AdBlockRuleParserTest, Domains) {
   expected_rules.emplace_back();
   expected_rules.back().original_rule_text =
       "bad-resource$domain=bad.domain|~good.bad.domain";
-  expected_rules.back().included_domains.insert("bad.domain");
-  expected_rules.back().excluded_domains.insert("good.bad.domain");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "bad.domain"});
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "good.bad.domain"});
   expected_rules.back().resource_types.PutAll(RegularResourceTypes::All());
 
   expected_rules.back().pattern = "bad-resource";
@@ -891,6 +924,102 @@ TEST(AdBlockRuleParserTest, Domains) {
             rule_parser.Parse("bad-resource$domain=inv/alid"));
   EXPECT_EQ(RuleParser::kError,
             rule_parser.Parse("bad-resource$domain=wrong]"));
+
+  ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
+
+  auto actual_rules_it = parse_result.request_filter_rules.begin();
+  for (const auto& rule : expected_rules) {
+    EXPECT_EQ(rule, *actual_rules_it);
+    actual_rules_it++;
+  }
+}
+
+TEST(AdBlockRuleParserTest, EntityDomains) {
+  ParseResult parse_result;
+  RuleParser rule_parser(&parse_result, {});
+
+  std::vector<RequestFilterRule> expected_rules;
+
+  EXPECT_EQ(RuleParser::kError, rule_parser.Parse("$domain=no.middle.*.wild"));
+
+  EXPECT_EQ(RuleParser::kRequestFilterRule,
+            rule_parser.Parse("bad-resource$domain=some.entity.*"));
+  expected_rules.emplace_back();
+  expected_rules.back().original_rule_text =
+      "bad-resource$domain=some.entity.*";
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kEntity,
+       .excluded = false,
+       .constraint = "some.entity"});
+  expected_rules.back().resource_types.PutAll(RegularResourceTypes::All());
+  expected_rules.back().pattern = "bad-resource";
+
+  EXPECT_EQ(RuleParser::kRequestFilterRule,
+            rule_parser.Parse("bad-resource$domain=~excepted.entity.*"));
+  expected_rules.emplace_back();
+  expected_rules.back().original_rule_text =
+      "bad-resource$domain=~excepted.entity.*";
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kEntity,
+       .excluded = true,
+       .constraint = "excepted.entity"});
+  expected_rules.back().resource_types.PutAll(RegularResourceTypes::All());
+  expected_rules.back().pattern = "bad-resource";
+
+  EXPECT_EQ(RuleParser::kRequestFilterRule,
+            rule_parser.Parse(
+                "bad-resource$domain=example.*|example2.*|~sub.example2.*"));
+  expected_rules.emplace_back();
+  expected_rules.back().original_rule_text =
+      "bad-resource$domain=example.*|example2.*|~sub.example2.*";
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kEntity,
+       .excluded = false,
+       .constraint = "example"});
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kEntity,
+       .excluded = false,
+       .constraint = "example2"});
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kEntity,
+       .excluded = true,
+       .constraint = "sub.example2"});
+  expected_rules.back().resource_types.PutAll(RegularResourceTypes::All());
+
+  expected_rules.back().pattern = "bad-resource";
+
+  ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
+
+  auto actual_rules_it = parse_result.request_filter_rules.begin();
+  for (const auto& rule : expected_rules) {
+    EXPECT_EQ(rule, *actual_rules_it);
+    actual_rules_it++;
+  }
+}
+
+TEST(AdBlockRuleParserTest, RegexDomains) {
+  ParseResult parse_result;
+  RuleParser rule_parser(&parse_result, {});
+
+  std::vector<RequestFilterRule> expected_rules;
+
+  EXPECT_EQ(RuleParser::kRequestFilterRule,
+            rule_parser.Parse(
+                "bad-resource$domain=/^xxx.(aaa|bbb).yyy/|~/example.?/,image"));
+  expected_rules.emplace_back();
+  expected_rules.back().original_rule_text =
+      "bad-resource$domain=/^xxx.(aaa|bbb).yyy/|~/example.?/,image";
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kRegex,
+       .excluded = false,
+       .constraint = "^xxx.(aaa|bbb).yyy"});
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kRegex,
+       .excluded = true,
+       .constraint = "example.?"});
+  expected_rules.back().resource_types.Put(ResourceType::kImage);
+
+  expected_rules.back().pattern = "bad-resource";
 
   ASSERT_EQ(expected_rules.size(), parse_result.request_filter_rules.size());
 
@@ -1154,7 +1283,10 @@ TEST(AdBlockRuleParserTest, Rewrite) {
   expected_rules.back().pattern = "bad-script";
   expected_rules.back().modifier = ModifierType::kRedirect;
   expected_rules.back().modifier_values.insert("blank-js");
-  expected_rules.back().included_domains.insert("some.domain");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "some.domain"});
 
   EXPECT_EQ(RuleParser::kRequestFilterRule,
             rule_parser.Parse("||bad.host/"
@@ -1170,7 +1302,10 @@ TEST(AdBlockRuleParserTest, Rewrite) {
   expected_rules.back().pattern = "bad.host/bad-image";
   expected_rules.back().modifier = ModifierType::kRedirect;
   expected_rules.back().modifier_values.insert("1x1-transparent-gif");
-  expected_rules.back().included_domains.insert("some.domain");
+  expected_rules.back().from_domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "some.domain"});
 
   EXPECT_EQ(RuleParser::kRequestFilterRule,
             rule_parser.Parse(
@@ -1530,38 +1665,50 @@ TEST(AdBlockRuleParserTest, CosmeticRules) {
   CosmeticRules expected_rules;
 
   EXPECT_EQ(RuleParser::kCosmeticRule, rule_parser.Parse("##.ad"));
-  expected_rules.emplace_back();
+  expected_rules.emplace_back(ContentInjectionRuleCore(false));
   expected_rules.back().selector = ".ad";
 
   EXPECT_EQ(RuleParser::kCosmeticRule, rule_parser.Parse("#@#.useful"));
-  expected_rules.emplace_back();
+  expected_rules.emplace_back(ContentInjectionRuleCore(true));
   expected_rules.back().selector = ".useful";
-  expected_rules.back().core.is_allow_rule = true;
 
   EXPECT_EQ(RuleParser::kCosmeticRule, rule_parser.Parse("###sponsored"));
-  expected_rules.emplace_back();
+  expected_rules.emplace_back(ContentInjectionRuleCore(false));
   expected_rules.back().selector = "#sponsored";
 
   EXPECT_EQ(RuleParser::kCosmeticRule, rule_parser.Parse("example.com##.ad"));
-  expected_rules.emplace_back();
-  expected_rules.back().core.included_domains.insert("example.com");
+  expected_rules.emplace_back(ContentInjectionRuleCore(false));
+  expected_rules.back().core.domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "example.com"});
   expected_rules.back().selector = ".ad";
 
   EXPECT_EQ(RuleParser::kCosmeticRule,
             rule_parser.Parse("example.com#@#.useful"));
-  expected_rules.emplace_back();
-  expected_rules.back().core.included_domains.insert("example.com");
-  expected_rules.back().core.is_allow_rule = true;
+  expected_rules.emplace_back(ContentInjectionRuleCore(true));
+  expected_rules.back().core.domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "example.com"});
   expected_rules.back().selector = ".useful";
 
   EXPECT_EQ(RuleParser::kCosmeticRule,
             rule_parser.Parse("baz.foo.example.com,~foo.example.com,~bar."
                               "example.com,example.com##.ad"));
-  expected_rules.emplace_back();
-  expected_rules.back().core.included_domains.insert("example.com");
-  expected_rules.back().core.included_domains.insert("baz.foo.example.com");
-  expected_rules.back().core.excluded_domains.insert("foo.example.com");
-  expected_rules.back().core.excluded_domains.insert("bar.example.com");
+  expected_rules.emplace_back(ContentInjectionRuleCore(false));
+  expected_rules.back().core.domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "example.com"});
+  expected_rules.back().core.domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "foo.example.com"});
+  expected_rules.back().core.domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = true,
+       .constraint = "bar.example.com"});
   expected_rules.back().selector = ".ad";
 
   ASSERT_EQ(expected_rules.size(), parse_result.cosmetic_rules.size());
@@ -1584,28 +1731,44 @@ TEST(AdBlockRuleParserTest, ScriptletRules) {
 
   EXPECT_EQ(RuleParser::kScriptletInjectionRule,
             rule_parser.Parse("example.com#$#log test"));
-  expected_rules.emplace_back();
-  expected_rules.back().core.included_domains.insert("example.com");
-  expected_rules.back().scriptlet_name = kAbpSnippetsIsolatedScriptletName;
-  expected_rules.back().arguments.push_back("[\"log\",\"test\"],");
+  expected_rules.emplace_back(ContentInjectionRuleCore(false));
+  expected_rules.back().core.domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "example.com"});
+  expected_rules.back().scriptlets.emplace_back();
+  expected_rules.back().scriptlets.back().name =
+      kAbpSnippetsIsolatedScriptletName;
+  expected_rules.back().scriptlets.back().arguments.push_back(
+      "[\"log\",\"test\"],");
 
   EXPECT_EQ(RuleParser::kScriptletInjectionRule,
             rule_parser.Parse("example.com#$#log 'hello world'"));
-  expected_rules.emplace_back();
-  expected_rules.back().core.included_domains.insert("example.com");
-  expected_rules.back().scriptlet_name = kAbpSnippetsIsolatedScriptletName;
-  expected_rules.back().arguments.push_back("[\"log\",\"hello world\"],");
+  expected_rules.emplace_back(ContentInjectionRuleCore(false));
+  expected_rules.back().core.domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "example.com"});
+  expected_rules.back().scriptlets.emplace_back();
+  expected_rules.back().scriptlets.back().name =
+      kAbpSnippetsIsolatedScriptletName;
+  expected_rules.back().scriptlets.back().arguments.push_back(
+      "[\"log\",\"hello world\"],");
 
   EXPECT_EQ(RuleParser::kScriptletInjectionRule,
             rule_parser.Parse("example.com#$#debug"));
-  expected_rules.emplace_back();
-  expected_rules.back().core.included_domains.insert("example.com");
-  expected_rules.back().scriptlet_name = kAbpSnippetsMainScriptletName;
-  expected_rules.back().arguments.push_back("[\"debug\"],");
-  expected_rules.emplace_back();
-  expected_rules.back().core.included_domains.insert("example.com");
-  expected_rules.back().scriptlet_name = kAbpSnippetsIsolatedScriptletName;
-  expected_rules.back().arguments.push_back("[\"debug\"],");
+  expected_rules.emplace_back(ContentInjectionRuleCore(false));
+  expected_rules.back().core.domain_constraints.Add(
+      {.kind = DomainConstraintsTree::NormalizedConstraint::kHostname,
+       .excluded = false,
+       .constraint = "example.com"});
+  expected_rules.back().scriptlets.emplace_back();
+  expected_rules.back().scriptlets.back().name = kAbpSnippetsMainScriptletName;
+  expected_rules.back().scriptlets.back().arguments.push_back("[\"debug\"],");
+  expected_rules.back().scriptlets.emplace_back();
+  expected_rules.back().scriptlets.back().name =
+      kAbpSnippetsIsolatedScriptletName;
+  expected_rules.back().scriptlets.back().arguments.push_back("[\"debug\"],");
 
   ASSERT_EQ(expected_rules.size(),
             parse_result.scriptlet_injection_rules.size());

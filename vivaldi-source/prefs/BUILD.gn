@@ -86,6 +86,9 @@ static_library("prefs") {
       "//content/public/browser",
     ]
   }
+  if (is_ios) {
+    deps += ["ios:ios_prefs"]
+  }
 }
 
 static_library("prefs_strings") {

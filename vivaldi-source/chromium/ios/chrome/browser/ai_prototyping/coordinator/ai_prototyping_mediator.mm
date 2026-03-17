@@ -7,27 +7,36 @@
 #import <string>
 
 #import "base/functional/bind.h"
+#import "base/json/json_reader.h"
+#import "base/logging.h"
 #import "base/strings/string_number_conversions.h"
 #import "base/strings/stringprintf.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/strings/utf_string_conversions.h"
 #import "base/values.h"
 #import "components/optimization_guide/optimization_guide_buildflags.h"
+#import "components/optimization_guide/proto/features/actions_data.pb.h"
 #import "components/optimization_guide/proto/features/bling_prototyping.pb.h"
 #import "components/optimization_guide/proto/features/common_quality_data.pb.h"
 #import "components/optimization_guide/proto/features/enhanced_calendar.pb.h"
 #import "components/optimization_guide/proto/features/ios_smart_tab_grouping.pb.h"
 #import "components/optimization_guide/proto/features/tab_organization.pb.h"
 #import "components/optimization_guide/proto/string_value.pb.h"  // nogncheck
+#import "ios/chrome/browser/ai_prototyping/features.h"
 #import "ios/chrome/browser/ai_prototyping/model/ai_prototyping_service_impl.h"
 #import "ios/chrome/browser/ai_prototyping/model/tab_organization_service_impl.h"
 #import "ios/chrome/browser/ai_prototyping/ui/ai_prototyping_consumer.h"
 #import "ios/chrome/browser/ai_prototyping/utils/ai_prototyping_constants.h"
+#import "ios/chrome/browser/ai_prototyping/utils/json_action_parser.h"
+#import "ios/chrome/browser/ai_prototyping/utils/page_context_util.h"
+#import "ios/chrome/browser/intelligence/actuation/model/actuation_service.h"
+#import "ios/chrome/browser/intelligence/actuation/model/actuation_service_factory.h"
 #import "ios/chrome/browser/intelligence/enhanced_calendar/model/enhanced_calendar_service_impl.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/ios_smart_tab_grouping_request_wrapper.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/page_context_wrapper.h"
 #import "ios/chrome/browser/intelligence/proto_wrappers/tab_organization_request_wrapper.h"
 #import "ios/chrome/browser/intelligence/smart_tab_grouping/model/smart_tab_grouping_service_impl.h"
+#import "ios/chrome/browser/intelligence/smart_tab_grouping/utils/smart_tab_grouping_utils.h"
 #import "ios/chrome/browser/optimization_guide/model/optimization_guide_service.h"
 #import "ios/chrome/browser/optimization_guide/model/optimization_guide_service_factory.h"
 #import "ios/chrome/browser/optimization_guide/mojom/enhanced_calendar_service.mojom-forward.h"
@@ -202,13 +211,10 @@
           });
 
   // Populate the PageContext proto and then execute the query.
-  _pageContextWrapper = [[PageContextWrapper alloc]
-        initWithWebState:_webStateList->GetActiveWebState()
-      completionCallback:std::move(page_context_completion_callback)];
-  [_pageContextWrapper setShouldGetAnnotatedPageContent:YES];
-  [_pageContextWrapper setShouldGetSnapshot:YES];
-  [_pageContextWrapper setShouldGetFullPagePDF:YES];
-  [_pageContextWrapper populatePageContextFieldsAsync];
+  _pageContextWrapper =
+      CreatePageContextWrapper(_webStateList->GetActiveWebState(),
+                               std::move(page_context_completion_callback));
+  PopulatePageContext(_pageContextWrapper, _webStateList->GetActiveWebState());
 }
 
 - (void)executeFreeformOnDeviceQuery:
@@ -359,6 +365,7 @@
   [self.consumer updateQueryResult:base::SysUTF8ToNSString(response_string)
                         forFeature:AIPrototypingFeature::kFreeform];
   if (_enableMQLSUpload) {
+    CHECK(IsUploadBlingAIPrototypingDataEnabled());
     [self uploadLoggingDataToMQLS:std::move(logging_data)];
   }
 }
@@ -417,7 +424,7 @@
   return result;
 }
 
-// Handles the SmartTabGroupingResponse by outputting the response proto or
+// Handles the IosSmartTabGroupingResponse by outputting the response proto or
 // an error message into the result text field.
 - (void)handleSmartTabGroupingResponseResult:
     (ai::mojom::SmartTabGroupingResponseResultPtr)response_result {
@@ -428,13 +435,23 @@
     return;
   }
 
-  std::string result = [self
-      serializeSmartTabGroupingResponseToString:
-          response_result->get_response()
-              .As<optimization_guide::proto::IosSmartTabGroupingResponse>()
-              .value()];
+  auto response_proto =
+      response_result->get_response()
+          .As<optimization_guide::proto::IosSmartTabGroupingResponse>();
 
-  [self.consumer updateQueryResult:base::SysUTF8ToNSString(result)
+  if (!response_proto.has_value()) {
+    [self.consumer
+        updateQueryResult:@"Error parsing IosSmartTabGroupingResponse"
+               forFeature:AIPrototypingFeature::kSmartTabGrouping];
+    return;
+  }
+
+  ApplySmartTabGroupResponse(response_proto.value(), _webStateList);
+
+  std::string result_string =
+      [self serializeSmartTabGroupingResponseToString:response_proto.value()];
+
+  [self.consumer updateQueryResult:base::SysUTF8ToNSString(result_string)
                         forFeature:AIPrototypingFeature::kSmartTabGrouping];
 }
 
@@ -488,6 +505,17 @@
   optimization_guide::proto::BlingPrototypingLoggingData proto_logging_data =
       logging_data.As<optimization_guide::proto::BlingPrototypingLoggingData>()
           .value();
+  if (!kUploadBlingAIPrototypingDataLoggingTag.Get().empty() ||
+      !kUploadBlingAIPrototypingDataLoggingDescription.Get().empty()) {
+    auto metadata =
+        std::make_unique<optimization_guide::proto::BlingPrototypingMetadata>();
+    metadata->set_logging_tag(kUploadBlingAIPrototypingDataLoggingTag.Get());
+    metadata->set_logging_description(
+        kUploadBlingAIPrototypingDataLoggingDescription.Get());
+    *proto_logging_data.mutable_metadata() = *metadata;
+    NSLog(@"[AIPrototypingMediator] Logging MQLS with logging_tag: %@",
+          base::SysUTF8ToNSString(proto_logging_data.metadata().logging_tag()));
+  }
   std::unique_ptr<optimization_guide::ModelQualityLogEntry> log_entry =
       std::make_unique<optimization_guide::ModelQualityLogEntry>(
           mqls_service->GetWeakPtr());
@@ -498,66 +526,96 @@
 
 - (void)serializePageContextToStorage:
     (const optimization_guide::proto::PageContext&)pageContext {
-  // Get the Documents directory path
-  NSArray* paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
-                                                       NSUserDomainMask, YES);
-  NSString* documentsDirectory = [paths objectAtIndex:0];
+  SavePageContextResult result = SaveSerializedPageContextToDisk(pageContext);
+  if (!result.success) {
+    NSLog(@"[AIPrototypingMediator] Failed to save serialized page context to "
+          @"disk: %@",
+          base::SysUTF8ToNSString(result.error_message));
+  } else {
+    NSLog(@"[AIPrototypingMediator] Successfully saved serialized page context "
+          @"to: %@",
+          base::SysUTF8ToNSString(result.file_path.value()));
+  }
+}
 
-  NSString* urlString = base::SysUTF8ToNSString(pageContext.url());
-  NSCharacterSet* illegalFileNameCharacters =
-      [NSCharacterSet characterSetWithCharactersInString:@"/\\?%*|\"<>:"];
-  NSString* fileName = [[[urlString
-      componentsSeparatedByCharactersInSet:illegalFileNameCharacters]
-      componentsJoinedByString:@""] stringByAppendingString:@".txtpb"];
+- (void)executeActuationWithParams:(NSDictionary*)params {
+  ActuationService* actuationService =
+      ActuationServiceFactory::GetForProfile(ProfileIOS::FromBrowserState(
+          _webStateList->GetActiveWebState()->GetBrowserState()));
 
-  NSString* filePath =
-      [documentsDirectory stringByAppendingPathComponent:fileName];
-
-  NSLog(@"NICMAC Attempting to save proto to: %@", filePath);
-
-  // Convert NSString path to a C_style string for fopen
-  std::string UTF8FilePath = base::SysNSStringToUTF8(filePath);
-  const char* cFilePath = UTF8FilePath.c_str();
-  if (cFilePath == nullptr) {
-    NSLog(@"NICMAC Error: Could not convert file path to C_style string.");
+  if (!actuationService) {
+    [self.consumer updateQueryResult:@"Error: ActuationService not available."
+                          forFeature:AIPrototypingFeature::kActuationTools];
     return;
   }
 
-  // Open the file for writing in binary mode and get the file descriptor
-  FILE* fp = fopen(cFilePath, "wb");
-  if (fp == nullptr) {
-    NSLog(@"NICMAC Error: Could not open file '%s' for writing. Error: %s",
-          cFilePath, strerror(errno));
+  optimization_guide::proto::Action action;
+  NSString* jsonString = params[@"json"];
+  if (jsonString.length == 0) {
+    [self.consumer updateQueryResult:@"Error: No JSON provided."
+                          forFeature:AIPrototypingFeature::kActuationTools];
+    return;
+  }
+  std::optional<base::Value> jsonVal = base::JSONReader::Read(
+      base::SysNSStringToUTF8(jsonString), base::JSON_PARSE_RFC);
+
+  if (!jsonVal || !jsonVal->is_dict()) {
+    [self.consumer updateQueryResult:@"Error: Invalid JSON."
+                          forFeature:AIPrototypingFeature::kActuationTools];
     return;
   }
 
-  // Get the file descriptor from the FILE pointer
-  int fd = fileno(fp);
-  if (fd == -1) {
-    NSLog(@"NICMAC Error: Could not get file descriptor for '%s'. Error: %s",
-          cFilePath, strerror(errno));
-    fclose(fp);
+  // Try to parse the JSON to a known action optimization_guide::proto::Action.
+  if (!ai_prototyping::ParseActionFromDict(jsonVal->GetDict(), &action)) {
+    [self.consumer updateQueryResult:@"Error: Unknown action type in JSON."
+                          forFeature:AIPrototypingFeature::kActuationTools];
     return;
   }
 
-  // Serialize and write the message to the file
-  bool success = pageContext.SerializeToFileDescriptor(fd);
+  __weak __typeof(self) weakSelf = self;
+  actuationService->ExecuteAction(
+      action, base::BindOnce(^(
+                  base::expected<void, ActuationTool::ActuationError> result) {
+        NSLog(@"[AIPrototypingMediator] Actuation callback executed.");
+        if (result.has_value()) {
+          [weakSelf.consumer
+              updateQueryResult:@"Action executed successfully."
+                     forFeature:AIPrototypingFeature::kActuationTools];
+        } else {
+          NSString* errorMsg =
+              [NSString stringWithFormat:@"Action failed: %s",
+                                         result.error().message.c_str()];
+          NSLog(@"[AIPrototypingMediator] %@", errorMsg);
+          [weakSelf.consumer
+              updateQueryResult:errorMsg
+                     forFeature:AIPrototypingFeature::kActuationTools];
+        }
+      }));
+}
 
-  // Close the file
-  if (fclose(fp) != 0) {
-    NSLog(@"NICMAC Error: Could not close file '%s' properly. Error: %s",
-          cFilePath, strerror(errno));
-  }
-
-  if (!success) {
-    NSLog(@"NICMAC Error: Failed to serialize protobuf message to file: %@",
-          filePath);
-    // Delete the file if serialization failed partway
-    [[NSFileManager defaultManager] removeItemAtPath:filePath error:nil];
+- (void)listTabs {
+  NSMutableArray<NSDictionary*>* tabs = [NSMutableArray array];
+  web::WebState* activeWebState = _webStateList->GetActiveWebState();
+  if (!activeWebState) {
     return;
   }
 
-  NSLog(@"NICMAC Successfully saved protobuf message.");
+  for (int i = 0; i < _webStateList->count(); ++i) {
+    web::WebState* webState = _webStateList->GetWebStateAt(i);
+    NSString* title = base::SysUTF16ToNSString(webState->GetTitle());
+    int32_t tabID = webState->GetUniqueIdentifier().identifier();
+    NSString* url = base::SysUTF8ToNSString(webState->GetVisibleURL().spec());
+    [tabs addObject:@{
+      @"id" : @(tabID),
+      @"title" : title ?: @"",
+      @"url" : url ?: @"",
+      @"active" : @(webState == activeWebState)
+    }];
+  }
+
+  if ([self.consumer respondsToSelector:@selector(updateTabList:)]) {
+    [self.consumer updateTabList:tabs];
+  }
 }
 
 @end

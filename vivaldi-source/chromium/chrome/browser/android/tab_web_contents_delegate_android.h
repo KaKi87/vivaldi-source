@@ -90,8 +90,6 @@ class TabWebContentsDelegateAndroid
       const blink::mojom::WindowFeatures& window_features,
       bool user_gesture,
       bool* was_blocked) override;
-  void SetContentsBounds(content::WebContents* source,
-                         const gfx::Rect& bounds) override;
   void OnDidBlockNavigation(
       content::WebContents* web_contents,
       const GURL& blocked_url,
@@ -113,8 +111,11 @@ class TabWebContentsDelegateAndroid
   void RequestPointerLock(content::WebContents* web_contents,
                           bool user_gesture,
                           bool last_unlocked_by_target) override;
-
   void LostPointerLock() override;
+  void GetAIPageContent(
+      content::WebContents* web_contents,
+      bool include_actionable_elements,
+      base::OnceCallback<void(const std::string&)> callback) override;
 
 #if BUILDFLAG(ENABLE_PRINTING)
   void PrintCrossProcessSubframe(

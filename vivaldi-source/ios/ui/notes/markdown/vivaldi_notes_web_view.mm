@@ -2,8 +2,8 @@
 
 #import "ios/ui/notes/markdown/vivaldi_notes_web_view.h"
 
-#import <objc/runtime.h>
 #import <UIKit/UIKit.h>
+#import <objc/runtime.h>
 
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
 #import "ios/ui/notes/markdown/markdown_webview_input_view_protocols.h"

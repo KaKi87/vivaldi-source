@@ -21,17 +21,16 @@
 #import "url/gurl.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-
+using adblock_filter::ActiveRuleSource;
 using adblock_filter::KnownRuleSource;
 using adblock_filter::KnownRuleSources;
 using adblock_filter::KnownRuleSourcesHandler;
 using adblock_filter::RuleGroup;
 using adblock_filter::RuleManager;
-using adblock_filter::RuleManager::kExemptList;
-using adblock_filter::RuleManager::kProcessList;
 using adblock_filter::RuleService;
 using adblock_filter::RuleSourceCore;
-using adblock_filter::ActiveRuleSource;
+using adblock_filter::RuleManager::kExemptList;
+using adblock_filter::RuleManager::kProcessList;
 
 // Namespace
 namespace {
@@ -44,9 +43,9 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
     return GURL();
   }
 }
-}
+}  // namespace
 
-@interface VivaldiATBManager()<VivaldiATBConsumer> {
+@interface VivaldiATBManager () <VivaldiATBConsumer> {
   // Bridge to register for adblock backend changes.
   std::unique_ptr<vivaldi_adblocker::VivaldiATBManagerBridge> _bridge;
 }
@@ -78,10 +77,9 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   if ((self = [super init])) {
     _browser = browser;
     _profile = _browser->GetProfile();
-    _ruleService =
-        adblock_filter::RuleServiceFactory::GetForProfile(_profile);
-    _bridge.reset(new vivaldi_adblocker::VivaldiATBManagerBridge(
-        self, _ruleService));
+    _ruleService = adblock_filter::RuleServiceFactory::GetForProfile(_profile);
+    _bridge.reset(
+        new vivaldi_adblocker::VivaldiATBManagerBridge(self, _ruleService));
 
     [self initRuleManagerAndSourceHandler];
   }
@@ -98,49 +96,45 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
 #pragma mark - GETTERS
 
 - (void)getSettingOptions {
-
   // The available setting options are fixed:
   // [No Blocking, Block Trackers, Block Ads and Trackers].
 
   // No blocking option
   NSString* noBlockingTitleString =
-    l10n_util::GetNSString(IDS_LEVEL_NO_BLOCKING);
+      l10n_util::GetNSString(IDS_LEVEL_NO_BLOCKING);
   NSString* noBlockingDescriptionString =
-    l10n_util::GetNSString(IDS_LEVEL_NO_BLOCKING_DESCRIPTION);
+      l10n_util::GetNSString(IDS_LEVEL_NO_BLOCKING_DESCRIPTION);
 
   VivaldiATBItem* noBlockingOption =
-    [[VivaldiATBItem alloc] initWithTitle:noBlockingTitleString
-                                 subtitle:noBlockingDescriptionString
-                                     type:ATBSettingNoBlocking];
+      [[VivaldiATBItem alloc] initWithTitle:noBlockingTitleString
+                                   subtitle:noBlockingDescriptionString
+                                       type:ATBSettingNoBlocking];
 
   // Block trackers option
   NSString* blockTrackersTitleString =
-    l10n_util::GetNSString(IDS_LEVEL_BLOCK_TRACKERS);
+      l10n_util::GetNSString(IDS_LEVEL_BLOCK_TRACKERS);
   NSString* blockTrackersDescriptionString =
-    l10n_util::GetNSString(IDS_LEVEL_BLOCK_TRACKERS_DESCRIPTION);
+      l10n_util::GetNSString(IDS_LEVEL_BLOCK_TRACKERS_DESCRIPTION);
 
   VivaldiATBItem* blockTrackersOption =
-    [[VivaldiATBItem alloc]
-      initWithTitle:blockTrackersTitleString
-           subtitle:blockTrackersDescriptionString
-               type:ATBSettingBlockTrackers];
+      [[VivaldiATBItem alloc] initWithTitle:blockTrackersTitleString
+                                   subtitle:blockTrackersDescriptionString
+                                       type:ATBSettingBlockTrackers];
 
   // Block trackers and ads option
   NSString* blockTrackersAndAdsTitleString =
-    l10n_util::GetNSString(IDS_LEVEL_BLOCK_TRACKERS_AND_ADS);
+      l10n_util::GetNSString(IDS_LEVEL_BLOCK_TRACKERS_AND_ADS);
   NSString* blockTrackersAndAdsDescriptionString =
-    l10n_util::GetNSString(IDS_LEVEL_BLOCK_TRACKERS_AND_ADS_DESCRIPTION);
+      l10n_util::GetNSString(IDS_LEVEL_BLOCK_TRACKERS_AND_ADS_DESCRIPTION);
 
   VivaldiATBItem* blockTrackersAndAdsOption =
-    [[VivaldiATBItem alloc]
-      initWithTitle:blockTrackersAndAdsTitleString
-           subtitle:blockTrackersAndAdsDescriptionString
-               type:ATBSettingBlockTrackersAndAds];
+      [[VivaldiATBItem alloc] initWithTitle:blockTrackersAndAdsTitleString
+                                   subtitle:blockTrackersAndAdsDescriptionString
+                                       type:ATBSettingBlockTrackersAndAds];
 
-  NSMutableArray* options =
-    [[NSMutableArray alloc] initWithArray:@[noBlockingOption,
-                                            blockTrackersOption,
-                                            blockTrackersAndAdsOption]];
+  NSMutableArray* options = [[NSMutableArray alloc] initWithArray:@[
+    noBlockingOption, blockTrackersOption, blockTrackersAndAdsOption
+  ]];
 
   SEL selector = @selector(didRefreshSettingOptions:);
   if ([self.consumer respondsToSelector:selector]) {
@@ -177,9 +171,9 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   url::Origin originURL = url::Origin::Create(domainURL);
 
   BOOL isTrackingEnabled =
-    !_ruleManager->IsExemptOfFiltering(RuleGroup::kTrackingRules, originURL);
-  BOOL isAdblockingEnabled =
-    !_ruleManager->IsExemptOfFiltering(RuleGroup::kAdBlockingRules, originURL);
+      !_ruleManager->IsExemptOfFiltering(RuleGroup::kTrackingRules, originURL);
+  BOOL isAdblockingEnabled = !_ruleManager->IsExemptOfFiltering(
+      RuleGroup::kAdBlockingRules, originURL);
 
   BOOL noTrackingEnabled = !isTrackingEnabled && !isAdblockingEnabled;
   BOOL adsAndTrackingEnabled = isTrackingEnabled && isAdblockingEnabled;
@@ -197,44 +191,44 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
 }
 
 /// Returns the default settings.
--(BOOL)isTrackerBlockingEnabled {
+- (BOOL)isTrackerBlockingEnabled {
   if (!_ruleManager)
     return NO;
-  return _ruleManager->
-      GetActiveExceptionList(RuleGroup::kTrackingRules) == kExemptList;
+  return _ruleManager->GetActiveExceptionList(RuleGroup::kTrackingRules) ==
+         kExemptList;
 }
 
 /// Returns the default settings.
--(BOOL)isAdBlockingEnabled {
+- (BOOL)isAdBlockingEnabled {
   if (!_ruleManager)
     return NO;
-  return _ruleManager->
-      GetActiveExceptionList(RuleGroup::kAdBlockingRules) == kExemptList;
+  return _ruleManager->GetActiveExceptionList(RuleGroup::kAdBlockingRules) ==
+         kExemptList;
 }
 
 - (void)getAllExceptionsList {
   if (!_ruleManager)
     return;
 
-  std::set<std::string> trackingBlockingList = _ruleManager->
-      GetExceptions(RuleGroup::kTrackingRules, kProcessList);
-  std::set<std::string> trackingExemptList = _ruleManager->
-      GetExceptions(RuleGroup::kTrackingRules, kExemptList);
-  std::set<std::string> adBlockingList = _ruleManager->
-      GetExceptions(RuleGroup::kAdBlockingRules, kProcessList);
-  std::set<std::string> adExemptList = _ruleManager->
-      GetExceptions(RuleGroup::kAdBlockingRules, kExemptList);
+  std::set<std::string> trackingBlockingList =
+      _ruleManager->GetExceptions(RuleGroup::kTrackingRules, kProcessList);
+  std::set<std::string> trackingExemptList =
+      _ruleManager->GetExceptions(RuleGroup::kTrackingRules, kExemptList);
+  std::set<std::string> adBlockingList =
+      _ruleManager->GetExceptions(RuleGroup::kAdBlockingRules, kProcessList);
+  std::set<std::string> adExemptList =
+      _ruleManager->GetExceptions(RuleGroup::kAdBlockingRules, kExemptList);
 
   // Flatten the different lists to prepare a full collection of domain
   // alongside their rules.
 
   // Prepare the list for domain have tracker and ad blocking enabled.
   std::set<std::string> trackingAndAdBlockingList;
-  std::set_intersection(
-    trackingBlockingList.begin(), trackingBlockingList.end(),
-    adBlockingList.begin(), adBlockingList.end(),
-    std::inserter(trackingAndAdBlockingList, trackingAndAdBlockingList.begin())
-                        );
+  std::set_intersection(trackingBlockingList.begin(),
+                        trackingBlockingList.end(), adBlockingList.begin(),
+                        adBlockingList.end(),
+                        std::inserter(trackingAndAdBlockingList,
+                                      trackingAndAdBlockingList.begin()));
 
   // Prepare the list for domain have tracker and ad blocking disabled.
   std::set<std::string> noBlockingList;
@@ -245,48 +239,43 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   // Prepare the list for domain have tracker enabled and ad blocking disabled.
   std::set<std::string> trackersBlockingList;
   std::set_intersection(
-    trackingBlockingList.begin(), trackingBlockingList.end(),
-    adExemptList.begin(), adExemptList.end(),
-    std::inserter(trackersBlockingList, trackersBlockingList.begin())
-                        );
+      trackingBlockingList.begin(), trackingBlockingList.end(),
+      adExemptList.begin(), adExemptList.end(),
+      std::inserter(trackersBlockingList, trackersBlockingList.begin()));
 
-  NSMutableArray<VivaldiATBItem*> *exceptionsList =
+  NSMutableArray<VivaldiATBItem*>* exceptionsList =
       [[NSMutableArray alloc] initWithArray:@[]];
 
-  for (const auto &domain : trackingAndAdBlockingList) {
-    VivaldiATBItem* item =
-      [[VivaldiATBItem alloc]
-       initWithTitle:[NSString stringWithUTF8String:domain.c_str()]
-            subtitle:l10n_util::GetNSString(IDS_LEVEL_BLOCK_TRACKERS_AND_ADS)
-                type:ATBSettingBlockTrackersAndAds];
+  for (const auto& domain : trackingAndAdBlockingList) {
+    VivaldiATBItem* item = [[VivaldiATBItem alloc]
+        initWithTitle:[NSString stringWithUTF8String:domain.c_str()]
+             subtitle:l10n_util::GetNSString(IDS_LEVEL_BLOCK_TRACKERS_AND_ADS)
+                 type:ATBSettingBlockTrackersAndAds];
     [exceptionsList addObject:item];
   }
 
-  for (const auto &domain : noBlockingList) {
-    VivaldiATBItem* item =
-      [[VivaldiATBItem alloc]
-       initWithTitle:[NSString stringWithUTF8String:domain.c_str()]
-            subtitle:l10n_util::GetNSString(IDS_LEVEL_NO_BLOCKING)
-                type:ATBSettingNoBlocking];
+  for (const auto& domain : noBlockingList) {
+    VivaldiATBItem* item = [[VivaldiATBItem alloc]
+        initWithTitle:[NSString stringWithUTF8String:domain.c_str()]
+             subtitle:l10n_util::GetNSString(IDS_LEVEL_NO_BLOCKING)
+                 type:ATBSettingNoBlocking];
     [exceptionsList addObject:item];
   }
 
-  for (const auto &domain : trackersBlockingList) {
-    VivaldiATBItem* item =
-      [[VivaldiATBItem alloc]
-       initWithTitle:[NSString stringWithUTF8String:domain.c_str()]
-            subtitle:l10n_util::GetNSString(IDS_LEVEL_BLOCK_TRACKERS)
-                type:ATBSettingBlockTrackers];
+  for (const auto& domain : trackersBlockingList) {
+    VivaldiATBItem* item = [[VivaldiATBItem alloc]
+        initWithTitle:[NSString stringWithUTF8String:domain.c_str()]
+             subtitle:l10n_util::GetNSString(IDS_LEVEL_BLOCK_TRACKERS)
+                 type:ATBSettingBlockTrackers];
     [exceptionsList addObject:item];
   }
 
   // Sort the items alphabatically.
-  NSArray* sortedExceptionsList = [exceptionsList sortedArrayUsingComparator:
-                          ^NSComparisonResult(VivaldiATBItem *first,
-                                              VivaldiATBItem *second) {
-    return [VivaldiGlobalHelpers compare:first.title
-                                  second:second.title];
-  }];
+  NSArray* sortedExceptionsList =
+      [exceptionsList sortedArrayUsingComparator:^NSComparisonResult(
+                          VivaldiATBItem* first, VivaldiATBItem* second) {
+        return [VivaldiGlobalHelpers compare:first.title second:second.title];
+      }];
 
   if (!self.consumer)
     return;
@@ -301,11 +290,11 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
     return;
 
   // Get the sources from backend.
-  KnownRuleSources sources =  [self getSourcesWithType:sourceType];
+  KnownRuleSources sources = [self getSourcesWithType:sourceType];
 
   // Prepare the items for UI. We would prefer to create the data model here
   // so that we can use the model in different places without more computation.
-  NSMutableArray *sourceList = [NSMutableArray array];
+  NSMutableArray* sourceList = [NSMutableArray array];
 
   for (auto it = sources.begin(); it != sources.end(); ++it) {
     uint32_t key = it->first;
@@ -318,17 +307,16 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   }
 
   // Sort the items based on priority. Non removable items get higher priority.
-  NSArray* sortedList = [sourceList sortedArrayUsingComparator:
-                          ^NSComparisonResult(VivaldiATBSourceItem *first,
-                                              VivaldiATBSourceItem *second) {
-    if (first.list_priority < second.list_priority) {
-      return (NSComparisonResult)NSOrderedAscending;
-    } else if (first.list_priority > second.list_priority) {
-      return (NSComparisonResult)NSOrderedDescending;
-    }
-    return [VivaldiGlobalHelpers compare:first.title
-                                  second:second.title];
-  }];
+  NSArray* sortedList = [sourceList
+      sortedArrayUsingComparator:^NSComparisonResult(
+          VivaldiATBSourceItem* first, VivaldiATBSourceItem* second) {
+        if (first.list_priority < second.list_priority) {
+          return (NSComparisonResult)NSOrderedAscending;
+        } else if (first.list_priority > second.list_priority) {
+          return (NSComparisonResult)NSOrderedDescending;
+        }
+        return [VivaldiGlobalHelpers compare:first.title second:second.title];
+      }];
 
   if (!self.consumer)
     return;
@@ -344,8 +332,8 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
     return nil;
 
   std::optional<KnownRuleSource> knownSource = _ruleSourceHandler->GetSource(
-      sourceType == ATBSourceAds ?
-      RuleGroup::kAdBlockingRules : RuleGroup::kTrackingRules,
+      sourceType == ATBSourceAds ? RuleGroup::kAdBlockingRules
+                                 : RuleGroup::kTrackingRules,
       key);
 
   if (knownSource.has_value()) {
@@ -362,7 +350,7 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
 - (BOOL)isApplyingExceptionRules {
   if (_ruleService && _ruleService->IsLoaded()) {
     return _ruleService->IsApplyingRules(RuleGroup::kTrackingRules) ||
-        _ruleService->IsApplyingRules(RuleGroup::kAdBlockingRules);
+           _ruleService->IsApplyingRules(RuleGroup::kAdBlockingRules);
   }
   return NO;
 }
@@ -372,12 +360,10 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
     if (!url.is_valid()) {
       return NO;
     }
-    BOOL trackingException =
-        _ruleService->IsPartnerListAllowedDocument(RuleGroup::kTrackingRules,
-                                                   url);
-    BOOL blockingException =
-        _ruleService->IsPartnerListAllowedDocument(RuleGroup::kAdBlockingRules,
-                                                   url);
+    BOOL trackingException = _ruleService->IsPartnerListAllowedDocument(
+        RuleGroup::kTrackingRules, url);
+    BOOL blockingException = _ruleService->IsPartnerListAllowedDocument(
+        RuleGroup::kAdBlockingRules, url);
     return trackingException || blockingException;
   }
   return NO;
@@ -406,7 +392,8 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
       if (![self isAdBlockingEnabled])
         [self setAdBlockingEnabled:YES];
       break;
-    default: break;
+    default:
+      break;
   }
 }
 
@@ -426,7 +413,8 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
       [self setTrackerBlockingExceptionForDomain:domain enableBlocking:YES];
       [self setAdBlockingExceptionForDomain:domain enableBlocking:YES];
       break;
-    default: break;
+    default:
+      break;
   }
 }
 
@@ -435,23 +423,20 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   if (!_ruleManager)
     return;
 
-  _ruleManager->
-      RemoveExceptionForDomain(RuleGroup::kTrackingRules,
-                               kProcessList, base::SysNSStringToUTF8(domain));
-  _ruleManager->
-      RemoveExceptionForDomain(RuleGroup::kTrackingRules,
-                               kExemptList, base::SysNSStringToUTF8(domain));
-  _ruleManager->
-      RemoveExceptionForDomain(RuleGroup::kAdBlockingRules,
-                               kProcessList, base::SysNSStringToUTF8(domain));
-  _ruleManager->
-      RemoveExceptionForDomain(RuleGroup::kAdBlockingRules,
-                               kExemptList, base::SysNSStringToUTF8(domain));
+  _ruleManager->RemoveExceptionForDomain(
+      RuleGroup::kTrackingRules, kProcessList, base::SysNSStringToUTF8(domain));
+  _ruleManager->RemoveExceptionForDomain(RuleGroup::kTrackingRules, kExemptList,
+                                         base::SysNSStringToUTF8(domain));
+  _ruleManager->RemoveExceptionForDomain(RuleGroup::kAdBlockingRules,
+                                         kProcessList,
+                                         base::SysNSStringToUTF8(domain));
+  _ruleManager->RemoveExceptionForDomain(RuleGroup::kAdBlockingRules,
+                                         kExemptList,
+                                         base::SysNSStringToUTF8(domain));
 }
 
 /// Add rule source for the given source type.
-- (void)addRuleSource:(NSString*)source
-           sourceType:(ATBSourceType)sourceType {
+- (void)addRuleSource:(NSString*)source sourceType:(ATBSourceType)sourceType {
   if (!_ruleSourceHandler)
     return;
 
@@ -459,10 +444,10 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   if (!sourceURL.is_valid()) {
     return;
   }
-  _ruleSourceHandler->AddSource(
-      sourceType == ATBSourceAds ?
-      RuleGroup::kAdBlockingRules : RuleGroup::kTrackingRules,
-      *RuleSourceCore::FromUrl(sourceURL));
+  _ruleSourceHandler->AddSource(sourceType == ATBSourceAds
+                                    ? RuleGroup::kAdBlockingRules
+                                    : RuleGroup::kTrackingRules,
+                                *RuleSourceCore::FromUrl(sourceURL));
 }
 
 /// Remove rule source of the given key and source type.
@@ -470,10 +455,10 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
                     sourceType:(ATBSourceType)sourceType {
   if (!_ruleSourceHandler)
     return;
-  _ruleSourceHandler->RemoveSource(
-      sourceType == ATBSourceAds ?
-      RuleGroup::kAdBlockingRules : RuleGroup::kTrackingRules,
-      key);
+  _ruleSourceHandler->RemoveSource(sourceType == ATBSourceAds
+                                       ? RuleGroup::kAdBlockingRules
+                                       : RuleGroup::kTrackingRules,
+                                   key);
 }
 
 /// Enable rule source of the given key and source type.
@@ -481,10 +466,10 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
                     sourceType:(ATBSourceType)sourceType {
   if (!_ruleSourceHandler)
     return;
-  _ruleSourceHandler->EnableSource(
-      sourceType == ATBSourceAds ?
-      RuleGroup::kAdBlockingRules : RuleGroup::kTrackingRules,
-      key);
+  _ruleSourceHandler->EnableSource(sourceType == ATBSourceAds
+                                       ? RuleGroup::kAdBlockingRules
+                                       : RuleGroup::kTrackingRules,
+                                   key);
 }
 
 /// Disable rule source of the given key and source type.
@@ -492,21 +477,21 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
                      sourceType:(ATBSourceType)sourceType {
   if (!_ruleSourceHandler)
     return;
-  _ruleSourceHandler->DisableSource(
-      sourceType == ATBSourceAds ?
-      RuleGroup::kAdBlockingRules : RuleGroup::kTrackingRules,
-      key);
+  _ruleSourceHandler->DisableSource(sourceType == ATBSourceAds
+                                        ? RuleGroup::kAdBlockingRules
+                                        : RuleGroup::kTrackingRules,
+                                    key);
 }
 
 - (void)restoreRuleSourceForType:(ATBSourceType)sourceType {
   if (!_ruleSourceHandler)
     return;
-  _ruleSourceHandler->ResetPresetSources(
-      sourceType == ATBSourceAds ?
-      RuleGroup::kAdBlockingRules : RuleGroup::kTrackingRules);
+  _ruleSourceHandler->ResetPresetSources(sourceType == ATBSourceAds
+                                             ? RuleGroup::kAdBlockingRules
+                                             : RuleGroup::kTrackingRules);
 }
 
-#pragma mark: - PRIVATE
+#pragma mark : - PRIVATE
 
 - (void)initRuleManagerAndSourceHandler {
   if (_ruleService && _ruleService->IsLoaded()) {
@@ -518,9 +503,9 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
 /// Returns 'KnownRuleSources' for a given rule.
 - (KnownRuleSources)getSourcesWithType:(ATBSourceType)sourceType {
   // Get the sources from backend.
-  KnownRuleSources sources = _ruleSourceHandler->
-      GetSources(sourceType == ATBSourceAds ?
-                 RuleGroup::kAdBlockingRules : RuleGroup::kTrackingRules);
+  KnownRuleSources sources = _ruleSourceHandler->GetSources(
+      sourceType == ATBSourceAds ? RuleGroup::kAdBlockingRules
+                                 : RuleGroup::kTrackingRules);
   return sources;
 }
 
@@ -541,26 +526,28 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
 /// Returns the serialized VivaldiATBSourceItem created using
 /// RuleSource to render associated info on the UI.
 - (VivaldiATBSourceItem*)getBlockerSourceForSourceId:(uint32_t)key
-     knownSource:(KnownRuleSource)knownSource
-      sourceType:(ATBSourceType)sourceType {
+                                         knownSource:
+                                             (KnownRuleSource)knownSource
+                                          sourceType:(ATBSourceType)sourceType {
   // Instantiate the model.
   VivaldiATBSourceItem* ruleSourceItem = [[VivaldiATBSourceItem alloc] init];
 
   ruleSourceItem.key = key;
   NSString* sourceURL = base::SysUTF8ToNSString(
-      knownSource.core.is_from_url() ? knownSource.core.source_url().spec() :
-      knownSource.core.source_file().AsUTF8Unsafe());
+      knownSource.core.is_from_url()
+          ? knownSource.core.source_url().spec()
+          : knownSource.core.source_file().AsUTF8Unsafe());
 
-  VivaldiATBManagerHelper* managerHelper
-      = [[VivaldiATBManagerHelper alloc] init];
+  VivaldiATBManagerHelper* managerHelper =
+      [[VivaldiATBManagerHelper alloc] init];
   NSString* unsafeTitle = @"";
   ruleSourceItem.is_from_url = knownSource.core.is_from_url();
   ruleSourceItem.source_url = sourceURL;
 
   BOOL isEnabled = _ruleSourceHandler->IsSourceEnabled(
-                       sourceType == ATBSourceAds ?
-                       RuleGroup::kAdBlockingRules : RuleGroup::kTrackingRules,
-                       key);
+      sourceType == ATBSourceAds ? RuleGroup::kAdBlockingRules
+                                 : RuleGroup::kTrackingRules,
+      key);
   ruleSourceItem.is_enabled = isEnabled;
   ruleSourceItem.is_default = !knownSource.removable;
   ruleSourceItem.is_loaded = NO;
@@ -569,18 +556,17 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
 
   // Check if the source is enabled. If 'Yes' get more info from the engine.
   if (isEnabled) {
-    std::optional<ActiveRuleSource> ruleSource =
-        _ruleManager->GetRuleSource(
-            sourceType == ATBSourceAds ?
-            RuleGroup::kAdBlockingRules : RuleGroup::kTrackingRules,
-            key);
+    std::optional<ActiveRuleSource> ruleSource = _ruleManager->GetRuleSource(
+        sourceType == ATBSourceAds ? RuleGroup::kAdBlockingRules
+                                   : RuleGroup::kTrackingRules,
+        key);
     ruleSourceItem.last_update = ruleSource->last_update;
     ruleSourceItem.rules_list_checksum = ruleSource->rules_list_checksum;
     ruleSourceItem.is_fetching = ruleSource->is_fetching;
     ruleSourceItem.is_loaded = YES;
 
-    unsafeTitle = base::SysUTF8ToNSString(
-                               ruleSource->unsafe_adblock_metadata.title);
+    unsafeTitle =
+        base::SysUTF8ToNSString(ruleSource->unsafe_adblock_metadata.title);
 
   } else {
     ruleSourceItem.is_fetching = NO;
@@ -599,18 +585,16 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
 - (void)setTrackerBlockingEnabled:(BOOL)enableBlocking {
   if (!_ruleManager)
     return;
-  return _ruleManager->
-      SetActiveExceptionList(RuleGroup::kTrackingRules,
-                             enableBlocking ? kExemptList : kProcessList);
+  return _ruleManager->SetActiveExceptionList(
+      RuleGroup::kTrackingRules, enableBlocking ? kExemptList : kProcessList);
 }
 
 /// Sets the default ad blocking settings.
 - (void)setAdBlockingEnabled:(BOOL)enableBlocking {
   if (!_ruleManager)
     return;
-  return _ruleManager->
-      SetActiveExceptionList(RuleGroup::kAdBlockingRules,
-                             enableBlocking ? kExemptList : kProcessList);
+  return _ruleManager->SetActiveExceptionList(
+      RuleGroup::kAdBlockingRules, enableBlocking ? kExemptList : kProcessList);
 }
 
 /// Sets tracker blocking exceptions for a given domain based
@@ -621,15 +605,13 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   if (!_ruleManager)
     return;
 
-  _ruleManager->
-      RemoveExceptionForDomain(RuleGroup::kTrackingRules,
-                               enableBlocking ? kExemptList : kProcessList,
-                               base::SysNSStringToUTF8(domain));
+  _ruleManager->RemoveExceptionForDomain(
+      RuleGroup::kTrackingRules, enableBlocking ? kExemptList : kProcessList,
+      base::SysNSStringToUTF8(domain));
 
-  _ruleManager->
-      AddExceptionForDomain(RuleGroup::kTrackingRules,
-                            enableBlocking ? kProcessList : kExemptList,
-                            base::SysNSStringToUTF8(domain));
+  _ruleManager->AddExceptionForDomain(
+      RuleGroup::kTrackingRules, enableBlocking ? kProcessList : kExemptList,
+      base::SysNSStringToUTF8(domain));
 }
 
 /// Sets ad blocking exceptions for a given domain based
@@ -640,19 +622,17 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   if (!_ruleManager)
     return;
 
-  _ruleManager->
-      RemoveExceptionForDomain(RuleGroup::kAdBlockingRules,
-                               enableBlocking ? kExemptList: kProcessList,
-                               base::SysNSStringToUTF8(domain));
+  _ruleManager->RemoveExceptionForDomain(
+      RuleGroup::kAdBlockingRules, enableBlocking ? kExemptList : kProcessList,
+      base::SysNSStringToUTF8(domain));
 
-  _ruleManager->
-      AddExceptionForDomain(RuleGroup::kAdBlockingRules,
-                            enableBlocking ? kProcessList : kExemptList,
-                            base::SysNSStringToUTF8(domain));
+  _ruleManager->AddExceptionForDomain(
+      RuleGroup::kAdBlockingRules, enableBlocking ? kProcessList : kExemptList,
+      base::SysNSStringToUTF8(domain));
 }
 
-#pragma mark: - OBSERVERS
-#pragma mark: - VivaldiATBConsumer
+#pragma mark : - OBSERVERS
+#pragma mark : - VivaldiATBConsumer
 
 - (void)didRefreshSettingOptions:(NSArray*)options {
   // No op.
@@ -693,18 +673,14 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
                 fetchResult:(ATBFetchResult)fetchResult {
   SEL selector = @selector(ruleSourceDidUpdate:group:fetchResult:);
   if ([self.consumer respondsToSelector:selector]) {
-    [self.consumer ruleSourceDidUpdate:key
-                                 group:group
-                           fetchResult:fetchResult];
+    [self.consumer ruleSourceDidUpdate:key group:group fetchResult:fetchResult];
   }
 }
 
-- (void)ruleSourceDidRemove:(uint32_t)key
-                      group:(RuleGroup)group {
+- (void)ruleSourceDidRemove:(uint32_t)key group:(RuleGroup)group {
   SEL selector = @selector(ruleSourceDidRemove:group:);
   if ([self.consumer respondsToSelector:selector]) {
-    [self.consumer ruleSourceDidRemove:key
-                                 group:group];
+    [self.consumer ruleSourceDidRemove:key group:group];
   }
 }
 
@@ -726,8 +702,7 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   [self getAllExceptionsList];
 }
 
-- (void)knownSourceDidAdd:(RuleGroup)group
-                      key:(uint32_t)key {
+- (void)knownSourceDidAdd:(RuleGroup)group key:(uint32_t)key {
   SEL selector = @selector(knownSourceDidAdd:key:);
   if ([self.consumer respondsToSelector:selector]) {
     [self.consumer knownSourceDidAdd:group key:key];
@@ -735,31 +710,25 @@ GURL ConvertUserDataToGURL(NSString* urlString) {
   [self refreshSourceList:group];
 }
 
-- (void)knownSourceDidRemove:(RuleGroup)group
-                         key:(uint32_t)key {
+- (void)knownSourceDidRemove:(RuleGroup)group key:(uint32_t)key {
   SEL selector = @selector(knownSourceDidRemove:key:);
   if ([self.consumer respondsToSelector:selector]) {
-    [self.consumer knownSourceDidRemove:group
-                                    key:key];
+    [self.consumer knownSourceDidRemove:group key:key];
   }
   [self refreshSourceList:group];
 }
 
-- (void)knownSourceDidEnable:(RuleGroup)group
-                         key:(uint32_t)key {
+- (void)knownSourceDidEnable:(RuleGroup)group key:(uint32_t)key {
   SEL selector = @selector(knownSourceDidEnable:key:);
   if ([self.consumer respondsToSelector:selector]) {
-    [self.consumer knownSourceDidEnable:group
-                                    key:key];
+    [self.consumer knownSourceDidEnable:group key:key];
   }
 }
 
-- (void)knownSourceDidDisable:(RuleGroup)group
-                          key:(uint32_t)key {
+- (void)knownSourceDidDisable:(RuleGroup)group key:(uint32_t)key {
   SEL selector = @selector(knownSourceDidDisable:key:);
   if ([self.consumer respondsToSelector:selector]) {
-    [self.consumer knownSourceDidDisable:group
-                                     key:key];
+    [self.consumer knownSourceDidDisable:group key:key];
   }
 }
 

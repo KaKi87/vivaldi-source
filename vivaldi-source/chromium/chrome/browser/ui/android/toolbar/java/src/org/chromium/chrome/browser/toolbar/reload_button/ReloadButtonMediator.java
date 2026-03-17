@@ -18,7 +18,9 @@ import androidx.core.content.res.ResourcesCompat;
 import androidx.core.graphics.Insets;
 
 import org.chromium.base.Callback;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.tab.SadTab;
@@ -44,9 +46,9 @@ class ReloadButtonMediator implements ThemeColorProvider.TintObserver {
     private final Callback<String> mShowToastCallback;
     private final ThemeColorProvider mThemeColorProvider;
     private final TabSupplierObserver mTabObserver;
-    private final ObservableSupplier<Boolean> mNtpLoadingSupplier;
+    private final MonotonicObservableSupplier<Boolean> mNtpLoadingSupplier;
     private final Callback<Boolean> mNtpLoadingObserver;
-    private final ObservableSupplier<Boolean> mEnabledSupplier;
+    private final NonNullObservableSupplier<Boolean> mEnabledSupplier;
     private final Callback<Boolean> mEnabledObserver;
     private boolean mIsShiftDownForReload;
     private boolean mIsReloading;
@@ -72,9 +74,9 @@ class ReloadButtonMediator implements ThemeColorProvider.TintObserver {
             PropertyModel model,
             ReloadButtonCoordinator.Delegate delegate,
             ThemeColorProvider themeColorProvider,
-            ObservableSupplier<@Nullable Tab> tabSupplier,
-            ObservableSupplier<Boolean> ntpLoadingSupplier,
-            ObservableSupplier<Boolean> enabledSupplier,
+            NullableObservableSupplier<Tab> tabSupplier,
+            MonotonicObservableSupplier<Boolean> ntpLoadingSupplier,
+            NonNullObservableSupplier<Boolean> enabledSupplier,
             Callback<String> showToast,
             Resources resources,
             Context context,
@@ -111,7 +113,7 @@ class ReloadButtonMediator implements ThemeColorProvider.TintObserver {
         mNtpLoadingSupplier.addObserver(mNtpLoadingObserver);
 
         mEnabledObserver = (isEnabled) -> mModel.set(ReloadButtonProperties.IS_ENABLED, isEnabled);
-        mEnabledSupplier.addObserver(mEnabledObserver);
+        mEnabledSupplier.addSyncObserverAndPostIfNonNull(mEnabledObserver);
 
         mTabObserver =
                 new TabSupplierObserver(tabSupplier, /* shouldTrigger= */ true) {

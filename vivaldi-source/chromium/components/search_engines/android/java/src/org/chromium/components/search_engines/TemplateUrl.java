@@ -1,6 +1,7 @@
 // Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
 package org.chromium.components.search_engines;
 
 import android.graphics.Bitmap;
@@ -84,6 +85,13 @@ public class TemplateUrl {
     }
 
     /**
+     * @return The starter pack id of the search engine.
+     */
+    public @StarterPackId int getStarterPackId() {
+        return TemplateUrlJni.get().getStarterPackId(mTemplateUrlPtr);
+    }
+
+    /**
      * @return The new Tab URL of the search engine. The format can be looked up in
      *     prepopulated_engines.json.
      */
@@ -121,11 +129,6 @@ public class TemplateUrl {
                 getIsPrepopulated());
     }
 
-    // Vivaldi
-    public int getStarterPackId() {
-        return TemplateUrlJni.get().getStarterPackId(mTemplateUrlPtr);
-    }
-
     public String getPostParams() {
         return TemplateUrlJni.get().getPostParams(mTemplateUrlPtr);
     };
@@ -151,6 +154,9 @@ public class TemplateUrl {
 
         int getPrepopulatedId(long templateUrlPtr);
 
+        @StarterPackId
+        int getStarterPackId(long templateUrlPtr);
+
         String getURL(long templateUrlPtr);
 
         String getNewTabURL(long templateUrlPtr);
@@ -159,8 +165,6 @@ public class TemplateUrl {
 
         byte @Nullable [] getBuiltInSearchEngineIcon(long templateUrlPtr);
 
-        // Vivaldi
-        int getStarterPackId(long templateUrlPtr);
         String getPostParams(long templateUrlPtr);
         String getSuggestUrl(long templateUrlPtr);
         String getImageURL(long templateUrlPtr);

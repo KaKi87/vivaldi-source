@@ -121,14 +121,11 @@ describe('The Performance panel', function() {
     await startRecording(devToolsPage);
 
     // click the 'add/remove article' button and 'toggle emphasis' button to trigger CSS style invalidation
-    inspectedPage.bringToFront();
-    const addRemoveArticleButton = await inspectedPage.waitForSelector('#addRemoveArticle');
-    await addRemoveArticleButton?.click();
+    await inspectedPage.bringToFront();
+    await inspectedPage.click('#addRemoveArticle');
+    await inspectedPage.click('#toggleEmphasis');
 
-    const toggleEmphasisButton = await inspectedPage.waitForSelector('#toggleEmphasis');
-    await toggleEmphasisButton?.click();
-
-    devToolsPage.bringToFront();
+    await devToolsPage.bringToFront();
     await stopRecording(devToolsPage);
 
     await navigateToSelectorStatsTab(devToolsPage);

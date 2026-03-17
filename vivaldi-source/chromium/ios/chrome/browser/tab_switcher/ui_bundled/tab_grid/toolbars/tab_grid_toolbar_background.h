@@ -15,6 +15,15 @@
 // Sets whether the solid scrolled to edge background view should be hidden.
 - (void)setScrolledToEdgeBackgroundViewHidden:(BOOL)hidden;
 
+// Vivaldi
+// Updates background colors for scrolled-to-edge and over-content states.
+// Pass nil to restore the default colors.
+- (void)updateBackgroundColorsWithScrolledToEdgeColor:
+            (UIColor*)scrolledToEdgeColor
+                        scrolledOverContentColor:
+            (UIColor*)scrolledOverContentColor;
+// End Vivaldi
+
 @end
 
 #endif  // IOS_CHROME_BROWSER_TAB_SWITCHER_UI_BUNDLED_TAB_GRID_TOOLBARS_TAB_GRID_TOOLBAR_BACKGROUND_H_

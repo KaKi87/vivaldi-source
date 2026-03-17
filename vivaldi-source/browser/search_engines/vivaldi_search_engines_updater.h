@@ -21,21 +21,21 @@ class SharedURLLoaderFactory;
 
 namespace vivaldi {
 class SearchEnginesUpdater {
-public:
- static void UpdateSearchEngines(scoped_refptr<network::SharedURLLoaderFactory>
-                                     url_loader_factory = nullptr);
- static void UpdateSearchEnginesPrompt(
-     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory =
-         nullptr);
+ public:
+  static void UpdateSearchEngines(scoped_refptr<network::SharedURLLoaderFactory>
+                                      url_loader_factory = nullptr);
+  static void UpdateSearchEnginesPrompt(
+      scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory =
+          nullptr);
 
-private:
- static void Update(
-     scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
-     SignedResourceUrl url_id,
-     std::optional<base::FilePath> dest_path);
- static void OnRequestResponse(std::unique_ptr<network::SimpleURLLoader> guard,
-                               const base::FilePath& download_path,
-                               std::unique_ptr<std::string> response_body);
+ private:
+  static void Update(
+      scoped_refptr<network::SharedURLLoaderFactory> url_loader_factory,
+      SignedResourceUrl url_id,
+      std::optional<base::FilePath> dest_path);
+  static void OnRequestResponse(std::unique_ptr<network::SimpleURLLoader> guard,
+                                const base::FilePath& download_path,
+                                std::optional<std::string> response_body);
 };
-}
-#endif // BROWSER_VIVALDI_SEARCH_ENGINES_UPDATER_H_
+}  // namespace vivaldi
+#endif  // BROWSER_VIVALDI_SEARCH_ENGINES_UPDATER_H_

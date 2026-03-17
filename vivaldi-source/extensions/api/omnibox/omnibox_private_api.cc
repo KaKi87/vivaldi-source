@@ -16,8 +16,8 @@
 #include "chrome/browser/autocomplete/chrome_autocomplete_provider_client.h"
 #include "chrome/browser/autocomplete/shortcuts_backend_factory.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
-#include "components/omnibox/browser/autocomplete_match_classification.h"
 #include "components/omnibox/browser/autocomplete_classifier.h"
+#include "components/omnibox/browser/autocomplete_match_classification.h"
 #include "components/omnibox/browser/autocomplete_match_type.h"
 #include "components/omnibox/browser/shortcuts_backend.h"
 #include "components/omnibox/omnibox_input.h"
@@ -91,7 +91,7 @@ OmniboxEventRouter::~OmniboxEventRouter() {}
 // Helper to actually dispatch an event to extension listeners.
 void OmniboxEventRouter::DispatchEvent(Profile* profile,
                                        const std::string& event_name,
-                                       base::Value::List event_args) {
+                                       base::ListValue event_args) {
   if (profile && EventRouter::Get(profile)) {
     EventRouter::Get(profile)->BroadcastEvent(base::WrapUnique(
         new extensions::Event(extensions::events::VIVALDI_EXTENSION_EVENT,
@@ -99,8 +99,7 @@ void OmniboxEventRouter::DispatchEvent(Profile* profile,
   }
 }
 
-OmniboxItemCategory GetProviderCategory(
-    std::string type) {
+OmniboxItemCategory GetProviderCategory(std::string type) {
   if (type == "history-url" || type == "history-title" ||
       type == "history-body" || type == "history-keyword" ||
       type == "history-cluster" || type == "history-embeddings" ||
@@ -238,7 +237,8 @@ vivaldi::omnibox_private::OmniboxProviderName providerNameToVivaldiProviderName(
   return vivaldi::omnibox_private::OmniboxProviderName::kUnknown;
 }
 
-OmniboxItem CreateOmniboxItem(AutocompleteMatch match,  TemplateURLService* template_url_service) {
+OmniboxItem CreateOmniboxItem(AutocompleteMatch match,
+                              TemplateURLService* template_url_service) {
   std::string type_to_string = AutocompleteMatchType::ToString(match.type);
   OmniboxItem res;
 
@@ -266,9 +266,11 @@ OmniboxItem CreateOmniboxItem(AutocompleteMatch match,  TemplateURLService* temp
     res.favicon_type = "favicon";
     if (!match.keyword.empty() && template_url_service) {
       TemplateURL* template_url =
-        template_url_service->GetTemplateURLForKeyword(match.keyword);
+          template_url_service->GetTemplateURLForKeyword(match.keyword);
       // Only use template URL favicon if it is not a starter pack keyword.
-      if (template_url && template_url->starter_pack_id() == 0) {
+      if (template_url &&
+          template_url->starter_pack_id() ==
+              template_url_starter_pack_data::StarterPackId::kNone) {
         res.favicon_url = template_url->favicon_url().spec().c_str();
         // img is needed for proper lookup of icon urls
         res.favicon_type = "img";
@@ -320,16 +322,17 @@ void OmniboxEventRouter::OnResultChanged(AutocompleteController* controller,
     if (result.type == AutocompleteMatchType::SEARCH_OTHER_ENGINE &&
         result.destination_url.spec().size() == 0)
       continue;
-    results.combined_results.push_back(CreateOmniboxItem(result, template_url_service_));
+    results.combined_results.push_back(
+        CreateOmniboxItem(result, template_url_service_));
   }
 
-  base::Value::List args = OnOmniboxResultChanged::Create(results);
+  base::ListValue args = OnOmniboxResultChanged::Create(results);
   DispatchEvent(profile_, OnOmniboxResultChanged::kEventName, std::move(args));
 }
 
 metrics::OmniboxEventProto::PageClassification
-            OmniboxPrivateStartOmniboxFunction::GetPageClassification(
-                vivaldi::omnibox_private::PageClassification name) {
+OmniboxPrivateStartOmniboxFunction::GetPageClassification(
+    vivaldi::omnibox_private::PageClassification name) {
   if (name == vivaldi::omnibox_private::PageClassification::kNtp) {
     return metrics::OmniboxEventProto::NTP;
   } else if (name == vivaldi::omnibox_private::PageClassification::kBlank) {
@@ -355,19 +358,19 @@ ExtensionFunction::ResponseAction OmniboxPrivateStartOmniboxFunction::Run() {
   input.from_search_field = params->parameters.from_search_field;
   input.search_engine_guid = params->parameters.search_engine_guid;
   input.focus_type = params->parameters.focus_type ==
-    extensions::vivaldi::omnibox_private::OmniboxFocusType::kInteractionFocus ?
-      metrics::OmniboxFocusType::INTERACTION_FOCUS :
-      metrics::OmniboxFocusType::INTERACTION_DEFAULT;
-
+                             extensions::vivaldi::omnibox_private::
+                                 OmniboxFocusType::kInteractionFocus
+                         ? metrics::OmniboxFocusType::INTERACTION_FOCUS
+                         : metrics::OmniboxFocusType::INTERACTION_DEFAULT;
 
   service->StartSearch(
-      base::UTF8ToUTF16(params->parameters.query),
-      input,
+      base::UTF8ToUTF16(params->parameters.query), input,
       GetPageClassification(params->parameters.page_classification));
   return RespondNow(NoArguments());
 }
 
-ExtensionFunction::ResponseAction OmniboxPrivateAddOrUpdateShortcutFunction::Run() {
+ExtensionFunction::ResponseAction
+OmniboxPrivateAddOrUpdateShortcutFunction::Run() {
   std::optional<vivaldi::omnibox_private::AddOrUpdateShortcut::Params> params(
       vivaldi::omnibox_private::AddOrUpdateShortcut::Params::Create(args()));
   EXTENSION_FUNCTION_VALIDATE(params);

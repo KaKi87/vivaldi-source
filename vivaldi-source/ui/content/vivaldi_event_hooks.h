@@ -3,8 +3,8 @@
 #ifndef UI_CONTENT_VIVALDI_EVENT_HOOKS_H_
 #define UI_CONTENT_VIVALDI_EVENT_HOOKS_H_
 
-#include "base/supports_user_data.h"
 #include "base/component_export.h"  // nogncheck
+#include "base/supports_user_data.h"
 #include "ui/base/dragdrop/mojom/drag_drop_types.mojom-forward.h"
 
 namespace blink {
@@ -60,9 +60,11 @@ class COMPONENT_EXPORT(INPUT) VivaldiEventHooks
   // Hook to notify UI about the end of the drag operation and pointer position
   // when the user released the pointer.
   static void HandleDragEnd(content::WebContents* web_contents,
-                            bool outside,
                             int client_x,
-                            int client_y);
+                            int client_y,
+                            int screen_x,
+                            int screen_y,
+                            bool canceled);
 
  protected:
   static bool HasInstance();
@@ -85,9 +87,11 @@ class COMPONENT_EXPORT(INPUT) VivaldiEventHooks
       const input::NativeWebKeyboardEvent& event) = 0;
 
   virtual void DoHandleDragEnd(content::WebContents* web_contents,
-                               bool outside,
                                int client_x,
-                               int client_y) = 0;
+                               int client_y,
+                               int screen_x,
+                               int screen_y,
+                               bool canceled) = 0;
 
  private:
   static VivaldiEventHooks* instance_;

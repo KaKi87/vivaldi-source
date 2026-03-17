@@ -35,7 +35,7 @@
 #include "components/page_load_metrics/browser/observers/use_counter_page_load_metrics_observer.h"
 #include "components/page_load_metrics/browser/page_load_metrics_test_waiter.h"
 #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
-#include "components/subresource_filter/content/shared/browser/ruleset_service.h"
+#include "components/subresource_filter/content/browser/ruleset_service.h"
 #include "components/subresource_filter/core/browser/subresource_filter_features.h"
 #include "components/subresource_filter/core/common/activation_scope.h"
 #include "components/subresource_filter/core/common/common_features.h"
@@ -3145,7 +3145,7 @@ IN_PROC_BROWSER_TEST_F(AdsPageLoadMetricsObserverPrerenderingBrowserTest,
   // Start a prerender.
   GURL prerender_url =
       embedded_test_server()->GetURL("/ads_observer/srcdoc_embedded_ad.html");
-  content::FrameTreeNodeId host_id =
+  content::PrerenderHostId host_id =
       prerender_helper().AddPrerender(prerender_url);
   content::test::PrerenderHostObserver prerender_observer(*web_contents(),
                                                           host_id);

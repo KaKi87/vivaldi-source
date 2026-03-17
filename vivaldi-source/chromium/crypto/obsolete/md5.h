@@ -153,9 +153,8 @@ crypto::obsolete::Md5 MakeMd5HasherForWebAppShortcutIcon();
 std::wstring Md5AsHexForUninstall(const std::wstring& data);
 }
 
-namespace vivaldi {
-class NotesCodec;
-}
+// Declare vivaldi friends of the Md5 class
+#include "base/vivaldi_md5_friends_decl.inc"
 
 namespace crypto::obsolete {
 
@@ -277,8 +276,8 @@ class CRYPTO_EXPORT Md5 {
   friend std::wstring web_app::internals::Md5AsHexForUninstall(
       const std::wstring& key);
 
-  // Follow the above TODOs. Eventually go to SHA256.
-  friend class vivaldi::NotesCodec;
+  // Vivaldi friends of this class
+  #include "base/vivaldi_md5_friends.inc"
 
   Md5();
   static std::array<uint8_t, kSize> Hash(std::string_view data);

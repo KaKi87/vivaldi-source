@@ -52,7 +52,6 @@
 #include "ash/wm/window_state.h"
 #include "ash/wm/window_util.h"
 #include "base/auto_reset.h"
-#include "base/containers/contains.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
@@ -68,6 +67,7 @@
 #include "ui/events/devices/haptic_touchpad_effects.h"
 #include "ui/events/event.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "ui/views/metadata/view_factory.h"
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
 #include "ui/wm/core/coordinate_conversion.h"
@@ -102,7 +102,7 @@ aura::Window* GetWindowForSelection(
   // When the given `overview_item` is a group item, return the first window in
   // the `window_list` that is contained in `item_windows`.
   for (aura::Window* window : window_list) {
-    if (base::Contains(item_windows, window)) {
+    if (std::ranges::contains(item_windows, window)) {
       return window;
     }
   }
@@ -1064,7 +1064,8 @@ void OverviewSession::RestoreWindowActivation(bool restore) {
     return;
 
   // Do not restore focus to a window that exists on an inactive desk.
-  restore &= base::Contains(DesksController::Get()->active_desk()->windows(),
+  restore &=
+      std::ranges::contains(DesksController::Get()->active_desk()->windows(),
                             active_window_before_overview_);
 
   // Ensure the window is still in the window hierarchy and not in the middle

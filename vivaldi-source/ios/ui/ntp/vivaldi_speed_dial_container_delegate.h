@@ -24,8 +24,8 @@
 - (void)didSelectEditItem:(VivaldiSpeedDialItem*)item
                    parent:(VivaldiSpeedDialItem*)parent;
 
-/// Triggers when an item about to 'Move out of folder' by the context menu action,
-/// provides the item itself and the parent if any.
+/// Triggers when an item about to 'Move out of folder' by the context menu
+/// action, provides the item itself and the parent if any.
 - (void)didSelectMoveItem:(VivaldiSpeedDialItem*)item
                    parent:(VivaldiSpeedDialItem*)parent;
 

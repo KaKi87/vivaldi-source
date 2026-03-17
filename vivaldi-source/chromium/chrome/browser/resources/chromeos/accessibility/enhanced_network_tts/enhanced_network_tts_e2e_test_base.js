@@ -31,6 +31,14 @@ EnhancedNetworkTE2ETestBase = class extends E2ETestBase {
   }
 
   /** @override */
+  testGenCppIncludes() {
+    super.testGenCppIncludes();
+    GEN(`
+#include "ui/accessibility/accessibility_features.h"
+    `);
+  }
+
+  /** @override */
   testGenPreamble() {
     super.testGenPreamble();
     GEN(`

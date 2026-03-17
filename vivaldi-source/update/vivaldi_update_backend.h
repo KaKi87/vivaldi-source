@@ -43,7 +43,7 @@ class VivaldiUpdateBackend
 
   VivaldiUpdateBackend();
   VivaldiUpdateBackend(VivaldiUpdateDelegate* delegate,
-                scoped_refptr<base::SequencedTaskRunner> task_runner);
+                       scoped_refptr<base::SequencedTaskRunner> task_runner);
 
   void Init();
   void Closing();

@@ -35,7 +35,7 @@
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_navigation_observer.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/glic_pref_names.h"
 #endif
 
@@ -55,7 +55,7 @@ class ContextualCueingServiceBrowserTest : public InProcessBrowserTest {
   }
 };
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 class ContextualCueingServiceBrowserTestZSSFlag
     : public ContextualCueingServiceBrowserTest {
  public:
@@ -85,7 +85,7 @@ class ContextualCueingServiceBrowserTestZSSFlag
 
  private:
   glic::GlicTestEnvironment glic_test_environment_{{
-      .force_signin_and_model_execution_capability = false,
+      .force_signin_and_glic_capability = false,
   }};
   base::test::ScopedFeatureList scoped_feature_list_;
 
@@ -356,8 +356,7 @@ class ContextualCueingServiceBrowserTestAllowZSSForSrp
     scoped_feature_list_.InitWithFeaturesAndParameters(
         {{kGlicZeroStateSuggestions,
           {{"ZSSAllowContextualSuggestionsForSearchResultsPages", "true"}}},
-         {features::kGlic, {}},
-         {features::kTabstripComboButton, {}}},
+         {features::kGlic, {}}},
         {});
   }
 
@@ -405,7 +404,7 @@ IN_PROC_BROWSER_TEST_F(ContextualCueingServiceBrowserTestAllowZSSForSrp,
       1);
 }
 
-#endif  // ENABLE_GLIC
+#endif  // ENABLE_GLIC // Vivaldi keep disabled
 
 class ContextualCueingServiceBrowserTestCCFlag
     : public ContextualCueingServiceBrowserTest {

@@ -1,8 +1,8 @@
 #ifndef COMPONENTS_SYNC_SESSIONS_VIVALDI_SPECIFIC_H_
 #define COMPONENTS_SYNC_SESSIONS_VIVALDI_SPECIFIC_H_
 
-#include <string>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace sync_pb {
@@ -51,10 +51,10 @@ struct VivaldiSpecific {
 };
 
 void SetVivaldiSpecificFromSyncData(const sync_pb::VivaldiSpecific& sync_data,
-    sync_sessions::VivaldiSpecific *);
+                                    sync_sessions::VivaldiSpecific*);
 
 void SetSyncDataFromVivaldiSpecific(const VivaldiSpecific& data,
-    sync_pb::VivaldiSpecific *viv_specific);
-} // namespace sync_sessions
+                                    sync_pb::VivaldiSpecific* viv_specific);
+}  // namespace sync_sessions
 
-#endif // COMPONENTS_SYNC_SESSIONS_VIVALDI_SPECIFIC_H_
+#endif  // COMPONENTS_SYNC_SESSIONS_VIVALDI_SPECIFIC_H_

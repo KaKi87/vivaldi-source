@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Din forbindelse til denne side er ikke helt sikker</translation>
 <translation id="4265872034478892965">Tilladt af din administrator</translation>
 <translation id="4305666528087210886">Kunne ikke tilgå din fil</translation>
-<translation id="4408413947728134509">Cookies <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> accepterede ikke dit login-certifikat, eller også blev det ikke leveret.</translation>
 <translation id="4506599922270137252">Kontakt systemadministratoren</translation>
 <translation id="4522570452068850558">Detaljer</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Ingen resultater</translation>
 <translation id="5017554619425969104">Tekst, du har kopieret</translation>
 <translation id="5023310440958281426">Læs din administrators politikker</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1{(1 i brug)}one{(# i brug)}other{(# i brug)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Kontrollerer proxyadressen<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bit)</translation>
 <translation id="5216942107514965959">Sidst besøgt i dag</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Du bør ikke indtaste følsomme oplysninger på dette website (f.eks. adgangskoder eller kreditkort), da de kan blive stjålet af hackere.</translation>
 <translation id="5863515189965725638">Rediger IBAN</translation>
 <translation id="5869405914158311789">Denne side er utilgængelig</translation>
-<translation id="5920262536204764679">{NUM_COOKIES, plural, =1 {1 i brug} other {# i brug}}</translation>
 <translation id="5932224571077948991">Siden viser påtrængende eller vildledende annoncer</translation>
 <translation id="6051221802930200923">Du kan ikke besøge <ph name="SITE" /> lige nu, da websitet bruger certifikatlåsning. Netværksfejl og angreb er normalt midlertidige, så siden virker sandsynligvis senere.</translation>
 <translation id="6146055958333702838">Tjek kabler, og genstart eventuelle routere, modemer eller andre

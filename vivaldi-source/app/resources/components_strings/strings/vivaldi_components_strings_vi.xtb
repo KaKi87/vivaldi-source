@@ -75,7 +75,6 @@
 <translation id="4250431568374086873">Kết nối của bạn tới trang web này không đủ an toàn</translation>
 <translation id="4265872034478892965">Được quản trị viên của bạn cho phép</translation>
 <translation id="4305666528087210886">Không thể truy cập vào tệp của bạn</translation>
-<translation id="4408413947728134509">Cookie <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> không chấp nhận chứng chỉ đăng nhập của bạn hoặc có thể bạn chưa cung cấp chứng chỉ đăng nhập.</translation>
 <translation id="4506599922270137252">Liên hệ với quản trị viên hệ thống</translation>
 <translation id="4522570452068850558">Chi tiết</translation>
@@ -89,7 +88,6 @@
 <translation id="4764776831041365478">Trang web tại <ph name="URL" /> có thể tạm thời không hoạt động hay được chuyển vĩnh viễn sang địa chỉ web mới.</translation>
 <translation id="4943872375798546930">Không tìm thấy kết quả nào</translation>
 <translation id="5023310440958281426">Kiểm tra chính sách của quản trị viên của bạn</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1 {(1 cookie đang được dùng)} other {(# cookie đang được dùng)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Kiểm tra địa chỉ proxy<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 bit)</translation>
 <translation id="5355557959165512791">Bạn không thể truy cập vào <ph name="SITE" /> ngay bây giờ vì chứng chỉ của trang này đã bị thu hồi. Lỗi mạng và các cuộc tấn công mạng thường chỉ là tạm thời nên trang này có thể sẽ hoạt động lại sau.</translation>

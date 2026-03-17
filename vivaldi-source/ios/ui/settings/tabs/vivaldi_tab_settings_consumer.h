@@ -22,6 +22,8 @@ NS_SWIFT_UI_ACTOR
 - (void)setPreferenceOpenNTPOnClosingLastTab:(BOOL)openNTP;
 // Updates the state with focusing omnibox on NTP preference value.
 - (void)setPreferenceFocusOmniboxOnNTP:(BOOL)focusOmnibox;
+// Updates the state with swipe-to-close tabs preference value.
+- (void)setPreferenceSwipeToCloseTabEnabled:(BOOL)enabled;
 // Updates the state with the show X button for background tabs.
 - (void)setPreferenceShowXButtonInBackgroundTab:(BOOL)showXButton;
 // Updates the state with the inactive tabs threshold preference value.

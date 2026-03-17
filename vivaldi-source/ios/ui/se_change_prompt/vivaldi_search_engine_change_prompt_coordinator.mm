@@ -89,7 +89,7 @@ NSString* customDetentIdentifier = @"VivaldiSearchEnginePromptDetent";
       [[VivaldiSearchEngineChangePromptViewProvider alloc] init];
   self.controller =
       [self.viewProvider makeViewControllerWithPresentingViewControllerTrait:
-            self.baseViewController.traitCollection];
+                             self.baseViewController.traitCollection];
   self.controller.modalInPresentation = true;
 }
 
@@ -101,7 +101,6 @@ NSString* customDetentIdentifier = @"VivaldiSearchEnginePromptDetent";
 }
 
 - (void)configureSheetPresentation {
-
   UISheetPresentationController* sheetPc =
       self.controller.sheetPresentationController;
 

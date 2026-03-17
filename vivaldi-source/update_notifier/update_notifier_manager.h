@@ -9,9 +9,9 @@
 
 #include "base/files/file_path.h"
 #include "base/run_loop.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/synchronization/waitable_event_watcher.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/win/scoped_handle.h"
 
 #include "update_notifier/thirdparty/winsparkle/src/appcast.h"

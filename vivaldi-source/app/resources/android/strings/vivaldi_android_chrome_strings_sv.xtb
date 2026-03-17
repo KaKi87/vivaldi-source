@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">Öppna i ny flikstack</translation>
 <translation id="1925021887439448749">Ange anpassad webbadress</translation>
 <translation id="2038563949887743358">Aktivera begäran av datoranpassad webbsida</translation>
+<translation id="2072027001582274150">Oanvända eller duplicerade flikar</translation>
 <translation id="208033313373016095">Läsarvy för webbsidor</translation>
 <translation id="2149973817440762519">Redigera bokmärke</translation>
 <translation id="2306442503286132111">Bokmarke sparat i <ph name="FOLDER_NAME" />-mappen</translation>
@@ -46,6 +47,10 @@
 <translation id="385051799172605136">Tillbaka</translation>
 <translation id="3987993985790029246">Kopiera länk</translation>
 <translation id="399014816462153200">Läs artiklar:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> flik}
+          other {<ph name="TAB_COUNT_MANY" /> flikar, <ph name="TAB_COUNT_INCOGNITO" /> privat}}</translation>
+<translation id="408336132633586393">Privat fönster</translation>
 <translation id="4121750346708795461">Genom att använda det här programmet godkänner du Vivaldis <ph name="BEGIN_LINK1" />användarvillkor<ph name="END_LINK1" /> och <ph name="BEGIN_LINK2" />sekretesspolicy<ph name="END_LINK2" />.</translation>
 <translation id="4137746084635924146">Aktuellt enhetsspråk</translation>
 <translation id="4167670741834902166">Ny privat flik</translation>
@@ -55,9 +60,7 @@
 <translation id="4269820728363426813">Kopiera länkadress</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Aktivera skärmlås i Android-inställningar<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Lösenordshanterare</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {Flikar och grupper som inte använts på 1 dag eller mer}
-          other {Flikar och grupper som inte använts på # dagar eller mer}}</translation>
+<translation id="441100617989818073">Oanvända eller duplicerade flikar och grupper</translation>
 <translation id="451872707440238414">Sök bland dina bokmärken</translation>
 <translation id="4526803704855831732">Privata flikar</translation>
 <translation id="4532845899244822526">Välj mapp</translation>
@@ -71,6 +74,9 @@ Tryck för Sök är en funktion som enbart är tillgänglig när Google är vald
 <translation id="4883379392681899581">Lämna privat läge</translation>
 <translation id="4943872375798546930">Inga resultat</translation>
 <translation id="49576331685473090">Innehållsblockerare</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> private flik}
+          other {<ph name="TAB_COUNT_NORMAL" /> privata flikar}}</translation>
 <translation id="5079259810715830221">När en Google-webbplats ber om att privat förinläsa länkar på sin sida, krypterar Vivaldi och förladdar sidor via Googles servrar utan cookies. Detta döljer din identitet från den förladdade webbplatsen.</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" /> lagerplats</translation>
 <translation id="5144385790872094440">Vissa av sidorna du besöker är förladdade. Sidor kan laddas i förväg via Googles servrar när de länkas från en Google-webbplats eller app.</translation>
@@ -103,6 +109,7 @@ Gör ett långt tryck för att justera din sökterm. För att förfina sökninge
 <translation id="6909589135458168665">Ladda in sidor i förväg</translation>
 <translation id="7029995644714925509">När en webbplats ber om att privat förinläsa länkar på sin sida, krypterar Vivaldi och förladdar sidor via Googles servrar utan cookies. Detta döljer din identitet från den förnedladdade webbplatsen.</translation>
 <translation id="706339621163631076">Webbläsarens sekretesspolicy</translation>
+<translation id="7100573672995171864">Anpassa och kontrollera Vivaldi</translation>
 <translation id="732145680195464316">Bokmärke sparat i <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Skicka en Do Not Track-begäran</translation>
 <translation id="7359002509206457351">Åtkomst till betalningsmetoder</translation>
@@ -124,14 +131,11 @@ Gör ett långt tryck för att justera din sökterm. För att förfina sökninge
 <translation id="8348430946834215779">Använd HTTPS när det är möjligt och bli varnad innan du laddar webbplatser som inte stöder det</translation>
 <translation id="8560602726703398413">Hitta din läslista i Bokmärken</translation>
 <translation id="85991616550051997">Gå till hemsida</translation>
-<translation id="8693232767599693749">Visa läsläge?</translation>
+<translation id="8738163682604285902">Visa läsläge?</translation>
 <translation id="8820817407110198400">Bokmärken</translation>
 <translation id="9042893549633094279">Integritet och säkerhet</translation>
 <translation id="9063523880881406963">Inaktivera webbplats förfrågan</translation>
 <translation id="9080642952018487277">Gå in i privat läge</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {Används inte på 1 dag eller mer}
-          other {Används inte på # dagar eller mer}}</translation>
 <translation id="930124987204876019">Radera historik, cookies, webbplatsdata, cacheminne …</translation>
 <translation id="961856697154696964">Radera webbinformation</translation>
 </translationbundle>

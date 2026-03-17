@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">Die Verbindung zu dieser Website ist nicht volkommen sicher</translation>
 <translation id="4265872034478892965">Von Ihrem Administrator zugelassen</translation>
 <translation id="4305666528087210886">Zugriff auf die Datei nicht möglich</translation>
-<translation id="4408413947728134509">Cookies <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> hat Ihr Anmeldezertifikat nicht akzeptiert oder es wurde keines bereitgestellt.</translation>
 <translation id="4506599922270137252">Kontakt mit dem Systemadministrator aufnehmen</translation>
 <translation id="4522570452068850558">Details</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Keine Ergebnisse</translation>
 <translation id="5017554619425969104">Kopierter Text</translation>
 <translation id="5023310440958281426">Prüfen Sie die Richtlinien Ihres Administrators</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1{(1 wird verwendet)}other{(# werden verwendet)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Proxyadresse prüfen<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-Bit)</translation>
 <translation id="5216942107514965959">Heute zuletzt besucht</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Sie sollten keine vertraulichen Informationen wie Passwörter oder Kreditkartendaten auf dieser Website eingeben, da sie von Angreifern gestohlen werden könnten.</translation>
 <translation id="5863515189965725638">IBAN bearbeiten</translation>
 <translation id="5869405914158311789">Diese Website ist nicht erreichbar</translation>
-<translation id="5920262536204764679">{NUM_COOKIES, plural, =1 {1 wird verwendet} other {# werden verwendet}}</translation>
 <translation id="5932224571077948991">Website zeigt aufdringliche oder irreführende Werbung an</translation>
 <translation id="6051221802930200923">Sie können <ph name="SITE" /> zurzeit nicht aufrufen, da die Website Zertifikats-Pinning verwendet. Netzwerkfehler und Angriffe sind in der Regel nur vorübergehend, sodass die Seite wahrscheinlich später wieder funktioniert.</translation>
 <translation id="6146055958333702838">Überprüfen Sie alle Kabel und starten Sie alle verwendeten Router, Modems oder

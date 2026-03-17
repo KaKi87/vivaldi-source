@@ -27,11 +27,12 @@
 #include "base/version.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/web_applications/isolated_web_apps/install/isolated_web_app_install_source.h"
-#include "chrome/browser/web_applications/isolated_web_apps/install/pending_install_info.h"
+#include "chrome/browser/web_applications/isolated_web_apps/install/non_installed_bundle_inspection_context.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_features.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_integrity_block_data.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_trust_checker.h"
 #include "chrome/browser/web_applications/isolated_web_apps/isolated_web_app_url_info.h"
+#include "chrome/browser/web_applications/isolated_web_apps/runtime_data/chrome_iwa_runtime_data_provider.h"
 #include "chrome/browser/web_applications/jobs/manifest_to_web_app_install_info_job.h"
 #include "chrome/browser/web_applications/web_app_icon_operations.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
@@ -45,7 +46,6 @@
 #include "components/webapps/browser/installable/installable_manager.h"
 #include "components/webapps/browser/web_contents/web_app_url_loader.h"
 #include "components/webapps/isolated_web_apps/bundle_operations/bundle_operations.h"
-#include "components/webapps/isolated_web_apps/iwa_key_distribution_info_provider.h"
 #include "components/webapps/isolated_web_apps/types/iwa_version.h"
 #include "components/webapps/isolated_web_apps/types/source.h"
 #include "components/webapps/isolated_web_apps/types/storage_location.h"
@@ -230,74 +230,16 @@ void UpdateBundlePathAndCreateStorageLocation(
              source.variant());
 }
 
-base::expected<std::reference_wrapper<const WebApp>, std::string>
-GetIsolatedWebAppById(const WebAppRegistrar& registrar,
-                      const webapps::AppId& iwa_id) {
-  auto* iwa = registrar.GetAppById(iwa_id);
-  if (!iwa) {
-    return base::unexpected("App is no longer installed.");
-  }
-  if (!iwa->isolation_data()) {
-    return base::unexpected("Installed app is not an Isolated Web App.");
-  }
-  return *iwa;
-}
-
-base::flat_map<SignedWebBundleId, std::reference_wrapper<const WebApp>>
-GetInstalledIwas(const WebAppRegistrar& registrar) {
-  base::flat_map<SignedWebBundleId, std::reference_wrapper<const WebApp>>
-      installed_iwas;
-  for (const WebApp& web_app : registrar.GetApps()) {
-    if (!web_app.isolation_data().has_value()) {
-      continue;
-    }
-    auto url_info = IsolatedWebAppUrlInfo::Create(web_app.start_url());
-    if (!url_info.has_value()) {
-      LOG(ERROR) << "Unable to calculate IsolatedWebAppUrlInfo from "
-                 << web_app.start_url();
-      continue;
-    }
-
-    installed_iwas.try_emplace(url_info->web_bundle_id(), std::ref(web_app));
-  }
-
-  return installed_iwas;
-}
-
-KeyRotationLookupResult LookupRotatedKey(
-    const SignedWebBundleId& web_bundle_id,
-    base::optional_ref<base::Value::Dict> debug_log) {
-  auto log_rotated_key = [&](const std::string& value) {
-    if (debug_log) {
-      debug_log->Set("rotated_key", value);
-    }
-  };
-
+std::optional<KeyRotationData> GetKeyRotationData(
+    const web_package::SignedWebBundleId& web_bundle_id,
+    const IsolationData& isolation_data) {
   const auto* kr_info =
-      IwaKeyDistributionInfoProvider::GetInstance().GetKeyRotationInfo(
+      ChromeIwaRuntimeDataProvider::GetInstance().GetKeyRotationInfo(
           web_bundle_id.id());
   if (!kr_info) {
-    return KeyRotationLookupResult::kNoKeyRotation;
+    return std::nullopt;
   }
-
-  if (!kr_info->public_key) {
-    log_rotated_key("<disabled>");
-    return KeyRotationLookupResult::kKeyBlocked;
-  }
-  log_rotated_key(base::Base64Encode(*kr_info->public_key));
-  return KeyRotationLookupResult::kKeyFound;
-}
-
-KeyRotationData GetKeyRotationData(const SignedWebBundleId& web_bundle_id,
-                                   const IsolationData& isolation_data) {
-  const auto* kr_info =
-      IwaKeyDistributionInfoProvider::GetInstance().GetKeyRotationInfo(
-          web_bundle_id.id());
-  CHECK(kr_info && kr_info->public_key)
-      << "`GetKeyRotationData()` must only be called if `LookupRotatedKey()` "
-         "has previously reported `KeyRotationLookupResult::kKeyFound`.";
-
-  const auto& rotated_key = *kr_info->public_key;
+  const auto& rotated_key = kr_info->public_key;
 
   // Checks whether `rotated_key` is contained in
   // `isolation_data.integrity_block_data`.
@@ -311,9 +253,9 @@ KeyRotationData GetKeyRotationData(const SignedWebBundleId& web_bundle_id,
       pending_update && IntegrityBlockDataHasRotatedKey(
                             pending_update->integrity_block_data, rotated_key);
 
-  return {.rotated_key = rotated_key,
-          .current_installation_has_rk = current_installation_has_rk,
-          .pending_update_has_rk = pending_update_has_rk};
+  return {{.rotated_key = rotated_key,
+           .current_installation_has_rk = current_installation_has_rk,
+           .pending_update_has_rk = pending_update_has_rk}};
 }
 
 VersionChangeValidationResult ValidateVersionChangeFeasibility(
@@ -355,32 +297,29 @@ IsolatedWebAppInstallCommandHelper::~IsolatedWebAppInstallCommandHelper() =
 
 void IsolatedWebAppInstallCommandHelper::CheckTrustAndSignatures(
     const IwaSourceWithMode& location,
+    const IwaOperation& operation,
     Profile* profile,
     base::OnceCallback<
         void(base::expected<std::optional<SignedWebBundleIntegrityBlock>,
                             std::string>)> callback) {
+  RETURN_IF_ERROR(
+      IsolatedWebAppTrustChecker::IsOperationAllowed(
+          *profile, url_info_.web_bundle_id(), location.dev_mode(), operation),
+      [&](const std::string& error) {
+        std::move(callback).Run(base::unexpected(error));
+      });
+
   std::visit(
       absl::Overload{
           [&](const IwaSourceBundleWithMode& location) {
             CHECK(!url_info_.web_bundle_id().is_for_proxy_mode());
-            if (location.dev_mode() && !IsIwaDevModeEnabled(profile)) {
-              std::move(callback).Run(
-                  base::unexpected(std::string(kIwaDevModeNotEnabledMessage)));
-              return;
-            }
-            ValidateSignedWebBundleTrustAndSignatures(
+            ValidateSignedWebBundleSignatures(
                 profile, location.path(), url_info_.web_bundle_id(),
-                location.dev_mode(),
                 base::BindOnce(&ExpectedToExpectedOptional)
                     .Then(std::move(callback)));
           },
           [&](const IwaSourceProxy& location) {
             CHECK(url_info_.web_bundle_id().is_for_proxy_mode());
-            if (!IsIwaDevModeEnabled(profile)) {
-              std::move(callback).Run(
-                  base::unexpected(std::string(kIwaDevModeNotEnabledMessage)));
-              return;
-            }
             // Dev mode proxy mode does not use Web Bundles, hence there is no
             // bundle to validate / trust and no signatures to check.
             std::move(callback).Run(base::ok(std::nullopt));
@@ -390,10 +329,11 @@ void IsolatedWebAppInstallCommandHelper::CheckTrustAndSignatures(
 
 void IsolatedWebAppInstallCommandHelper::CheckTrustAndSignatures(
     const IwaSourceWithMode& location,
+    const IwaOperation& operation,
     Profile* profile,
     base::OnceCallback<void(base::expected<void, std::string>)> callback) {
   CheckTrustAndSignatures(
-      location, profile,
+      location, operation, profile,
       base::BindOnce(
           [](base::expected<std::optional<SignedWebBundleIntegrityBlock>,
                             std::string> result) {
@@ -410,6 +350,7 @@ void IsolatedWebAppInstallCommandHelper::CreateStoragePartitionIfNotPresent(
 
 void IsolatedWebAppInstallCommandHelper::LoadInstallUrl(
     const IwaSourceWithMode& source,
+    const IwaOperation& operation,
     content::WebContents& web_contents,
     webapps::WebAppUrlLoader& url_loader,
     base::OnceCallback<void(base::expected<void, std::string>)> callback) {
@@ -417,8 +358,8 @@ void IsolatedWebAppInstallCommandHelper::LoadInstallUrl(
   // order to determine the current state of content serving (installation
   // process vs application data serving) and source of data (proxy, web
   // bundle, etc...).
-  IsolatedWebAppPendingInstallInfo::FromWebContents(web_contents)
-      .set_source(source);
+  NonInstalledBundleInspectionContext::CreateForWebContents(&web_contents,
+                                                            source, operation);
 
   GURL install_page_url =
       url_info_.origin().GetURL().Resolve(kGeneratedInstallPagePath);
@@ -427,7 +368,7 @@ void IsolatedWebAppInstallCommandHelper::LoadInstallUrl(
   load_params.transition_type = ui::PAGE_TRANSITION_GENERATED;
   // It is important to bypass a potentially registered Service Worker for two
   // reasons:
-  // 1. `IsolatedWebAppPendingInstallInfo` is attached to a `WebContents` and
+  // 1. `NonInstalledBundleInspectionContext` is attached to a `WebContents` and
   //    retrieved inside `IsolatedWebAppURLLoaderFactory` based on a frame tree
   //    node id. There is no frame tree node id for requests that are
   //    intercepted by Service Workers.

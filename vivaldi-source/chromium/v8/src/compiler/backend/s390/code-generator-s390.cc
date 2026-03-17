@@ -12,7 +12,7 @@
 #include "src/compiler/backend/gap-resolver.h"
 #include "src/compiler/node-matchers.h"
 #include "src/compiler/osr.h"
-#include "src/heap/mutable-page-metadata.h"
+#include "src/heap/mutable-page.h"
 
 #if V8_ENABLE_WEBASSEMBLY
 #include "src/wasm/wasm-linkage.h"
@@ -1299,9 +1299,8 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
             }
           } else {
             JSDispatchHandle dispatch_handle = function->dispatch_handle();
-            size_t expected =
-                IsolateGroup::current()->js_dispatch_table()->GetParameterCount(
-                    dispatch_handle);
+            size_t expected = isolate()->js_dispatch_table().GetParameterCount(
+                dispatch_handle);
             if (num_arguments >= expected) {
               __ CallJSDispatchEntry(dispatch_handle, expected);
             } else {

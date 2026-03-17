@@ -17,9 +17,10 @@
 #include <libaddressinput/callback.h>
 #include <libaddressinput/storage.h>
 
-#include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 
 #include <gtest/gtest.h>
 
@@ -47,13 +48,13 @@ class NullStorageTest : public testing::Test {
   static const char kKey[];
 
  private:
-  void OnDataReady(bool success, const std::string& key, std::string* data) {
-    ASSERT_FALSE(success && data == nullptr);
+  void OnDataReady(bool success, const std::string& key,
+                   std::optional<std::string> data) {
+    ASSERT_FALSE(success && !data.has_value());
     success_ = success;
     key_ = key;
-    if (data != nullptr) {
-      data_ = *data;
-      delete data;
+    if (data.has_value()) {
+      data_ = std::move(data).value();
     }
   }
 };
@@ -63,7 +64,7 @@ const char NullStorageTest::kKey[] = "foo";
 TEST_F(NullStorageTest, Put) {
   // The Put() method should not do anything, so this test only tests that the
   // code compiles and that the call doesn't crash.
-  storage_.Put(kKey, new std::string("bar"));
+  storage_.Put(kKey, "bar");
 }
 
 TEST_F(NullStorageTest, Get) {

@@ -35,7 +35,6 @@
 #include "components/autofill/core/browser/integrators/autofill_ai/autofill_ai_manager.h"
 #include "components/autofill/core/common/aliases.h"
 #include "components/password_manager/content/browser/content_password_manager_driver.h"
-#include "components/password_manager/core/browser/features/password_features.h"
 #include "components/password_manager/core/browser/password_autofill_manager.h"
 #include "components/password_manager/core/browser/password_counter.h"
 #include "components/password_manager/core/browser/password_manager_client.h"
@@ -165,31 +164,27 @@ bool IsPasswordFormField(ContentPasswordManagerDriver& password_manager_driver,
       ->GetPasswordForm(&password_manager_driver, current_field_renderer_id);
 }
 
-base::Value::Dict LoadTriggerFormAndFieldLogs(
+base::DictValue LoadTriggerFormAndFieldLogs(
     AutofillManager& manager,
     const LocalFrameToken& frame_token,
     const content::ContextMenuParams& params) {
   if (!ShouldShowAutofillContextMenu(params)) {
-    return base::Value::Dict();
+    return base::DictValue();
   }
 
   FormGlobalId form_global_id = {frame_token,
                                  FormRendererId(params.form_renderer_id)};
 
-  base::Value::Dict trigger_form_logs;
-  if (FormStructure* form = manager.FindCachedFormById(form_global_id)) {
+  base::DictValue trigger_form_logs;
+  if (const FormStructure* form = manager.FindCachedFormById(form_global_id)) {
     trigger_form_logs.Set("triggerFormSignature", form->FormSignatureAsStr());
 
     if (params.form_control_type) {
       FieldGlobalId field_global_id = {
           frame_token, FieldRendererId(params.field_renderer_id)};
-      auto field =
-          std::ranges::find_if(*form, [&field_global_id](const auto& field) {
-            return field->global_id() == field_global_id;
-          });
-      if (field != form->end()) {
+      if (const AutofillField* field = form->GetFieldById(field_global_id)) {
         trigger_form_logs.Set("triggerFieldSignature",
-                              (*field)->FieldSignatureAsStr());
+                              field->FieldSignatureAsStr());
       }
     }
   }
@@ -209,14 +204,8 @@ AutofillContextMenuManager::AutofillContextMenuManager(
 AutofillContextMenuManager::~AutofillContextMenuManager() = default;
 
 void AutofillContextMenuManager::AppendItems() {
-  if (base::FeatureList::IsEnabled(
-          password_manager::features::kPasswordManualFallbackAvailable)) {
-    MaybeAddAutofillManualFallbackItems();
-    MaybeAddAutofillFeedbackItem();
-  } else {
-    MaybeAddAutofillFeedbackItem();
-    MaybeAddAutofillManualFallbackItems();
-  }
+  MaybeAddAutofillManualFallbackItems();
+  MaybeAddAutofillFeedbackItem();
 }
 
 bool AutofillContextMenuManager::IsCommandIdSupported(int command_id) {
@@ -402,11 +391,8 @@ bool AutofillContextMenuManager::ShouldAddPasswordsManualFallbackItem(
   }
 
   return password_manager_driver.GetPasswordManager()
-             ->GetClient()
-             ->IsFillingEnabled(
-                 password_manager_driver.GetLastCommittedURL()) &&
-         base::FeatureList::IsEnabled(
-             password_manager::features::kPasswordManualFallbackAvailable);
+      ->GetClient()
+      ->IsFillingEnabled(password_manager_driver.GetLastCommittedURL());
 }
 
 void AutofillContextMenuManager::AddPasswordsManualFallbackItems(
@@ -431,8 +417,6 @@ void AutofillContextMenuManager::AddPasswordsManualFallbackItems(
     menu_model_->AddItemWithStringId(
         IDC_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS_SELECT_PASSWORD,
         IDS_CONTENT_CONTEXT_AUTOFILL_FALLBACK_PASSWORDS_SELECT_PASSWORD);
-    MaybeMarkLastItemAsNewFeature(
-        password_manager::features::kPasswordManualFallbackAvailable);
   }
   if (add_password_generation_option) {
     menu_model_->AddItemWithStringId(
@@ -516,9 +500,6 @@ void AutofillContextMenuManager::ExecuteFallbackForSelectPasswordCommand(
       AutofillSuggestionTriggerSource::kManualFallbackPasswords);
 
   LogSelectPasswordManualFallbackContextMenuEntryAccepted();
-  UserEducationService::MaybeNotifyNewBadgeFeatureUsed(
-      delegate_->GetBrowserContext(),
-      password_manager::features::kPasswordManualFallbackAvailable);
 }
 
 void AutofillContextMenuManager::MaybeMarkLastItemAsNewFeature(

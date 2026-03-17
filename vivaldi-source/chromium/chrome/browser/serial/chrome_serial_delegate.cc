@@ -13,10 +13,11 @@
 #include "chrome/browser/ui/serial/serial_chooser_controller.h"
 #include "components/guest_view/buildflags/buildflags.h"
 #include "content/public/browser/render_frame_host.h"
+#include "extensions/buildflags/buildflags.h"
 
-#if BUILDFLAG(ENABLE_GUEST_VIEW)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
 #include "extensions/browser/guest_view/web_view/web_view_guest.h"
-#endif  // BUILDFLAG(ENABLE_GUEST_VIEW)
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
 
 // Vivaldi:
 #include "extensions/api/guest_view/vivaldi_guest_view_utils.h"
@@ -48,7 +49,7 @@ std::unique_ptr<content::SerialChooser> ChromeSerialDelegate::RunChooser(
 
 bool ChromeSerialDelegate::CanRequestPortPermission(
     content::RenderFrameHost* frame) {
-#if BUILDFLAG(ENABLE_GUEST_VIEW)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
   // <webview> and <controlledframe> can not isolate origin-based permissions
   // from the rest of profile, therefore serial is disabled inside.
   if (extensions::WebViewGuest::FromRenderFrameHost(frame)) {
@@ -59,7 +60,7 @@ bool ChromeSerialDelegate::CanRequestPortPermission(
 
     return false;
   }
-#endif  // BUILDFLAG(ENABLE_GUEST_VIEW)
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
   return GetChooserContext(frame)->CanRequestObjectPermission(
       frame->GetMainFrame()->GetLastCommittedOrigin());
 }
@@ -67,7 +68,7 @@ bool ChromeSerialDelegate::CanRequestPortPermission(
 bool ChromeSerialDelegate::HasPortPermission(
     content::RenderFrameHost* frame,
     const device::mojom::SerialPortInfo& port) {
-#if BUILDFLAG(ENABLE_GUEST_VIEW)
+#if BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
   // <webview> and <controlledframe> can not isolate origin-based permissions
   // from the rest of profile, therefore serial is disabled inside.
   if (extensions::WebViewGuest::FromRenderFrameHost(frame)) {
@@ -78,7 +79,7 @@ bool ChromeSerialDelegate::HasPortPermission(
 
     return false;
   }
-#endif  // BUILDFLAG(ENABLE_GUEST_VIEW)
+#endif  // BUILDFLAG(ENABLE_EXTENSIONS_CORE) && BUILDFLAG(ENABLE_GUEST_VIEW)
   return GetChooserContext(frame)->HasPortPermission(
       frame->GetMainFrame()->GetLastCommittedOrigin(), port);
 }

@@ -14,7 +14,7 @@ namespace vivaldi {
 
 // static
 VivaldiAccountManager* VivaldiAccountManagerFactory::GetForProfile(
-  ProfileIOS* profile) {
+    ProfileIOS* profile) {
   return GetInstance()->GetServiceForProfileAs<VivaldiAccountManager>(
       profile,
       /*create=*/true);

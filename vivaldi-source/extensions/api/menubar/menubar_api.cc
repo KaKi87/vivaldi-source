@@ -219,16 +219,6 @@ bool MenubarAPI::GetIsSupportedInSettings(int id) {
   }
 }
 
-// We have a problem in the Help Menu. The std inlined search function there
-// takes focus when menu shows and the test we do in validateUserInterfaceItem()
-// in app_controller_app.mm fails because there is no key window. So this
-// function is then used to determine if we indeed have an active window to keep
-// items in the Help menu enabled.
-// static
-bool MenubarAPI::HasActiveWindow() {
-  return VivaldiBrowserComponentWrapper::GetInstance()->BrowserListHasActive();
-}
-
 // static
 bool MenubarAPI::HandleActionById(content::BrowserContext* browser_context,
                                   int window_id,

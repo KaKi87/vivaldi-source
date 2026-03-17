@@ -26,8 +26,7 @@ TH_Model::TH_Model(content::BrowserContext* context, bool session_only)
   }
 }
 #else
-TH_Model::TH_Model(bool session_only)
-    : session_only_(session_only) {
+TH_Model::TH_Model(bool session_only) : session_only_(session_only) {
   if (session_only_) {
     Load();  // Sets up an empty list and saves it.
   }
@@ -67,7 +66,8 @@ void TH_Model::Load() {
 #else
     base::FilePath base_dir;
     if (base::PathService::Get(ios::DIR_USER_DATA, &base_dir)) {
-      TH_ModelLoader::Create(base_dir, CreateLoadDetails(),
+      TH_ModelLoader::Create(
+          base_dir, CreateLoadDetails(),
           base::BindOnce(&TH_Model::LoadFinished, AsWeakPtr()));
     }
 #endif

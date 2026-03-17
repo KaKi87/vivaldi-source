@@ -62,10 +62,6 @@
       "id": 22,
       "merge_method": "none"
     },
-    "vivaldi.address_bar.position": {
-      "id": 24,
-      "merge_method": "none"
-    },
     "vivaldi.address_bar.search.display": {
       "id": 25,
       "merge_method": "none"
@@ -120,10 +116,6 @@
     },
     "vivaldi.address_bar.url_open_shortcut": {
       "id": 42,
-      "merge_method": "none"
-    },
-    "vivaldi.address_bar.visible": {
-      "id": 43,
       "merge_method": "none"
     },
     "vivaldi.address_bar.strip_javascript_on_paste": {
@@ -638,10 +630,6 @@
       "id": 172,
       "merge_method": "none"
     },
-    "vivaldi.panels.position": {
-      "id": 173,
-      "merge_method": "none"
-    },
     "vivaldi.panels.show_close_button": {
       "id": 174,
       "merge_method": "none"
@@ -696,10 +684,6 @@
     },
     "vivaldi.privacy.break_mode.introduction_show": {
       "id": 187,
-      "merge_method": "none"
-    },
-    "vivaldi.privacy.autofill.server_assist": {
-      "id": 188,
       "merge_method": "none"
     },
     "vivaldi.privacy.adverse_ad_block.enabled": {
@@ -798,10 +782,6 @@
       "id": 214,
       "merge_method": "none"
     },
-    "vivaldi.startpage.navigation": {
-      "id": 215,
-      "merge_method": "none"
-    },
     "vivaldi.startpage.speed_dial.add_button_visible": {
       "id": 216,
       "merge_method": "none"
@@ -848,14 +828,6 @@
     },
     "vivaldi.startup.remember_full_screen": {
       "id": 228,
-      "merge_method": "none"
-    },
-    "vivaldi.status_bar.display": {
-      "id": 229,
-      "merge_method": "none"
-    },
-    "vivaldi.status_bar.minimized": {
-      "id": 230,
       "merge_method": "none"
     },
     "vivaldi.tabs.activation.on_clone": {
@@ -996,10 +968,6 @@
     },
     "vivaldi.tabs.stacking.dnd_delay": {
       "id": 269,
-      "merge_method": "none"
-    },
-    "vivaldi.tabs.stacking.mode": {
-      "id": 270,
       "merge_method": "none"
     },
     "vivaldi.tabs.stacking.prefer_dotted": {
@@ -1220,6 +1188,14 @@
     },
     "vivaldi.tabs.tiling.show_titlebar": {
       "id": 333,
+      "merge_method": "none"
+    },
+    "vivaldi.mail.compose_format": {
+      "id": 334,
+      "merge_method": "none"
+    },
+    "vivaldi.mail.compose_reply_same_format": {
+      "id": 335,
       "merge_method": "none"
     }
   },
@@ -1545,6 +1521,12 @@
           "COMMAND_MAIL_COMPOSER_DELETE_DRAFT": {
             "shortcuts": []
           },
+          "COMMAND_MAIL_COMPOSER_UNDOCK": {
+            "shortcuts": []
+          },
+          "COMMAND_MAIL_COMPOSER_DOCK": {
+            "shortcuts": []
+          },
           "COMMAND_MAIL_SHOW_QUICK_REPLY": {
             "shortcuts": []
           },
@@ -1561,12 +1543,12 @@
             "shortcuts": []
           },
           "COMMAND_MAIN_TOGGLE_UI": {
+            "shortcuts": []
+          },
+          "COMMAND_MAIN_TOGGLE_UI_AUTOHIDE": {
             "shortcuts": [
               "ctrl+f11"
             ]
-          },
-          "COMMAND_MAIN_TOGGLE_UI_AUTOHIDE": {
-            "shortcuts": []
           },
           "COMMAND_MAIN_ZOOM_DOUBLE": {
             "shortcuts": [
@@ -2394,6 +2376,12 @@
           "COMMAND_MAIL_COMPOSER_DELETE_DRAFT": {
             "shortcuts": []
           },
+          "COMMAND_MAIL_COMPOSER_UNDOCK": {
+            "shortcuts": []
+          },
+          "COMMAND_MAIL_COMPOSER_DOCK": {
+            "shortcuts": []
+          },
           "COMMAND_MAIL_SHOW_QUICK_REPLY": {
             "shortcuts": []
           },
@@ -2410,12 +2398,12 @@
             "shortcuts": []
           },
           "COMMAND_MAIN_TOGGLE_UI": {
+            "shortcuts": []
+          },
+          "COMMAND_MAIN_TOGGLE_UI_AUTOHIDE": {
             "shortcuts": [
               "ctrl+f11"
             ]
-          },
-          "COMMAND_MAIN_TOGGLE_UI_AUTOHIDE": {
-            "shortcuts": []
           },
           "COMMAND_MAIN_ZOOM_DOUBLE": {
             "shortcuts": [
@@ -3220,6 +3208,12 @@
           "COMMAND_MAIL_COMPOSER_DELETE_DRAFT": {
             "shortcuts": []
           },
+          "COMMAND_MAIL_COMPOSER_UNDOCK": {
+            "shortcuts": []
+          },
+          "COMMAND_MAIL_COMPOSER_DOCK": {
+            "shortcuts": []
+          },
           "COMMAND_MAIL_SHOW_QUICK_REPLY": {
             "shortcuts": []
           },
@@ -3236,12 +3230,12 @@
             "shortcuts": []
           },
           "COMMAND_MAIN_TOGGLE_UI": {
+            "shortcuts": []
+          },
+          "COMMAND_MAIN_TOGGLE_UI_AUTOHIDE": {
             "shortcuts": [
               "meta+f10"
             ]
-          },
-          "COMMAND_MAIN_TOGGLE_UI_AUTOHIDE": {
-            "shortcuts": []
           },
           "COMMAND_MAIN_ZOOM_DOUBLE": {
             "shortcuts": [
@@ -4185,6 +4179,11 @@
         "type": "boolean",
         "default": true
       },
+      "hide_window_controls": {
+        "description": "Hide window controls in Biscuit mode.",
+        "type": "boolean",
+        "default": false
+      },
       "rainbow_progress": {
         "description": "Replace the page load progress indicator with a rainbow indicator.",
         "type": "boolean",
@@ -4930,6 +4929,20 @@
         },
         "default": "black_on_white"
       },
+      "compose_format": {
+        "description": "Default compose format for new messages",
+        "type": "enum",
+        "enum_values": {
+          "richtext": 0,
+          "plaintext": 1
+        },
+        "default": "richtext"
+      },
+      "compose_reply_same_format": {
+        "description": "When replying, use the same format as the original message",
+        "type": "boolean",
+        "default": true
+      },
       "compose_headers_hidden": {
         "description": "What header fields are hidden in mail message header when composing",
         "type": "list",
@@ -4969,7 +4982,7 @@
         "selected_pane": {
           "type": "enum",
           "default": "import",
-          "description": "Mail import last selected pane",
+          "description": "[DEPRECATED 2026-02] Mail import last selected pane",
           "enum_values": {
             "import": 0,
             "status": 1
@@ -5081,6 +5094,29 @@
         "description": "Open Panel Automatically",
         "type": "boolean",
         "default": true
+      },
+      "floating_composer": {
+        "description": "Does mail composer open in a floating window or in a tab?",
+        "type": "boolean",
+        "default": false
+      },
+      "floating_composer_size": {
+        "width": {
+          "type": "integer",
+          "default": 990
+        },
+        "height": {
+          "type": "integer",
+          "default": 800
+        },
+        "top": {
+          "type": "integer",
+          "default": -1
+        },
+        "left": {
+          "type": "integer",
+          "default": -1
+        }
       },
       "smtp_logs_on": {
         "description": "Are smtp actions logged in debug console?",
@@ -5802,7 +5838,7 @@
       },
       "autofill": {
         "server_assist": {
-          "description": "Use Google server-side assisted autofill.",
+          "description": "[DEPRECATED 2026/02] Use Google server-side assisted autofill.",
           "type": "boolean",
           "default": true
         }
@@ -6328,7 +6364,7 @@
         "default": 0.0
       },
       "share_vivaldi_last_seen_version": {
-        "description": "Most recent browser version number seen when interacted with share Vivaldi button.",
+        "description": "[DEPRECATED 2026/02] Most recent browser version number seen when interacted with share Vivaldi button.",
         "type": "string",
         "default": ""
       },
@@ -6722,11 +6758,6 @@
           "description": "Enable drag-and-drop tiling",
           "type": "boolean",
           "default": true
-        },
-        "tip_display_counter": {
-          "description": "Count how many times the tip has been displayed",
-          "type": "integer",
-          "default": 0
         }
       },
       "tooltip": {
@@ -6979,6 +7010,7 @@
             "colorHighlightBg": "#2c78f2",
             "colorWindowBg": "#f7f7f7",
             "contrast": 0,
+            "defaultBackground": "/resources/theme/vivaldi/background.webp",
             "dimBlurred": false,
             "preferSystemAccent": false,
             "radius": 14,
@@ -7005,6 +7037,7 @@
             "colorHighlightBg": "#6590fd",
             "colorWindowBg": "#1D1E21",
             "contrast": 0,
+            "defaultBackground": "#1D1E21",
             "dimBlurred": false,
             "preferSystemAccent": false,
             "radius": 14,
@@ -7031,6 +7064,7 @@
             "colorHighlightBg": "#1ab5d1",
             "colorWindowBg": "#f7f7f7",
             "contrast": 0,
+            "defaultBackground": "/resources/bg-paint.webp",
             "dimBlurred": false,
             "preferSystemAccent": false,
             "radius": 6,
@@ -7057,6 +7091,7 @@
             "colorHighlightBg": "#9e769a",
             "colorWindowBg": "#f7f7f7",
             "contrast": 0,
+            "defaultBackground": "/resources/bg-soft-pink.webp",
             "dimBlurred": false,
             "preferSystemAccent": false,
             "radius": 14,
@@ -7084,6 +7119,7 @@
             "colorHighlightBg": "#e9780e",
             "colorWindowBg": "#f1efea",
             "contrast": 1,
+            "defaultBackground": "/resources/bg_alt_4.webp",
             "preferSystemAccent": false,
             "alpha": 0.80,
             "blur": 10,
@@ -7108,6 +7144,7 @@
             "colorHighlightBg": "#4c70f0",
             "colorWindowBg": "#edeef2",
             "contrast": 1,
+            "defaultBackground": "#edeef2",
             "preferSystemAccent": true,
             "alpha": 1.0,
             "blur": 0,
@@ -7130,6 +7167,8 @@
               "MailMsgArchiveRestore": "/resources/theme/vivaldi/MailMsgArchiveRestore.svg",
               "MailMsgAttach": "/resources/theme/vivaldi/MailMsgAttach.svg",
               "MailMsgDiscard": "/resources/theme/vivaldi/MailMsgDiscard.svg",
+              "MailComposerUndock": "/resources/theme/vivaldi/MailComposerUndock.svg",
+              "MailComposerDock": "/resources/theme/vivaldi/MailComposerDock.svg",
               "MailMsgEdit": "/resources/theme/vivaldi/MailMsgEdit.svg",
               "MailMsgFlag": "/resources/theme/vivaldi/MailMsgFlag.svg",
               "MailMsgForward": "/resources/theme/vivaldi/MailMsgForward.svg",
@@ -7203,6 +7242,7 @@
             "colorHighlightBg": "#579c8e",
             "colorWindowBg": "#1D1E21",
             "contrast": 2,
+            "defaultBackground": "#1D1E21",
             "preferSystemAccent": false,
             "alpha": 0.75,
             "blur": 0,
@@ -7225,6 +7265,8 @@
               "MailMsgArchiveRestore": "/resources/theme/vivaldi/MailMsgArchiveRestore.svg",
               "MailMsgAttach": "/resources/theme/vivaldi/MailMsgAttach.svg",
               "MailMsgDiscard": "/resources/theme/vivaldi/MailMsgDiscard.svg",
+              "MailComposerUndock": "/resources/theme/vivaldi/MailComposerUndock.svg",
+              "MailComposerDock": "/resources/theme/vivaldi/MailComposerDock.svg",
               "MailMsgEdit": "/resources/theme/vivaldi/MailMsgEdit.svg",
               "MailMsgFlag": "/resources/theme/vivaldi/MailMsgFlag.svg",
               "MailMsgForward": "/resources/theme/vivaldi/MailMsgForward.svg",
@@ -7298,6 +7340,7 @@
             "colorHighlightBg": "#ff8142",
             "colorWindowBg": "#41403b",
             "contrast": 0,
+            "defaultBackground": "/resources/bg_martin-martz-7it4_acM-0M-unsplash.webp",
             "preferSystemAccent": false,
             "alpha": 0.75,
             "blur": 10,
@@ -7320,6 +7363,8 @@
               "MailMsgArchiveRestore": "/resources/theme/vivaldi/MailMsgArchiveRestore.svg",
               "MailMsgAttach": "/resources/theme/vivaldi/MailMsgAttach.svg",
               "MailMsgDiscard": "/resources/theme/vivaldi/MailMsgDiscard.svg",
+              "MailComposerUndock": "/resources/theme/vivaldi/MailComposerUndock.svg",
+              "MailComposerDock": "/resources/theme/vivaldi/MailComposerDock.svg",
               "MailMsgEdit": "/resources/theme/vivaldi/MailMsgEdit.svg",
               "MailMsgFlag": "/resources/theme/vivaldi/MailMsgFlag.svg",
               "MailMsgForward": "/resources/theme/vivaldi/MailMsgForward.svg",
@@ -7393,6 +7438,7 @@
             "colorHighlightBg": "#7F5FEC",
             "colorWindowBg": "#7F5FEC",
             "contrast": 3,
+            "defaultBackground": "/resources/bg_geometric_1.webp",
             "preferSystemAccent": false,
             "alpha": 0.95,
             "blur": 10,
@@ -7417,6 +7463,7 @@
             "colorHighlightBg": "#5f79fd",
             "colorWindowBg": "#1b1a42",
             "contrast": 2,
+            "defaultBackground": "#1b1a42",
             "preferSystemAccent": false,
             "alpha": 1.0,
             "blur": 0,
@@ -7440,7 +7487,6 @@
           "Extensions",
           "VPNButton",
           "UpdateButton",
-          "ShareVivaldi",
           "AccountButton"
         ]
       },
@@ -7567,7 +7613,20 @@
           "MailMsgSend",
           "MailMsgAttach",
           "MailMsgShowHeaders",
-          "MailMsgDiscard"
+          "MailMsgDiscard",
+          "FlexibleSpacer",
+          "MailComposerUndock"
+        ]
+      },
+      "mail_composer_window": {
+        "type": "list",
+        "default": [
+          "MailMsgSend",
+          "MailMsgAttach",
+          "MailMsgShowHeaders",
+          "MailMsgDiscard",
+          "FlexibleSpacer",
+          "MailComposerDock"
         ]
       }
     },
@@ -8048,6 +8107,11 @@
         "swipe_scroll_direction": {
           "type": "boolean",
           "default": null
+        },
+        "menubar_visible_in_fullscreen": {
+          "type": "boolean",
+          "default": false,
+          "description": "Menubar is visible in fullscreen (macOS Only)."
         }
       },
       "search_engine": {
@@ -8126,6 +8190,18 @@
         "description": "Show an introduction pop up when enabling auto hide",
         "type": "boolean",
         "default": true
+      },
+      "in_fullscreen": {
+        "description": "Enable Auto-Hide when in fullscreen.",
+        "type": "boolean",
+        "default": false
+      }
+    },
+    "layouts": {
+      "selected": {
+        "description": "Id of currently selected layout.",
+        "type": "string",
+        "default": "classic"
       }
     }
   },

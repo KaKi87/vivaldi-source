@@ -356,17 +356,16 @@ class OmniboxViewViews
   // instead of the DSE placeholder text.
   bool ShouldInstallContextualTasksPlaceholderText() const;
 
-  // Returns true if the AIM placeholder text should be visible. This differs
-  // from ShouldInstallAimPlaceholderText() because there are certain scenarios
-  // where the AIM placeholder text is installed but not visible.
-  bool ShouldShowAimPlaceholderText() const;
-
   // Records an impression of the AIM hint text.
   void RecordAimHintImpression();
 
   // Returns the AI Mode page action icon view, if present, or nullptr if the
   // view doesn't exist.
   IconLabelBubbleView* GetAiModePageActionIconView() const;
+
+  // Helper for updating the text in the Omnibox based on current focus state
+  // and whether the user is currently on a "contextual tasks" page.
+  void UpdateTextForContextualTasksPage();
 
   // When true, the location bar view is read only and also is has a slightly
   // different presentation (smaller font size). This is used for popups.

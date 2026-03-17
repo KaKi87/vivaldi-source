@@ -33,11 +33,10 @@ class VivaldiThemeDownloadHelper {
  public:
   // `callback` owns `this` and the code assumes that until the callback is
   // called this class is alive.
-  VivaldiThemeDownloadHelper(
-      std::string theme_id,
-      GURL url,
-      ThemeDownloadCallback callback,
-      base::WeakPtr<Profile> browser_context);
+  VivaldiThemeDownloadHelper(std::string theme_id,
+                             GURL url,
+                             ThemeDownloadCallback callback,
+                             base::WeakPtr<Profile> browser_context);
   ~VivaldiThemeDownloadHelper();
 
   class Delegate {

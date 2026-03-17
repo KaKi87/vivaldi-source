@@ -29,7 +29,9 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
+#import "ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_constants.h"
 #import "ios/chrome/browser/ui/tab_switcher/tab_grid/vivaldi_tab_grid_page_control_constants.h"
+#import "ios/ui/ntp/vivaldi_ntp_constants.h"
 #import "ios/ui/vivaldi_symbols/vivaldi_symbol_names.h"
 
 using vivaldi::IsVivaldiRunning;
@@ -80,19 +82,17 @@ CGFloat CompactButtonHorizontalPadding() {
   // Configures the responder following the receiver in the responder chain.
   UIResponder* _followingNextResponder;
   NSLayoutConstraint* _viewTopConstraint;
+
+  // Vivaldi
+  BOOL _vivaldiDeferPageUpdates;
+  // End Vivaldi
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
   self = [super initWithFrame:frame];
   if (self) {
-    if (IsDiamondPrototypeEnabled()) {
-      return self;
-    }
     [self setupViews];
     [self updateLayout];
-    NSArray<UITrait>* traits = TraitCollectionSetForTraits(
-        @[ UITraitVerticalSizeClass.class, UITraitHorizontalSizeClass.class ]);
-    [self registerForTraitChanges:traits withAction:@selector(updateLayout)];
   }
   return self;
 }
@@ -113,6 +113,10 @@ CGFloat CompactButtonHorizontalPadding() {
           .active = YES;
     }
   }
+
+  NSArray<UITrait>* traits = TraitCollectionSetForTraits(
+      @[ UITraitVerticalSizeClass.class, UITraitHorizontalSizeClass.class ]);
+  [self registerForTraitChanges:traits withAction:@selector(updateLayout)];
   [super didMoveToSuperview];
 }
 
@@ -144,6 +148,12 @@ CGFloat CompactButtonHorizontalPadding() {
   _page = page;
   _smallNewTabButton.page = page;
   _largeNewTabButton.page = page;
+
+  if (vivaldi::IsVivaldiRunning()) {
+    [self updateVivaldiToolbarStyleForPage:page];
+    [self updateVivaldiBackgroundForPage:page];
+  } // End Vivaldi
+
   [self updateLayout];
 }
 
@@ -208,10 +218,85 @@ CGFloat CompactButtonHorizontalPadding() {
   [self updateBackgroundVisibility];
 }
 
+#pragma mark - Vivaldi
+
+- (void)updateVivaldiToolbarStyleForPage:(TabGridPage)page {
+  if (_vivaldiDeferPageUpdates) {
+    return;
+  }
+  UIUserInterfaceStyle style = page == TabGridPageIncognitoTabs
+                                   ? UIUserInterfaceStyleDark
+                                   : UIUserInterfaceStyleUnspecified;
+  self.overrideUserInterfaceStyle = style;
+  _containerToolbar.overrideUserInterfaceStyle = style;
+  _containerToolbar.barStyle =
+      page == TabGridPageIncognitoTabs ? UIBarStyleBlack : UIBarStyleDefault;
+}
+
+- (void)updateVivaldiBackgroundForPage:(TabGridPage)page {
+  if (_vivaldiDeferPageUpdates) {
+    return;
+  }
+  if (@available(iOS 26, *)) {
+    return;
+  }
+  if (IsIOSSoftLockEnabled()) {
+    return;
+  }
+  if (!_backgroundView) {
+    return;
+  }
+
+  if (page == TabGridPageIncognitoTabs) {
+    UIColor* incognitoColor =
+        [UIColor colorNamed:vPrivateNTPBackgroundColor];
+    UIColor* incognitoOverlayColor =
+        [incognitoColor colorWithAlphaComponent:kToolbarBackgroundAlpha];
+    [_backgroundView
+        updateBackgroundColorsWithScrolledToEdgeColor:incognitoColor
+                             scrolledOverContentColor:incognitoOverlayColor];
+  } else {
+    [_backgroundView updateBackgroundColorsWithScrolledToEdgeColor:nil
+                                         scrolledOverContentColor:nil];
+  }
+}
+
+- (void)vivaldiSetDeferPageUpdates:(BOOL)defer {
+  if (_vivaldiDeferPageUpdates == defer) {
+    return;
+  }
+  _vivaldiDeferPageUpdates = defer;
+  if (!_vivaldiDeferPageUpdates) {
+    [self updateVivaldiToolbarStyleForPage:self.page];
+    if (@available(iOS 26, *)) {
+      [self updateVivaldiBackgroundForPage:self.page];
+      return;
+    }
+    if (IsIOSSoftLockEnabled() || !_backgroundView) {
+      [self updateVivaldiBackgroundForPage:self.page];
+      return;
+    }
+    [UIView transitionWithView:_backgroundView
+                      duration:vTabGridBGChangeAnimationDuration
+                       options:UIViewAnimationOptionTransitionCrossDissolve
+                    animations:^{
+                      [self updateVivaldiBackgroundForPage:self.page];
+                    }
+                    completion:nil];
+  }
+}
+
+// End Vivaldi
+
 - (void)setBackgroundContentOffset:(CGPoint)backgroundContentOffset
                           animated:(BOOL)animated {
   [_scrollBackgroundView setContentOffset:backgroundContentOffset
                                  animated:animated];
+}
+
+- (void)updateNewTabButtonBackgroundColor:(UIColor*)backgroundColor {
+  _smallNewTabButton.buttonColor = backgroundColor;
+  _largeNewTabButton.buttonColor = backgroundColor;
 }
 
 #pragma mark Close Tabs
@@ -555,10 +640,6 @@ CGFloat CompactButtonHorizontalPadding() {
 
 // Updates the bottom toolbar layout.
 - (void)updateLayout {
-  if (IsDiamondPrototypeEnabled()) {
-    return;
-  }
-
   // Search mode doesn't have bottom toolbar or floating buttons, Handle it and
   // return early in that case.
   [self hideAllButtons];
@@ -600,12 +681,15 @@ CGFloat CompactButtonHorizontalPadding() {
   }
 
   if (useCompactLayout) {
-
 #if defined(VIVALDI_BUILD)
     if (self.page == TabGridPageRemoteTabs ||
         self.page == TabGridPageClosedTabs ||
         self.page == TabGridPageTabGroups) {
 #else
+    if (IsChromeNextIaEnabled()) {
+      // If ChromeNext is enabled, there is no toolbar in normal mode compact.
+      return;
+    }
     if (self.page == TabGridPageTabGroups) {
 #endif // End Vivaldi
 
@@ -620,7 +704,9 @@ CGFloat CompactButtonHorizontalPadding() {
       if (_undoActive) {
         _undoButton.hidden = NO;
       } else {
-        _editButton.hidden = NO;
+        BOOL overflowEnabled =
+            base::FeatureList::IsEnabled(kTabSwitcherOverflowMenu);
+        _editButton.hidden = overflowEnabled;
       }
       _smallNewTabButton.hidden = NO;
       _doneButton.hidden = NO;

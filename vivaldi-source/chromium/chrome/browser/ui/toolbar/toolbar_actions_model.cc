@@ -9,7 +9,6 @@
 #include <string>
 #include <vector>
 
-#include "base/containers/contains.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/metrics/histogram_base.h"
@@ -35,6 +34,7 @@
 #include "extensions/browser/extension_util.h"
 #include "extensions/browser/permissions_manager.h"
 #include "extensions/browser/pref_names.h"
+#include "extensions/browser/uninstall_reason.h"
 #include "extensions/browser/unloaded_extension_reason.h"
 #include "extensions/common/extension_set.h"
 #include "extensions/common/manifest_constants.h"
@@ -144,6 +144,14 @@ void ToolbarActionsModel::OnExtensionUninstalled(
     // The on-the-record version will update the prefs; incognito is read-only.
     return;
   }
+  if (reason == extensions::UNINSTALL_REASON_INTERNAL_MANAGEMENT) {
+    // If the extension is uninstalled by policy, keep it in the pinned list.
+    // The "pinned extensions" pref field is synced, so removing it here would
+    // be treated as a sync event, unpinning the extension on other devices
+    // where it might still be installed. The extension will be filtered out of
+    // the local toolbar while uninstalled.
+    return;
+  }
 
   // Remove the extension id from the ordered list, if it exists (the extension
   // might not be represented in the list because it might not have an icon).
@@ -151,7 +159,54 @@ void ToolbarActionsModel::OnExtensionUninstalled(
 }
 
 void ToolbarActionsModel::OnExtensionManagementSettingsChanged() {
+  // First, update the force-pinned actions. This can notify observers.
   UpdatePinnedActionIds();
+
+  // After that, check for any newly-applied `default_pinned` settings.
+  // This can happen if policies are loaded after an extension is installed,
+  // which is common for extensions installed via the registry.
+  if (profile_->IsOffTheRecord()) {
+    return;
+  }
+
+  auto* extension_management =
+      extensions::ExtensionManagementFactory::GetForBrowserContext(profile_);
+
+  // To avoid multiple preference writes and notifications, calculate all
+  // changes and then commit them once.
+  extensions::ExtensionIdList new_pinned_list =
+      extension_prefs_->GetPinnedExtensions();
+  std::vector<ActionId> actions_to_notify;
+
+  // action_ids() is a sorted flat_set, so iteration order is deterministic.
+  for (const auto& action_id : action_ids_) {
+    // Force-pinned actions are handled by `UpdatePinnedActionIds()` and are not
+    // stored in the user-facing pref.
+    if (IsActionForcePinned(action_id)) {
+      continue;
+    }
+
+    const bool is_pinned = std::ranges::contains(new_pinned_list, action_id);
+    const extensions::ManagedToolbarPinMode pin_mode =
+        extension_management->GetToolbarPinMode(action_id);
+
+    if (pin_mode == extensions::ManagedToolbarPinMode::kDefaultPinned &&
+        !is_pinned) {
+      // Pinning adds the extension to the end of the list.
+      new_pinned_list.push_back(action_id);
+      actions_to_notify.push_back(action_id);
+    }
+  }
+
+  if (!actions_to_notify.empty()) {
+    // This will trigger a single pref change notification, which in turn will
+    // call UpdatePinnedActionIds() and notify observers once.
+    extension_prefs_->SetPinnedExtensions(new_pinned_list);
+
+    for (const auto& action_id : actions_to_notify) {
+      extension_action_dispatcher_->OnActionPinnedStateChanged(action_id, true);
+    }
+  }
 }
 
 void ToolbarActionsModel::OnExtensionPermissionsUpdated(
@@ -250,7 +305,7 @@ const std::u16string ToolbarActionsModel::GetExtensionName(
 }
 
 bool ToolbarActionsModel::HasAction(const ActionId& action_id) const {
-  return base::Contains(action_ids_, action_id);
+  return action_ids_.contains(action_id);
 }
 
 bool ToolbarActionsModel::CanShowActionsInToolbar(
@@ -324,13 +379,13 @@ bool ToolbarActionsModel::IsPolicyBlockedHost(const GURL& url) const {
 }
 
 bool ToolbarActionsModel::IsActionPinned(const ActionId& action_id) const {
-  return base::Contains(pinned_action_ids_, action_id);
+  return std::ranges::contains(pinned_action_ids_, action_id);
 }
 
 bool ToolbarActionsModel::IsActionForcePinned(const ActionId& action_id) const {
   auto* management =
       extensions::ExtensionManagementFactory::GetForBrowserContext(profile_);
-  return base::Contains(management->GetForcePinnedList(), action_id);
+  return management->GetForcePinnedList().contains(action_id);
 }
 
 void ToolbarActionsModel::MovePinnedAction(const ActionId& action_id,
@@ -522,7 +577,7 @@ void ToolbarActionsModel::SetActionVisibility(const ActionId& action_id,
 
   auto stored_pinned_action_ids = extension_prefs_->GetPinnedExtensions();
   DCHECK_NE(is_now_visible,
-            base::Contains(stored_pinned_action_ids, action_id));
+            std::ranges::contains(stored_pinned_action_ids, action_id));
   if (is_now_visible) {
     stored_pinned_action_ids.push_back(action_id);
   } else {
@@ -567,9 +622,11 @@ ToolbarActionsModel::GetFilteredPinnedActionIds() const {
   auto* management =
       extensions::ExtensionManagementFactory::GetForBrowserContext(profile_);
   // O(n^2), but there are typically very few force-pinned extensions.
-  std::ranges::copy_if(
-      management->GetForcePinnedList(), std::back_inserter(pinned),
-      [&pinned](const std::string& id) { return !base::Contains(pinned, id); });
+  std::ranges::copy_if(management->GetForcePinnedList(),
+                       std::back_inserter(pinned),
+                       [&pinned](const std::string& id) {
+                         return !std::ranges::contains(pinned, id);
+                       });
 
   // TODO(pbos): Make sure that the pinned IDs are pruned from ExtensionPrefs on
   // startup so that we don't keep saving stale IDs.

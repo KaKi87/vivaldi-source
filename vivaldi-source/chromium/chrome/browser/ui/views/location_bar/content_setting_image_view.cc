@@ -48,6 +48,7 @@
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/interaction/element_tracker_views.h"
+#include "ui/views/property_effects.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/widget/widget.h"
 
@@ -102,7 +103,7 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(ContentSettingImageView,
 ContentSettingImageView::ContentSettingImageView(
     std::unique_ptr<ContentSettingImageModel> image_model,
     IconLabelBubbleView::Delegate* parent_delegate,
-    Delegate* delegate,
+    ContentSettingImageViewDelegate* delegate,
     Browser* browser,
     const gfx::FontList& font_list)
     : IconLabelBubbleView(font_list, parent_delegate),

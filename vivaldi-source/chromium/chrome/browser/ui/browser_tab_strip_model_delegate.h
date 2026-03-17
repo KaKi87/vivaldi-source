@@ -13,7 +13,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model_delegate.h"
 #include "chrome/common/chrome_features.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)                        // Vivaldi keep disabled
 #include "chrome/browser/glic/host/glic.mojom.h"                    // nogncheck
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"  // nogncheck
 #endif
@@ -70,7 +70,6 @@ class BrowserTabStripModelDelegate : public TabStripModelDelegate {
   bool RunUnloadListenerBeforeClosing(content::WebContents* contents) override;
   bool ShouldRunUnloadListenerBeforeClosing(
       content::WebContents* contents) override;
-  bool ShouldDisplayFavicon(content::WebContents* contents) const override;
   bool CanReload() const override;
   void AddToReadLater(
       std::vector<content::WebContents*> web_contentses) override;
@@ -89,11 +88,13 @@ class BrowserTabStripModelDelegate : public TabStripModelDelegate {
   void OnRemovingAllTabsFromGroups(
       const std::vector<tab_groups::TabGroupId>& group_ids,
       base::OnceCallback<void()> callback) override;
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   bool IsTabGlicPinned(tabs::TabHandle tab_handle) override;
   bool GlicPinTabs(base::span<const tabs::TabHandle> tab_handles) override;
   bool GlicUnpinTabs(base::span<const tabs::TabHandle> tab_handles) override;
   void OpenGlicWindowFromSharedTab() override;
+  void GlicUnpinTabsFromAllConversations(
+      base::span<const tabs::TabHandle> tab_handles) override;
 #endif
 
   void CloseFrame();

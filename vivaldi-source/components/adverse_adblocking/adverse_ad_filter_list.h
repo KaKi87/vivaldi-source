@@ -32,7 +32,6 @@ class AdverseAdFilterListService : public KeyedService,
   friend struct base::DefaultSingletonTraits<AdverseAdFilterListService>;
 
  public:
-
   AdverseAdFilterListService(Profile* profile);
   ~AdverseAdFilterListService() override;
   AdverseAdFilterListService(const AdverseAdFilterListService&) = delete;
@@ -61,7 +60,6 @@ class AdverseAdFilterListService : public KeyedService,
       const base::FilePath& json_filename);
 
  private:
-
   void SettingsUpdated();
   void OnFileExistsChecked(bool exists);
   void OnBlocklistDownloadDone(base::FilePath response_path);
@@ -72,7 +70,7 @@ class AdverseAdFilterListService : public KeyedService,
   void DownloadBlockList();
   // Will download a checksum and compare this with the local file.
   void DoChecksumBeforeDownload();
-  void OnSHA256SumDownloadDone(std::unique_ptr<std::string> response_body);
+  void OnSHA256SumDownloadDone(std::optional<std::string> response_body);
 
   // Computes a md5 checksum of an exsisting file,download and compares
   // this to what the checksum is for the file on server. If there is no

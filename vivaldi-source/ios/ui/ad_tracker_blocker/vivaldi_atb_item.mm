@@ -13,9 +13,9 @@
 @synthesize type = _type;
 
 #pragma mark - INITIALIZER
-- (instancetype) initWithTitle:(NSString*)title
-                      subtitle:(NSString*)subtitle
-                          type:(ATBSettingType)type {
+- (instancetype)initWithTitle:(NSString*)title
+                     subtitle:(NSString*)subtitle
+                         type:(ATBSettingType)type {
   self = [super init];
   if (self) {
     _title = title;

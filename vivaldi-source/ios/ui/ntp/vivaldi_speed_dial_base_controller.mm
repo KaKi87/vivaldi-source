@@ -7,15 +7,20 @@
 #import "base/strings/sys_string_conversions.h"
 #import "browser/features/vivaldi_features.h"
 #import "components/bookmarks/vivaldi_bookmark_kit.h"
+#import "components/datasource/vivaldi_data_url_utils.h"
 #import "components/direct_match/direct_match_service.h"
 #import "ios/chrome/browser/bookmarks/model/bookmarks_utils.h"
 #import "ios/chrome/browser/bookmarks/ui_bundled/bookmark_utils_ios.h"
 #import "ios/chrome/browser/favicon/model/ios_chrome_favicon_loader_factory.h"
+#import "ios/chrome/browser/first_run/public/first_run_util.h"
+#import "ios/chrome/browser/safari_data_import/model/features.h"
+#import "ios/chrome/browser/safari_data_import/public/safari_data_import_entry_point.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
 #import "ios/chrome/browser/shared/public/commands/omnibox_commands.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/sharing/ui_bundled/sharing_coordinator.h"
 #import "ios/chrome/browser/sharing/ui_bundled/sharing_params.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_browser_agent.h"
@@ -26,6 +31,7 @@
 #import "ios/chrome/common/ui/util/pointer_interaction_util.h"
 #import "ios/chrome/grit/ios_strings.h"
 #import "ios/direct_match/direct_match_service_factory.h"
+#import "ios/ui/bookmarks_editor/vivaldi_bookmark_prefs.h"
 #import "ios/ui/bookmarks_editor/vivaldi_bookmarks_constants.h"
 #import "ios/ui/bookmarks_editor/vivaldi_bookmarks_editor_coordinator.h"
 #import "ios/ui/bookmarks_editor/vivaldi_bookmarks_editor_entry_point.h"
@@ -43,13 +49,17 @@
 #import "ios/ui/ntp/vivaldi_speed_dial_constants.h"
 #import "ios/ui/ntp/vivaldi_speed_dial_sorting_mode.h"
 #import "ios/ui/ntp/vivaldi_speed_dial_view_controller.h"
+#import "ios/ui/onboarding/vivaldi_onboarding_notification_constants.h"
 #import "ios/ui/settings/start_page/quick_settings/vivaldi_start_page_quick_settings_coordinator.h"
-#import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
+#import "ios/ui/settings/start_page/vivaldi_start_page_dailymix_helper.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs.h"
-#import "ios/ui/thumbnail/thumbnail_capturer_swift.h"
+#import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
+#import "ios/ui/settings/start_page/wallpaper_settings/vivaldi_wallpaper_notification_constants.h"
+#import "ios/ui/thumbnail/vivaldi_thumbnail_capturer.h"
+#import "ios/ui/thumbnail/vivaldi_thumbnail_capturer_provider.h"
 #import "ios/ui/thumbnail/vivaldi_thumbnail_service.h"
 #import "ios/ui/toolbar/vivaldi_toolbar_constants.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 #import "ui/base/device_form_factor.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
@@ -63,8 +73,8 @@ using vivaldi_bookmark_kit::SetNodeSpeeddial;
 namespace {
 // Cell Identifier for the container cell
 NSString* cellId = @"cellId";
-// Notification Identifier For Background Wallpaper
-NSString* vivaldiWallpaperUpdate = @"VivaldiBackgroundWallpaperUpdate";
+// Animation duration for wallpaper transitions
+const NSTimeInterval kWallpaperTransitionDuration = 0.3;
 // Padding for the top scroll menu
 UIEdgeInsets topScrollMenuPadding = UIEdgeInsetsMake(0.f, 16.f, 0.f, 0.f);
 // Padding for the more action button
@@ -86,6 +96,15 @@ CGFloat moreButtonContainerRadius = 4.0f;
 // Opacity for background color for more button container
 CGFloat moreButtonContainerOpacity = 0.6f;
 
+// Photo credit blur view corner radius
+const CGFloat kPhotoCreditBlurViewCornerRadius = 8.0;
+// Photo credit background view alpha
+const CGFloat kPhotoCreditBackgroundViewAlpha = 0.3;
+// Photo credit text view insets
+const UIEdgeInsets kPhotoCreditTextViewInsets = {4, 8, 4, 8};
+// Bottom toolbar padding from bottom safe area
+const UIEdgeInsets kBottomToolbarPadding = {0, 0, 30, 0};
+
 // Top toolbar navigation bar view height.
 CGFloat navigationBarHeight = 44.f;
 // Height for bottom toolbar view.
@@ -96,22 +115,38 @@ CGFloat bottomToolbarHeight = 70.f;
 // So, toolbar needs 2 or more toolbar items to be visible.
 NSUInteger toolbarVisibleThreshold = 2;
 
+// Path where synced store thumbnails are stored
+NSString* syncedStoreURLKey = @"synced-store";
+
 BOOL ShouldUseModernNavigationBar() {
   if (@available(iOS 26.0, *)) {
     return YES;
   }
   return NO;
 }
-}
+}  // namespace
 
-@interface VivaldiSpeedDialBaseController ()<UICollectionViewDataSource,
-                                             UICollectionViewDelegate,
-                                            UIGestureRecognizerDelegate,
-                                          VivaldiNTPTopToolbarViewConsumer,
-                                           VivaldiNTPBottomToolbarConsumer,
-                                        VivaldiSpeedDialContainerDelegate,
-                                            VivaldiNSDCoordinatorDelegate,
-                                                    SpeedDialHomeConsumer> {
+// Non-selectable UITextView subclass for the photo credit view.
+// Overriding canBecomeFirstResponder prevents all text selection and context
+// menus (Copy, Translate, etc.) while keeping link tap handling intact.
+@interface VivaldiPhotoCreditTextView : UITextView
+@end
+
+@implementation VivaldiPhotoCreditTextView
+- (BOOL)canBecomeFirstResponder {
+  return NO;
+}
+@end
+
+@interface VivaldiSpeedDialBaseController () <UICollectionViewDataSource,
+                                              UICollectionViewDelegate,
+                                              UIGestureRecognizerDelegate,
+                                              UITextViewDelegate,
+                                              VivaldiNTPTopToolbarViewConsumer,
+                                              VivaldiNTPBottomToolbarConsumer,
+                                              VivaldiSpeedDialContainerDelegate,
+                                              VivaldiNSDCoordinatorDelegate,
+                                              SpeedDialHomeConsumer> {
   direct_match::DirectMatchService* _directMatchService;
   // Start page settings coordinator.
   VivaldiStartPageQuickSettingsCoordinator* _startPageSettingsCoordinator;
@@ -120,11 +155,11 @@ BOOL ShouldUseModernNavigationBar() {
 // and style breaks our top toolbar.
 @property(nonatomic, strong) VivaldiCustomNavigationBarView* navigationBarView;
 // Collection view that holds the children of speed dial folder.
-@property (weak, nonatomic) UICollectionView *collectionView;
+@property(weak, nonatomic) UICollectionView* collectionView;
 // Container view for holding the menu items and sort button.
 @property(nonatomic, weak) UIView* topScrollMenuContainer;
 // Top toolbar menu view
-@property(nonatomic, strong)VivaldiNTPTopToolbarView* topToolbarView;
+@property(nonatomic, strong) VivaldiNTPTopToolbarView* topToolbarView;
 // Bottom toolbar view
 @property(nonatomic, strong)
     VivaldiBottomToolbarViewProvider* bottomToolbarProvider;
@@ -134,19 +169,19 @@ BOOL ShouldUseModernNavigationBar() {
 @property(nonatomic, weak) UIView* moreButtonContainer;
 // The view controller to present when pushing to new view controller
 @property(nonatomic, strong)
-  VivaldiSpeedDialViewController* speedDialViewController;
+    VivaldiSpeedDialViewController* speedDialViewController;
 // The background Image for Speed Dial
 @property(nonatomic, strong) UIImageView* backgroundImageView;
 // FaviconLoader is a keyed service that uses LargeIconService to retrieve
 // favicon images.
 // Blur view for no results state
-@property(weak, nonatomic) UIVisualEffectView *blurEffectView;
+@property(weak, nonatomic) UIVisualEffectView* blurEffectView;
 
 @property(nonatomic, assign) FaviconLoader* faviconLoader;
 // The Browser in which bookmarks are presented
 @property(nonatomic, assign) Browser* browser;
 // Bookmarks model that holds all the bookmarks data
-@property (assign,nonatomic) BookmarkModel* bookmarks;
+@property(assign, nonatomic) BookmarkModel* bookmarks;
 // The user's profile used.
 @property(nonatomic, assign) ProfileIOS* profile;
 // The service class that manages the speed dial thumbnail locally such as
@@ -176,33 +211,33 @@ BOOL ShouldUseModernNavigationBar() {
 // Add button.
 @property(nonatomic, assign) NSInteger lastSelectedToolbarItemIndex;
 // Array to hold the sort button context menu options
-@property (strong, nonatomic) NSMutableArray *speedDialSortActions;
+@property(strong, nonatomic) NSMutableArray* speedDialSortActions;
 // Array to hold ascendeing decending buttons for sort context menu options
-@property (strong, nonatomic) NSMutableArray *sortOrderActions;
+@property(strong, nonatomic) NSMutableArray* sortOrderActions;
 // Parent to pass for new speed dial/folder item.
 @property(nonatomic, strong) VivaldiSpeedDialItem* bookmarkBarItem;
 // A boolean to keep track when the scrolling is taking place due to tap in the
 // top menu item. There are two types of scroll event. One happens when user
 // swipes the collection view left or right by pan/swipe gesture. The other one
 // is when taps on the menu item.
-@property (assign, nonatomic) BOOL scrollFromMenuTap;
+@property(assign, nonatomic) BOOL scrollFromMenuTap;
 // Boolean to keep track when view size is changing due to a trait collection
 // change.
-@property (assign, nonatomic) BOOL traitCollectionChangeInProgress;
+@property(assign, nonatomic) BOOL traitCollectionChangeInProgress;
 // Bool to keep track if top sites result is ready. The results can be empty,
 // this only checks if we got a response from backend for the query.
-@property(nonatomic,assign) BOOL isTopSitesResultsAvailable;
+@property(nonatomic, assign) BOOL isTopSitesResultsAvailable;
 // Height constraint of the top menu container
-@property (strong, nonatomic) NSLayoutConstraint* menuContainerHeight;
+@property(strong, nonatomic) NSLayoutConstraint* menuContainerHeight;
 // Collection view top constraint when top toolbar is present
-@property (strong, nonatomic) NSLayoutConstraint* cvTopConstraint;
+@property(strong, nonatomic) NSLayoutConstraint* cvTopConstraint;
 // Height for navigation bar
-@property (assign, nonatomic) CGFloat navgationBarHeight;
+@property(assign, nonatomic) CGFloat navgationBarHeight;
 
 // Sort button context menu options
 // Bool to keep track if sorting menu action should be visible for
 // the current page.
-@property(nonatomic,assign) BOOL shouldShowSortingAction;
+@property(nonatomic, assign) BOOL shouldShowSortingAction;
 
 @property(nonatomic, strong) UIAction* manualSortAction;
 @property(nonatomic, strong) UIAction* titleSortAction;
@@ -216,8 +251,15 @@ BOOL ShouldUseModernNavigationBar() {
 @property(nonatomic, strong) UIAction* ascendingSortAction;
 @property(nonatomic, strong) UIAction* descendingSortAction;
 
-@end
+// Cached wallpaper image to avoid repeated base64 decoding on every access.
+@property(nonatomic, strong) UIImage* cachedWallpaperImage;
 
+// Container view for daily mix photo credit attribution.
+@property(nonatomic, strong) UIView* photoCreditBlurView;
+// Text view inside the credit container for the credit attributed string.
+@property(nonatomic, strong) UITextView* photoCreditTextView;
+
+@end
 
 @implementation VivaldiSpeedDialBaseController
 
@@ -250,12 +292,12 @@ BOOL ShouldUseModernNavigationBar() {
     _browser = browser;
     _bookmarks = bookmarkModel;
     _profile = _browser->GetProfile()->GetOriginalProfile();
-    _faviconLoader =
-        IOSChromeFaviconLoaderFactory::GetForProfile(_profile);
+    _faviconLoader = IOSChromeFaviconLoaderFactory::GetForProfile(_profile);
     _directMatchService =
         direct_match::DirectMatchServiceFactory::GetForProfile(_profile);
     _vivaldiThumbnailService = [VivaldiThumbnailService new];
-    _thumbnailCapturer = [[VivaldiThumbnailCapturer alloc] init];
+    _thumbnailCapturer =
+        [VivaldiThumbnailCapturerProvider sharedCapturerForProfile:_profile];
     [VivaldiStartPagePrefs setPrefService:_profile->GetPrefs()];
 
     PrefService* localPrefs = GetApplicationContext()->GetLocalState();
@@ -263,6 +305,9 @@ BOOL ShouldUseModernNavigationBar() {
 
     if (_bookmarks && _bookmarks->loaded()) {
       [self updateBookmarkBarNodeIfNeeded];
+    }
+    if (_profile) {
+      [VivaldiBookmarkPrefs setPrefService:_profile->GetPrefs()];
     }
   }
   return self;
@@ -288,9 +333,15 @@ BOOL ShouldUseModernNavigationBar() {
   _startPageSettingsCoordinator = nullptr;
   [self.sharingCoordinator stop];
   self.sharingCoordinator = nil;
-  [[NSNotificationCenter defaultCenter] removeObserver: self
-                                                  name: vivaldiWallpaperUpdate
-                                                object: nil];
+
+  [[NSNotificationCenter defaultCenter]
+      removeObserver:self
+                name:vWallpaperUpdateNotificationName
+              object:nil];
+  [[NSNotificationCenter defaultCenter]
+      removeObserver:self
+                name:vDidFinishOnboardingNotification
+              object:nil];
 }
 
 - (void)dealloc {
@@ -300,6 +351,7 @@ BOOL ShouldUseModernNavigationBar() {
 #pragma mark - VIEW CONTROLLER LIFECYCLE
 - (void)viewDidLoad {
   [super viewDidLoad];
+  [VivaldiStartPagePrefsHelper refreshDailyMixWallpaperIfNeeded];
   [self setUpUI];
   [self setupNotifications];
 }
@@ -314,30 +366,72 @@ BOOL ShouldUseModernNavigationBar() {
   }
 }
 
--(void)setupNotifications {
-  [[NSNotificationCenter defaultCenter] addObserver: self
-                                        selector: @selector(updateWallpaper)
-                                        name: vivaldiWallpaperUpdate
-                                        object: nil];
+- (void)setupNotifications {
+  [[NSNotificationCenter defaultCenter]
+      addObserver:self
+         selector:@selector(updateWallpaper)
+             name:vWallpaperUpdateNotificationName
+           object:nil];
+  // Listen for onboarding completion to show Safari import immediately
+  // Do not rely on viewDidAppear to present
+  [[NSNotificationCenter defaultCenter]
+      addObserver:self
+         selector:@selector(pesentSafariImportEntryPoint)
+             name:vDidFinishOnboardingNotification
+           object:nil];
 }
 
-- (void)updateWallpaper {
+// Loads wallpaper on background thread and displays with animation.
+// Completion block is called on main thread after image is set.
+- (void)loadAndDisplayWallpaperWithCompletion:(void (^)(void))completion {
   __weak __typeof(self) weakSelf = self;
-  dispatch_async(dispatch_get_main_queue(), ^{
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
     __strong __typeof(weakSelf) strongSelf = weakSelf;
-    if (strongSelf) {
-      strongSelf.backgroundImageView.image = [strongSelf getWallpaperImage];
-      [strongSelf setUpMoreButtonProperties];
-      [strongSelf updateBottomToolbarStateIfNeeded];
-      [strongSelf.collectionView reloadData];
-      [strongSelf scrollViewDidScroll:strongSelf.collectionView];
+    if (!strongSelf) {
+      return;
     }
+    UIImage* image = [strongSelf loadWallpaperImageSync];
+    dispatch_async(dispatch_get_main_queue(), ^{
+      __strong __typeof(weakSelf) mainThreadSelf = weakSelf;
+      if (mainThreadSelf) {
+        mainThreadSelf.cachedWallpaperImage = image;
+        [UIView transitionWithView:mainThreadSelf.backgroundImageView
+                          duration:kWallpaperTransitionDuration
+                           options:UIViewAnimationOptionTransitionCrossDissolve
+                        animations:^{
+                          mainThreadSelf.backgroundImageView.image = image;
+                        }
+                        completion:nil];
+        if (completion) {
+          completion();
+        }
+      }
+    });
   });
 }
 
-- (UIImage *)getWallpaperImage {
+- (void)updateWallpaper {
+  [self loadAndDisplayWallpaperWithCompletion:^{
+    [self setUpMoreButtonProperties];
+    [self updateBottomToolbarStateIfNeeded];
+    [self.collectionView reloadData];
+    [self scrollViewDidScroll:self.collectionView];
+    [self updatePhotoCreditVisibility];
+  }];
+}
+
+// Loads the wallpaper image synchronously. Called from background thread only.
+- (UIImage*)loadWallpaperImageSync {
   // Loading the image name from preferences
-  NSString *wallpaper = [self selectedDefaultWallpaper];
+  NSString* wallpaper = [self selectedDefaultWallpaperForCurrentSequence];
+
+  if ([wallpaper isEqualToString:vDailyMixWallpaperName]) {
+    UIImage* dailyMix = [self dailyMixWallpaperForCurrentSequence];
+    if (!dailyMix) {
+      [self refreshDailyMixWallpaperIfNeededOnMainThread];
+    }
+    return dailyMix;
+  }
 
   // setting it to nil if string is empty
   // so that we don't get warning : Invalid asset name supplied
@@ -345,22 +439,24 @@ BOOL ShouldUseModernNavigationBar() {
     wallpaper = nil;
   }
   // Create and set the background image
-  UIImage *wallpaperImage = wallpaper ? [UIImage imageNamed:wallpaper] : nil;
-  // Check if the wallpaper name is nil and get custom wallpaper
-  if (wallpaper == nil) {
-    wallpaperImage = [self selectedCustomWallpaper];
+  UIImage* wallpaperImage = wallpaper ? [UIImage imageNamed:wallpaper] : nil;
+  // Check if we should fall back to custom wallpaper.
+  if (!wallpaperImage) {
+    wallpaperImage = [self selectedCustomWallpaperForCurrentSequence];
   }
   return wallpaperImage;
 }
 
--(void)viewWillAppear:(BOOL)animated {
+- (void)viewWillAppear:(BOOL)animated {
   [super viewWillAppear:animated];
+  [VivaldiStartPagePrefsHelper refreshDailyMixWallpaperIfNeeded];
+  [self updatePhotoCreditVisibility];
   // Set up more button properties on appear to apply the correct navigation bar
   // visibility if user comes back from any child view folders.
   [self setNavigationBarVisibilityAnimated:YES];
 }
 
--(void)viewDidAppear:(BOOL)animated {
+- (void)viewDidAppear:(BOOL)animated {
   [super viewDidAppear:animated];
 
   [self reloadLayout];
@@ -369,18 +465,28 @@ BOOL ShouldUseModernNavigationBar() {
   // is already visible.
   [self fadeInBottomToolbarIfNeeded];
 
+  // Present Safari import entry point if needed for existing users.
+  __weak __typeof(self) weakSelf = self;
+  dispatch_after(
+      // Delay buys time to initialize the handlers or services for startpage
+      dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
+      dispatch_get_main_queue(), ^{
+        [weakSelf pesentSafariImportEntryPoint];
+      });
+
   // If the top menu is not visible show it.
   if (self.topScrollMenuContainer.alpha != 0) {
     return;
   }
-  [UIView animateWithDuration:0.3 animations:^{
-    [self.topScrollMenuContainer setAlpha:1];
-  }];
+  [UIView animateWithDuration:0.3
+                   animations:^{
+                     [self.topScrollMenuContainer setAlpha:1];
+                   }];
 }
 
 - (void)viewWillTransitionToSize:(CGSize)size
-    withTransitionCoordinator:
-      (id<UIViewControllerTransitionCoordinator>)coordinator {
+       withTransitionCoordinator:
+           (id<UIViewControllerTransitionCoordinator>)coordinator {
   [super viewWillTransitionToSize:size withTransitionCoordinator:coordinator];
   self.traitCollectionChangeInProgress = YES;
 
@@ -394,58 +500,135 @@ BOOL ShouldUseModernNavigationBar() {
   [self.collectionView setContentOffset:newOffset animated:NO];
 
   // Determine the target background image based on the new orientation
-  UIImage *targetImage = [self getWallpaperImage];
+  UIImage* targetImage = self.cachedWallpaperImage;
   // Animate changes alongside the transition
-  [coordinator animateAlongsideTransition:^
-      (id<UIViewControllerTransitionCoordinatorContext> context) {
-    [UIView
-        transitionWithView:self.backgroundImageView
-                  duration:0.5
-                   options:UIViewAnimationOptionTransitionCrossDissolve
-                animations:^{
-      self.backgroundImageView.image = targetImage;
-    } completion:nil];
-    // Reload collectionview and reset the content offset inside
-    // the animation block.
-    [self reloadLayout];
-    [self.collectionView setContentOffset:newOffset animated:NO];
-  } completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
-    self.traitCollectionChangeInProgress = NO;
-  }];
+  [coordinator
+      animateAlongsideTransition:^(
+          id<UIViewControllerTransitionCoordinatorContext> context) {
+        [UIView transitionWithView:self.backgroundImageView
+                          duration:0.5
+                           options:UIViewAnimationOptionTransitionCrossDissolve
+                        animations:^{
+                          self.backgroundImageView.image = targetImage;
+                        }
+                        completion:nil];
+        // Reload collectionview and reset the content offset inside
+        // the animation block.
+        [self reloadLayout];
+        [self.collectionView setContentOffset:newOffset animated:NO];
+      }
+      completion:^(id<UIViewControllerTransitionCoordinatorContext> context) {
+        self.traitCollectionChangeInProgress = NO;
+      }];
 }
 
 #pragma mark - PRIVATE
-#pragma mark - SET UP UI COMPONENTS
+
+- (void)pesentSafariImportEntryPoint {
+  // Do not remove this check.
+  // It prevents the entry point from being shown during onboarding.
+  if (ShouldPresentFirstRunExperience()) {
+    return;
+  }
+
+  if ([VivaldiBookmarkPrefs getSafariImportEntryPointShown]) {
+    return;
+  }
+
+  PrefService* prefs = _profile->GetPrefs();
+  if (!prefs || !ShouldShowSafariDataImportEntryPoint(prefs)) {
+    return;
+  }
+
+  id<SceneCommands> handler =
+      HandlerForProtocol(self.browser->GetCommandDispatcher(), SceneCommands);
+  if (!handler) {
+    return;
+  }
+
+  // Dismiss keyboard if present
+  [self.view endEditing:YES];
+
+  [VivaldiBookmarkPrefs setSafariImportEntryPointShown:YES];
+  [handler displaySafariDataImportFromEntryPoint:SafariDataImportEntryPoint::
+                                                     kReminder
+                                   withUIHandler:nil];
+}
 
 /// Set up the UI Components
 - (void)setUpUI {
   self.view.backgroundColor =
-    [UIColor colorNamed:vNTPSpeedDialContainerbackgroundColor];
+      [UIColor colorNamed:vNTPSpeedDialContainerbackgroundColor];
   [self setupSpeedDialBackground];
   [self setUpBlurView];
   [self setUpHeaderView];
   [self setupSpeedDialView];
   [self setUpBottomToolbarView];
+  [self setupPhotoCreditView];
   [self setUpLongPressGesture];
   [self setUpTapGesture];
 }
 
 - (void)setupSpeedDialBackground {
-  UIImageView* backgroundImageView =
-      [[UIImageView alloc] initWithImage:[self getWallpaperImage]];
+  // Create image view first with no image to avoid blocking UI.
+  UIImageView* backgroundImageView = [[UIImageView alloc] initWithImage:nil];
   backgroundImageView.contentMode = UIViewContentModeScaleAspectFill;
   backgroundImageView.clipsToBounds = YES;
   backgroundImageView.userInteractionEnabled = YES;
   self.backgroundImageView = backgroundImageView;
   [self.view addSubview:backgroundImageView];
   [self.backgroundImageView fillSuperview];
+
+  [self loadAndDisplayWallpaperWithCompletion:nil];
+}
+
+- (void)setupPhotoCreditView {
+  // Container view owns the shape, visibility, and constraints.
+  UIView* containerView = [[UIView alloc] init];
+  containerView.clipsToBounds = YES;
+  containerView.layer.cornerRadius = kPhotoCreditBlurViewCornerRadius;
+  containerView.layer.maskedCorners =
+      kCALayerMinXMinYCorner | kCALayerMaxXMinYCorner;
+  containerView.hidden = YES;
+  containerView.translatesAutoresizingMaskIntoConstraints = NO;
+  self.photoCreditBlurView = containerView;
+
+  // Blur background — alpha is set independently of the text view.
+  UIBlurEffect* blurEffect =
+      [UIBlurEffect effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterial];
+  UIVisualEffectView* blurView =
+      [[UIVisualEffectView alloc] initWithEffect:blurEffect];
+  blurView.translatesAutoresizingMaskIntoConstraints = NO;
+  blurView.alpha = kPhotoCreditBackgroundViewAlpha;
+  VivaldiPhotoCreditTextView* textView =
+      [[VivaldiPhotoCreditTextView alloc] init];
+  textView.editable = NO;
+  textView.scrollEnabled = NO;
+  textView.delegate = self;
+  textView.backgroundColor = [UIColor clearColor];
+  textView.textContainerInset = kPhotoCreditTextViewInsets;
+  textView.textContainer.lineFragmentPadding = 0;
+  textView.translatesAutoresizingMaskIntoConstraints = NO;
+  self.photoCreditTextView = textView;
+
+  [containerView addSubview:blurView];
+  [blurView fillSuperview];
+  [containerView addSubview:textView];
+  [textView fillSuperview];
+
+  [self.view addSubview:containerView];
+  [NSLayoutConstraint activateConstraints:@[
+    [containerView.trailingAnchor
+        constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor],
+    [containerView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+  ]];
 }
 
 - (void)setUpBlurView {
   if (!UIAccessibilityIsReduceTransparencyEnabled()) {
-    UIBlurEffect *blurEffect =
+    UIBlurEffect* blurEffect =
         [UIBlurEffect effectWithStyle:UIBlurEffectStyleDark];
-    UIVisualEffectView *blurEffectView =
+    UIVisualEffectView* blurEffectView =
         [[UIVisualEffectView alloc] initWithEffect:blurEffect];
     _blurEffectView = blurEffectView;
     blurEffectView.frame = self.view.bounds;
@@ -555,14 +738,12 @@ BOOL ShouldUseModernNavigationBar() {
   }
 
   // More button
-  UIButton *moreButton = [UIButton new];
+  UIButton* moreButton = [UIButton new];
   _moreButton = moreButton;
 
   UIImage* moreButtonIcon = [UIImage imageNamed:vNTPToolbarMoreIcon];
-  [moreButton setImage:moreButtonIcon
-              forState:UIControlStateNormal];
-  [moreButton setImage:moreButtonIcon
-              forState:UIControlStateHighlighted];
+  [moreButton setImage:moreButtonIcon forState:UIControlStateNormal];
+  [moreButton setImage:moreButtonIcon forState:UIControlStateHighlighted];
   moreButton.showsMenuAsPrimaryAction = YES;
   moreButton.menu = [self contextMenuForToolbarMoreButton];
   moreButton.pointerInteractionEnabled = YES;
@@ -591,16 +772,17 @@ BOOL ShouldUseModernNavigationBar() {
   [_moreButtonContainer removeFromSuperview];
 
   if ([self shouldHideToolbar]) {
-    UIEdgeInsets paddingNoToolbar = [VivaldiGlobalHelpers isDeviceTablet] ?
-        moreButtonPaddingNoToolbariPad : moreButtonPaddingNoToolbariPhone;
+    UIEdgeInsets paddingNoToolbar = [VivaldiGlobalHelpers isDeviceTablet]
+                                        ? moreButtonPaddingNoToolbariPad
+                                        : moreButtonPaddingNoToolbariPhone;
 
-    [self.view addSubview: _moreButtonContainer];
-    [_moreButtonContainer anchorTop: self.view.safeTopAnchor
-                            leading: nil
-                             bottom: nil
-                           trailing: self.view.safeRightAnchor
-                            padding: paddingNoToolbar
-                               size: moreButtonContainerSize];
+    [self.view addSubview:_moreButtonContainer];
+    [_moreButtonContainer anchorTop:self.view.safeTopAnchor
+                            leading:nil
+                             bottom:nil
+                           trailing:self.view.safeRightAnchor
+                            padding:paddingNoToolbar
+                               size:moreButtonContainerSize];
 
     [self.view addSubview:_moreButton];
     [_moreButton setViewSize:moreButtonSize];
@@ -621,13 +803,13 @@ BOOL ShouldUseModernNavigationBar() {
       }
     }
   } else {
-    [self.topScrollMenuContainer addSubview: _moreButtonContainer];
+    [self.topScrollMenuContainer addSubview:_moreButtonContainer];
     [_moreButtonContainer anchorTop:nil
-                      leading:self.topToolbarView.trailingAnchor
-                       bottom:nil
-                     trailing:self.topScrollMenuContainer.trailingAnchor
-                      padding:moreButtonPadding
-                         size:moreButtonContainerSize];
+                            leading:self.topToolbarView.trailingAnchor
+                             bottom:nil
+                           trailing:self.topScrollMenuContainer.trailingAnchor
+                            padding:moreButtonPadding
+                               size:moreButtonContainerSize];
     [_moreButtonContainer centerYInSuperview];
 
     [self.topScrollMenuContainer addSubview:_moreButton];
@@ -643,19 +825,18 @@ BOOL ShouldUseModernNavigationBar() {
 
   // More button tint color
   UIColor* moreTintColor = [UIColor colorNamed:vToolbarButtonColor];
-  if ([self getWallpaperImage] && [self shouldHideToolbar]) {
-    BOOL shouldUseDarkTint =
-      [VivaldiGlobalHelpers
-          shouldUseDarkTextForImage:[self getWallpaperImage]];
-    moreTintColor = shouldUseDarkTint ?
-        [UIColor colorNamed:vNTPToolbarMoreLightTintColor] :
-        [UIColor colorNamed:vNTPToolbarMoreDarkTintColor];
+  if (self.cachedWallpaperImage && [self shouldHideToolbar]) {
+    BOOL shouldUseDarkTint = [VivaldiGlobalHelpers
+        shouldUseDarkTextForImage:self.cachedWallpaperImage];
+    moreTintColor = shouldUseDarkTint
+                        ? [UIColor colorNamed:vNTPToolbarMoreLightTintColor]
+                        : [UIColor colorNamed:vNTPToolbarMoreDarkTintColor];
     _moreButtonContainer.backgroundColor =
-        shouldUseDarkTint ?
-            [[UIColor blackColor]
-                colorWithAlphaComponent:moreButtonContainerOpacity] :
-            [[UIColor whiteColor]
-                colorWithAlphaComponent:moreButtonContainerOpacity];
+        shouldUseDarkTint
+            ? [[UIColor blackColor]
+                  colorWithAlphaComponent:moreButtonContainerOpacity]
+            : [[UIColor whiteColor]
+                  colorWithAlphaComponent:moreButtonContainerOpacity];
     _moreButton.tintColor = moreTintColor;
   } else {
     _moreButtonContainer.backgroundColor = UIColor.clearColor;
@@ -664,19 +845,19 @@ BOOL ShouldUseModernNavigationBar() {
 }
 
 /// Set up the speed dial view
--(void)setupSpeedDialView {
+- (void)setupSpeedDialView {
   VivaldiSpeedDialBaseControllerFlowLayout* flowLayout =
       [VivaldiSpeedDialBaseControllerFlowLayout new];
   UICollectionView* collectionView =
       [[UICollectionView alloc] initWithFrame:CGRectZero
                          collectionViewLayout:flowLayout];
   _collectionView = collectionView;
-  [_collectionView setDataSource: self];
-  [_collectionView setDelegate: self];
+  [_collectionView setDataSource:self];
+  [_collectionView setDelegate:self];
   _collectionView.showsHorizontalScrollIndicator = NO;
   _collectionView.showsVerticalScrollIndicator = NO;
   _collectionView.contentInsetAdjustmentBehavior =
-    UIScrollViewContentInsetAdjustmentNever;
+      UIScrollViewContentInsetAdjustmentNever;
   _collectionView.backgroundColor = UIColor.clearColor;
   _collectionView.decelerationRate = UIScrollViewDecelerationRateFast;
   _collectionView.pagingEnabled = YES;
@@ -692,27 +873,25 @@ BOOL ShouldUseModernNavigationBar() {
                     trailing:self.view.safeRightAnchor];
 
   if (ShouldUseModernNavigationBar()) {
-    self.cvTopConstraint =
-        [_collectionView.topAnchor
-            constraintEqualToAnchor:self.navigationBarView.bottomAnchor];
+    self.cvTopConstraint = [_collectionView.topAnchor
+        constraintEqualToAnchor:self.navigationBarView.bottomAnchor];
   } else {
-    self.cvTopConstraint =
-        [_collectionView.topAnchor
-            constraintEqualToAnchor:self.view.safeTopAnchor];
+    self.cvTopConstraint = [_collectionView.topAnchor
+        constraintEqualToAnchor:self.view.safeTopAnchor];
   }
 
   self.cvTopConstraint.active = YES;
 
   if (vivaldi_features::IsTopSitesEnabled()) {
-    self.collectionView.hidden = ![self showSpeedDials]
-          && (![self showFrequentlyVisited]);
+    self.collectionView.hidden =
+        ![self showSpeedDials] && (![self showFrequentlyVisited]);
   } else {
     self.collectionView.hidden = ![self showSpeedDials];
   }
 }
 
 - (void)setUpLongPressGesture {
-  UILongPressGestureRecognizer *longPressGestureCV =
+  UILongPressGestureRecognizer* longPressGestureCV =
       [[UILongPressGestureRecognizer alloc]
           initWithTarget:self
                   action:@selector(handleLongPressGesture:)];
@@ -721,7 +900,7 @@ BOOL ShouldUseModernNavigationBar() {
   // Add the gesture on both collection view and the background image
   [self.collectionView addGestureRecognizer:longPressGestureCV];
 
-  UILongPressGestureRecognizer *longPressGestureIV =
+  UILongPressGestureRecognizer* longPressGestureIV =
       [[UILongPressGestureRecognizer alloc]
           initWithTarget:self
                   action:@selector(handleLongPressGesture:)];
@@ -736,27 +915,26 @@ BOOL ShouldUseModernNavigationBar() {
 }
 
 - (void)setUpTapGesture {
-  UITapGestureRecognizer *tapGestureIV =
-      [[UITapGestureRecognizer alloc]
-          initWithTarget:self
-                  action:@selector(handleTapGesture)];
+  UITapGestureRecognizer* tapGestureIV = [[UITapGestureRecognizer alloc]
+      initWithTarget:self
+              action:@selector(handleTapGesture)];
   tapGestureIV.delegate = self;
   [self.backgroundImageView addGestureRecognizer:tapGestureIV];
 }
 
 - (void)handleTapGesture {
-  id<OmniboxCommands> omniboxCommandHandler = HandlerForProtocol(
-      self.browser->GetCommandDispatcher(), OmniboxCommands);
+  id<OmniboxCommands> omniboxCommandHandler =
+      HandlerForProtocol(self.browser->GetCommandDispatcher(), OmniboxCommands);
   [omniboxCommandHandler cancelOmniboxEdit];
 }
 
 - (void)setUpBottomToolbarView {
-  VivaldiBottomToolbarViewProvider *toolbarProvider =
+  VivaldiBottomToolbarViewProvider* toolbarProvider =
       [[VivaldiBottomToolbarViewProvider alloc] init];
   self.bottomToolbarProvider = toolbarProvider;
   toolbarProvider.consumer = self;
 
-  UIViewController *toolbarViewController =
+  UIViewController* toolbarViewController =
       [toolbarProvider makeViewController];
   toolbarViewController.view.backgroundColor = [UIColor clearColor];
 
@@ -769,6 +947,7 @@ BOOL ShouldUseModernNavigationBar() {
                                 leading:self.view.leadingAnchor
                                  bottom:self.view.bottomAnchor
                                trailing:self.view.trailingAnchor
+                                padding:kBottomToolbarPadding
                                    size:CGSizeMake(0, bottomToolbarHeight)];
 
   // Trigger update for initial state.
@@ -780,16 +959,18 @@ BOOL ShouldUseModernNavigationBar() {
   // New group action button
   NSString* newGroupActionTitle =
       GetNSString(IDS_IOS_START_PAGE_NEW_GROUP_TITLE);
-  UIAction* newGroupAction = [UIAction actionWithTitle:newGroupActionTitle
-                                                 image:nil
-                                            identifier:nil
-                                               handler:^(__kindof UIAction*_Nonnull
-                                                         action) {
-    [self presentBookmarkEditorWithItem:nil
-                                 parent:self.bookmarkBarItem
-                             entryPoint:VivaldiBookmarksEditorEntryPointGroup
-                              isEditing:NO];
-  }];
+  UIAction* newGroupAction = [UIAction
+      actionWithTitle:newGroupActionTitle
+                image:nil
+           identifier:nil
+              handler:^(__kindof UIAction* _Nonnull action) {
+                [self
+                    presentBookmarkEditorWithItem:nil
+                                           parent:self.bookmarkBarItem
+                                       entryPoint:
+                                           VivaldiBookmarksEditorEntryPointGroup
+                                        isEditing:NO];
+              }];
 
   // Customize start page action button
   NSString* customizePageActionTitle =
@@ -798,138 +979,133 @@ BOOL ShouldUseModernNavigationBar() {
       [UIAction actionWithTitle:customizePageActionTitle
                           image:nil
                      identifier:nil
-                        handler:^(__kindof UIAction*_Nonnull action) {
-    [self showStartPageSettings];
-  }];
+                        handler:^(__kindof UIAction* _Nonnull action) {
+                          [self showStartPageSettings];
+                        }];
 
   // Manual sorting action button
   NSString* manualSortTitle = GetNSString(IDS_IOS_SORT_MANUAL);
-  UIAction* manualSortAction = [UIAction actionWithTitle:manualSortTitle
-                                              image:nil
-                                              identifier:nil
-                                            handler:^(__kindof UIAction*_Nonnull
-                                                      action) {
-    [self refreshSortingMode:SpeedDialSortingManual];
-  }];
+  UIAction* manualSortAction =
+      [UIAction actionWithTitle:manualSortTitle
+                          image:nil
+                     identifier:nil
+                        handler:^(__kindof UIAction* _Nonnull action) {
+                          [self refreshSortingMode:SpeedDialSortingManual];
+                        }];
   self.manualSortAction = manualSortAction;
 
   // Sort by title action button
   NSString* titleSortTitle = GetNSString(IDS_IOS_SORT_BY_TITLE);
-  UIAction* titleSortAction = [UIAction actionWithTitle:titleSortTitle
-                                              image:nil
-                                         identifier:nil
-                                            handler:^(__kindof UIAction*_Nonnull
-                                                      action) {
-    [self refreshSortingMode:SpeedDialSortingByTitle];
-  }];
+  UIAction* titleSortAction =
+      [UIAction actionWithTitle:titleSortTitle
+                          image:nil
+                     identifier:nil
+                        handler:^(__kindof UIAction* _Nonnull action) {
+                          [self refreshSortingMode:SpeedDialSortingByTitle];
+                        }];
   self.titleSortAction = titleSortAction;
 
   // Sort by address action button
   NSString* addressSortTitle = GetNSString(IDS_IOS_SORT_BY_ADDRESS);
-  UIAction* addressSortAction = [UIAction actionWithTitle:addressSortTitle
-                                              image:nil
-                                         identifier:nil
-                                            handler:^(__kindof UIAction*_Nonnull
-                                                      action) {
-    [self refreshSortingMode:SpeedDialSortingByAddress];
-  }];
+  UIAction* addressSortAction =
+      [UIAction actionWithTitle:addressSortTitle
+                          image:nil
+                     identifier:nil
+                        handler:^(__kindof UIAction* _Nonnull action) {
+                          [self refreshSortingMode:SpeedDialSortingByAddress];
+                        }];
   self.addressSortAction = addressSortAction;
 
   // Sort by nickname action button
   NSString* nicknameSortTitle = GetNSString(IDS_IOS_SORT_BY_NICKNAME);
-  UIAction* nicknameSortAction = [UIAction actionWithTitle:nicknameSortTitle
-                                              image:nil
-                                         identifier:nil
-                                            handler:^(__kindof UIAction*_Nonnull
-                                                      action) {
-    [self refreshSortingMode:SpeedDialSortingByNickname];
-  }];
+  UIAction* nicknameSortAction =
+      [UIAction actionWithTitle:nicknameSortTitle
+                          image:nil
+                     identifier:nil
+                        handler:^(__kindof UIAction* _Nonnull action) {
+                          [self refreshSortingMode:SpeedDialSortingByNickname];
+                        }];
   self.nicknameSortAction = nicknameSortAction;
 
   // Sort by description action button
   NSString* descriptionSortTitle = GetNSString(IDS_IOS_SORT_BY_DESCRIPTION);
-  UIAction* descriptionSortAction =
-    [UIAction actionWithTitle:descriptionSortTitle
-                        image:nil
-                   identifier:nil
-                      handler:^(__kindof UIAction*_Nonnull action) {
-    [self refreshSortingMode:SpeedDialSortingByDescription];
-  }];
+  UIAction* descriptionSortAction = [UIAction
+      actionWithTitle:descriptionSortTitle
+                image:nil
+           identifier:nil
+              handler:^(__kindof UIAction* _Nonnull action) {
+                [self refreshSortingMode:SpeedDialSortingByDescription];
+              }];
   self.descriptionSortAction = descriptionSortAction;
 
   // Sort by date created action button
   NSString* dateSortTitle = GetNSString(IDS_IOS_SORT_BY_DATE);
-  UIAction* dateSortAction = [UIAction actionWithTitle:dateSortTitle
-                                              image:nil
-                                         identifier:nil
-                                            handler:^(__kindof UIAction*_Nonnull
-                                                      action) {
-    [self refreshSortingMode:SpeedDialSortingByDate];
-  }];
+  UIAction* dateSortAction =
+      [UIAction actionWithTitle:dateSortTitle
+                          image:nil
+                     identifier:nil
+                        handler:^(__kindof UIAction* _Nonnull action) {
+                          [self refreshSortingMode:SpeedDialSortingByDate];
+                        }];
   self.dateSortAction = dateSortAction;
 
   // Sort by kind action button
   NSString* kindSortTitle = GetNSString(IDS_IOS_SORT_BY_KIND);
-  UIAction* kindSortAction = [UIAction actionWithTitle:kindSortTitle
-                                                 image:nil
-                                            identifier:nil
-                                               handler:^(__kindof UIAction*_Nonnull
-                                                         action) {
-    [self refreshSortingMode:SpeedDialSortingByKind];
-  }];
+  UIAction* kindSortAction =
+      [UIAction actionWithTitle:kindSortTitle
+                          image:nil
+                     identifier:nil
+                        handler:^(__kindof UIAction* _Nonnull action) {
+                          [self refreshSortingMode:SpeedDialSortingByKind];
+                        }];
   self.kindSortAction = kindSortAction;
 
   _speedDialSortActions = [[NSMutableArray alloc] initWithArray:@[
-      manualSortAction, titleSortAction, addressSortAction,
-      nicknameSortAction, descriptionSortAction, dateSortAction, kindSortAction
+    manualSortAction, titleSortAction, addressSortAction, nicknameSortAction,
+    descriptionSortAction, dateSortAction, kindSortAction
   ]];
 
   [self setSortingStateOnContextMenuOption];
 
   // Ascending sort action button
-  UIAction* ascendingSortAction =
-      [UIAction actionWithTitle:GetNSString(IDS_IOS_NOTE_ASCENDING_SORT_ORDER)
-                          image:nil
-                     identifier:nil
-                        handler:^(__kindof UIAction*_Nonnull
-                                  action) {
-        [self refreshSortOrder:SpeedDialSortingOrderAscending];
-      }];
+  UIAction* ascendingSortAction = [UIAction
+      actionWithTitle:GetNSString(IDS_IOS_NOTE_ASCENDING_SORT_ORDER)
+                image:nil
+           identifier:nil
+              handler:^(__kindof UIAction* _Nonnull action) {
+                [self refreshSortOrder:SpeedDialSortingOrderAscending];
+              }];
   self.ascendingSortAction = ascendingSortAction;
 
   // Descending sort action button
-  UIAction* descendingSortAction =
-      [UIAction actionWithTitle:GetNSString(IDS_IOS_NOTE_DESCENDING_SORT_ORDER)
-                          image:nil
-                     identifier:nil
-                        handler:^(__kindof UIAction*_Nonnull
-                                  action) {
-        [self refreshSortOrder:SpeedDialSortingOrderDescending];
-      }];
+  UIAction* descendingSortAction = [UIAction
+      actionWithTitle:GetNSString(IDS_IOS_NOTE_DESCENDING_SORT_ORDER)
+                image:nil
+           identifier:nil
+              handler:^(__kindof UIAction* _Nonnull action) {
+                [self refreshSortOrder:SpeedDialSortingOrderDescending];
+              }];
   self.descendingSortAction = descendingSortAction;
 
   if (!self.isSortedByManual) {
-    _sortOrderActions = [[NSMutableArray alloc] initWithArray:@[
-      ascendingSortAction, descendingSortAction]
-    ];
+    _sortOrderActions = [[NSMutableArray alloc]
+        initWithArray:@[ ascendingSortAction, descendingSortAction ]];
   } else {
     _sortOrderActions = nil;
   }
   [self updateSortOrderStateOnContextMenuOption];
 
-  UIMenu* sortingActionsMenu =
-      [UIMenu menuWithTitle:@""
-                      image:nil
-                 identifier:nil
-                    options:UIMenuOptionsDisplayInline
-                   children:_speedDialSortActions];
+  UIMenu* sortingActionsMenu = [UIMenu menuWithTitle:@""
+                                               image:nil
+                                          identifier:nil
+                                             options:UIMenuOptionsDisplayInline
+                                            children:_speedDialSortActions];
 
-  UIMenu* sortingOrderMenu =
-      [UIMenu menuWithTitle:@""
-                      image:nil
-                 identifier:nil
-                    options:UIMenuOptionsDisplayInline
-                   children:_sortOrderActions];
+  UIMenu* sortingOrderMenu = [UIMenu menuWithTitle:@""
+                                             image:nil
+                                        identifier:nil
+                                           options:UIMenuOptionsDisplayInline
+                                          children:_sortOrderActions];
 
   UIMenuOptions options = UIMenuOptionsDisplayInline;
   if (@available(iOS 17.0, *)) {
@@ -941,20 +1117,17 @@ BOOL ShouldUseModernNavigationBar() {
                       image:nil
                  identifier:nil
                     options:options
-                   children:@[sortingActionsMenu, sortingOrderMenu]];
+                   children:@[ sortingActionsMenu, sortingOrderMenu ]];
 
-  NSMutableArray* childItems =
-      [[NSMutableArray alloc]
-          initWithArray:@[newGroupAction, customizePageAction]];
+  NSMutableArray* childItems = [[NSMutableArray alloc]
+      initWithArray:@[ newGroupAction, customizePageAction ]];
 
   if ([self showSpeedDials] && [self shouldShowSortingAction]) {
     [childItems addObject:sortingMenu];
   }
 
-  UIMenu* menu = [UIMenu menuWithTitle:@""
-                              children:childItems];
+  UIMenu* menu = [UIMenu menuWithTitle:@"" children:childItems];
   return menu;
-
 }
 
 #pragma mark - PRIVATE METHODS
@@ -967,9 +1140,9 @@ BOOL ShouldUseModernNavigationBar() {
   [self resetMoreButtonContextMenuOptions];
 }
 
-/// Gets the sorting mode from prefs and update the selection state on the context menu.
+/// Gets the sorting mode from prefs and update the selection state on the
+/// context menu.
 - (void)setSortingStateOnContextMenuOption {
-
   switch (self.currentSortingMode) {
     case SpeedDialSortingManual:
       [self updateSortActionButtonState:self.manualSortAction];
@@ -1000,7 +1173,8 @@ BOOL ShouldUseModernNavigationBar() {
   return self.currentSortingMode == SpeedDialSortingManual;
 }
 
-/// Updates the state on the context menu actions by uncehcking the all apart from the selected one.
+/// Updates the state on the context menu actions by uncehcking the all apart
+/// from the selected one.
 - (void)updateSortActionButtonState:(UIAction*)settable {
   for (UIAction* action in self.speedDialSortActions) {
     if (action == settable) {
@@ -1112,11 +1286,62 @@ BOOL ShouldUseModernNavigationBar() {
 /// Returns custom wallpaper name
 - (UIImage*)selectedCustomWallpaper {
   // It doesn't require size traits, image contentMode is aspect fill
-  UIImage *wallpaper =
-    UIDeviceOrientationIsLandscape([UIDevice currentDevice].orientation)
-      ? [VivaldiStartPagePrefsHelper getLandscapeWallpaper] :
-          [VivaldiStartPagePrefsHelper getPortraitWallpaper];
+  UIImage* wallpaper =
+      UIDeviceOrientationIsLandscape([UIDevice currentDevice].orientation)
+          ? [VivaldiStartPagePrefsHelper getLandscapeWallpaper]
+          : [VivaldiStartPagePrefsHelper getPortraitWallpaper];
   return wallpaper;
+}
+
+/// Returns preloaded wallpaper name and always reads prefs on main sequence.
+- (NSString*)selectedDefaultWallpaperForCurrentSequence {
+  if ([NSThread isMainThread]) {
+    return [self selectedDefaultWallpaper];
+  }
+
+  __block NSString* wallpaper = nil;
+  dispatch_sync(dispatch_get_main_queue(), ^{
+    wallpaper = [self selectedDefaultWallpaper];
+  });
+  return wallpaper;
+}
+
+/// Returns custom wallpaper and always reads prefs on main sequence.
+- (UIImage*)selectedCustomWallpaperForCurrentSequence {
+  if ([NSThread isMainThread]) {
+    return [self selectedCustomWallpaper];
+  }
+
+  __block UIImage* wallpaper = nil;
+  dispatch_sync(dispatch_get_main_queue(), ^{
+    wallpaper = [self selectedCustomWallpaper];
+  });
+  return wallpaper;
+}
+
+/// Returns Daily Mix wallpaper and always reads prefs on main sequence.
+- (UIImage*)dailyMixWallpaperForCurrentSequence {
+  if ([NSThread isMainThread]) {
+    return [VivaldiStartPagePrefsHelper getDailyMixWallpaper];
+  }
+
+  __block UIImage* wallpaper = nil;
+  dispatch_sync(dispatch_get_main_queue(), ^{
+    wallpaper = [VivaldiStartPagePrefsHelper getDailyMixWallpaper];
+  });
+  return wallpaper;
+}
+
+/// Schedules Daily Mix refresh on main sequence.
+- (void)refreshDailyMixWallpaperIfNeededOnMainThread {
+  if ([NSThread isMainThread]) {
+    [VivaldiStartPagePrefsHelper refreshDailyMixWallpaperIfNeeded];
+    return;
+  }
+
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [VivaldiStartPagePrefsHelper refreshDailyMixWallpaperIfNeeded];
+  });
 }
 
 /// Refresh more button context menu options
@@ -1125,14 +1350,12 @@ BOOL ShouldUseModernNavigationBar() {
 }
 
 /// Scroll to the selected page in the collection view.
-- (void)scrollToItemWithIndex:(NSInteger)index
-                     animated:(BOOL)animated {
+- (void)scrollToItemWithIndex:(NSInteger)index animated:(BOOL)animated {
   NSInteger numberOfPages = [self.collectionView numberOfItemsInSection:0];
   if (index >= numberOfPages)
     return;
   self.collectionView.pagingEnabled = NO;
-  NSIndexPath *indexPath = [NSIndexPath indexPathForRow:index
-                                              inSection:0];
+  NSIndexPath* indexPath = [NSIndexPath indexPathForRow:index inSection:0];
   [self.collectionView
       scrollToItemAtIndexPath:indexPath
              atScrollPosition:UICollectionViewScrollPositionCenteredHorizontally
@@ -1170,22 +1393,22 @@ BOOL ShouldUseModernNavigationBar() {
 - (void)showStartPageSettings {
   _startPageSettingsCoordinator =
       [[VivaldiStartPageQuickSettingsCoordinator alloc]
-            initWithBaseNavigationController:self.navigationController
-                                     browser:_browser];
+          initWithBaseNavigationController:self.navigationController
+                                   browser:_browser];
   [_startPageSettingsCoordinator start];
 }
 
 - (void)presentBookmarkEditorWithItem:(VivaldiSpeedDialItem*)item
-                            parent:(VivaldiSpeedDialItem*)parent
-                        entryPoint:(VivaldiBookmarksEditorEntryPoint)entryPoint
-                         isEditing:(BOOL)isEditing {
+                               parent:(VivaldiSpeedDialItem*)parent
+                           entryPoint:
+                               (VivaldiBookmarksEditorEntryPoint)entryPoint
+                            isEditing:(BOOL)isEditing {
   if (vivaldi_features::IsNewSpeedDialDialogEnabled()) {
     if (entryPoint == VivaldiBookmarksEditorEntryPointSpeedDial) {
       VivaldiNSDCoordinator* newSpeedDialCoordinator =
-          [[VivaldiNSDCoordinator alloc]
-                   initWithBaseViewController:self
-                                      browser:_browser
-                                       parent:parent];
+          [[VivaldiNSDCoordinator alloc] initWithBaseViewController:self
+                                                            browser:_browser
+                                                             parent:parent];
       _nsdCoordinator = newSpeedDialCoordinator;
       _nsdCoordinator.allowsNewFolders = YES;
       _nsdCoordinator.delegate = self;
@@ -1193,13 +1416,13 @@ BOOL ShouldUseModernNavigationBar() {
     } else {
       VivaldiBookmarksEditorCoordinator* bookmarksEditorCoordinator =
           [[VivaldiBookmarksEditorCoordinator alloc]
-                   initWithBaseViewController:self
-                                      browser:_browser
-                                         item:item
-                                       parent:parent
-                                   entryPoint:entryPoint
-                                    isEditing:isEditing
-                                 allowsCancel:YES];
+              initWithBaseViewController:self
+                                 browser:_browser
+                                    item:item
+                                  parent:parent
+                              entryPoint:entryPoint
+                               isEditing:isEditing
+                            allowsCancel:YES];
       _bookmarksEditorCoordinator = bookmarksEditorCoordinator;
       _bookmarksEditorCoordinator.allowsNewFolders = YES;
       [bookmarksEditorCoordinator start];
@@ -1207,13 +1430,13 @@ BOOL ShouldUseModernNavigationBar() {
   } else {
     VivaldiBookmarksEditorCoordinator* bookmarksEditorCoordinator =
         [[VivaldiBookmarksEditorCoordinator alloc]
-                 initWithBaseViewController:self
-                                    browser:_browser
-                                       item:item
-                                     parent:parent
-                                 entryPoint:entryPoint
-                                  isEditing:isEditing
-                               allowsCancel:YES];
+            initWithBaseViewController:self
+                               browser:_browser
+                                  item:item
+                                parent:parent
+                            entryPoint:entryPoint
+                             isEditing:isEditing
+                          allowsCancel:YES];
     _bookmarksEditorCoordinator = bookmarksEditorCoordinator;
     _bookmarksEditorCoordinator.allowsNewFolders = YES;
     [bookmarksEditorCoordinator start];
@@ -1223,26 +1446,64 @@ BOOL ShouldUseModernNavigationBar() {
 - (void)captureThumbnailForItem:(VivaldiSpeedDialItem*)item
                     isMigrating:(BOOL)isMigrating
                   shouldReplace:(BOOL)shouldReplace {
-  NSNumber *bookmarkNodeId = @(item.bookmarkNode->id());
+  NSNumber* bookmarkNodeId = @(item.bookmarkNode->id());
   [self notifyUpdateForItemWithID:bookmarkNodeId
                  captureThumbnail:YES
                   finishedCapture:NO];
 
-  NSURL *url = [NSURL URLWithString:item.urlString];
-  [self.thumbnailCapturer captureSnapshotWithURL:url
-                              completion:^(UIImage *image, NSError *error) {
-    [self notifyUpdateForItemWithID:bookmarkNodeId
-                   captureThumbnail:YES
-                    finishedCapture:YES];
-    if (image) {
-      [self.vivaldiThumbnailService
-           storeThumbnailForSDItem:item
-                          snapshot:image
-                           replace:shouldReplace
-                       isMigrating:isMigrating
-                         bookmarks:self.bookmarks];
-    }
-  }];
+  NSURL* url = [NSURL URLWithString:item.urlString];
+  VivaldiThumbnailService* thumbnailService = self.vivaldiThumbnailService;
+  BookmarkModel* bookmarks = self.bookmarks;
+  __weak __typeof(self) weakSelf = self;
+  [self.thumbnailCapturer
+      captureSnapshotWithURL:url
+                  completion:^(UIImage* image, NSError* error) {
+                    __strong __typeof(self) strongSelf = weakSelf;
+                    if (strongSelf) {
+                      [strongSelf notifyUpdateForItemWithID:bookmarkNodeId
+                                           captureThumbnail:YES
+                                            finishedCapture:YES];
+                    }
+                    if (image && thumbnailService && bookmarks) {
+                      [thumbnailService storeThumbnailForSDItem:item
+                                                       snapshot:image
+                                                        replace:shouldReplace
+                                                    isMigrating:isMigrating
+                                                      bookmarks:bookmarks];
+                    }
+                  }];
+}
+
+/// Returns whether the SD item uses a bundled partner thumbnail.
+- (BOOL)hasResourceThumbnailForItem:(VivaldiSpeedDialItem*)item {
+  if (!item || item.thumbnail.length == 0) {
+    return NO;
+  }
+  std::string thumbnail = base::SysNSStringToUTF8(item.thumbnail);
+  return vivaldi_data_url_utils::IsResourceURL(thumbnail);
+}
+
+/// Returns whether the SD item uses a synced-store thumbnail.
+- (BOOL)isSyncedStoreThumbnailForItem:(VivaldiSpeedDialItem*)item {
+  if (!item || item.thumbnail.length == 0) {
+    return NO;
+  }
+  NSRange range = [item.thumbnail rangeOfString:syncedStoreURLKey];
+  return range.location != NSNotFound;
+}
+
+/// Returns whether the SD item already has a usable thumbnail.
+- (BOOL)hasUsableThumbnailForItem:(VivaldiSpeedDialItem*)item {
+  if (!item || item.thumbnail.length == 0) {
+    return NO;
+  }
+  if ([self isSyncedStoreThumbnailForItem:item]) {
+    return YES;
+  }
+  if ([self hasResourceThumbnailForItem:item]) {
+    return YES;
+  }
+  return [self.vivaldiThumbnailService hasLocalThumbnailForSDItem:item];
 }
 
 /// Notifies the listeners that the speed dial item property
@@ -1254,25 +1515,27 @@ BOOL ShouldUseModernNavigationBar() {
 - (void)notifyUpdateForItemWithID:(NSNumber*)itemID
                  captureThumbnail:(BOOL)captureThumbnail
                   finishedCapture:(BOOL)finishedCapture {
-  NSMutableDictionary *userInfo =
+  NSMutableDictionary* userInfo =
       [NSMutableDictionary dictionaryWithObject:itemID
                                          forKey:vSpeedDialIdentifierKey];
 
   if (captureThumbnail) {
-    NSNumber *finishedCaptureThumbnail =
+    NSNumber* finishedCaptureThumbnail =
         [NSNumber numberWithBool:finishedCapture];
     [userInfo setObject:finishedCaptureThumbnail
                  forKey:vSpeedDialThumbnailRefreshStateKey];
   }
 
   [[NSNotificationCenter defaultCenter]
-       postNotificationName:vSpeedDialPropertyDidChange
-                     object:nil
-                   userInfo:userInfo];
+      postNotificationName:vSpeedDialPropertyDidChange
+                    object:nil
+                  userInfo:userInfo];
 }
 
 - (void)setTopToolbarAndPagesHiddenWithShowFrequentlyVisited:
-    (BOOL)showFrequentlyVisited showSpeedDials:(BOOL)showSpeedDials {
+            (BOOL)showFrequentlyVisited
+                                              showSpeedDials:
+                                                  (BOOL)showSpeedDials {
   // (Workaround Alert!)
   // When TopSites or SpeedDials pref is modified we will only hide the
   // CollectionView from this function.
@@ -1295,9 +1558,8 @@ BOOL ShouldUseModernNavigationBar() {
 }
 
 - (void)updateBookmarkBarNodeIfNeeded {
-  VivaldiSpeedDialItem* bookmarkBarItem =
-      [[VivaldiSpeedDialItem alloc]
-          initWithBookmark:_bookmarks->bookmark_bar_node()];
+  VivaldiSpeedDialItem* bookmarkBarItem = [[VivaldiSpeedDialItem alloc]
+      initWithBookmark:_bookmarks->bookmark_bar_node()];
   _bookmarkBarItem = bookmarkBarItem;
 }
 
@@ -1313,12 +1575,11 @@ BOOL ShouldUseModernNavigationBar() {
 - (VivaldiSpeedDialItem*)nodeForToolbarItem:(VivaldiNTPTopToolbarItem*)item {
   if (!self.bookmarks || [item.uuid length] <= 0)
     return nil;
-  std::string uuidString =
-  base::SysNSStringToUTF8([item.uuid lowercaseString]);
+  std::string uuidString = base::SysNSStringToUTF8([item.uuid lowercaseString]);
   base::Uuid uuid = base::Uuid::ParseLowercase(uuidString);
 
-  const bookmarks::BookmarkNode* node =
-  self.bookmarks->GetNodeByUuid(uuid,
+  const bookmarks::BookmarkNode* node = self.bookmarks->GetNodeByUuid(
+      uuid,
       bookmarks::BookmarkModel::NodeTypeForUuidLookup::kLocalOrSyncableNodes);
   return [[VivaldiSpeedDialItem alloc] initWithBookmark:node];
 }
@@ -1372,32 +1633,34 @@ BOOL ShouldUseModernNavigationBar() {
 #pragma mark - Bottom Toolbar Add Button Visibility Updates
 
 - (void)updateAddButtonVisibilityProgressWithCurrentPage:(CGFloat)currentPage
-                                      numberOfPages:(NSInteger)numberOfPages {
-  if (numberOfPages <= 1 || self.toolbarItems.count <= 1) return;
+                                           numberOfPages:
+                                               (NSInteger)numberOfPages {
+  if (numberOfPages <= 1 || self.toolbarItems.count <= 1)
+    return;
 
   NSInteger fromIndex = (NSInteger)floorf(currentPage);
-  NSInteger toIndex   = (NSInteger)ceilf(currentPage);
+  NSInteger toIndex = (NSInteger)ceilf(currentPage);
 
   // Clamp page indices
   fromIndex = MAX(0, MIN(fromIndex, (NSInteger)self.toolbarItems.count - 1));
-  toIndex   = MAX(0, MIN(toIndex,   (NSInteger)self.toolbarItems.count - 1));
+  toIndex = MAX(0, MIN(toIndex, (NSInteger)self.toolbarItems.count - 1));
 
-  if (fromIndex == toIndex) return;
+  if (fromIndex == toIndex)
+    return;
 
   // Calculate fraction between pages
   CGFloat fraction = (currentPage - fromIndex) / (toIndex - fromIndex);
   fraction = MAX(0, MIN(1, fraction));
 
-  VivaldiNTPTopToolbarItem *fromItem = self.toolbarItems[fromIndex];
-  VivaldiNTPTopToolbarItem *toItem   = self.toolbarItems[toIndex];
+  VivaldiNTPTopToolbarItem* fromItem = self.toolbarItems[fromIndex];
+  VivaldiNTPTopToolbarItem* toItem = self.toolbarItems[toIndex];
 
-  BOOL fromIsTopSites =
-      (fromItem.pageType == VivaldiSpeedDialPageTypeTopSites);
-  BOOL toIsTopSites =
-      (toItem.pageType   == VivaldiSpeedDialPageTypeTopSites);
+  BOOL fromIsTopSites = (fromItem.pageType == VivaldiSpeedDialPageTypeTopSites);
+  BOOL toIsTopSites = (toItem.pageType == VivaldiSpeedDialPageTypeTopSites);
 
   // Only act if exactly one page is TopSites
-  if (fromIsTopSites == toIsTopSites) return;
+  if (fromIsTopSites == toIsTopSites)
+    return;
 
   // If fromIndex is TopSites, progress = 0->1; else 1->0
   CGFloat progress = fromIsTopSites ? fraction : (1.0 - fraction);
@@ -1406,7 +1669,7 @@ BOOL ShouldUseModernNavigationBar() {
   // animation creates glitch because of the pages in between `Add Group`
   // and `Top Sites`.
   if (self.lastSelectedToolbarItemIndex < long(self.toolbarItems.count)) {
-    VivaldiNTPTopToolbarItem *lastItem =
+    VivaldiNTPTopToolbarItem* lastItem =
         self.toolbarItems[self.lastSelectedToolbarItemIndex];
     if (self.scrollFromMenuTap ||
         (lastItem.pageType == VivaldiSpeedDialPageTypeAddGroup &&
@@ -1425,7 +1688,6 @@ BOOL ShouldUseModernNavigationBar() {
 // or without animation. There is not animation when user jumps from
 // `Add Group` to `Top Sites` there's no animation.
 - (void)handleAddButtonTransitionFromPreviousToNewIndex:(NSInteger)newIndex {
-
   if (newIndex < 0 || newIndex >= long(self.toolbarItems.count) ||
       self.lastSelectedToolbarItemIndex < 0 ||
       self.lastSelectedToolbarItemIndex >= long(self.toolbarItems.count)) {
@@ -1434,15 +1696,14 @@ BOOL ShouldUseModernNavigationBar() {
 
   if (vivaldi_features::IsTopSitesEnabled() && [self showFrequentlyVisited] &&
       [self showSpeedDials]) {
-    VivaldiNTPTopToolbarItem *fromItem =
+    VivaldiNTPTopToolbarItem* fromItem =
         self.toolbarItems[self.lastSelectedToolbarItemIndex];
-    VivaldiNTPTopToolbarItem *toItem =
-        self.toolbarItems[newIndex];
+    VivaldiNTPTopToolbarItem* toItem = self.toolbarItems[newIndex];
 
     // Disable animation if going from AddGroup -> TopSites
     BOOL noAnimation = (fromItem.pageType == toItem.pageType) ||
-        (fromItem.pageType == VivaldiSpeedDialPageTypeAddGroup &&
-         toItem.pageType == VivaldiSpeedDialPageTypeTopSites);
+                       (fromItem.pageType == VivaldiSpeedDialPageTypeAddGroup &&
+                        toItem.pageType == VivaldiSpeedDialPageTypeTopSites);
 
     // If target index >= 1, show button (progress=1); else hide (progress=0)
     CGFloat progress = (newIndex >= 1) ? 1.0 : 0.0;
@@ -1457,7 +1718,7 @@ BOOL ShouldUseModernNavigationBar() {
 // ONLY if it was hidden due to navigation to a new folder.
 // When view appears after child view is popped, this should fade in the
 // toolbar view.
--(void)fadeInBottomToolbarIfNeeded {
+- (void)fadeInBottomToolbarIfNeeded {
   if (self.selectedToolbarItemIndex < 0 ||
       self.selectedToolbarItemIndex >= long(self.toolbarItems.count)) {
     return;
@@ -1473,12 +1734,11 @@ BOOL ShouldUseModernNavigationBar() {
 }
 
 - (void)observeVisibleCellScrollableContents {
-  NSIndexPath *currentVisibleIndexPath =
-      [NSIndexPath indexPathForRow:self.selectedToolbarItemIndex
-                         inSection:0];
-  VivaldiSpeedDialContainerCell *selectedCell =
-      (VivaldiSpeedDialContainerCell*)
-          [self.collectionView cellForItemAtIndexPath:currentVisibleIndexPath];
+  NSIndexPath* currentVisibleIndexPath =
+      [NSIndexPath indexPathForRow:self.selectedToolbarItemIndex inSection:0];
+  VivaldiSpeedDialContainerCell* selectedCell =
+      (VivaldiSpeedDialContainerCell*)[self.collectionView
+          cellForItemAtIndexPath:currentVisibleIndexPath];
   if (selectedCell) {
     [selectedCell visibleCellDidChange];
   }
@@ -1502,7 +1762,8 @@ BOOL ShouldUseModernNavigationBar() {
     progress = MAX(0, MIN(1, progress));
 
     // Avoid redundant update if alpha already matches
-    if (progress == 0 && self.blurEffectView.alpha == progress) return;
+    if (progress == 0 && self.blurEffectView.alpha == progress)
+      return;
     [self applyBlurAndToolbarViewVisibilityProgress:progress];
   } else {
     [self resetBlurAndToolbarViewVisibility];
@@ -1510,7 +1771,7 @@ BOOL ShouldUseModernNavigationBar() {
 }
 
 - (void)applyBlurAndToolbarViewVisibilityProgress:(CGFloat)progress {
-  if ([self getWallpaperImage]) {
+  if (self.cachedWallpaperImage) {
     self.blurEffectView.alpha = progress;
   }
   // Update toolbar view opacity with progress.
@@ -1518,7 +1779,7 @@ BOOL ShouldUseModernNavigationBar() {
 }
 
 - (void)resetBlurAndToolbarViewVisibility {
-  if ([self getWallpaperImage]) {
+  if (self.cachedWallpaperImage) {
     self.blurEffectView.alpha = 0;
   }
   // Show toolbar view. Progress 0 means alpha is 1, calculated in the provider.
@@ -1532,14 +1793,12 @@ BOOL ShouldUseModernNavigationBar() {
   [self.bottomToolbarProvider
       setCustomizeButtonVisible:[self showStartPageCustomizeButton]];
 
-  [self.bottomToolbarProvider
-      setAddButtonVisible:[self showAddButton]];
+  [self.bottomToolbarProvider setAddButtonVisible:[self showAddButton]];
 
   // Update background shading for the toolbar
-  if ([self getWallpaperImage]) {
-    BOOL shouldUseDarkText =
-        [VivaldiGlobalHelpers
-            shouldUseDarkTextForImage:[self getWallpaperImage]];
+  if (self.cachedWallpaperImage) {
+    BOOL shouldUseDarkText = [VivaldiGlobalHelpers
+        shouldUseDarkTextForImage:self.cachedWallpaperImage];
     [self.bottomToolbarProvider setHasBackground:YES];
     // If the background demands dark text over it, it means the background is
     // brighter colors and we need to use bright shadow for the toolbar.
@@ -1552,45 +1811,44 @@ BOOL ShouldUseModernNavigationBar() {
 }
 
 #pragma mark - COLLECTIONVIEW DATA SOURCE
-- (NSInteger)collectionView:(UICollectionView *)collectionView
-     numberOfItemsInSection:(NSInteger)section{
+- (NSInteger)collectionView:(UICollectionView*)collectionView
+     numberOfItemsInSection:(NSInteger)section {
   return self.toolbarItems.count;
 }
 
-- (UICollectionViewCell*)collectionView:(UICollectionView *)collectionView
-                  cellForItemAtIndexPath:(NSIndexPath *)indexPath {
-
+- (UICollectionViewCell*)collectionView:(UICollectionView*)collectionView
+                 cellForItemAtIndexPath:(NSIndexPath*)indexPath {
   // Early validation to prevent accessing invalid object
   NSInteger index = indexPath.row;
   if (index < 0 || index >= long(self.toolbarItems.count)) {
     // Return an empty default cell
-    VivaldiSpeedDialContainerCell *emptyCell =
-      [collectionView dequeueReusableCellWithReuseIdentifier:cellId
-                                             forIndexPath:indexPath];
+    VivaldiSpeedDialContainerCell* emptyCell =
+        [collectionView dequeueReusableCellWithReuseIdentifier:cellId
+                                                  forIndexPath:indexPath];
     // Configure with empty/default state
     [emptyCell configureWith:@[]
-                     parent:nil
-              faviconLoader:self.faviconLoader
-         directMatchService:_directMatchService
-                layoutStyle:[self currentLayoutStyle]
-               layoutColumn:[self currentLayoutColumn]
-               showAddGroup:NO
-          frequentlyVisited:NO
-          topSitesAvailable:NO
-           topToolbarHidden:[self shouldHideToolbar]
-          verticalSizeClass:self.view.traitCollection.verticalSizeClass
-                   wallpaper:[self getWallpaperImage]];
+                      parent:nil
+               faviconLoader:self.faviconLoader
+          directMatchService:_directMatchService
+                 layoutStyle:[self currentLayoutStyle]
+                layoutColumn:[self currentLayoutColumn]
+                showAddGroup:NO
+           frequentlyVisited:NO
+           topSitesAvailable:NO
+            topToolbarHidden:[self shouldHideToolbar]
+           verticalSizeClass:self.view.traitCollection.verticalSizeClass
+                   wallpaper:self.cachedWallpaperImage];
     return emptyCell;
   }
 
-  VivaldiSpeedDialContainerCell *cell =
-    [collectionView dequeueReusableCellWithReuseIdentifier:cellId
-                                            forIndexPath:indexPath];
+  VivaldiSpeedDialContainerCell* cell =
+      [collectionView dequeueReusableCellWithReuseIdentifier:cellId
+                                                forIndexPath:indexPath];
   cell.delegate = self;
 
-  BrowserActionFactory* actionFactory =
-      [[BrowserActionFactory alloc] initWithBrowser:_browser
-              scenario:kMenuScenarioHistogramBookmarkEntry];
+  BrowserActionFactory* actionFactory = [[BrowserActionFactory alloc]
+      initWithBrowser:_browser
+             scenario:kMenuScenarioHistogramBookmarkEntry];
   [cell configureActionFactory:actionFactory];
 
   // Safe access to toolbarItems array
@@ -1599,17 +1857,17 @@ BOOL ShouldUseModernNavigationBar() {
 
   if (toolbarItem.pageType == VivaldiSpeedDialPageTypeAddGroup) {
     [cell configureWith:@[]
-                 parent:_bookmarkBarItem
-          faviconLoader:self.faviconLoader
-     directMatchService:_directMatchService
-            layoutStyle:[self currentLayoutStyle]
-           layoutColumn:[self currentLayoutColumn]
-           showAddGroup:YES
-      frequentlyVisited:NO
-      topSitesAvailable:NO
-       topToolbarHidden:[self shouldHideToolbar]
-      verticalSizeClass:self.view.traitCollection.verticalSizeClass
-              wallpaper:[self getWallpaperImage]];
+                    parent:_bookmarkBarItem
+             faviconLoader:self.faviconLoader
+        directMatchService:_directMatchService
+               layoutStyle:[self currentLayoutStyle]
+              layoutColumn:[self currentLayoutColumn]
+              showAddGroup:YES
+         frequentlyVisited:NO
+         topSitesAvailable:NO
+          topToolbarHidden:[self shouldHideToolbar]
+         verticalSizeClass:self.view.traitCollection.verticalSizeClass
+                 wallpaper:self.cachedWallpaperImage];
   } else {
     [cell setCurrentPage:index];
 
@@ -1622,43 +1880,42 @@ BOOL ShouldUseModernNavigationBar() {
     }
 
     [cell configureWith:toolbarItem.children
-                 parent:parent
-          faviconLoader:self.faviconLoader
-     directMatchService:_directMatchService
-            layoutStyle:[self currentLayoutStyle]
-           layoutColumn:[self currentLayoutColumn]
-           showAddGroup:NO
-      frequentlyVisited:toolbarItem.pageType == VivaldiSpeedDialPageTypeTopSites
-      topSitesAvailable:self.isTopSitesResultsAvailable
-       topToolbarHidden:[self shouldHideToolbar]
-      verticalSizeClass:self.view.traitCollection.verticalSizeClass
-              wallpaper:[self getWallpaperImage]];
+                    parent:parent
+             faviconLoader:self.faviconLoader
+        directMatchService:_directMatchService
+               layoutStyle:[self currentLayoutStyle]
+              layoutColumn:[self currentLayoutColumn]
+              showAddGroup:NO
+         frequentlyVisited:toolbarItem.pageType ==
+                           VivaldiSpeedDialPageTypeTopSites
+         topSitesAvailable:self.isTopSitesResultsAvailable
+          topToolbarHidden:[self shouldHideToolbar]
+         verticalSizeClass:self.view.traitCollection.verticalSizeClass
+                 wallpaper:self.cachedWallpaperImage];
   }
 
   return cell;
 }
 
-- (CGPoint)collectionView:(UICollectionView *)collectionView
-targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
-  NSIndexPath *currentVisibleIndexPath =
-      [NSIndexPath indexPathForRow:self.selectedToolbarItemIndex
-                         inSection:0];
-  UICollectionViewLayoutAttributes* attributes =
-    [collectionView layoutAttributesForItemAtIndexPath:currentVisibleIndexPath];
+- (CGPoint)collectionView:(UICollectionView*)collectionView
+    targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
+  NSIndexPath* currentVisibleIndexPath =
+      [NSIndexPath indexPathForRow:self.selectedToolbarItemIndex inSection:0];
+  UICollectionViewLayoutAttributes* attributes = [collectionView
+      layoutAttributesForItemAtIndexPath:currentVisibleIndexPath];
   CGPoint newOriginForOldIndex = attributes.frame.origin;
   return newOriginForOldIndex;
 }
 
 #pragma mark - ScrollViewDelegate
 
-- (void)scrollViewWillBeginDecelerating:(UIScrollView *)scrollView {
+- (void)scrollViewWillBeginDecelerating:(UIScrollView*)scrollView {
   if (self.scrollFromMenuTap) {
     self.scrollFromMenuTap = NO;
   }
 }
 
 - (void)scrollViewDidScroll:(UIScrollView*)scrollView {
-
   // scrollViewDidScroll gets called when Trait Collection Changes as it affects
   // the horizontal sizing of the view frame. Hence, skip all the animation
   // based on scroll progress when traitCollectionChange is in progress.
@@ -1673,17 +1930,16 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
     // 1: When user swipes to `Add Group` page and user has wallpaper there is a
     // a blur view above the wallpaper. Also, the bottom toolbar is hidden
     // regardless of wallpaper.
-    // 2: When user swipes to `Top Sites` page, `Add` button transitions to hidden
-    // state with progress.
-    // Therefore, we track progress only if `SpeedDials` or `TopSites` is enabled.
-    // Otherwise, blur view is hidden since no `Add Group` page available for that
-    // state.
+    // 2: When user swipes to `Top Sites` page, `Add` button transitions to
+    // hidden state with progress. Therefore, we track progress only if
+    // `SpeedDials` or `TopSites` is enabled. Otherwise, blur view is hidden
+    // since no `Add Group` page available for that state.
 
     if (([self showSpeedDials] || (vivaldi_features::IsTopSitesEnabled() &&
                                    [self showFrequentlyVisited]))) {
-      // Update `Add` button visibility only if both `Top Sites` and `Speed Dial`
-      // enabled. Otherwise `Add` button is not transition between visible or
-      // hidden state.
+      // Update `Add` button visibility only if both `Top Sites` and `Speed
+      // Dial` enabled. Otherwise `Add` button is not transition between visible
+      // or hidden state.
       if (vivaldi_features::IsTopSitesEnabled() &&
           [self showFrequentlyVisited] && [self showSpeedDials]) {
         [self updateAddButtonVisibilityProgressWithCurrentPage:currentPage
@@ -1700,7 +1956,7 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
   }
 }
 
-- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
+- (void)scrollViewDidEndDecelerating:(UIScrollView*)scrollView {
   if (self.scrollFromMenuTap)
     return;
 
@@ -1708,7 +1964,7 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
   CGFloat yPoint = scrollView.frame.size.height / 2;
   CGPoint center = CGPointMake(xPoint, yPoint);
   NSIndexPath* currentIndexPath =
-    [self.collectionView indexPathForItemAtPoint:center];
+      [self.collectionView indexPathForItemAtPoint:center];
 
   if (currentIndexPath &&
       currentIndexPath.row < long(self.toolbarItems.count)) {
@@ -1745,7 +2001,7 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
 }
 
 - (void)refreshNode:(const bookmarks::BookmarkNode*)bookmarkNode {
-  NSNumber *bookmarkNodeId = @(bookmarkNode->id());
+  NSNumber* bookmarkNodeId = @(bookmarkNode->id());
   if (bookmarkNode->is_url()) {
     [self notifyUpdateForItemWithID:bookmarkNodeId
                    captureThumbnail:NO
@@ -1777,17 +2033,19 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
     [self.navigationBarView setCustomContentView:self.topScrollMenuContainer];
   }
 
-  [self.collectionView performBatchUpdates:^{
-    [self.collectionView.collectionViewLayout invalidateLayout];
-    [self.collectionView reloadSections:[NSIndexSet indexSetWithIndex:0]];
-  } completion:^(BOOL finished) {
-    [self scrollToItemWithIndex:self.selectedToolbarItemIndex animated:NO];
-    [self scrollViewDidScroll:self.collectionView];
+  [self.collectionView
+      performBatchUpdates:^{
+        [self.collectionView.collectionViewLayout invalidateLayout];
+        [self.collectionView reloadSections:[NSIndexSet indexSetWithIndex:0]];
+      }
+      completion:^(BOOL finished) {
+        [self scrollToItemWithIndex:self.selectedToolbarItemIndex animated:NO];
+        [self scrollViewDidScroll:self.collectionView];
 
-    // See comments on `setTopToolbarAndPagesHiddenWithShowFrequentlyVisited`
-    // function.
-    [self showCollectionViewIfNeeded];
-  }];
+        // See comments on
+        // `setTopToolbarAndPagesHiddenWithShowFrequentlyVisited` function.
+        [self showCollectionViewIfNeeded];
+      }];
 }
 
 - (void)selectToolbarItemWithIndex:(NSInteger)index {
@@ -1810,7 +2068,6 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
 
 - (void)refreshChildItems:(NSArray<VivaldiSpeedDialItem*>*)items
                    parent:(VivaldiNTPTopToolbarItem*)parent {
-
   if (!parent) {
     return;
   }
@@ -1820,7 +2077,7 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
   if (parent.pageType == VivaldiSpeedDialPageTypeTopSites) {
     // Find the toolbar item with matching page type
     for (NSUInteger i = 0; i < self.toolbarItems.count; i++) {
-      VivaldiNTPTopToolbarItem *item = self.toolbarItems[i];
+      VivaldiNTPTopToolbarItem* item = self.toolbarItems[i];
       if (item.pageType == VivaldiSpeedDialPageTypeTopSites) {
         indexToUpdate = i;
         item.children = items;
@@ -1830,7 +2087,7 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
   } else {
     // Find the toolbar item with matching UUID
     for (NSUInteger i = 0; i < self.toolbarItems.count; i++) {
-      VivaldiNTPTopToolbarItem *item = self.toolbarItems[i];
+      VivaldiNTPTopToolbarItem* item = self.toolbarItems[i];
       if ([item.uuid isEqualToString:parent.uuid]) {
         indexToUpdate = i;
         item.children = items;
@@ -1841,21 +2098,24 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
 
   // If we found a matching item, reload just that cell
   if (indexToUpdate != NSNotFound) {
-    NSIndexPath *indexPath =
-        [NSIndexPath indexPathForItem:indexToUpdate inSection:0];
-    [self.collectionView reloadItemsAtIndexPaths:@[indexPath]];
+    NSIndexPath* indexPath = [NSIndexPath indexPathForItem:indexToUpdate
+                                                 inSection:0];
+    [self.collectionView reloadItemsAtIndexPaths:@[ indexPath ]];
   }
 }
 
 - (void)setFrequentlyVisitedPagesEnabled:(BOOL)enabled {
-  [self setTopToolbarAndPagesHiddenWithShowFrequentlyVisited:enabled
-          showSpeedDials:[self showSpeedDials]];
+  [self
+      setTopToolbarAndPagesHiddenWithShowFrequentlyVisited:enabled
+                                            showSpeedDials:[self
+                                                               showSpeedDials]];
   [self resetMoreButtonContextMenuOptions];
 }
 
 - (void)setSpeedDialsEnabled:(BOOL)enabled {
   [self setTopToolbarAndPagesHiddenWithShowFrequentlyVisited:
-      [self showFrequentlyVisited] showSpeedDials:enabled];
+            [self showFrequentlyVisited]
+                                              showSpeedDials:enabled];
   [self resetMoreButtonContextMenuOptions];
 }
 
@@ -1873,7 +2133,7 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
         [self.toolbarItems objectAtIndex:index];
     self.shouldShowSortingAction =
         selectedItem &&
-            selectedItem.pageType == VivaldiSpeedDialPageTypeSpeedDial;
+        selectedItem.pageType == VivaldiSpeedDialPageTypeSpeedDial;
   } else {
     self.shouldShowSortingAction = NO;
   }
@@ -1920,8 +2180,7 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
   if (!itemToRemove)
     return;
   if (self.bookmarks && itemToRemove.bookmarkNode) {
-    SetNodeSpeeddial(self.bookmarks,
-                     itemToRemove.bookmarkNode, NO);
+    SetNodeSpeeddial(self.bookmarks, itemToRemove.bookmarkNode, NO);
   }
 }
 
@@ -1929,15 +2188,13 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
 
 - (void)didTapAddButton {
   if ([self currentActivePageItem]) {
-    [self didSelectAddNewSpeedDial:NO
-                            parent:[self currentActivePageItem]];
+    [self didSelectAddNewSpeedDial:NO parent:[self currentActivePageItem]];
   }
 }
 
 - (void)didTapAddFolderButton {
   if ([self currentActivePageItem]) {
-    [self didSelectAddNewSpeedDial:YES
-                            parent:[self currentActivePageItem]];
+    [self didSelectAddNewSpeedDial:YES parent:[self currentActivePageItem]];
   }
 }
 
@@ -1987,15 +2244,14 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
         setNavigationBarHidden:ShouldUseModernNavigationBar()
                       animated:YES];
 
-    VivaldiSpeedDialViewController *controller =
-      [VivaldiSpeedDialViewController initWithItem:item
-                                            parent:parent
-                                         bookmarks:self.bookmarks
-                                           browser:self.browser
-                                     faviconLoader:self.faviconLoader];
+    VivaldiSpeedDialViewController* controller =
+        [VivaldiSpeedDialViewController initWithItem:item
+                                              parent:parent
+                                           bookmarks:self.bookmarks
+                                             browser:self.browser
+                                       faviconLoader:self.faviconLoader];
     controller.delegate = self;
-    [self.navigationController pushViewController:controller
-                                         animated:YES];
+    [self.navigationController pushViewController:controller animated:YES];
     self.speedDialViewController = controller;
   } else {
     BOOL isOffTheRecord = _profile->IsOffTheRecord();
@@ -2003,11 +2259,12 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
     // Trigger thumbnail update for only SD items, and not for frequently
     // visited pages.
     if (!item.isFrequentlyVisited) {
-      BOOL hasThumbnail = item.thumbnail.length != 0;
+      BOOL hasThumbnail = [self hasUsableThumbnailForItem:item];
       BOOL shouldMigate =
           [self.vivaldiThumbnailService shouldMigrateForSDItem:item];
 
-      BOOL captureThumbnail = (shouldMigate || !hasThumbnail) && !isOffTheRecord;
+      BOOL captureThumbnail =
+          (shouldMigate || !hasThumbnail) && !isOffTheRecord;
       if (captureThumbnail) {
         [self captureThumbnailForItem:item
                           isMigrating:shouldMigate
@@ -2043,10 +2300,9 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
 
 - (void)didSelectMoveItem:(VivaldiSpeedDialItem*)item
                    parent:(VivaldiSpeedDialItem*)parent {
-
   BOOL isMovable = parent.parent &&
-    (item.parent->id() != parent.parent->id()) &&
-    parent.parent->is_folder();
+                   (item.parent->id() != parent.parent->id()) &&
+                   parent.parent->is_folder();
 
   if (!isMovable) {
     return;
@@ -2055,13 +2311,11 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
   if (item.isFolder) {
     std::vector<const bookmarks::BookmarkNode*> editedNodes;
     editedNodes.push_back(item.bookmarkNode);
-    bookmark_utils_ios::MoveBookmarks(editedNodes,
-                                      self.bookmarks,
+    bookmark_utils_ios::MoveBookmarks(editedNodes, self.bookmarks,
                                       parent.parent);
 
   } else {
-    self.bookmarks->Move(item.bookmarkNode,
-                         parent.parent,
+    self.bookmarks->Move(item.bookmarkNode, parent.parent,
                          parent.parent->children().size());
   }
 }
@@ -2079,13 +2333,11 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
   if (!item.parent) {
     return;
   }
-  [self.delegate moveSpeedDialItem:item
-                          position:position];
+  [self.delegate moveSpeedDialItem:item position:position];
 }
 
 - (void)didSelectDeleteItem:(VivaldiSpeedDialItem*)item
                      parent:(VivaldiSpeedDialItem*)parent {
-
   if (item.isFrequentlyVisited) {
     [self.delegate removeMostVisited:item];
   } else {
@@ -2109,9 +2361,9 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
   // Otherwise, pass the parent node of the selected item.
   VivaldiSpeedDialItem* parentItem =
       self.toolbarItems.count == 0 ? _bookmarkBarItem : parent;
-  VivaldiBookmarksEditorEntryPoint entryPoint = isFolder ?
-      VivaldiBookmarksEditorEntryPointFolder :
-      VivaldiBookmarksEditorEntryPointSpeedDial;
+  VivaldiBookmarksEditorEntryPoint entryPoint =
+      isFolder ? VivaldiBookmarksEditorEntryPointFolder
+               : VivaldiBookmarksEditorEntryPointSpeedDial;
 
   [self presentBookmarkEditorWithItem:nil
                                parent:parentItem
@@ -2128,23 +2380,17 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
 
 - (void)didSelectItemToOpenInNewTab:(VivaldiSpeedDialItem*)item
                              parent:(VivaldiSpeedDialItem*)parent {
-  [self openURLInNewTab:item.url
-            inIncognito:NO
-           inBackground:NO];
+  [self openURLInNewTab:item.url inIncognito:NO inBackground:NO];
 }
 
 - (void)didSelectItemToOpenInBackgroundTab:(VivaldiSpeedDialItem*)item
                                     parent:(VivaldiSpeedDialItem*)parent {
-  [self openURLInNewTab:item.url
-            inIncognito:NO
-           inBackground:YES];
+  [self openURLInNewTab:item.url inIncognito:NO inBackground:YES];
 }
 
 - (void)didSelectItemToOpenInPrivateTab:(VivaldiSpeedDialItem*)item
                                  parent:(VivaldiSpeedDialItem*)parent {
-  [self openURLInNewTab:item.url
-            inIncognito:YES
-           inBackground:NO];
+  [self openURLInNewTab:item.url inIncognito:YES inBackground:NO];
 }
 
 - (void)didSelectItemToShare:(VivaldiSpeedDialItem*)item
@@ -2155,16 +2401,115 @@ targetContentOffsetForProposedContentOffset:(CGPoint)proposedContentOffset {
                                    title:item.title
                                 scenario:SharingScenario::BookmarkEntry];
   self.sharingCoordinator =
-      [[SharingCoordinator alloc]
-          initWithBaseViewController:self
-                             browser:self.browser
-                              params:params
-                          originView:view];
+      [[SharingCoordinator alloc] initWithBaseViewController:self
+                                                     browser:self.browser
+                                                      params:params
+                                                  sourceItem:view];
   [self.sharingCoordinator start];
 }
 
 - (void)didTapOnCollectionViewEmptyArea {
   [self handleTapGesture];
+}
+
+#pragma mark - UITextViewDelegate
+
+- (UIAction*)textView:(UITextView*)textView
+    primaryActionForTextItem:(UITextItem*)textItem
+               defaultAction:(UIAction*)defaultAction {
+  if (textItem.contentType == UITextItemContentTypeLink && textItem.link) {
+    return [UIAction actionWithHandler:^(__kindof UIAction* _Nonnull action) {
+      NSURL* url = textItem.link;
+      UrlLoadParams params =
+          UrlLoadParams::InNewTab(GURL(url.absoluteString.UTF8String));
+      params.web_params.transition_type = ui::PAGE_TRANSITION_LINK;
+      UrlLoadingBrowserAgent::FromBrowser(self.browser)->Load(params);
+    }];
+  }
+  return defaultAction;
+}
+
+#pragma mark - Wallpaper daily mix photo credits
+- (void)updatePhotoCreditVisibility {
+  NSString* wallpaper = [self selectedDefaultWallpaper];
+  BOOL isDailyMix = [wallpaper isEqualToString:vDailyMixWallpaperName];
+
+  if (!isDailyMix) {
+    self.photoCreditBlurView.hidden = YES;
+    return;
+  }
+
+  NSDictionary* credit = [VivaldiStartPageDailyMixHelper photoCredit];
+  if (!credit) {
+    self.photoCreditBlurView.hidden = YES;
+    return;
+  }
+
+  NSString* photographerName = credit[kDailyMixCreditPhotographerName];
+  NSString* photographerLink = credit[kDailyMixCreditPhotographerLink];
+  NSString* providerName = credit[kDailyMixCreditProviderName];
+  NSString* providerLink = credit[kDailyMixCreditProviderLink];
+
+  NSString* format = GetNSString(IDS_IOS_START_PAGE_DAILY_MIX_PHOTO_CREDIT);
+  NSString* creditText =
+      [[format stringByReplacingOccurrencesOfString:@"$1"
+                                         withString:photographerName]
+          stringByReplacingOccurrencesOfString:@"$2"
+                                    withString:providerName];
+
+  BOOL shouldUseDarkText = NO;
+  if (self.cachedWallpaperImage) {
+    shouldUseDarkText = [VivaldiGlobalHelpers
+        shouldUseDarkTextForImage:self.cachedWallpaperImage];
+  }
+  UIColor* textColor =
+      shouldUseDarkText ? [UIColor blackColor] : [UIColor whiteColor];
+
+  UIFont* creditFont =
+      [UIFont preferredFontForTextStyle:UIFontTextStyleCaption2];
+
+  NSDictionary* baseAttributes = @{
+    NSFontAttributeName : creditFont,
+    NSForegroundColorAttributeName : textColor
+  };
+
+  self.photoCreditTextView.linkTextAttributes = @{
+    NSForegroundColorAttributeName : textColor,
+    NSUnderlineStyleAttributeName : @(NSUnderlineStyleSingle)
+  };
+
+  NSMutableAttributedString* creditString =
+      [[NSMutableAttributedString alloc] initWithString:creditText
+                                             attributes:baseAttributes];
+
+  // Find and linkify photographer name
+  NSRange photographerRange = [creditText rangeOfString:photographerName];
+  if (photographerRange.location != NSNotFound) {
+    [creditString addAttribute:NSUnderlineStyleAttributeName
+                         value:@(NSUnderlineStyleSingle)
+                         range:photographerRange];
+    if (photographerLink.length) {
+      [creditString addAttribute:NSLinkAttributeName
+                           value:[NSURL URLWithString:photographerLink]
+                           range:photographerRange];
+    }
+  }
+
+  // Find and linkify provider name
+  NSRange providerRange = [creditText rangeOfString:providerName];
+  if (providerRange.location != NSNotFound) {
+    [creditString addAttribute:NSUnderlineStyleAttributeName
+                         value:@(NSUnderlineStyleSingle)
+                         range:providerRange];
+    if (providerLink.length) {
+      [creditString addAttribute:NSLinkAttributeName
+                           value:[NSURL URLWithString:providerLink]
+                           range:providerRange];
+    }
+  }
+
+  self.photoCreditTextView.attributedText = creditString;
+  self.photoCreditBlurView.hidden = NO;
 }
 
 @end

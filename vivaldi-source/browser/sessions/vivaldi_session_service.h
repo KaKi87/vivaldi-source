@@ -25,7 +25,6 @@
 #include "components/sessions/core/session_constants.h"
 #include "components/sessions/core/session_service_commands.h"
 
-
 namespace vivaldi {
 
 struct SessionOptions {
@@ -61,21 +60,22 @@ class VivaldiSessionService {
   void ScheduleCommand(std::unique_ptr<sessions::SessionCommand> command);
 
   void BuildCommandsForBrowser(Browser* browser,
-      const std::vector<int>& ids,
-      const vivaldi_image_store::Batch &batch);
+                               const std::vector<int>& ids,
+                               const vivaldi_image_store::Batch& batch);
 
   bool Save(const base::FilePath& file_name);
-  int  Load(const base::FilePath& file_name,
-            Browser* browser,
-            const SessionOptions& opts);
+  int Load(const base::FilePath& file_name,
+           Browser* browser,
+           const SessionOptions& opts);
   std::vector<std::unique_ptr<sessions::SessionCommand>> LoadSettingInfo(
       const base::FilePath& path);
 
   int SetCommands(
-    std::vector<std::unique_ptr<sessions::SessionWindow>>& windows,
-    std::vector<std::unique_ptr<sessions::SessionTab>>& tabs);
+      std::vector<std::unique_ptr<sessions::SessionWindow>>& windows,
+      std::vector<std::unique_ptr<sessions::SessionTab>>& tabs);
 
-  std::vector<std::string> CollectThumbnailUrls(Browser* browser, const std::vector<int>& ids);
+  std::vector<std::string> CollectThumbnailUrls(Browser* browser,
+                                                const std::vector<int>& ids);
 
  private:
   void BuildCommandsForTab(const SessionID& window_id,
@@ -117,8 +117,8 @@ class VivaldiSessionService {
   void ShowBrowser(Browser* browser, int selected_tab_index);
 
   void SetCommandsForWindow(
-    const sessions::SessionWindow& window,
-    std::vector<std::unique_ptr<sessions::SessionTab>>& tabs);
+      const sessions::SessionWindow& window,
+      std::vector<std::unique_ptr<sessions::SessionTab>>& tabs);
   void SetCommandsForTab(const sessions::SessionTab& tab);
 
   // Reads a single command, returning it. A return value of NULL indicates
@@ -148,13 +148,16 @@ class VivaldiSessionService {
   bool errored_;
 
   // As we read from the file, data goes here.
-  std::string buffer_;
+  std::vector<uint8_t> buffer_;
 
   // Position in buffer_ of the data.
   size_t buffer_position_;
 
   // Number of available bytes; relative to buffer_position_.
   size_t available_count_;
+
+  // Number og bytes read from file.
+  int bytes_read_;
 
   // When loading a session, restore the first windows' tabs to this browser
   raw_ptr<Browser> browser_ = nullptr;

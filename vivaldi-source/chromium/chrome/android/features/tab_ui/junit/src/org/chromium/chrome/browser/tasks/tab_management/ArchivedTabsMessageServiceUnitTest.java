@@ -40,15 +40,15 @@ import org.mockito.quality.Strictness;
 import org.robolectric.annotation.Config;
 import org.robolectric.shadows.ShadowLooper;
 
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
-import org.chromium.base.test.util.Features.DisableFeatures;
-import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.chrome.browser.app.tabmodel.ArchivedTabModelOrchestrator;
 import org.chromium.chrome.browser.back_press.BackPressManager;
 import org.chromium.chrome.browser.browser_controls.BrowserControlsStateProvider;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.hub.PaneManager;
 import org.chromium.chrome.browser.layouts.LayoutStateProvider;
 import org.chromium.chrome.browser.layouts.LayoutType;
@@ -61,6 +61,7 @@ import org.chromium.chrome.browser.tab_ui.TabContentManager;
 import org.chromium.chrome.browser.tabmodel.TabCreator;
 import org.chromium.chrome.browser.tabmodel.TabGroupModelFilter;
 import org.chromium.chrome.browser.tabmodel.TabModel;
+import org.chromium.chrome.browser.tasks.tab_management.MessageCardView.ServiceDismissActionProvider;
 import org.chromium.chrome.browser.tasks.tab_management.TabGridItemTouchHelperCallback.OnDropOnArchivalMessageCardEventListener;
 import org.chromium.chrome.browser.tasks.tab_management.TabListCoordinator.TabListMode;
 import org.chromium.chrome.browser.tasks.tab_management.TabSwitcherMessageManager.MessageType;
@@ -79,7 +80,6 @@ import java.util.function.Supplier;
 /** Tests for ArchivedTabsMessageService. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
-@DisableFeatures(ChromeFeatureList.TAB_ARCHIVAL_DRAG_DROP_ANDROID)
 public class ArchivedTabsMessageServiceUnitTest {
     private static final int TIME_DELTA_DAYS = 10;
     private static final int INITIAL_TAB_COUNT = 0;
@@ -98,7 +98,7 @@ public class ArchivedTabsMessageServiceUnitTest {
     @Mock private TabModel mTabModel;
     @Mock private Tab mTab;
     @Mock private TabGroupModelFilter mTabGroupModelFilter;
-    @Mock private MessageService.MessageObserver<@MessageType Integer> mMessageObserver;
+    @Mock private ServiceDismissActionProvider<@MessageType Integer> mServiceDismissActionProvider;
     @Mock private ArchivedTabsDialogCoordinator mArchivedTabsDialogCoordinator;
     @Mock private BrowserControlsStateProvider mBrowserControlsStateProvider;
     @Mock private TabContentManager mTabContentManager;
@@ -113,7 +113,10 @@ public class ArchivedTabsMessageServiceUnitTest {
     @Mock private TabGroupSyncService mTabGroupSyncService;
     @Mock private Supplier<PaneManager> mPaneManagerSupplier;
     @Mock private Supplier<TabGroupUiActionHandler> mTabGroupUiActionHandlerSupplier;
-    @Mock private ObservableSupplier<TabGroupModelFilter> mCurrentTabGroupModelFilterSupplier;
+
+    @Mock
+    private MonotonicObservableSupplier<TabGroupModelFilter> mCurrentTabGroupModelFilterSupplier;
+
     @Mock private LayoutStateProvider mLayoutStateProvider;
     @Captor private ArgumentCaptor<TabArchiveSettings.Observer> mTabArchiveSettingsObserverCaptor;
     @Captor private ArgumentCaptor<OnDropOnArchivalMessageCardEventListener> mOnDropObserverCaptor;
@@ -124,14 +127,14 @@ public class ArchivedTabsMessageServiceUnitTest {
     private Activity mActivity;
     private ViewGroup mRootView;
     private ArchivedTabsMessageService mArchivedTabsMessageService;
-    private final ObservableSupplierImpl<Integer> mTabCountSupplier =
-            new ObservableSupplierImpl<>(INITIAL_TAB_COUNT);
-    private final ObservableSupplierImpl<TabListCoordinator> mTabListCoordinatorSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<EdgeToEdgeController> mEdgeToEdgeSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<LayoutStateProvider> mLayoutStateProviderSupplier =
-            new ObservableSupplierImpl<>();
+    private final SettableNonNullObservableSupplier<Integer> mTabCountSupplier =
+            ObservableSuppliers.createNonNull(INITIAL_TAB_COUNT);
+    private final SettableNullableObservableSupplier<TabListCoordinator>
+            mTabListCoordinatorSupplier = ObservableSuppliers.createNullable();
+    private final SettableMonotonicObservableSupplier<EdgeToEdgeController> mEdgeToEdgeSupplier =
+            ObservableSuppliers.createMonotonic();
+    private final SettableMonotonicObservableSupplier<LayoutStateProvider>
+            mLayoutStateProviderSupplier = ObservableSuppliers.createMonotonic();
 
     @Before
     public void setUp() throws Exception {
@@ -174,7 +177,7 @@ public class ArchivedTabsMessageServiceUnitTest {
                         mLayoutStateProviderSupplier);
         mArchivedTabsMessageService.setArchivedTabsDialogCoordiantorForTesting(
                 mArchivedTabsDialogCoordinator);
-        mArchivedTabsMessageService.addObserver(mMessageObserver);
+        mArchivedTabsMessageService.initialize(mServiceDismissActionProvider);
         mArchivedTabsMessageService.setOnTabSelectingListener(mOnTabSelectingListener);
 
         // When the service is created, this getter will return null. Only set up the mock right
@@ -196,12 +199,11 @@ public class ArchivedTabsMessageServiceUnitTest {
 
         mTabCountSupplier.set(1);
         assertEquals(1, customCardPropertyModel.get(NUMBER_OF_ARCHIVED_TABS));
-        verify(mMessageObserver, times(1))
-                .messageReady(eq(MessageType.ARCHIVED_TABS_MESSAGE), any());
+        assertNotNull(mArchivedTabsMessageService.getNextMessageItem());
 
         mTabCountSupplier.set(0);
         assertEquals(0, customCardPropertyModel.get(NUMBER_OF_ARCHIVED_TABS));
-        verify(mMessageObserver, times(1)).messageInvalidate(MessageType.ARCHIVED_TABS_MESSAGE);
+        verify(mServiceDismissActionProvider).dismiss(MessageType.ARCHIVED_TABS_MESSAGE);
         verify(mAppendMessageRunnable).run();
     }
 
@@ -214,21 +216,19 @@ public class ArchivedTabsMessageServiceUnitTest {
         mTabCountSupplier.set(12);
         assertEquals(12, customCardPropertyModel.get(NUMBER_OF_ARCHIVED_TABS));
 
-        verify(mMessageObserver, times(1))
-                .messageReady(eq(MessageType.ARCHIVED_TABS_MESSAGE), any());
+        assertEquals(1, mArchivedTabsMessageService.getMessageItems().size());
+
         mTabCountSupplier.set(8);
         assertEquals(8, customCardPropertyModel.get(NUMBER_OF_ARCHIVED_TABS));
         // Sending another message to the queue should exit early without sending a message.
-        verify(mMessageObserver, times(1))
-                .messageReady(eq(MessageType.ARCHIVED_TABS_MESSAGE), any());
+        assertEquals(1, mArchivedTabsMessageService.getMessageItems().size());
         verify(mAppendMessageRunnable, times(1)).run();
 
         // After invalidating the previous message, a new message should be sent.
         mArchivedTabsMessageService.maybeInvalidatePreviouslySentMessage();
         mArchivedTabsMessageService.maybeSendMessageToQueue(8);
-        verify(mMessageObserver, times(2))
-                .messageReady(eq(MessageType.ARCHIVED_TABS_MESSAGE), any());
-        verify(mMessageObserver, times(1)).messageInvalidate(MessageType.ARCHIVED_TABS_MESSAGE);
+        assertEquals(1, mArchivedTabsMessageService.getMessageItems().size());
+        verify(mServiceDismissActionProvider).dismiss(MessageType.ARCHIVED_TABS_MESSAGE);
         verify(mAppendMessageRunnable, times(2)).run();
     }
 
@@ -253,7 +253,6 @@ public class ArchivedTabsMessageServiceUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.TAB_ARCHIVAL_DRAG_DROP_ANDROID)
     public void testObserverInitialized() {
         createArchivedTabsMessageService();
         mTabListCoordinatorSupplier.set(null);
@@ -264,7 +263,6 @@ public class ArchivedTabsMessageServiceUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.TAB_ARCHIVAL_DRAG_DROP_ANDROID)
     public void testOnDropListener() {
         createArchivedTabsMessageService();
         mTabListCoordinatorSupplier.set(null);
@@ -317,7 +315,7 @@ public class ArchivedTabsMessageServiceUnitTest {
         mTabCountSupplier.set(12);
         assertEquals(12, customCardPropertyModel.get(NUMBER_OF_ARCHIVED_TABS));
 
-        verify(mMessageObserver).messageReady(eq(MessageType.ARCHIVED_TABS_MESSAGE), any());
+        assertNotNull(mArchivedTabsMessageService.getNextMessageItem());
         mTabCountSupplier.set(8);
         doReturn(true)
                 .when(mTabListCoordinator)

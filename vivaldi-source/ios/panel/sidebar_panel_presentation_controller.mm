@@ -4,14 +4,14 @@
 
 #import "base/apple/foundation_util.h"
 #import "ios/chrome/browser/tab_switcher/tab_strip/ui/swift_constants_for_objective_c.h"
-#import "ios/chrome/browser/toolbar/ui_bundled/public/toolbar_constants.h"
-#import "ios/chrome/browser/toolbar/ui_bundled/public/toolbar_utils.h"
+#import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_constants.h"
+#import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_utils.h"
 #import "ios/panel/panel_constants.h"
 #import "ios/panel/slide_in_animator.h"
 #import "ios/panel/slide_out_animator.h"
 #import "ios/ui/helpers/vivaldi_uiview_layout_helper.h"
 
-@interface SidebarPanelPresentationController()
+@interface SidebarPanelPresentationController ()
 
 @property(nonatomic, strong) UIView* backgroundView;
 @property(nonatomic, strong) UIView* dimmingView;
@@ -22,43 +22,45 @@
 @implementation SidebarPanelPresentationController
 
 - (instancetype)initWithPresentedViewController:
-            (UIViewController*)presentedViewController
-                presentingViewController:
-            (UIViewController*)presentingViewController {
-    self = [super initWithPresentedViewController:presentedViewController
-            presentingViewController:presentingViewController];
-    [self setupDimmingView];
-    return self;
+                    (UIViewController*)presentedViewController
+                       presentingViewController:
+                           (UIViewController*)presentingViewController {
+  self = [super initWithPresentedViewController:presentedViewController
+                       presentingViewController:presentingViewController];
+  [self setupDimmingView];
+  return self;
 }
 
 - (void)setupDimmingView {
-    self.backgroundView = [[UIView alloc] init];
-    self.backgroundView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.backgroundView.alpha = 0.0;
+  self.backgroundView = [[UIView alloc] init];
+  self.backgroundView.translatesAutoresizingMaskIntoConstraints = NO;
+  self.backgroundView.alpha = 0.0;
 
-    self.dimmingView = [[UIView alloc] init];
-    self.dimmingView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.dimmingView.backgroundColor = UIColor.blackColor;
-    self.dimmingView.alpha = 1.0;
-    [self.backgroundView addSubview:self.dimmingView];
-    self.recognizer = [[UITapGestureRecognizer alloc] initWithTarget:self
-                                action:@selector(handleTap:)];
-    [self.backgroundView addGestureRecognizer:self.recognizer];
+  self.dimmingView = [[UIView alloc] init];
+  self.dimmingView.translatesAutoresizingMaskIntoConstraints = NO;
+  self.dimmingView.backgroundColor = UIColor.blackColor;
+  self.dimmingView.alpha = 1.0;
+  [self.backgroundView addSubview:self.dimmingView];
+  self.recognizer =
+      [[UITapGestureRecognizer alloc] initWithTarget:self
+                                              action:@selector(handleTap:)];
+  [self.backgroundView addGestureRecognizer:self.recognizer];
 }
 
 - (void)handleTap:(UIGestureRecognizer*)recognizer {
-    [self.presentingViewController dismissViewControllerAnimated:YES
+  [self.presentingViewController dismissViewControllerAnimated:YES
                                                     completion:nil];
 }
 
--(CGRect)frameOfPresentedViewInContainerView {
+- (CGRect)frameOfPresentedViewInContainerView {
   CGRect frame = CGRectZero;
-  frame.size = [self sizeForChildContentContainer:self
-      withParentContainerSize:self.containerView.bounds.size];
+  frame.size =
+      [self sizeForChildContentContainer:self
+                 withParentContainerSize:self.containerView.bounds.size];
   frame.size.width = panel_sidebar_width + panel_icon_size;
   frame.size.height =
-      [self presentedViewHeightFromParentHeight:
-          [self containerView].frame.size.height];
+      [self presentedViewHeightFromParentHeight:[self containerView]
+                                                    .frame.size.height];
   frame.origin = CGPointMake(0, [self topPadding]);
   return frame;
 }
@@ -68,42 +70,47 @@
   [self.backgroundView addSubview:[self.presentedViewController view]];
   [self.backgroundView fillSuperview];
   [self.dimmingView
-      fillSuperviewWithPadding:UIEdgeInsetsMake(
-          [self topPadding], 0, [self bottomPadding], 0)];
+      fillSuperviewWithPadding:UIEdgeInsetsMake([self topPadding], 0,
+                                                [self bottomPadding], 0)];
   self.dimmingView.backgroundColor = UIColor.blackColor;
-  [self.backgroundView.topAnchor constraintEqualToAnchor:
-   self.presentedViewController.view.topAnchor].active = YES;
+  [self.backgroundView.topAnchor
+      constraintEqualToAnchor:self.presentedViewController.view.topAnchor]
+      .active = YES;
   [super presentationTransitionWillBegin];
   [self.presentedViewController.transitionCoordinator
-   animateAlongsideTransition:
-     ^(id<UIViewControllerTransitionCoordinatorContext> _Nonnull context) {
-    self.backgroundView.alpha = 0.5;
-  } completion:^(id<UIViewControllerTransitionCoordinatorContext>
-                 _Nonnull context) {
-  }];
+      animateAlongsideTransition:^(
+          id<UIViewControllerTransitionCoordinatorContext> _Nonnull context) {
+        self.backgroundView.alpha = 0.5;
+      }
+                      completion:^(
+                          id<UIViewControllerTransitionCoordinatorContext> _Nonnull context){
+                      }];
 }
 
 - (void)dismissalTransitionWillBegin {
-    [self.presentedViewController.transitionCoordinator
-     animateAlongsideTransition:^(
-        id<UIViewControllerTransitionCoordinatorContext> _Nonnull context) {
-            self.backgroundView.alpha = 0;
-        } completion:^(id<UIViewControllerTransitionCoordinatorContext>
-                       _Nonnull context) {
-     }];
+  [self.presentedViewController.transitionCoordinator
+      animateAlongsideTransition:^(
+          id<UIViewControllerTransitionCoordinatorContext> _Nonnull context) {
+        self.backgroundView.alpha = 0;
+      }
+                      completion:^(
+                          id<UIViewControllerTransitionCoordinatorContext> _Nonnull context){
+                      }];
 }
 
 - (void)containerViewWillLayoutSubviews {
-    self.presentedView.frame = [self frameOfPresentedViewInContainerView];
+  self.presentedView.frame = [self frameOfPresentedViewInContainerView];
 }
 
 - (CGSize)sizeForChildContentContainer:(id<UIContentContainer>)container
                  withParentContentSize:(CGSize)parentSize {
-  return CGSizeMake(panel_sidebar_width + panel_icon_size,
+  return CGSizeMake(
+      panel_sidebar_width + panel_icon_size,
       [self presentedViewHeightFromParentHeight:parentSize.height]);
 }
 
-- (void)presentationTransitionDidEnd {}
+- (void)presentationTransitionDidEnd {
+}
 
 - (CGFloat)presentedViewHeightFromParentHeight:(CGFloat)parentHeight {
   return parentHeight - [self topPadding] - [self bottomPadding];
@@ -113,9 +120,8 @@
 // tab bar height, and toolbar type.
 - (CGFloat)topPadding {
   if (self.toolbarType == ToolbarType::kPrimary) {
-    return [self toolbarHeight] +
-        TabStripCollectionViewConstants.height +
-        kTopToolbarUnsplitMargin + self.safeAreaInsets.top;
+    return [self toolbarHeight] + TabStripCollectionViewConstants.height +
+           kTopToolbarUnsplitMargin + self.safeAreaInsets.top;
   } else {
     return self.safeAreaInsets.top;
   }
@@ -128,7 +134,7 @@
     return 0;
   } else {
     return [self toolbarHeight] + kSecondaryToolbarWithoutOmniboxHeight +
-        self.safeAreaInsets.bottom;
+           self.safeAreaInsets.bottom;
   }
 }
 

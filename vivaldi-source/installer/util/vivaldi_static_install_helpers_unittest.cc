@@ -32,7 +32,7 @@ TEST(VivaldiStaticInstallHelpers, IsSystemInstallExecutable) {
   }
   static const char file_header[] = "Hello, world!";
   EXPECT_TRUE(base::WriteFile(dir.Append(vivaldi::constants::kSystemMarkerFile),
-                            file_header));
+                              file_header));
   for (const std::wstring& path : kTestExePaths) {
     base::FilePath exe_path = dir.Append(path);
     EXPECT_TRUE(IsSystemInstallExecutable(exe_path.value()));
@@ -59,7 +59,8 @@ TEST(VivaldiStaticInstallHelpers, IsSystemInstallExecutable) {
   EXPECT_FALSE(IsSystemInstallExecutable(kVivaldi));
   EXPECT_FALSE(IsSystemInstallExecutable(L"" VIVALDI_VERSION_STRING "\\" +
                                          kNotificationHelper));
-  EXPECT_FALSE(IsSystemInstallExecutable(L"" VIVALDI_VERSION_STRING "\\" + kVivaldi));
+  EXPECT_FALSE(
+      IsSystemInstallExecutable(L"" VIVALDI_VERSION_STRING "\\" + kVivaldi));
 }
 
 }  // namespace vivaldi

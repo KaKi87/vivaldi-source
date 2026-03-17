@@ -19,6 +19,7 @@ import android.content.IntentSender.SendIntentException;
 import android.graphics.Bitmap;
 import android.graphics.drawable.Icon;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Looper;
 import android.os.Parcelable;
@@ -32,6 +33,7 @@ import org.robolectric.Shadows;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.Implementation;
 import org.robolectric.annotation.Implements;
+import org.robolectric.shadows.ShadowLooper;
 import org.robolectric.shadows.ShadowPendingIntent;
 
 import org.chromium.base.ContextUtils;
@@ -89,6 +91,8 @@ public class ShareHelperUnitTest {
 
     @After
     public void tearDown() {
+        ShadowLooper.idleMainLooper();
+        ShadowLooper.idleMainLooper();
         ChromeSharedPreferences.getInstance()
                 .removeKey(ChromePreferenceKeys.SHARING_LAST_SHARED_COMPONENT_NAME);
         mWindowDestroyRef.destroy();
@@ -357,30 +361,36 @@ public class ShareHelperUnitTest {
     private void selectComponentFromChooserIntent(Intent chooserIntent, ComponentName componentName)
             throws SendIntentException {
         Intent sendBackIntent = new Intent().putExtra(Intent.EXTRA_CHOSEN_COMPONENT, componentName);
-        IntentSender sender =
-                chooserIntent.getParcelableExtra(Intent.EXTRA_CHOSEN_COMPONENT_INTENT_SENDER);
+        String extraKey =
+                Build.VERSION.SDK_INT >= 35
+                        ? Intent.EXTRA_CHOOSER_RESULT_INTENT_SENDER
+                        : Intent.EXTRA_CHOSEN_COMPONENT_INTENT_SENDER;
+        IntentSender sender = chooserIntent.getParcelableExtra(extraKey);
         sender.sendIntent(
                 ContextUtils.getApplicationContext(),
                 Activity.RESULT_OK,
                 sendBackIntent,
                 null,
                 null);
-        Shadows.shadowOf(Looper.getMainLooper()).idle();
+        ShadowLooper.idleMainLooper();
     }
 
     private void selectCustomActionFromChooserIntent(Intent chooserIntent, String action)
             throws SendIntentException {
         Intent sendBackIntent =
                 new Intent().putExtra(ShareHelper.EXTRA_SHARE_CUSTOM_ACTION, action);
-        IntentSender sender =
-                chooserIntent.getParcelableExtra(Intent.EXTRA_CHOSEN_COMPONENT_INTENT_SENDER);
+        String extraKey =
+                Build.VERSION.SDK_INT >= 35
+                        ? Intent.EXTRA_CHOOSER_RESULT_INTENT_SENDER
+                        : Intent.EXTRA_CHOSEN_COMPONENT_INTENT_SENDER;
+        IntentSender sender = chooserIntent.getParcelableExtra(extraKey);
         sender.sendIntent(
                 ContextUtils.getApplicationContext(),
                 Activity.RESULT_OK,
                 sendBackIntent,
                 null,
                 null);
-        Shadows.shadowOf(Looper.getMainLooper()).idle();
+        ShadowLooper.idleMainLooper();
     }
 
     private void assertLastComponentNameRecorded(ComponentName name) {

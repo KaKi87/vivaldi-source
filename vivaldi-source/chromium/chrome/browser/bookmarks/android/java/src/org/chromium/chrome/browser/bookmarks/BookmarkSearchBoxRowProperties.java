@@ -37,6 +37,10 @@ class BookmarkSearchBoxRowProperties {
     public static final ReadableObjectPropertyKey<Integer> SHOPPING_CHIP_TEXT_RES =
             new ReadableObjectPropertyKey<>();
 
+    // Vivaldi
+    public static final WritableObjectPropertyKey<String> SEARCH_TEXT_HINT =
+            new WritableObjectPropertyKey<>();
+
     static final PropertyKey[] ALL_KEYS = {
         BookmarkManagerProperties.BOOKMARK_LIST_ENTRY,
         SEARCH_TEXT_CHANGE_CALLBACK,
@@ -50,5 +54,8 @@ class BookmarkSearchBoxRowProperties {
         SHOPPING_CHIP_VISIBILITY,
         SHOPPING_CHIP_START_ICON_RES,
         SHOPPING_CHIP_TEXT_RES
+        // Vivaldi
+        , SEARCH_TEXT_HINT
+        // End Vivaldi
     };
 }

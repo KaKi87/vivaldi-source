@@ -29,10 +29,12 @@
 #include "components/optimization_guide/core/model_execution/performance_class.h"
 #include "components/optimization_guide/core/optimization_guide_constants.h"
 #include "components/optimization_guide/core/optimization_guide_features.h"
+#include "components/optimization_guide/core/optimization_guide_switches.h"
 #include "components/optimization_guide/proto/on_device_base_model_metadata.pb.h"
 #include "components/services/unzip/content/unzip_service.h"
 #include "content/public/browser/service_process_host.h"
 #include "mojo/public/cpp/bindings/pending_receiver.h"
+#include "services/network/public/cpp/shared_url_loader_factory.h"
 
 namespace optimization_guide {
 
@@ -95,6 +97,19 @@ class OnDeviceModelComponentStateManagerDelegate
                      state_manager) override {
     component_updater::UninstallOptimizationGuideOnDeviceModelComponent(
         std::move(state_manager));
+  }
+
+  void RequestUpdate(bool is_background) override {
+    component_updater::OptimizationGuideOnDeviceModelInstallerPolicy::
+        UpdateOnDemand(
+            is_background
+                ? component_updater::OnDemandUpdater::Priority::BACKGROUND
+                : component_updater::OnDemandUpdater::Priority::FOREGROUND);
+  }
+
+  std::string GetComponentId() override {
+    return component_updater::OptimizationGuideOnDeviceModelInstallerPolicy::
+        GetOnDeviceModelExtensionId();
   }
 };
 
@@ -160,17 +175,14 @@ class ChromeModelComponentStateManagerObserver final
       return;
     }
     observation_.Observe(state_manager.get());
-    if (const OnDeviceModelComponentState* state = state_manager->GetState()) {
-      StateChanged(state);
-    }
   }
 
   // OnDeviceModelComponentStateManager::Observer:
-  void StateChanged(const OnDeviceModelComponentState* state) override {
-    if (state) {
+  void StateChanged(MaybeOnDeviceModelComponentState state) override {
+    if (state.has_value()) {
       ChromeOnDeviceModelServiceController::
           RegisterPerformanceHintSyntheticTrial(
-              state->GetBaseModelSpec().selected_performance_hint);
+              state.value().get().GetBaseModelSpec().selected_performance_hint);
     }
   }
 
@@ -201,7 +213,8 @@ OptimizationGuideGlobalState::OptimizationGuideGlobalState()
           *g_browser_process->local_state(),
           prediction_manager_.prediction_manager(),
           std::make_unique<OnDeviceModelComponentStateManagerDelegate>(),
-          base::BindRepeating(&LaunchService)
+          base::BindRepeating(&LaunchService),
+          g_browser_process->component_updater()
 #elif BUILDFLAG(IS_ANDROID)
           *g_browser_process->local_state(),
           prediction_manager_.prediction_manager()

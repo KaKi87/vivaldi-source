@@ -54,7 +54,9 @@ import org.robolectric.annotation.Implementation;
 import org.robolectric.annotation.Implements;
 
 import org.chromium.base.UserDataHost;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.DisableFeatures;
@@ -220,9 +222,10 @@ public class EdgeToEdgeControllerTest {
     private Activity mActivity;
     private EdgeToEdgeControllerImpl mEdgeToEdgeControllerImpl;
 
-    private final ObservableSupplierImpl<Tab> mTabProvider = new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<LayoutManager> mLayoutManagerSupplier =
-            new ObservableSupplierImpl<>();
+    private final SettableNullableObservableSupplier<Tab> mTabProvider =
+            ObservableSuppliers.createNullable();
+    private final SettableMonotonicObservableSupplier<LayoutManager> mLayoutManagerSupplier =
+            ObservableSuppliers.createMonotonic();
 
     private final UserDataHost mTabDataHost = new UserDataHost();
 
@@ -471,7 +474,7 @@ public class EdgeToEdgeControllerTest {
     /** Test the OSWrapper implementation without mocking it. Native ToNormal. */
     @Test
     public void onObservingDifferentTab_osWrapperImplToNormal() {
-        ObservableSupplierImpl liveSupplier = new ObservableSupplierImpl();
+        SettableNullableObservableSupplier<Tab> liveSupplier = ObservableSuppliers.createNullable();
         EdgeToEdgeControllerImpl liveController =
                 (EdgeToEdgeControllerImpl)
                         EdgeToEdgeControllerFactory.create(
@@ -627,9 +630,6 @@ public class EdgeToEdgeControllerTest {
         doReturn(LayoutType.BROWSING).when(mLayoutManager).getActiveLayoutType();
         mEdgeToEdgeControllerImpl.onStartedShowing(LayoutType.BROWSING);
         assertToEdgeExpectations();
-
-        mLayoutManagerSupplier.set(null);
-        assertToNormalExpectations();
     }
 
     @Test
@@ -1391,19 +1391,6 @@ public class EdgeToEdgeControllerTest {
         assertTrue(
                 "Has tappable nav bar is seen, so check should be true.",
                 EdgeToEdgeUtils.hasTappableNavigationBar(window));
-    }
-
-    @Test
-    public void firstContentfulPaint_uploadDebuggingReport() {
-        // Standard setup of a Web Tab ToEdge
-        when(mTab.isNativePage()).thenReturn(false);
-        mTabProvider.set(mTab);
-        verifyInteractions(mTab);
-
-        WebContentsObserver webContentsObserver =
-                mEdgeToEdgeControllerImpl.getWebContentsObserver();
-        assertNotNull(webContentsObserver);
-        webContentsObserver.firstContentfulPaintInPrimaryMainFrame(null, /* durationUs= */ 0);
     }
 
     @Test

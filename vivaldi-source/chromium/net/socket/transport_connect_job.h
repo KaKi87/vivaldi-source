@@ -114,7 +114,7 @@ class NET_EXPORT_PRIVATE TransportConnectJob : public ConnectJob {
   // TODO(willchan): Base this off RTT instead of statically setting it. Note we
   // choose a timeout that is different from the backup connect job timer so
   // they don't synchronize.
-  static constexpr base::TimeDelta kIPv6FallbackTime = base::Milliseconds(300);
+  static constexpr base::TimeDelta kIPv6FallbackTime = base::Milliseconds(250);
 
   struct NET_EXPORT_PRIVATE EndpointResultOverride {
     EndpointResultOverride(HostResolverEndpointResult result,

@@ -7,9 +7,9 @@
 #include "components/content_settings/renderer/content_settings_agent_impl.h"
 
 #include "content/public/renderer/render_frame.h"
-#include "third_party/blink/renderer/core/html/media/autoplay_policy.h"
 #include "third_party/blink/public/platform/web_content_settings_client.h"
 #include "third_party/blink/public/web/web_local_frame.h"
+#include "third_party/blink/renderer/core/html/media/autoplay_policy.h"
 
 namespace content_settings {
 

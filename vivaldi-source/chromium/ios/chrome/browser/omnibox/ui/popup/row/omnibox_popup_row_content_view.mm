@@ -265,11 +265,6 @@ const UIEdgeInsets sourceLabelPadding = UIEdgeInsetsMake(4, 6, 4, 6);
       [_textStackView.leadingAnchor
           constraintEqualToAnchor:_leadingIconView.trailingAnchor
                          constant:kTextIconSpace],
-
-      // Trailing button constraints.
-      [_trailingButton.heightAnchor
-          constraintEqualToAnchor:_trailingButton.widthAnchor],
-
       [_trailingButton.centerYAnchor
           constraintEqualToAnchor:self.centerYAnchor],
       _trailingButtonTrailingConstraint,

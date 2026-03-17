@@ -2,6 +2,7 @@
 
 #include "pinned_tab_throttle.h"
 
+#include "app/vivaldi_constants.h"
 #include "base/json/json_reader.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -12,11 +13,13 @@
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/page_navigator.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/url_constants.h"
+#include "extensions/common/constants.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "third_party/blink/public/mojom/loader/referrer.mojom.h"
 #include "ui/base/page_transition_types.h"
-#include "url/gurl.h"
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
+#include "vivaldi_exdata_util.h"
 
 using ThrottleCheckResult = content::NavigationThrottle::ThrottleCheckResult;
 
@@ -37,6 +40,11 @@ std::optional<bool> GetExtDataRetainDomain(content::WebContents* web_contents) {
   std::optional<bool> restrict_tab;
 
   if (json && json->is_dict()) {
+    // If in tabstack, disable restrict pinned tabs
+    if (json->GetDict().FindString("group")) {
+      return false;
+    }
+
     restrict_tab = json->GetDict().FindBool("restrictPinnedTab");
   }
   return restrict_tab;
@@ -59,12 +67,22 @@ bool IsTabPinned(content::WebContents* web_contents) {
   return false;
 }
 
+bool PinnedTabsThrottle::IsInternalURL(const GURL& url) {
+  return url.SchemeIs(vivaldi::kVivaldiUIScheme) ||
+         url.SchemeIs(content::kChromeUIScheme) ||
+         url.SchemeIs(extensions::kExtensionScheme);
+}
+
 ThrottleCheckResult PinnedTabsThrottle::WillStartRequest() {
   content::NavigationHandle* handle = navigation_handle();
 
   content::WebContents* source_contents = handle->GetWebContents();
 
   if (!source_contents) {
+    return PROCEED;
+  }
+
+  if (vivaldi::GetFollowerTabExtId(source_contents).has_value()) {
     return PROCEED;
   }
 
@@ -97,6 +115,14 @@ ThrottleCheckResult PinnedTabsThrottle::WillStartRequest() {
   }
 
   const GURL& current_url = handle->GetWebContents()->GetLastCommittedURL();
+  // New tab
+  if (current_url.is_empty()) {
+    return PROCEED;
+  }
+
+  if (PinnedTabsThrottle::IsInternalURL(current_url)) {
+    return PROCEED;
+  }
 
   bool same_domain = net::registry_controlled_domains::SameDomainOrHost(
       current_url, target_url,

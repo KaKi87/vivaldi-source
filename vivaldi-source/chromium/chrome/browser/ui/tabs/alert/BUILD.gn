@@ -8,6 +8,8 @@ import("//chrome/common/features.gni")
 
 source_set("tab_alert_enum") {
   public = [ "tab_alert.h" ]
+
+  public_deps = [ "//chrome/common:buildflags" ]
 }
 
 source_set("tab_alert") {
@@ -50,7 +52,7 @@ source_set("impl") {
     "//components/vector_icons",
   ]
 
-  if (enable_glic) {
+  if (enable_glic) { # Vivaldi keep disabled
     deps += [ "//chrome/browser/glic" ]
   }
 }
@@ -73,7 +75,7 @@ source_set("unit_tests") {
     "//testing/gtest",
   ]
 
-  if (enable_glic) {
+  if (enable_glic) { # Vivaldi keep disabled
     deps += [
       "//chrome/browser/glic",
       "//chrome/browser/glic:mojo_bindings_shared_cpp_sources",
@@ -86,7 +88,7 @@ source_set("interactive_ui_tests") {
   testonly = true
   defines = [ "HAS_OUT_OF_PROC_TEST_RUNNER" ]
 
-  if (enable_glic) {
+  if (enable_glic) { # Vivaldi keep disabled
     sources = [ "tab_alert_controller_interactive_uitest.cc" ]
   }
 
@@ -102,7 +104,7 @@ source_set("interactive_ui_tests") {
     "//testing/gtest",
   ]
 
-  if (enable_glic) {
+  if (enable_glic) { # Vivaldi keep disabled
     deps += [
       "//chrome/browser/glic",
       "//chrome/browser/glic:mojo_bindings_shared_cpp_sources",

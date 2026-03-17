@@ -12,6 +12,7 @@
 #include "base/containers/queue.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/power_monitor/power_observer.h"
+#include "base/task/cancelable_task_tracker.h"
 #include "chrome/browser/external_protocol/external_protocol_handler.h"
 #include "chrome/browser/shell_integration.h"
 #include "chrome/browser/ui/webui/certificate_manager/certificate_manager_handler.h"
@@ -1174,6 +1175,7 @@ class UtilitiesEmulateUserInputFunction : public ExtensionFunction {
 
 class UtilitiesIsVivaldiPinnedToLaunchBarFunction : public ExtensionFunction {
  public:
+  using IsPinnedCallback = base::OnceCallback<void(std::optional<bool>)>;
   DECLARE_EXTENSION_FUNCTION("utilities.isVivaldiPinnedToLaunchBar",
                              UTILITIES_IS_VIVALDI_PINNED_TO_LAUNCH_BAR)
   UtilitiesIsVivaldiPinnedToLaunchBarFunction() = default;
@@ -1181,12 +1183,16 @@ class UtilitiesIsVivaldiPinnedToLaunchBarFunction : public ExtensionFunction {
  private:
   ~UtilitiesIsVivaldiPinnedToLaunchBarFunction() override = default;
   ResponseAction Run() override;
-  std::optional<bool> CheckIsPinned();
+  void CheckIsPinned(IsPinnedCallback callback);
   void SendResult(std::optional<bool> isPinned);
+#if BUILDFLAG(IS_WIN)
+  scoped_refptr<base::SequencedTaskRunner> task_runner_;
+#endif
 };
 
 class UtilitiesPinVivaldiToLaunchBarFunction : public ExtensionFunction {
  public:
+  using HasPinnedCallback = base::OnceCallback<void(bool)>;
   DECLARE_EXTENSION_FUNCTION("utilities.pinVivaldiToLaunchBar",
                              UTILITIES_PIN_VIVALDI_TO_LAUNCH_BAR)
   UtilitiesPinVivaldiToLaunchBarFunction() = default;
@@ -1194,8 +1200,11 @@ class UtilitiesPinVivaldiToLaunchBarFunction : public ExtensionFunction {
  private:
   ~UtilitiesPinVivaldiToLaunchBarFunction() override = default;
   ResponseAction Run() override;
-  bool PinToLaunchBar();
+  void PinToLaunchBar(HasPinnedCallback callback);
   void SendResult(bool success);
+#if BUILDFLAG(IS_WIN)
+  scoped_refptr<base::SequencedTaskRunner> task_runner_;
+#endif
 };
 
 class UtilitiesDownloadsDragFunction : public ExtensionFunction {
@@ -1322,8 +1331,8 @@ class UtilitiesDetectNewCrashesFunction : public ExtensionFunction {
   ~UtilitiesDetectNewCrashesFunction() override = default;
   ResponseAction Run() override;
 
-  std::string CheckForNewCrashes(const std::string& lastSeenUUID);
-  void SendResult(const std::string& lastCrashUUID);
+  std::string CheckForNewCrashes();
+  void SendResult(const std::string& last_seen_crash_uuid);
 };
 
 }  // namespace extensions

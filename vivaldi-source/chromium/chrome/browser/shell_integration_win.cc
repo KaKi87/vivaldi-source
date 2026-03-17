@@ -28,9 +28,11 @@
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
 #include "base/path_service.h"
+#include "base/strings/strcat.h"
 #include "base/strings/strcat_win.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/platform_thread.h"
 #include "base/time/time.h"
@@ -60,10 +62,7 @@
 #include "app/vivaldi_apptools.h"
 #include "app/vivaldi_constants.h"
 #include "base/strings/string_number_conversions.h"
-
-#include "crypto/hash.h"
-#include "components/base32/base32.h"
-
+#include "base/vivaldi_md5.h"
 #include "browser/win/vivaldi_utils.h"
 
 namespace shell_integration {
@@ -73,7 +72,7 @@ namespace {
 // Helper function for GetAppId to generates profile id
 // from profile path. "profile_id" is composed of sanitized basenames of
 // user data dir and profile dir joined by a ".".
-// For Vivaldi standalone, make a SHA256 checksum of the profile path characters.
+// For Vivaldi standalone, make a MD5 checksum of the profile path characters.
 std::wstring GetProfileIdFromPath(const base::FilePath& profile_path) {
   // Return empty string if profile_path is empty
   if (profile_path.empty())
@@ -82,9 +81,9 @@ std::wstring GetProfileIdFromPath(const base::FilePath& profile_path) {
   std::wstring profile_id;
 
   if (vivaldi::IsStandalone()) {
-    std::string path_utf8(base::WideToUTF8(profile_path.value()));
-    std::string digest = base32::Base32Encode(crypto::hash::Sha256(path_utf8));
-    profile_id = base::ASCIIToWide(base::HexEncode(digest));
+    std::string profile_path_ascii(base::WideToASCII(profile_path.value()));
+    auto md5_digest = vivaldi::obsolete::ObsoleteMd5Hash(base::as_byte_span(profile_path_ascii));
+    profile_id = base::ASCIIToWide(base::HexEncode(md5_digest));
   } else {
   base::FilePath default_user_data_dir;
   // Return empty string if profile_path is in default user data
@@ -97,8 +96,7 @@ std::wstring GetProfileIdFromPath(const base::FilePath& profile_path) {
   }
 
   // Get joined basenames of user data dir and profile.
-  std::wstring basenames = profile_id + profile_path.DirName().BaseName().value() +
-                           L"." +
+  std::wstring basenames = profile_path.DirName().BaseName().value() + L"." +
                            profile_path.BaseName().value();
 
   profile_id.reserve(basenames.size());
@@ -182,23 +180,19 @@ bool IsValidCustomScheme(const std::wstring& scheme) {
 // Windows 8 introduced a new scheme->executable binding system which cannot
 // be retrieved in the HKCR registry subkey method implemented below. We call
 // AssocQueryString with the new Win8-only flag ASSOCF_IS_PROTOCOL instead.
-std::u16string GetAppForSchemeUsingAssocQuery(const GURL& url) {
+std::u16string GetForSchemeUsingAssocQuery(const GURL& url,
+                                           ASSOCSTR assoc_str) {
   const std::wstring url_scheme = base::ASCIIToWide(url.GetScheme());
   if (!IsValidCustomScheme(url_scheme)) {
     return std::u16string();
   }
 
-  // Query AssocQueryString for a human-readable description of the program
-  // that will be invoked given the provided URL spec. This is used only to
-  // populate the external scheme dialog box the user sees when invoking
-  // an unknown external scheme.
   wchar_t out_buffer[1024];
   DWORD buffer_size = std::size(out_buffer);
   HRESULT hr =
-      AssocQueryString(ASSOCF_IS_PROTOCOL, ASSOCSTR_FRIENDLYAPPNAME,
-                       url_scheme.c_str(), NULL, out_buffer, &buffer_size);
+      AssocQueryString(ASSOCF_IS_PROTOCOL, assoc_str, url_scheme.c_str(), NULL,
+                       out_buffer, &buffer_size);
   if (FAILED(hr)) {
-    DLOG(WARNING) << "AssocQueryString failed!";
     return std::u16string();
   }
   return base::AsString16(std::wstring(out_buffer));
@@ -681,12 +675,21 @@ bool SetAsDefaultClientForScheme(const std::string& scheme) {
 }
 
 std::u16string GetApplicationNameForScheme(const GURL& url) {
-  std::u16string application_name = GetAppForSchemeUsingAssocQuery(url);
+  // Query AssocQueryString for a human-readable description of the program
+  // that will be invoked given the provided URL spec. This is used only to
+  // populate the external scheme dialog box the user sees when invoking
+  // an unknown external scheme.
+  std::u16string application_name =
+      GetForSchemeUsingAssocQuery(url, ASSOCSTR_FRIENDLYAPPNAME);
   if (!application_name.empty()) {
     return application_name;
   }
 
   return GetAppForSchemeUsingRegistry(url);
+}
+
+std::u16string GetProgIdForScheme(const GURL& url) {
+  return GetForSchemeUsingAssocQuery(url, ASSOCSTR_PROGID);
 }
 
 DefaultWebClientState GetDefaultBrowser() {

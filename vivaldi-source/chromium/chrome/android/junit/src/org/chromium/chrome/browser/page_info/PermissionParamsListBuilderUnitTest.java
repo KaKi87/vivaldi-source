@@ -43,6 +43,7 @@ public class PermissionParamsListBuilderUnitTest {
     public void setUp() {
         FakePermissionDelegate.clearBlockedPermissions();
         AndroidPermissionDelegate permissionDelegate = new FakePermissionDelegate();
+        RuntimeEnvironment.application.setTheme(R.style.Theme_BrowserUI_DayNight);
         mPermissionParamsListBuilder =
                 new PermissionParamsListBuilder(RuntimeEnvironment.application, permissionDelegate);
     }

@@ -2,9 +2,22 @@
 
 import("//build/config/apple/swift_source_set.gni")
 
+# Notification constants - no dependencies, can be imported by anyone
+source_set("wallpaper_notification_constants") {
+  sources = [
+    "vivaldi_wallpaper_notification_constants.h",
+    "vivaldi_wallpaper_notification_constants.mm",
+  ]
+
+  frameworks = [
+    "Foundation.framework",
+  ]
+}
+
 source_set("wallpaper_settings") {
 
   deps = [
+    ":wallpaper_notification_constants",
     ":wallpaper_settings_swift",
     "//base",
     "//ui/base",
@@ -34,11 +47,14 @@ swift_source_set("wallpaper_settings_swift") {
   ]
 
   deps = [
+    ":wallpaper_notification_constants",
     "//base",
     "//ui/base",
     "//url",
     "//ios/chrome/app/strings",
     "//vivaldi/ios/ui/helpers:helpers_swift",
+    "//vivaldi/ios/ui/ntp:vivaldi_ntp",
+    "//vivaldi/ios/ui/settings/start_page:start_page_constants",
   ]
 
   frameworks = [

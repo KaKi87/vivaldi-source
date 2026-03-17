@@ -5,7 +5,7 @@
 
 #import <UIKit/UIKit.h>
 
-@protocol VivaldiAdaptiveToolbarViewControllerDelegate<NSObject>
+@protocol VivaldiAdaptiveToolbarViewControllerDelegate <NSObject>
 
 - (void)traitCollectionDidChange:(UITraitCollection*)previousTraitCollection;
 

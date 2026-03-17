@@ -4,6 +4,7 @@
 
 package org.chromium.chrome.browser.tabbed_mode;
 
+import static org.chromium.build.NullUtil.assertNonNull;
 import static org.chromium.build.NullUtil.assumeNonNull;
 
 import android.content.Context;
@@ -22,8 +23,9 @@ import androidx.core.graphics.drawable.DrawableCompat;
 
 import org.chromium.base.CallbackController;
 import org.chromium.base.DeviceInfo;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.base.supplier.OneshotSupplier;
+import org.chromium.build.annotations.Contract;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.R;
@@ -48,6 +50,7 @@ import org.chromium.chrome.browser.multiwindow.MultiWindowModeStateDispatcher;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
 import org.chromium.chrome.browser.offlinepages.OfflinePageUtils;
 import org.chromium.chrome.browser.omaha.UpdateMenuItemHelper;
+import org.chromium.chrome.browser.open_in_app.OpenInAppMenuItemProvider;
 import org.chromium.chrome.browser.pdf.PdfPage;
 import org.chromium.chrome.browser.preferences.Pref;
 import org.chromium.chrome.browser.profiles.Profile;
@@ -63,6 +66,7 @@ import org.chromium.chrome.browser.toolbar.top.ToolbarUtils;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuDelegate;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuHandler;
 import org.chromium.chrome.browser.ui.appmenu.AppMenuItemProperties;
+import org.chromium.chrome.browser.ui.default_browser_promo.DefaultBrowserPromoUtils;
 import org.chromium.chrome.browser.ui.extensions.ExtensionUi;
 import org.chromium.chrome.browser.ui.messages.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.ui.native_page.NativePage;
@@ -95,6 +99,7 @@ import java.util.function.Supplier;
 
 // Vivaldi
 import org.chromium.build.BuildConfig;
+import org.chromium.chrome.browser.tasks.tab_management.TabUiFeatureUtilities;
 
 import org.vivaldi.browser.appmenu.AppMenuIconRow;
 import org.vivaldi.browser.appmenu.VivaldiMenuUtils;
@@ -134,7 +139,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
     private boolean mUpdateMenuItemVisible;
 
     // Vivaldi
-    private final ObservableSupplier<BookmarkModel> mBookmarkModelSupplier;
+    private final NullableObservableSupplier<BookmarkModel> mBookmarkModelSupplier;
     private @Nullable AppMenuIconRow mVivaldiMenuIconRow;
 
     /**
@@ -158,13 +163,14 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
             View decorView,
             AppMenuDelegate appMenuDelegate,
             OneshotSupplier<LayoutStateProvider> layoutStateProvider,
-            ObservableSupplier<BookmarkModel> bookmarkModelSupplier,
+            NullableObservableSupplier<BookmarkModel> bookmarkModelSupplier,
             WebFeedSnackbarController.FeedLauncher feedLauncher,
             ModalDialogManager modalDialogManager,
             SnackbarManager snackbarManager,
             OneshotSupplier<IncognitoReauthController> incognitoReauthControllerOneshotSupplier,
             Supplier<ReadAloudController> readAloudControllerSupplier,
-            PageZoomManager pageZoomManager) {
+            PageZoomManager pageZoomManager,
+            @Nullable OpenInAppMenuItemProvider openInAppMenuItemProvider) {
         super(
                 context,
                 activityTabProvider,
@@ -174,7 +180,8 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                 decorView,
                 layoutStateProvider,
                 bookmarkModelSupplier,
-                readAloudControllerSupplier);
+                readAloudControllerSupplier,
+                openInAppMenuItemProvider);
         mAppMenuDelegate = appMenuDelegate;
         mFeedLauncher = feedLauncher;
         mModalDialogManager = modalDialogManager;
@@ -252,7 +259,12 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
             iconModels.add(buildForwardActionModel(currentTab));
             iconModels.add(buildBookmarkActionModel(currentTab));
             iconModels.add(buildDownloadActionModel(currentTab));
-            iconModels.add(buildPageInfoModel(currentTab));
+            if (ChromeFeatureList.isEnabled(ChromeFeatureList.GLIC)) {
+                iconModels.add(buildGlicActionModel(currentTab));
+            } else {
+                iconModels.add(buildPageInfoModel(currentTab));
+            }
+
             iconModels.add(buildReloadModel(currentTab));
 
             modelList.add(
@@ -367,6 +379,10 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
         MVCListAdapter.ListItem aiItem = maybeBuildAiMenuItem(currentTab);
         if (aiItem != null) modelList.add(aiItem);
 
+        // Glic
+        MVCListAdapter.ListItem openGlicItem = maybeBuildOpenGlicItem(currentTab);
+        if (openGlicItem != null) modelList.add(openGlicItem);
+
         // Find in page
         if (shouldShowFindInPageItem(currentTab)) modelList.add(buildFindInPageItem(currentTab));
 
@@ -391,7 +407,13 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
         // Universal Install / Open Web APK
         if (shouldShowHomeScreenMenuItem(
                 isNativePage, isFileScheme, isContentScheme, isIncognitoShowing(), url)) {
+            assert currentTab != null;
             modelList.add(buildAddToHomescreenListItem(currentTab, shouldShowIconBeforeItem()));
+        }
+
+        // Open in App
+        if (shouldShowOpenInAppItem()) {
+            modelList.add(buildOpenInAppItem());
         }
 
         // RDS
@@ -448,6 +470,12 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
             maybeAddDividerLine(modelList, R.id.menu_item_content_filter_divider_line_id);
             modelList.add(buildContentFilterHelpCenterMenuItem(currentTab));
         }
+
+        // Default browser promo menu item (entry point).
+        if (shouldShowDefaultBrowserPromo()) {
+            maybeAddDividerLine(modelList, R.id.divider_line_id);
+            modelList.add(buildDefaultBrowserPromoItem());
+        }
     }
 
     private Runnable buildUpdateStateChangedObserver() {
@@ -487,9 +515,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
             modelList.add(buildNewWindowItem());
             modelList.add(buildNewIncognitoWindowItem());
         }
-        if (ChromeFeatureList.sTabGroupEntryPointsAndroid.isEnabled()) {
-            modelList.add(buildNewTabGroupItem());
-        }
+        modelList.add(buildNewTabGroupItem());
         modelList.add(buildCloseAllTabsItem());
         if (shouldShowTinkerTank()) modelList.add(buildTinkerTankItem());
         modelList.add(buildSelectTabsItem());
@@ -582,12 +608,15 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
     }
 
     private boolean shouldShowAddToGroup() {
-        return ChromeFeatureList.sTabGroupParityBottomSheetAndroid.isEnabled()
-                && (!ChromeFeatureList.sTabModelInitFixes.isEnabled()
-                        || mTabModelSelector.isTabStateInitialized());
+        // Note(david@vivaldi.com): Check if grouping is allowed.
+        if (!TabUiFeatureUtilities.isTabGroupsAndroidEnabled()) return false;
+        // End Vivaldi
+        
+        return (!ChromeFeatureList.sTabModelInitFixes.isEnabled()
+                || mTabModelSelector.isTabStateInitialized());
     }
 
-    private MVCListAdapter.ListItem buildAddToGroupItem(Tab currentTab) {
+    private MVCListAdapter.ListItem buildAddToGroupItem(@Nullable Tab currentTab) {
         assert shouldShowAddToGroup();
         PropertyModel model =
                 buildModelForStandardMenuItem(
@@ -650,7 +679,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                 buildModelForStandardMenuItem(
                         R.id.open_history_menu_id,
                         R.string.menu_history,
-                        shouldShowIconBeforeItem() ? R.drawable.ic_history_googblue_24dp : 0));
+                        shouldShowIconBeforeItem() ? R.drawable.ic_history_24dp : 0));
     }
 
     private MVCListAdapter.ListItem buildDownloadsItem() {
@@ -659,7 +688,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                 buildModelForStandardMenuItem(
                         R.id.downloads_menu_id,
                         R.string.menu_downloads,
-                        shouldShowIconBeforeItem() ? R.drawable.infobar_download_complete : 0));
+                        shouldShowIconBeforeItem() ? R.drawable.ic_download_done_24dp : 0));
     }
 
     private MVCListAdapter.ListItem buildBookmarksItem() {
@@ -668,7 +697,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                 buildModelForStandardMenuItem(
                         R.id.all_bookmarks_menu_id,
                         R.string.menu_bookmarks,
-                        shouldShowIconBeforeItem() ? R.drawable.btn_star_filled : 0));
+                        shouldShowIconBeforeItem() ? R.drawable.ic_star_filled_24dp : 0));
     }
 
     private boolean shouldShowRecentTabsItem() {
@@ -752,7 +781,8 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                                 : Resources.ID_NULL));
     }
 
-    private boolean shouldShowPageZoomItem(Tab currentTab) {
+    @Contract("null -> false")
+    private boolean shouldShowPageZoomItem(@Nullable Tab currentTab) {
         return currentTab != null
                 && shouldShowWebContentsDependentMenuItem(currentTab)
                 && PageZoomUtils.shouldShowZoomMenuItem();
@@ -808,6 +838,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
     }
 
     /** Determines whether the "Print" menu item should be shown for a given tab. */
+    @Contract("null -> false")
     private boolean shouldShowPrintItem(@Nullable Tab currentTab) {
         // A tab must exist to print from it.
         if (currentTab == null) {
@@ -816,18 +847,31 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
 
         // Check if sharing (which includes printing) is generally enabled for this tab's content.
         boolean canShareTab = ShareUtils.shouldEnableShare(currentTab);
+        if (!canShareTab) {
+            return false;
+        }
 
         // Check if printing is specifically enabled in user preferences for the current profile.
         Profile profile = currentTab.getProfile();
         boolean isPrintingEnabled = UserPrefs.get(profile).getBoolean(Pref.PRINTING_ENABLED);
+        if (!isPrintingEnabled) {
+            return false;
+        }
 
-        // Show print item if we're on a desktop device or if the current tab is displaying a native
-        // PDF.
+        // The print functionality is enabled if:
+        // 1. The device is running Desktop Android, OR
+        // 2. The current tab is a web-based PDF (transient).
+        // Note: Printing local PDFs (chrome-native://) is not yet supported.
         NativePage nativePage = currentTab.getNativePage();
-        boolean isPdfPage = nativePage != null && nativePage.isPdf();
-        boolean isEligibleForPrint = DeviceInfo.isDesktop() || isPdfPage;
+        boolean isPdf = nativePage != null && nativePage.isPdf();
+        boolean isLocalPdf =
+                isPdf && currentTab.getUrl().getScheme().equals(UrlConstants.CHROME_NATIVE_SCHEME);
 
-        return canShareTab && isPrintingEnabled && isEligibleForPrint;
+        if (isLocalPdf) {
+            return false;
+        }
+
+        return DeviceInfo.isDesktop() || isPdf;
     }
 
     private MVCListAdapter.ListItem buildPrintItem(Tab currentTab) {
@@ -840,6 +884,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                         shouldShowIconBeforeItem() ? R.drawable.sharing_print : 0));
     }
 
+    @Contract("null -> false")
     private boolean shouldShowReaderModeItem(@Nullable Tab currentTab) {
         if (currentTab == null) {
             return false;
@@ -859,6 +904,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                 || DomDistillerFeatures.sReaderModeDistillInApp.isEnabled());
     }
 
+    @Contract("null -> false")
     private boolean shouldShowGetImageDescriptionsItem(@Nullable Tab currentTab) {
         return currentTab != null
                 && shouldShowWebContentsDependentMenuItem(currentTab)
@@ -957,6 +1003,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                         shouldShowIconBeforeItem() ? R.drawable.settings_cog : 0));
     }
 
+    @Contract("null -> false")
     private boolean shouldShowListenToFeedItem(@Nullable Tab currentTab) {
         if (currentTab == null
                 || isIncognitoShowing()
@@ -990,6 +1037,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
      * <p>This entry is shown only when the corresponding feature flag is enabled and the user is on
      * the regular Ntp.
      */
+    @Contract("null -> false")
     private boolean shouldShowNtpCustomizations(@Nullable Tab currentTab) {
         return ChromeFeatureList.sNewTabPageCustomization.isEnabled()
                 && !isIncognitoShowing()
@@ -1004,7 +1052,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                 buildModelForStandardMenuItem(
                         R.id.ntp_customization_id,
                         R.string.menu_ntp_customization,
-                        shouldShowIconBeforeItem() ? R.drawable.bookmark_edit_active : 0));
+                        shouldShowIconBeforeItem() ? R.drawable.ic_edit_24dp : 0));
     }
 
     private MVCListAdapter.ListItem buildHelpItem() {
@@ -1013,7 +1061,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                 buildModelForStandardMenuItem(
                         R.id.help_id,
                         R.string.menu_help,
-                        shouldShowIconBeforeItem() ? R.drawable.help_outline : 0));
+                        shouldShowIconBeforeItem() ? R.drawable.ic_help_24dp : 0));
     }
 
     private boolean shouldShowQuickDeleteItem() {
@@ -1094,12 +1142,50 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
         return null;
     }
 
+    private boolean shouldShowDefaultBrowserPromo() {
+        return DefaultBrowserPromoUtils.getInstance().shouldShowAppMenuItemEntryPoint()
+                && ChromeFeatureList.sDefaultBrowserPromoEntryPointShowAppMenu.getValue();
+    }
+
+    private MVCListAdapter.ListItem buildDefaultBrowserPromoItem() {
+        assert shouldShowDefaultBrowserPromo();
+        PropertyModel model =
+                buildModelForStandardMenuItem(
+                        R.id.default_browser_promo_menu_id, R.string.make_chrome_default, 0);
+
+        // Make the Chrome logo environment specific (Canary logo for Canary, etc.).
+        model.set(
+                AppMenuItemProperties.ICON,
+                AppCompatResources.getDrawable(mContext, R.mipmap.app_icon));
+
+        // Disable the grey default tint for this particular icon.
+        model.set(AppMenuItemProperties.ICON_NO_TINT, true);
+
+        return new MVCListAdapter.ListItem(AppMenuHandler.AppMenuItemType.STANDARD, model);
+    }
+
+    private MVCListAdapter.@Nullable ListItem maybeBuildOpenGlicItem(@Nullable Tab currentTab) {
+        if (currentTab == null
+                || currentTab.getWebContents() == null
+                || !ChromeFeatureList.isEnabled(ChromeFeatureList.GLIC)) {
+            return null;
+        }
+        return null; // TODO CHR-144: Check this
+        /*return new MVCListAdapter.ListItem(
+                AppMenuHandler.AppMenuItemType.STANDARD,
+                buildModelForStandardMenuItem(
+                        R.id.glic_menu_id,
+                        R.string.glic_button_entrypoint_ask_gemini_label,
+                        shouldShowIconBeforeItem() ? R.drawable.ic_spark_24dp : Resources.ID_NULL));*/
+    }
+
     /**
      * @param isNativePage Whether the current tab is a native page.
      * @param currentTab The currentTab for which the app menu is showing.
      * @return Whether the paint preview menu item should be displayed.
      */
     @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
+    @Contract("_, null -> false")
     public boolean shouldShowPaintPreview(boolean isNativePage, @Nullable Tab currentTab) {
         return currentTab != null
                 && ChromeFeatureList.sPaintPreviewDemo.isEnabled()
@@ -1219,7 +1305,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                         LayoutInflater.from(mContext)
                                 .inflate(R.layout.web_feed_main_menu_item, null);
         footer.initialize(
-                mActivityTabProvider.get(),
+                assertNonNull(mActivityTabProvider.get()),
                 appMenuHandler,
                 WebFeedFaviconFetcher.createDefault(),
                 mFeedLauncher,
@@ -1230,10 +1316,12 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
     }
 
     @VisibleForTesting
+    @Contract("null -> false")
     protected boolean shouldShowManagedByMenuItem(@Nullable Tab currentTab) {
         return currentTab != null && ManagedBrowserUtils.isBrowserManaged(currentTab.getProfile());
     }
 
+    @Contract("null -> false")
     protected boolean shouldShowContentFilterHelpCenterMenuItem(@Nullable Tab currentTab) {
         return currentTab != null
                 && SupervisedUserServiceBridge.isSupervisedLocally(currentTab.getProfile());
@@ -1246,7 +1334,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
                 buildModelForStandardMenuItem(
                         R.id.managed_by_menu_id,
                         R.string.managed_browser,
-                        shouldShowIconBeforeItem() ? R.drawable.ic_business : 0));
+                        shouldShowIconBeforeItem() ? R.drawable.ic_domain : 0));
     }
 
     private MVCListAdapter.ListItem buildContentFilterHelpCenterMenuItem(Tab currentTab) {
@@ -1502,6 +1590,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
         replaceMenuIcon(newPrivateTabItem, R.drawable.new_privatetab_24dp);
         modelList.add(newPrivateTabItem);
 
+        assert(currentTab != null);
         // Duplicate tab
         if (shouldShowDuplicateTabItem(currentTab)) {
             modelList.add(buildDuplicateTabItem(currentTab));
@@ -1610,7 +1699,7 @@ public class TabbedAppMenuPropertiesDelegate extends AppMenuPropertiesDelegateIm
         // Page Zoom
         if (shouldShowPageZoomItem(currentTab) && canShowMenuItem(R.id.page_zoom_id)) {
             MVCListAdapter.ListItem pageZoomItem = buildPageZoomItem(currentTab);
-            replaceMenuIcon(pageZoomItem, R.drawable.menu_page_zoom_32dp);
+            replaceMenuIcon(pageZoomItem, R.drawable.magnify_24dp); // VAB-12468
             modelList.add(pageZoomItem);
         }
 

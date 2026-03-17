@@ -112,7 +112,7 @@ void RemovedPartnersTracker::BookmarkMetaInfoChanged(
 }
 
 void RemovedPartnersTracker::BookmarkModelLoaded(bool ids_reassigned) {
-  const base::Value::List& deleted_partners =
+  const base::ListValue& deleted_partners =
       prefs_->GetList(vivaldiprefs::kBookmarksDeletedPartners);
   bool upgraded_old_id;
   removed_partners_ = vivaldi_default_bookmarks::ReadRemovedPartners(
@@ -126,7 +126,7 @@ void RemovedPartnersTracker::BookmarkModelBeingDeleted() {
 }
 
 void RemovedPartnersTracker::SaveRemovedPartners() {
-  base::Value::List removed_partners_list;
+  base::ListValue removed_partners_list;
 
   for (const auto& removed_partner : removed_partners_) {
     removed_partners_list.Append(removed_partner.AsLowercaseString());

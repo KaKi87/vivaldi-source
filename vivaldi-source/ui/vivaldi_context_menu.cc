@@ -17,7 +17,7 @@ ui::ImageModel GetImageModel(const std::string icon) {
     if (base::Base64Decode(icon, &png_data)) {
       gfx::Image img = gfx::Image::CreateFrom1xPNGBytes(
           base::span(reinterpret_cast<const unsigned char*>(png_data.c_str()),
-          png_data.length()));
+                     png_data.length()));
       if (img.Width() > ICON_SIZE || img.Height() > ICON_SIZE) {
         int width = img.Width();
         int height = img.Height();

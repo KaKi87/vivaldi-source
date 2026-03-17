@@ -1,9 +1,7 @@
 // Copyright (c) 2016 Vivaldi. All rights reserved.
 // included in chromium/chrome/installer/util/shell_util.cc
 
-#include "base/strings/string_number_conversions.h"
-#include "crypto/hash.h"
-
+#include "base/vivaldi_md5.h"
 #include "components/base32/base32.h"
 
 namespace vivaldi {
@@ -53,12 +51,14 @@ void GetPathSpecificSuffix(const base::FilePath& path, std::wstring* suffix) {
   DCHECK(!path.empty());
   DCHECK(suffix);
   std::string path_utf8(base::WideToUTF8(path.value()));
-  std::string base32_sha256hash =
-      base32::Base32Encode(crypto::hash::Sha256(path_utf8),
-                           base32::Base32EncodePolicy::OMIT_PADDING);
-  suffix->reserve(base32_sha256hash.length() + 1);
+  auto md5_digest = vivaldi::obsolete::ObsoleteMd5Hash(base::as_byte_span(path_utf8));
+  const std::string base32_md5(base32::Base32Encode(
+      md5_digest,
+      base32::Base32EncodePolicy::OMIT_PADDING));
+  DCHECK_EQ(base32_md5.length(), 26U);
+  suffix->reserve(base32_md5.length() + 1);
   suffix->assign(1, L'.');
-  suffix->append(base::ASCIIToWide(base32_sha256hash));
+  suffix->append(base::ASCIIToWide(base32_md5));
 }
 
 // Returns the application name, "Vivaldi" or "Vivaldi S [<folder>]".

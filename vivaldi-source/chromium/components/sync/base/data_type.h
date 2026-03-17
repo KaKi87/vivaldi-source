@@ -6,7 +6,6 @@
 #define COMPONENTS_SYNC_BASE_DATA_TYPE_H_
 
 #include <iosfwd>
-#include <map>
 #include <memory>
 #include <string>
 
@@ -92,7 +91,7 @@ enum DataType {
   // These preferences are synced before other user types and are never
   // encrypted.
   PRIORITY_PREFERENCES,
-  // Supervised user settings. Cannot be encrypted.
+  // Family Link supervised user settings. Cannot be encrypted.
   SUPERVISED_USER_SETTINGS,
   // App List items, used by the ChromeOS app launcher.
   APP_LIST,
@@ -188,6 +187,12 @@ enum DataType {
 
   // Usage metadata for `AUTOFILL_VALUABLE`.
   AUTOFILL_VALUABLE_METADATA,
+
+  // A skill that the user has saved.
+  SKILL,
+
+  // A gemini thread.
+  GEMINI_THREAD,
 
   // Notes items
   NOTES,
@@ -297,6 +302,8 @@ enum class DataTypeForHistograms {
   kAIThread = 73,
   kContextualTask = 74,
   kAutofillValuableMetadata = 75,
+  kSkill = 76,
+  kGeminiThread = 77,
 
   // Vivaldi
   kNotes = 300,
@@ -428,7 +435,7 @@ constexpr DataTypeSet SharedTypes() {
 // any pending account data or abort, depending on the platform.
 constexpr DataTypeSet TypesRequiringUnsyncedDataCheckOnSignout() {
   static_assert(
-      59 + 1 /* notes */ == GetNumDataTypes(),
+      61 + 1 /* notes */ == GetNumDataTypes(),
       "Add new types to `TypesRequiringUnsyncedDataCheckOnSignout()` if there "
       "should be a warning when the user signs out and the types have unsynced "
       "data. The warning offers the user to either proceed with sign-out "

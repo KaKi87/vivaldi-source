@@ -4,26 +4,23 @@
 
 package org.chromium.chrome.browser.ntp_customization.theme;
 
-import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundImageType.IMAGE_FROM_DISK;
-import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundImageType.THEME_COLLECTION;
+import static org.chromium.build.NullUtil.assertNonNull;
+import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType.IMAGE_FROM_DISK;
+import static org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType.THEME_COLLECTION;
+import static org.chromium.chrome.browser.ntp_customization.theme.upload_image.CropImageUtils.getCurrentWindowDimensions;
 
-import android.app.Activity;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Matrix;
 import android.graphics.Point;
-import android.graphics.Rect;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
 import android.widget.ImageView;
 
 import androidx.annotation.ColorInt;
-import androidx.window.layout.WindowMetrics;
-import androidx.window.layout.WindowMetricsCalculator;
 
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
-import org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundImageType;
+import org.chromium.chrome.browser.ntp_customization.NtpCustomizationUtils.NtpBackgroundType;
 import org.chromium.chrome.browser.ntp_customization.R;
 import org.chromium.chrome.browser.ntp_customization.theme.upload_image.BackgroundImageInfo;
 import org.chromium.chrome.browser.ntp_customization.theme.upload_image.CropImageUtils;
@@ -41,14 +38,18 @@ import org.chromium.ui.modelutil.PropertyModelChangeProcessor;
 @NullMarked
 public class NtpBackgroundImageCoordinator {
     private final Context mContext;
-    private final UiConfig mUiConfig;
-    private final DisplayStyleObserver mDisplayStyleObserver;
     private final PropertyModel mPropertyModel;
 
     private int mBackgroundImageType;
-    private boolean mIsObservingDisplayChange;
     private @Nullable Bitmap mOriginalBitmap;
+    // Immutable source of truth loaded from disk. Serves as the reference point for
+    // deriving transformations when window dimensions change.
     private @Nullable BackgroundImageInfo mBackgroundImageInfo;
+    // Mutable runtime cache. Stores matrices validated for the current window dimensions
+    // to avoid redundant invocation of validateMatrix().
+    private @Nullable BackgroundImageInfo mCachedBackgroundImageInfo;
+    private @Nullable UiConfig mUiConfig;
+    private @Nullable DisplayStyleObserver mDisplayStyleObserver;
 
     /**
      * @param context The application context.
@@ -60,10 +61,9 @@ public class NtpBackgroundImageCoordinator {
             Context context, ViewGroup rootView, UiConfig uiConfig, @ColorInt int backgroundColor) {
         mContext = context;
         mUiConfig = uiConfig;
-        mDisplayStyleObserver = (newDisplayStyle) -> setImageBackgroundWithMatrices();
 
-        FrameLayout backgroundImageLayout =
-                (FrameLayout)
+        NtpBackgroundImageLayout backgroundImageLayout =
+                (NtpBackgroundImageLayout)
                         LayoutInflaterUtils.inflate(
                                 mContext, R.layout.ntp_customization_background_image_layout, null);
 
@@ -86,16 +86,16 @@ public class NtpBackgroundImageCoordinator {
      */
     public void setBackground(
             Bitmap originalBitmap,
-            @Nullable BackgroundImageInfo backgroundImageInfo,
-            @NtpBackgroundImageType int backgroundType) {
+            BackgroundImageInfo backgroundImageInfo,
+            @NtpBackgroundType int backgroundType) {
         mOriginalBitmap = originalBitmap;
         mBackgroundImageType = backgroundType;
         mBackgroundImageInfo = backgroundImageInfo;
+        mCachedBackgroundImageInfo = BackgroundImageInfo.getDeepCopy(backgroundImageInfo);
         mPropertyModel.set(
                 NtpBackgroundImageProperties.IMAGE_SCALE_TYPE, ImageView.ScaleType.MATRIX);
         mPropertyModel.set(NtpBackgroundImageProperties.BACKGROUND_IMAGE, originalBitmap);
         maybeAddDisplayStyleObserver();
-        setImageBackgroundWithMatrices();
     }
 
     /** Clears the background image. */
@@ -109,17 +109,30 @@ public class NtpBackgroundImageCoordinator {
      * registered observers.
      */
     public void destroy() {
-        maybeRemoveDisplayStyleObserver();
+        if (mUiConfig != null && mDisplayStyleObserver != null) {
+            mUiConfig.removeObserver(mDisplayStyleObserver);
+        }
+        mDisplayStyleObserver = null;
+        mUiConfig = null;
+        mCachedBackgroundImageInfo = null;
+        mBackgroundImageInfo = null;
     }
 
     /**
      * Adds the DisplayStyleObserver if hasn't yet, and set the flag mIsObservingDisplayChange to be
      * true.
+     *
+     * <p>If the observer is already set, this method manually calls {@link
+     * #setImageBackgroundWithMatrices()} to ensure the new background is applied immediately.
      */
     private void maybeAddDisplayStyleObserver() {
-        if (mIsObservingDisplayChange) return;
+        if (mDisplayStyleObserver != null) {
+            setImageBackgroundWithMatrices();
+            return;
+        }
 
-        mIsObservingDisplayChange = true;
+        mDisplayStyleObserver = (newDisplayStyle) -> setImageBackgroundWithMatrices();
+        assertNonNull(mUiConfig);
         mUiConfig.addObserver(mDisplayStyleObserver);
     }
 
@@ -128,10 +141,11 @@ public class NtpBackgroundImageCoordinator {
      * mIsObservingDisplayChange.
      */
     private void maybeRemoveDisplayStyleObserver() {
-        if (!mIsObservingDisplayChange) return;
+        if (mDisplayStyleObserver == null) return;
 
-        mIsObservingDisplayChange = false;
+        assertNonNull(mUiConfig);
         mUiConfig.removeObserver(mDisplayStyleObserver);
+        mDisplayStyleObserver = null;
     }
 
     private void setImageBackgroundWithMatrices() {
@@ -139,38 +153,85 @@ public class NtpBackgroundImageCoordinator {
                 || mOriginalBitmap == null
                 || mBackgroundImageInfo == null) return;
 
-        Matrix matrixToApply =
-                getValidatedMatrixForCurrentWindowSize(
-                        (Activity) mContext, mBackgroundImageInfo, mOriginalBitmap);
+        Matrix matrixToApply = getValidatedMatrixForCurrentWindowSize();
 
+        // 1. Updates the density property to synchronize the bitmap's metadata and prevent
+        // incorrect intrinsic scaling.
+        mPropertyModel.set(
+                NtpBackgroundImageProperties.DENSITY,
+                mContext.getResources().getDisplayMetrics().densityDpi);
+
+        // 2. Then apply the matrix.
         mPropertyModel.set(NtpBackgroundImageProperties.IMAGE_MATRIX, matrixToApply);
     }
 
-    private Matrix getValidatedMatrixForCurrentWindowSize(
-            Activity activity, BackgroundImageInfo backgroundImageInfo, Bitmap bitmap) {
-        Point windowSize = getCurrentWindowDimensions(activity);
-        boolean isLandscape = windowSize.x > windowSize.y;
-        Matrix matrixToApply =
-                isLandscape
-                        ? backgroundImageInfo.landscapeMatrix
-                        : backgroundImageInfo.portraitMatrix;
+    /**
+     * Calculates and validates the matrix for the current window dimensions.
+     *
+     * <p>This method first checks the local cache. If the window size matches the cached size, it
+     * returns the cached matrix.
+     *
+     * <p><b>Drift Prevention:</b> On a cache miss, this method calculates a new matrix based on the
+     * source of truth ({@code backgroundImageInfo}), but it does not update that source. The source
+     * matrix represents the user's original intent. The resulting matrix contains adjustments
+     * strictly for the current window bounds (e.g., preventing black bars).
+     *
+     * <p>If we overwrote the source of truth with these auto-adjustments, repeated window resizing
+     * would introduce cumulative floating-point errors and constraint shifts. This causes "drift,"
+     * where the image gradually zooms in or moves away from the user's original selection without
+     * any user input.
+     *
+     * @return A matrix that is validated and adjusted for the current window dimensions.
+     */
+    private Matrix getValidatedMatrixForCurrentWindowSize() {
+        assertNonNull(mCachedBackgroundImageInfo);
+        assertNonNull(mBackgroundImageInfo);
+        assertNonNull(mOriginalBitmap);
 
-        float[] matrixValues = new float[9];
-        matrixToApply.getValues(matrixValues);
+        Point currentWindowSize = getCurrentWindowDimensions(mContext);
+        int currentOrientation = mContext.getResources().getConfiguration().orientation;
+
+        Point cachedSize = mCachedBackgroundImageInfo.getWindowSize(currentOrientation);
+        if (currentWindowSize.equals(cachedSize)) {
+            // Cache hit: returns the cached matrix immediately.
+            return mCachedBackgroundImageInfo.getMatrix(currentOrientation);
+        }
+
+        // Cache miss: uses the source of truth matrix to calculate the matrixToApply
+        Matrix sourceMatrix = mBackgroundImageInfo.getMatrix(currentOrientation);
+        Point sourceWindowSize = mBackgroundImageInfo.getWindowSize(currentOrientation);
+        Matrix matrixToApply = new Matrix(sourceMatrix);
+        assertNonNull(sourceWindowSize);
+        matrixToApply =
+                CropImageUtils.calculateMatrixFromSharedCenter(
+                        matrixToApply,
+                        currentWindowSize.x,
+                        currentWindowSize.y,
+                        sourceWindowSize.x,
+                        sourceWindowSize.y,
+                        mOriginalBitmap);
 
         CropImageUtils.validateMatrix(
-                matrixToApply, windowSize.x, windowSize.y, bitmap, matrixValues);
+                matrixToApply, currentWindowSize.x, currentWindowSize.y, mOriginalBitmap);
+
+        // Updates the cached BackgroundImageInfo
+        updateCachedBackgroundInfo(currentOrientation, currentWindowSize, matrixToApply);
+
         return matrixToApply;
     }
 
-    private Point getCurrentWindowDimensions(Activity activity) {
-        WindowMetrics metrics =
-                WindowMetricsCalculator.getOrCreate().computeCurrentWindowMetrics(activity);
-        Rect bounds = metrics.getBounds();
-        return new Point(bounds.width(), bounds.height());
+    private void updateCachedBackgroundInfo(
+            int currentOrientation, Point currentWindowSize, Matrix matrixToApply) {
+        assertNonNull(mCachedBackgroundImageInfo);
+        mCachedBackgroundImageInfo.setWindowSize(currentOrientation, currentWindowSize);
+        mCachedBackgroundImageInfo.setMatrix(currentOrientation, matrixToApply);
     }
 
     public PropertyModel getPropertyModelForTesting() {
         return mPropertyModel;
+    }
+
+    public @Nullable BackgroundImageInfo getCachedBackgroundImageInfoForTesting() {
+        return mCachedBackgroundImageInfo;
     }
 }

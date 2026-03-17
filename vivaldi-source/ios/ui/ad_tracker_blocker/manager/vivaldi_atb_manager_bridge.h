@@ -13,13 +13,13 @@
 #import "ios/ui/ad_tracker_blocker/vivaldi_atb_consumer.h"
 
 namespace vivaldi_adblocker {
+using adblock_filter::ActiveRuleSource;
 using adblock_filter::DownloadResult;
-using adblock_filter::ReadResult;
 using adblock_filter::KnownRuleSource;
 using adblock_filter::KnownRuleSourcesHandler;
+using adblock_filter::ReadResult;
 using adblock_filter::RuleManager;
 using adblock_filter::RuleService;
-using adblock_filter::ActiveRuleSource;
 
 // A bridge that translates AdBlocker Observers C++ callbacks into ObjC
 // callbacks.
@@ -27,7 +27,6 @@ class VivaldiATBManagerBridge : public RuleService::Observer,
                                 public RuleManager::Observer,
                                 public KnownRuleSourcesHandler::Observer {
  public:
-
   explicit VivaldiATBManagerBridge(id<VivaldiATBConsumer> observer,
                                    RuleService* ruleService);
   ~VivaldiATBManagerBridge() override;
@@ -37,7 +36,7 @@ class VivaldiATBManagerBridge : public RuleService::Observer,
   void OnStartApplyingRules(RuleGroup group) override;
   void OnDoneApplyingRules(RuleGroup group) override;
   void OnRuleSourceUpdated(RuleGroup group,
-                            const ActiveRuleSource& rule_source) override;
+                           const ActiveRuleSource& rule_source) override;
   void OnRuleSourceDeleted(uint32_t source_id, RuleGroup group) override;
   void OnExceptionListStateChanged(RuleGroup group) override;
   void OnExceptionListChanged(RuleGroup group,
@@ -49,8 +48,8 @@ class VivaldiATBManagerBridge : public RuleService::Observer,
   void OnKnownSourceDisabled(RuleGroup group, uint32_t source_id) override;
   void StartObservingRuleSourceManager();
   ATBFetchResult FlattenFetchResult(
-    std::optional<DownloadResult> download_result,
-    std::optional<ReadResult> read_result);
+      std::optional<DownloadResult> download_result,
+      std::optional<ReadResult> read_result);
 
   __weak id<VivaldiATBConsumer> observer_;
   adblock_filter::RuleService* rule_service_ = nullptr;

@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">Otvori u novoj grupi kartica</translation>
 <translation id="1925021887439448749">Unesite prilagođenu veb adresu</translation>
 <translation id="2038563949887743358">Uključi zahtevanje desktop verzije sajta</translation>
+<translation id="2072027001582274150">Nekorišćene ili duplirane kartice</translation>
 <translation id="208033313373016095">Režim čitanja za veb stranice</translation>
 <translation id="2149973817440762519">Uredi obeleživač</translation>
 <translation id="2306442503286132111">Obeleživač je sačuvan u fascikli <ph name="FOLDER_NAME" /></translation>
@@ -46,6 +47,11 @@
 <translation id="385051799172605136">Nazad</translation>
 <translation id="3987993985790029246">Kopiraj vezu</translation>
 <translation id="399014816462153200">Pročitani članci:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> kartica}
+          few {<ph name="TAB_COUNT_MANY" /> kartice, privatnih <ph name="TAB_COUNT_INCOGNITO" />}
+          other {<ph name="TAB_COUNT_MANY" /> kartica, privatnih <ph name="TAB_COUNT_INCOGNITO" />}}</translation>
+<translation id="408336132633586393">Privatni prozor</translation>
 <translation id="4121750346708795461">Korišćenjem ove aplikacije prihvatate <ph name="BEGIN_LINK1" />Ugovor o licenciranju sa krajnjim korisnikom<ph name="END_LINK1" /> i <ph name="BEGIN_LINK2" />Politiku privatnosti<ph name="END_LINK2" /> Vivaldi pregledača.</translation>
 <translation id="4137746084635924146">Trenutni jezik uređaja</translation>
 <translation id="4167670741834902166">Nova privatna kartica</translation>
@@ -55,9 +61,7 @@
 <translation id="4269820728363426813">Kopiraj adresu veze</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Uključite zaključavanje ekrana u Android podešavanjima<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Upravljač lozinkama</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {Kartice i grupe koje nisu korišćene 1 dan ili duže}
-          other {Kartice i grupe koje nisu korišćene # dana ili duže}}</translation>
+<translation id="441100617989818073">Nekorišćene ili duplirane kartice i grupe</translation>
 <translation id="451872707440238414">Pretraži obeleživače</translation>
 <translation id="4526803704855831732">Privatne kartice</translation>
 <translation id="4532845899244822526">Odaberite fasciklu</translation>
@@ -71,6 +75,10 @@ Dodirnite za pretragu je funkcija koja je dostupna samo kada je Google postavlje
 <translation id="4883379392681899581">Napusti privatni režim</translation>
 <translation id="4943872375798546930">Nema rezultata</translation>
 <translation id="49576331685473090">Blokator sadržaja</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> privatna kartica}
+          few {<ph name="TAB_COUNT_NORMAL" /> privatne kartice}
+          other {<ph name="TAB_COUNT_NORMAL" /> privatnih kartica}}</translation>
 <translation id="5079259810715830221">Kada Google sajt zatraži da privatno unapred učita veze na svojoj stranici, Vivaldi šifruje i učitava stranice preko Google servera bez kolačića. Ovo skriva vaš identitet od unapred učitanog sajta.</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" /> skladište</translation>
 <translation id="5144385790872094440">Neke od stranica koje posećujete se predučitavaju. Stranice mogu biti predučitane preko Google servera kada do njih vodi veza sa Google sajta ili aplikacije.</translation>
@@ -105,6 +113,7 @@ Za podešavanje termina za pretragu, dugo pritisnite da biste ga izabrali. Za pr
 <translation id="6909589135458168665">Predučitavanje stranica</translation>
 <translation id="7029995644714925509">Kada sajt zatraži da privatno unapred učita veze na svojoj stranici, Vivaldi šifruje i učitava stranice preko Google servera bez kolačića. Ovo skriva vaš identitet od unapred učitanog sajta.</translation>
 <translation id="706339621163631076">Politika privatnosti pregledača</translation>
+<translation id="7100573672995171864">Prilagodite i kontrolišite Vivaldi</translation>
 <translation id="732145680195464316">Obeleživač je sačuvan u <ph name="PRODUCT_NAME" /></translation>
 <translation id="7324354302972299151">Slanje zahteva „Ne prati”</translation>
 <translation id="7359002509206457351">Pristup načinima plaćanja</translation>
@@ -127,14 +136,11 @@ Za podešavanje termina za pretragu, dugo pritisnite da biste ga izabrali. Za pr
 <translation id="8348430946834215779">Koristite HTTPS kad god je to moguće i dobijajte upozorenje pre učitavanja sajtova koji ga ne podržavaju</translation>
 <translation id="8560602726703398413">Pronađite svoju listu za čitanje u obeleživačima</translation>
 <translation id="85991616550051997">Idi na matičnu stranicu</translation>
-<translation id="8693232767599693749">Prikazati u režimu čitanja?</translation>
+<translation id="8738163682604285902">Prikazati režim čitanja?</translation>
 <translation id="8820817407110198400">Obeleživači</translation>
 <translation id="9042893549633094279">Privatnost i bezbednost</translation>
 <translation id="9063523880881406963">Isključi zahtevanje desktop verzije sajta</translation>
 <translation id="9080642952018487277">Uđi u privatni režim</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {Nije korišćeno 1 ili više dana}
-          other {Nije korišćeno # ili više dana}}</translation>
 <translation id="930124987204876019">Brisanje istorije, kolačića, podataka o sajtovima, keša…</translation>
 <translation id="961856697154696964">Brisanje podataka pregledanja</translation>
 </translationbundle>

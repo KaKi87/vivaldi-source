@@ -6,8 +6,10 @@
 #include <memory>
 #include <string>
 
+#include "base/json/json_string_value_serializer.h"
 #include "base/no_destructor.h"
 #include "base/strings/stringprintf.h"
+#include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/browser/extensions/api/tabs/windows_util.h"
 #include "chrome/browser/extensions/browser_extension_window_controller.h"
@@ -20,6 +22,7 @@
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/browser_list_observer.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/window_sizer/window_sizer.h"
 #include "components/sessions/content/session_tab_helper.h"
@@ -47,20 +50,6 @@
 namespace extensions {
 
 namespace vivaldi {
-using vivaldi::window_private::WindowType;
-WindowType ConvertToJSWindowType(VivaldiBrowserWindow::WindowType type) {
-  switch (type) {
-    case VivaldiBrowserWindow::WindowType::NORMAL:
-      return WindowType::kNormal;
-    case VivaldiBrowserWindow::WindowType::POPUP:
-      return WindowType::kPopup;
-    case VivaldiBrowserWindow::WindowType::SETTINGS:
-      return WindowType::kSettings;
-  }
-  NOTREACHED();
-  //return WindowType::kNone;
-}
-
 using vivaldi::window_private::WindowState;
 WindowState ConvertToJSWindowState(ui::mojom::WindowShowState state) {
   switch (state) {
@@ -74,7 +63,7 @@ WindowState ConvertToJSWindowState(ui::mojom::WindowShowState state) {
       return WindowState::kNormal;
   }
   NOTREACHED();
-  //return WindowState::kNormal;
+  // return WindowState::kNormal;
 }
 
 ui::mojom::WindowShowState ConvertToWindowShowState(
@@ -93,7 +82,7 @@ ui::mojom::WindowShowState ConvertToWindowShowState(
       return ui::mojom::WindowShowState::kDefault;
   }
   NOTREACHED();
-  //return  ui::mojom::WindowShowState::kDefault;
+  // return  ui::mojom::WindowShowState::kDefault;
 }
 }  // namespace vivaldi
 
@@ -113,7 +102,7 @@ class VivaldiBrowserObserver : public BrowserListObserver,
 
   // If the browser is closing due to the profile closure, return the profile
   // index. Otherwise return SIZE_MAX.
-  size_t FindClosingWindow(Browser* browser);
+  size_t FindClosingWindow(int32_t browser_id);
 
  private:
   friend class ::extensions::VivaldiWindowsAPI;
@@ -124,9 +113,9 @@ class VivaldiBrowserObserver : public BrowserListObserver,
   void OnBrowserSetLastActive(Browser* browser) override;
 
   // TabStripModelObserver implementation
-  void TabChangedAt(content::WebContents* contents,
-                    int index,
-                    TabChangeType change_type) override;
+  void OnTabChangedAt(tabs::TabInterface* tab,
+                      int index,
+                      TabChangeType change_type) override;
   void OnTabStripModelChanged(
       TabStripModel* tab_strip_model,
       const TabStripModelChange& change,
@@ -134,7 +123,7 @@ class VivaldiBrowserObserver : public BrowserListObserver,
 
   // Used to track windows being closed by profiles being closed, they should
   // not have any confirmation dialogs.
-  std::vector<Browser*> closing_windows_;
+  std::vector<int32_t> closing_windows_;
 };
 
 VivaldiBrowserObserver& VivaldiBrowserObserver::GetInstance() {
@@ -151,18 +140,23 @@ void VivaldiBrowserObserver::WindowsForProfileClosing(Profile* profile) {
     // We don't care about guest windows.
     return;
   }
-  for (Browser* browser : *BrowserList::GetInstance()) {
-    if (browser->profile()->GetOriginalProfile() ==
-        profile->GetOriginalProfile()) {
-      closing_windows_.push_back(browser);
-    }
-  }
+
+  ForEachCurrentAndNewBrowserWindowInterfaceOrderedByActivation(
+      [&](BrowserWindowInterface* browser) {
+        // If this is the last normal window, close the settings
+        // window so shutdown can progress normally.
+        if (browser->GetProfile()->GetOriginalProfile() ==
+            profile->GetOriginalProfile()) {
+          closing_windows_.push_back(browser->GetSessionID().id());
+        }
+        return true;  // continue iterating
+      });
 }
 
-size_t VivaldiBrowserObserver::FindClosingWindow(Browser* browser) {
+size_t VivaldiBrowserObserver::FindClosingWindow(int32_t browser_id) {
   // STL is too verbose not to use a one-letter abbreviation.
   const auto& v = closing_windows_;
-  auto i = std::find(v.begin(), v.end(), browser);
+  auto i = std::find(v.begin(), v.end(), browser_id);
   return (i != v.end()) ? std::distance(v.begin(), i) : SIZE_MAX;
 }
 
@@ -181,22 +175,24 @@ void VivaldiBrowserObserver::OnBrowserRemoved(Browser* browser) {
     ZoomAPI::RemoveZoomObserver(browser);
   }
 
-  size_t i = FindClosingWindow(browser);
+  size_t i = FindClosingWindow(browser->session_id().id());
   if (i != SIZE_MAX) {
     closing_windows_.erase(closing_windows_.begin() + i);
   }
 
   if (chrome::GetTotalBrowserCount() == 1) {
-    for (Browser* browser_it : *BrowserList::GetInstance()) {
-      // If this is the last normal window, close the settings
-      // window so shutdown can progress normally.
-      if (browser_it->is_vivaldi() &&
-          static_cast<VivaldiBrowserWindow*>(browser_it->window())->type() ==
-              VivaldiBrowserWindow::WindowType::SETTINGS) {
-        browser_it->window()->Close();
-        break;
-      }
-    }
+    ForEachCurrentAndNewBrowserWindowInterfaceOrderedByActivation(
+        [&](BrowserWindowInterface* browser) {
+          // If this is the last normal window, close the settings
+          // window so shutdown can progress normally.
+          if (browser->is_vivaldi() &&
+              static_cast<VivaldiBrowserWindow*>(browser->GetWindow())
+                      ->window_type() ==
+                  VivaldiBrowserWindow::WindowType::SETTINGS) {
+            browser->GetWindow()->Close();
+          }
+          return true;  // continue iterating
+        });
   }
 }
 
@@ -206,47 +202,25 @@ void VivaldiBrowserObserver::OnBrowserSetLastActive(Browser* browser) {
           browser->tab_strip_model()->GetActiveWebContents());
 }
 
-void VivaldiBrowserObserver::TabChangedAt(content::WebContents* web_contents,
-                                          int index,
-                                          TabChangeType change_type) {
+void VivaldiBrowserObserver::OnTabChangedAt(tabs::TabInterface* tab,
+                                            int index,
+                                            TabChangeType change_type) {
   // Ignore 'loading' and 'title' changes.
   if (change_type != TabChangeType::kAll)
     return;
 
-  TabsPrivateAPI::FromBrowserContext(web_contents->GetBrowserContext())
-      ->NotifyTabChange(web_contents);
+  TabsPrivateAPI::FromBrowserContext(tab->GetContents()->GetBrowserContext())
+      ->NotifyTabChange(tab->GetContents());
 }
 
 void VivaldiBrowserObserver::OnTabStripModelChanged(
     TabStripModel* tab_strip_model,
     const TabStripModelChange& change,
     const TabStripSelectionChange& selection) {
-
   ::vivaldi::HandleAssociatedTabs(tab_strip_model, change);
 
   if (!selection.active_tab_changed() || !selection.new_contents)
     return;
-
-  // Synthesize webcontents OnWebContentsLostFocus/OnWebContentsFocused
-  if (selection.active_tab_changed()) {
-    autofill::ChromeAutofillClient* old_fill_client =
-      selection.old_contents
-      ? static_cast<autofill::ChromeAutofillClient*>(
-        autofill::ChromeAutofillClient::FromWebContents(selection.old_contents))
-      : nullptr;
-    autofill::ChromeAutofillClient* new_fill_client =
-      static_cast<autofill::ChromeAutofillClient*>(
-        autofill::ChromeAutofillClient::FromWebContents(selection.new_contents));
-
-    if (old_fill_client) {
-      old_fill_client->OnWebContentsLostFocus(
-          selection.old_contents->GetPrimaryMainFrame()->GetRenderWidgetHost());
-    }
-    if (new_fill_client) {
-      new_fill_client->OnWebContentsFocused(
-          selection.new_contents->GetPrimaryMainFrame()->GetRenderWidgetHost());
-    }
-  }
 
   TabsPrivateAPI::FromBrowserContext(
       selection.new_contents->GetBrowserContext())
@@ -267,7 +241,8 @@ void VivaldiWindowsAPI::WindowsForProfileClosing(Profile* profile) {
 
 // static
 bool VivaldiWindowsAPI::IsWindowClosingBecauseProfileClose(Browser* browser) {
-  size_t i = VivaldiBrowserObserver::GetInstance().FindClosingWindow(browser);
+  size_t i = VivaldiBrowserObserver::GetInstance().FindClosingWindow(
+      browser->session_id().id());
   return i != SIZE_MAX;
 }
 
@@ -341,13 +316,10 @@ ExtensionFunction::ResponseAction WindowPrivateCreateFunction::Run() {
   // App window specific parameters
   VivaldiBrowserWindowParams window_params;
 
-  if (params->type ==
-      vivaldi::window_private::WindowType::kSettings) {
-    window_params.settings_window = true;
-  }
   window_params.focused = focused;
   if (params->options.window_decoration.has_value()) {
-    window_params.native_decorations = params->options.window_decoration.value();
+    window_params.native_decorations =
+        params->options.window_decoration.value();
   } else {
     window_params.native_decorations = profile->GetPrefs()->GetBoolean(
         vivaldiprefs::kWindowsUseNativeDecoration);
@@ -356,9 +328,9 @@ ExtensionFunction::ResponseAction WindowPrivateCreateFunction::Run() {
   window_params.minimum_size = gfx::Size(min_width, min_height);
   window_params.state =
       params->options.state != vivaldi::window_private::WindowState::kNone
-    ? vivaldi::ConvertToWindowShowState(params->options.state)
+          ? vivaldi::ConvertToWindowShowState(params->options.state)
           : ui::mojom::WindowShowState::kDefault;
-  window_params.resource_relative_url = std::move(params->url);
+  window_params.resource_relative_url = std::move(params->window_url);
   window_params.creator_frame = render_frame_host();
   window_params.window_key = window_key;
 
@@ -435,8 +407,8 @@ ExtensionFunction::ResponseAction WindowPrivateSetStateFunction::Run() {
           ->window()
           ->Minimize();
       if (was_fullscreen) {
-        extensions::BrowserExtensionWindowController::From(browser)->SetFullscreenMode(
-            false, extension()->url());
+        extensions::BrowserExtensionWindowController::From(browser)
+            ->SetFullscreenMode(false, extension()->url());
       }
       break;
     case ui::mojom::WindowShowState::kMaximized:
@@ -449,16 +421,14 @@ ExtensionFunction::ResponseAction WindowPrivateSetStateFunction::Run() {
           ->Maximize();
       if (was_fullscreen) {
         extensions::BrowserExtensionWindowController::From(browser)
-            ->SetFullscreenMode(
-            false, extension()->url());
+            ->SetFullscreenMode(false, extension()->url());
       }
 #else
       // NOTE(bjorgvin@vivaldi.com): VB-83626 SetFullscreenMode has to be before
       // Maximize on Linux to prevent triggering of extra onStateChanged events.
       if (was_fullscreen) {
         extensions::BrowserExtensionWindowController::From(browser)
-            ->SetFullscreenMode(
-            false, extension()->url());
+            ->SetFullscreenMode(false, extension()->url());
       }
       extensions::BrowserExtensionWindowController::From(browser)
           ->window()
@@ -467,15 +437,13 @@ ExtensionFunction::ResponseAction WindowPrivateSetStateFunction::Run() {
       break;
     case ui::mojom::WindowShowState::kFullscreen:
       extensions::BrowserExtensionWindowController::From(browser)
-          ->SetFullscreenMode(
-          true, extension()->url());
+          ->SetFullscreenMode(true, extension()->url());
       break;
     case ui::mojom::WindowShowState::kNormal:
       was_fullscreen = browser->window()->IsFullscreen();
       if (was_fullscreen) {
         extensions::BrowserExtensionWindowController::From(browser)
-            ->SetFullscreenMode(
-            false, extension()->url());
+            ->SetFullscreenMode(false, extension()->url());
       } else {
         browser->window()->Restore();
       }
@@ -520,9 +488,8 @@ WindowPrivateGetFocusedElementInfoFunction::Run() {
   EXTENSION_FUNCTION_VALIDATE(params);
 
   VivaldiBrowserWindow* window =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          VivaldiBrowserWindowFromId(
-            params->window_id);
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->window_id);
   if (!window) {
     return RespondNow(Error("No such window"));
   }
@@ -559,7 +526,8 @@ void WindowPrivateGetFocusedElementInfoFunction::FocusedElementInfoReceived(
   return Respond(ArgumentList(Results::Create(info)));
 }
 
-ExtensionFunction::ResponseAction WindowPrivateIsOnScreenWithNotchFunction::Run() {
+ExtensionFunction::ResponseAction
+WindowPrivateIsOnScreenWithNotchFunction::Run() {
   namespace Results = vivaldi::window_private::IsOnScreenWithNotch::Results;
   using vivaldi::window_private::IsOnScreenWithNotch::Params;
 
@@ -567,15 +535,14 @@ ExtensionFunction::ResponseAction WindowPrivateIsOnScreenWithNotchFunction::Run(
   EXTENSION_FUNCTION_VALIDATE(params);
 
   VivaldiBrowserWindow* window =
-      VivaldiBrowserComponentWrapper::GetInstance()->
-          VivaldiBrowserWindowFromId(
-            params->window_id);
+      VivaldiBrowserComponentWrapper::GetInstance()->VivaldiBrowserWindowFromId(
+          params->window_id);
   if (!window) {
     return RespondNow(Error("No such window"));
   }
 
-  return RespondNow(ArgumentList(
-    Results::Create(IsWindowOnScreenWithNotch(window))));
+  return RespondNow(
+      ArgumentList(Results::Create(IsWindowOnScreenWithNotch(window))));
 }
 
 ExtensionFunction::ResponseAction

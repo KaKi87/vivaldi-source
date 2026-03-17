@@ -16,9 +16,9 @@ bool CanEventExecuteCommand(NSEvent* event) {
   switch ([event type]) {
     case NSEventTypeKeyDown:
     case NSEventTypeKeyUp:
-    case NSEventTypeLeftMouseDown: // Added for macOs 14.0
+    case NSEventTypeLeftMouseDown:  // Added for macOs 14.0
     case NSEventTypeLeftMouseUp:
-    case NSEventTypeRightMouseDown: // Added for macOs 14.0
+    case NSEventTypeRightMouseDown:  // Added for macOs 14.0
     case NSEventTypeRightMouseUp:
       return true;
     // VB-23147: All of the remaining events are observed to happen when we

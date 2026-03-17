@@ -25,8 +25,8 @@
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/browser/test/test_browser.h"
 #import "ios/chrome/browser/shared/model/profile/test/test_profile_ios.h"
-#import "ios/chrome/browser/shared/public/commands/application_commands.h"
 #import "ios/chrome/browser/shared/public/commands/command_dispatcher.h"
+#import "ios/chrome/browser/shared/public/commands/scene_commands.h"
 #import "ios/chrome/browser/signin/model/authentication_service.h"
 #import "ios/chrome/browser/signin/model/authentication_service_factory.h"
 #import "ios/chrome/browser/signin/model/fake_authentication_service_delegate.h"
@@ -205,7 +205,8 @@ class TwoScreensSigninCoordinatorTest : public PlatformTest {
   void SigninFakeIdentity(bool has_history_sync_opt_in) {
     AuthenticationService* auth_service =
         AuthenticationServiceFactory::GetForProfile(profile_.get());
-    auth_service->SignIn(fake_identity_, signin_metrics::AccessPoint::kUnknown);
+    auth_service->SignIn(fake_identity_,
+                         signin_metrics::AccessPoint::kStartPage);
     syncer::SyncService* sync_service =
         SyncServiceFactory::GetForProfile(profile_.get());
     sync_service->GetUserSettings()->SetSelectedType(

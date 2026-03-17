@@ -11,10 +11,10 @@
 #include "base/files/file_path_watcher.h"
 #include "base/files/file_util.h"
 #include "base/functional/callback.h"
-#include "base/sequence_checker.h"
-#include "base/timer/timer.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/memory/weak_ptr.h"
+#include "base/sequence_checker.h"
+#include "base/task/sequenced_task_runner.h"
+#include "base/timer/timer.h"
 
 namespace page_actions {
 class DirectoryWatcher {

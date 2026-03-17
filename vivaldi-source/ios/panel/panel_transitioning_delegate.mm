@@ -10,10 +10,12 @@
 @implementation PanelTransitioningDelegate
 
 - (UIPresentationController*)
-presentationControllerForPresentedViewController:(UIViewController*)presented
-                        presentingViewController:(UIViewController*)presenting
-                            sourceViewController:(UIViewController*)source {
-  SidebarPanelPresentationController *presentationController =
+    presentationControllerForPresentedViewController:
+        (UIViewController*)presented
+                            presentingViewController:
+                                (UIViewController*)presenting
+                                sourceViewController:(UIViewController*)source {
+  SidebarPanelPresentationController* presentationController =
       [[SidebarPanelPresentationController alloc]
           initWithPresentedViewController:presented
                  presentingViewController:presenting];
@@ -22,15 +24,15 @@ presentationControllerForPresentedViewController:(UIViewController*)presented
 }
 
 - (id<UIViewControllerAnimatedTransitioning>)
-animationControllerForPresentedController:(UIViewController*)presented
-                     presentingController:(UIViewController*)presenting
-                         sourceController:(UIViewController*)source {
-    return [[SlideInAnimator alloc] init];
+    animationControllerForPresentedController:(UIViewController*)presented
+                         presentingController:(UIViewController*)presenting
+                             sourceController:(UIViewController*)source {
+  return [[SlideInAnimator alloc] init];
 }
 
 - (id<UIViewControllerAnimatedTransitioning>)
     animationControllerForDismissedController:(UIViewController*)dismissed {
-    return [[SlideOutAnimator alloc] init];
+  return [[SlideOutAnimator alloc] init];
 }
 
 @end

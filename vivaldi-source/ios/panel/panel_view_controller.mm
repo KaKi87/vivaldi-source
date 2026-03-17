@@ -16,26 +16,26 @@
 #import "ios/ui/notes/note_home_view_controller.h"
 #import "ios/ui/notes/note_navigation_controller.h"
 #import "ios/ui/vivaldi_overflow_menu/vivaldi_oveflow_menu_constants.h"
-#import "ui/base/l10n/l10n_util_mac.h"
 #import "ui/base/l10n/l10n_util.h"
+#import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using l10n_util::GetNSString;
 
 namespace {
-  constexpr CGFloat kSegmentedControlHeight = 40.0;
-  constexpr CGFloat kSegmentedControlCornerRadius = 20.0;
-}
+constexpr CGFloat kSegmentedControlHeight = 40.0;
+constexpr CGFloat kSegmentedControlCornerRadius = 20.0;
+}  // namespace
 
-@interface PanelViewController (){
-    UISegmentedControl* segmentedControl;
-    NoteNavigationController* noteNavigationController;
-    UINavigationController* historyController;
-    UINavigationController* bookmarkController;
-    UINavigationController* readinglistController;
-    UINavigationController* translateController;
-    UIView* pageSwitcherBackgroundView;
-    NSLayoutConstraint* positionConstraint;
+@interface PanelViewController () {
+  UISegmentedControl* segmentedControl;
+  NoteNavigationController* noteNavigationController;
+  UINavigationController* historyController;
+  UINavigationController* bookmarkController;
+  UINavigationController* readinglistController;
+  UINavigationController* translateController;
+  UIView* pageSwitcherBackgroundView;
+  NSLayoutConstraint* positionConstraint;
 }
 
 @property(nonatomic, strong) UIPageViewController* pageController;
@@ -47,7 +47,7 @@ namespace {
 @implementation PanelViewController
 
 - (instancetype)init {
-    return [super initWithNibName:nil bundle:nil];
+  return [super initWithNibName:nil bundle:nil];
 }
 
 - (void)viewDidLayoutSubviews {
@@ -78,7 +78,7 @@ namespace {
   self.pageController = [[UIPageViewController alloc]
       initWithTransitionStyle:UIPageViewControllerTransitionStyleScroll
         navigationOrientation:UIPageViewControllerNavigationOrientationVertical
-                    options:nil];
+                      options:nil];
   self.pageController.delegate = self;
   [self addChildViewController:self.pageController];
   [self.view addSubview:self.pageController.view];
@@ -92,82 +92,89 @@ namespace {
   [self.view addSubview:topView];
 
   NSLayoutConstraint* centerHorizontallyConstraint2 =
-      [NSLayoutConstraint
-                    constraintWithItem: topView
-                    attribute:NSLayoutAttributeCenterX
-                    relatedBy:NSLayoutRelationEqual
-                    toItem:self.view
-                    attribute:NSLayoutAttributeCenterX
-                    multiplier:1.0
-                    constant:0];
-  [topView.leadingAnchor constraintEqualToAnchor:
-      self.view.leadingAnchor constant:0].active = YES;
+      [NSLayoutConstraint constraintWithItem:topView
+                                   attribute:NSLayoutAttributeCenterX
+                                   relatedBy:NSLayoutRelationEqual
+                                      toItem:self.view
+                                   attribute:NSLayoutAttributeCenterX
+                                  multiplier:1.0
+                                    constant:0];
+  [topView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor
+                                        constant:0]
+      .active = YES;
   [self.view addConstraint:centerHorizontallyConstraint2];
-  positionConstraint = [topView.topAnchor constraintEqualToAnchor:
-                        self.view.topAnchor constant:panel_search_view_height];
+  positionConstraint =
+      [topView.topAnchor constraintEqualToAnchor:self.view.topAnchor
+                                        constant:panel_search_view_height];
   [topView.heightAnchor constraintEqualToConstant:panel_search_view_height]
-        .active = YES;
+      .active = YES;
   positionConstraint.active = YES;
   // Create and add segmentedControl
-  segmentedControl = [[UISegmentedControl alloc]
-                      initWithItems:@[
-                [UIImage imageNamed:vPanelBookmarks],
-                [UIImage imageNamed:vPanelReadingList],
-                [UIImage imageNamed:vPanelHistory],
-                [UIImage imageNamed:vPanelNotes],
-                [UIImage imageNamed:vPanelTranslate]]];
-  [segmentedControl addTarget:self action:@selector(segmentTapped:)
-                 forControlEvents:UIControlEventValueChanged];
+  segmentedControl = [[UISegmentedControl alloc] initWithItems:@[
+    [UIImage imageNamed:vPanelBookmarks],
+    [UIImage imageNamed:vPanelReadingList], [UIImage imageNamed:vPanelHistory],
+    [UIImage imageNamed:vPanelNotes], [UIImage imageNamed:vPanelTranslate]
+  ]];
+  [segmentedControl addTarget:self
+                       action:@selector(segmentTapped:)
+             forControlEvents:UIControlEventValueChanged];
   self.segmentControl = segmentedControl;
   segmentedControl.translatesAutoresizingMaskIntoConstraints = NO;
   [topView addSubview:segmentedControl];
   NSLayoutConstraint* centerHorizontallyConstraint =
-    [NSLayoutConstraint
-                  constraintWithItem: segmentedControl
-                  attribute:NSLayoutAttributeCenterX
-                  relatedBy:NSLayoutRelationEqual
-                  toItem:topView
-                  attribute:NSLayoutAttributeCenterX
-                  multiplier:1.0
-                  constant:0];
-  [segmentedControl.topAnchor constraintEqualToAnchor:
-    topView.topAnchor constant:panel_top_padding].active = YES;
-  [segmentedControl.leadingAnchor constraintEqualToAnchor:
-    self.view.safeLeftAnchor constant:panel_horizontal_padding].active = YES;
+      [NSLayoutConstraint constraintWithItem:segmentedControl
+                                   attribute:NSLayoutAttributeCenterX
+                                   relatedBy:NSLayoutRelationEqual
+                                      toItem:topView
+                                   attribute:NSLayoutAttributeCenterX
+                                  multiplier:1.0
+                                    constant:0];
+  [segmentedControl.topAnchor constraintEqualToAnchor:topView.topAnchor
+                                             constant:panel_top_padding]
+      .active = YES;
+  [segmentedControl.leadingAnchor
+      constraintEqualToAnchor:self.view.safeLeftAnchor
+                     constant:panel_horizontal_padding]
+      .active = YES;
   [topView addConstraint:centerHorizontallyConstraint];
 
   if (@available(iOS 26.0, *)) {
     topView.backgroundColor = [UIColor clearColor];
     [segmentedControl.heightAnchor
-      constraintEqualToConstant:kSegmentedControlHeight].active = YES;
+        constraintEqualToConstant:kSegmentedControlHeight]
+        .active = YES;
     UIGlassEffect* glassEffect =
-      [UIGlassEffect effectWithStyle:UIGlassEffectStyleClear];
+        [UIGlassEffect effectWithStyle:UIGlassEffectStyleClear];
     glassEffect.tintColor = [UIColor clearColor];
     UIVisualEffectView* segmentedGlassEffectView =
-      [[UIVisualEffectView alloc] initWithEffect:glassEffect];
+        [[UIVisualEffectView alloc] initWithEffect:glassEffect];
     segmentedGlassEffectView.translatesAutoresizingMaskIntoConstraints = NO;
     [topView insertSubview:segmentedGlassEffectView
               belowSubview:segmentedControl];
-    [segmentedGlassEffectView.centerXAnchor constraintEqualToAnchor:
-      segmentedControl.centerXAnchor].active = YES;
-    [segmentedGlassEffectView.centerYAnchor constraintEqualToAnchor:
-      segmentedControl.centerYAnchor].active = YES;
-    [segmentedGlassEffectView.widthAnchor constraintEqualToAnchor:
-      segmentedControl.widthAnchor].active = YES;
-    [segmentedGlassEffectView.heightAnchor constraintEqualToAnchor:
-      segmentedControl.heightAnchor].active = YES;
+    [segmentedGlassEffectView.centerXAnchor
+        constraintEqualToAnchor:segmentedControl.centerXAnchor]
+        .active = YES;
+    [segmentedGlassEffectView.centerYAnchor
+        constraintEqualToAnchor:segmentedControl.centerYAnchor]
+        .active = YES;
+    [segmentedGlassEffectView.widthAnchor
+        constraintEqualToAnchor:segmentedControl.widthAnchor]
+        .active = YES;
+    [segmentedGlassEffectView.heightAnchor
+        constraintEqualToAnchor:segmentedControl.heightAnchor]
+        .active = YES;
     segmentedGlassEffectView.contentView.clipsToBounds = YES;
     segmentedControl.layer.cornerRadius = kSegmentedControlCornerRadius;
     segmentedControl.clipsToBounds = YES;
     segmentedControl.selectedSegmentTintColor =
-      [UIColor secondarySystemFillColor];
+        [UIColor secondarySystemFillColor];
     segmentedGlassEffectView.layer.cornerRadius = kSegmentedControlCornerRadius;
     segmentedGlassEffectView.layer.masksToBounds = YES;
 
-    NSDictionary* selectedAttrs = @{
-        NSForegroundColorAttributeName: [UIColor colorNamed: kBlueColor] };
-    [segmentedControl
-        setTitleTextAttributes:selectedAttrs forState:UIControlStateSelected];
+    NSDictionary* selectedAttrs =
+        @{NSForegroundColorAttributeName : [UIColor colorNamed:kBlueColor]};
+    [segmentedControl setTitleTextAttributes:selectedAttrs
+                                    forState:UIControlStateSelected];
   }
   [self setIndexForControl:BookmarksPage];
 }
@@ -182,9 +189,9 @@ namespace {
  */
 - (void)setupControllers:(NoteNavigationController*)nvc
       withBookmarkController:(UINavigationController*)bvc
-          andReadinglistController:(UINavigationController*)rvc
-              andHistoryController:(UINavigationController*)hc
-                  andTranslateController:(UINavigationController*)tc {
+    andReadinglistController:(UINavigationController*)rvc
+        andHistoryController:(UINavigationController*)hc
+      andTranslateController:(UINavigationController*)tc {
   noteNavigationController = nvc;
   bookmarkController = bvc;
   readinglistController = rvc;
@@ -204,46 +211,52 @@ namespace {
 }
 
 - (void)setIndexForControl:(int)index {
-    UIViewController* uv = nil;
-    switch (index) {
-      case PanelPage::BookmarksPage:
-          uv = bookmarkController;
-            break;
-      case PanelPage::ReadinglistPage:
-          uv = readinglistController;
-            break;
-      case PanelPage::NotesPage:
-          uv = noteNavigationController;
-            break;
-      case PanelPage::HistoryPage:
-          uv = historyController;
-            break;
-      case PanelPage::TranslatePage:
-          uv = translateController;
-            break;
-    }
-    [self.pageController setViewControllers:@[uv]
-                direction:UIPageViewControllerNavigationDirectionForward
-                         animated:NO
-                        completion:nil];
+  UIViewController* uv = nil;
+  switch (index) {
+    case PanelPage::BookmarksPage:
+      uv = bookmarkController;
+      break;
+    case PanelPage::ReadinglistPage:
+      uv = readinglistController;
+      break;
+    case PanelPage::NotesPage:
+      uv = noteNavigationController;
+      break;
+    case PanelPage::HistoryPage:
+      uv = historyController;
+      break;
+    case PanelPage::TranslatePage:
+      uv = translateController;
+      break;
+  }
+  if (!uv) {
+    return;
+  }
+  [self.pageController
+      setViewControllers:@[ uv ]
+               direction:UIPageViewControllerNavigationDirectionForward
+                animated:NO
+              completion:nil];
 }
 
 - (void)segmentTapped:(UISegmentedControl*)sender {
-  if (!sender || sender.selectedSegmentIndex < 0
-      || sender.selectedSegmentIndex > 4)
-      return;
+  if (!sender || sender.selectedSegmentIndex < 0 ||
+      sender.selectedSegmentIndex > 4)
+    return;
   UINavigationController* navController = nil;
   navController = self.pageController.viewControllers.firstObject;
   if (navController) {
     UIViewController* vc = [navController visibleViewController];
-      if ([vc isKindOfClass:[UISearchController class]]) {
-          [navController dismissViewControllerAnimated:YES completion:^{
-              ((UISearchController*)vc).active = NO;
-              int index = sender.selectedSegmentIndex;
-              [self setIndexForControl:index];
-          }];
-          return;
-      }
+    if ([vc isKindOfClass:[UISearchController class]]) {
+      [navController dismissViewControllerAnimated:YES
+                                        completion:^{
+                                          ((UISearchController*)vc).active = NO;
+                                          int index =
+                                              sender.selectedSegmentIndex;
+                                          [self setIndexForControl:index];
+                                        }];
+      return;
+    }
   }
 
   int index = sender.selectedSegmentIndex;

@@ -13,8 +13,8 @@ NS_SWIFT_UI_ACTOR
 @protocol VivaldiStartPageSettingsConsumer;
 
 // The Mediator for start page layout settings.
-@interface VivaldiStartPageLayoutSettingsMediator:
-    NSObject<VivaldiStartPageSettingsConsumer>
+@interface VivaldiStartPageLayoutSettingsMediator
+    : NSObject <VivaldiStartPageSettingsConsumer>
 
 - (instancetype)initWithOriginalPrefService:(PrefService*)originalPrefService
     NS_DESIGNATED_INITIALIZER;

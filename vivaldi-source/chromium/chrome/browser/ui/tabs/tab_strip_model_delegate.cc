@@ -10,3 +10,8 @@ TabStripModelDelegate::NewStripContents::NewStripContents() = default;
 TabStripModelDelegate::NewStripContents::~NewStripContents() = default;
 TabStripModelDelegate::NewStripContents::NewStripContents(NewStripContents&&) =
     default;
+
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
+void TabStripModelDelegate::GlicUnpinTabsFromAllConversations(
+    base::span<const tabs::TabHandle> tab_handles) {}
+#endif

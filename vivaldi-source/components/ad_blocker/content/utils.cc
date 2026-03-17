@@ -17,7 +17,8 @@ bool CanFilterUrl(const GURL& url, bool is_popup) {
   }
 
   return (url.SchemeIs(url::kFtpScheme) || url.SchemeIsHTTPOrHTTPS() ||
-          url.SchemeIsWSOrWSS() || (is_popup && url.IsAboutBlank()));
+          url.SchemeIsWSOrWSS() ||
+          (is_popup && (url.IsAboutBlank() || url.SchemeIs("data"))));
 }
 
 }  // namespace adblock_filter

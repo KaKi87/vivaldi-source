@@ -34,13 +34,13 @@
   _textView.scrollEnabled = NO;
   _textView.editable = NO;
   _textView.backgroundColor = [UIColor clearColor];
-  _textView.font =
-      [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+  _textView.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
   _textView.textAlignment = NSTextAlignmentCenter;
   _textView.textContainerInset = UIEdgeInsetsZero;
-  _textView.linkTextAttributes =
-      @{NSForegroundColorAttributeName : [UIColor secondaryLabelColor],
-        NSUnderlineStyleAttributeName : @(NSUnderlineStyleSingle)};
+  _textView.linkTextAttributes = @{
+    NSForegroundColorAttributeName : [UIColor secondaryLabelColor],
+    NSUnderlineStyleAttributeName : @(NSUnderlineStyleSingle)
+  };
 
   _textView.attributedText = self.createAttributedText;
   _textView.delegate = self;
@@ -53,21 +53,20 @@
 
 // Creates and returns the attributed string for the textView
 - (NSAttributedString*)createAttributedText {
-
   // Get the localized string with placeholders for links
-  NSString *text =
+  NSString* text =
       l10n_util::GetNSString(IDS_VIVALDI_IOS_ONBOARDING_START_AGREEMENT_TITLE);
 
   // Parse the string to extract the ranges of links
   StringWithTags parsedString = ParseStringWithLinks(text);
 
   // Create paragraph style with leading alignment
-  NSMutableParagraphStyle *paragraphStyle =
+  NSMutableParagraphStyle* paragraphStyle =
       [[NSParagraphStyle defaultParagraphStyle] mutableCopy];
   paragraphStyle.alignment = NSTextAlignmentCenter;
 
   // Common text attributes
-  NSDictionary *textAttributes = @{
+  NSDictionary* textAttributes = @{
     NSForegroundColorAttributeName : [UIColor secondaryLabelColor],
     NSFontAttributeName :
         [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote],
@@ -75,9 +74,9 @@
   };
 
   // Create the attributed string with the full text
-  NSMutableAttributedString *attributedText =
+  NSMutableAttributedString* attributedText =
       [[NSMutableAttributedString alloc] initWithString:parsedString.string
-                                            attributes:textAttributes];
+                                             attributes:textAttributes];
 
   // Define the URLs corresponding to the links in the text
   NSArray* urls = @[
@@ -100,25 +99,28 @@
 #pragma mark - UITextViewDelegate
 
 - (UIAction*)textView:(UITextView*)textView
-primaryActionForTextItem:(UITextItem*)textItem
-        defaultAction:(UIAction*) defaultAction {
+    primaryActionForTextItem:(UITextItem*)textItem
+               defaultAction:(UIAction*)defaultAction {
   __weak __typeof__(self) weakSelf = self;
   return [UIAction actionWithHandler:^(UIAction* action) {
     __strong __typeof(self) strongSelf = weakSelf;
-    if (!strongSelf) return;
-    NSString *URLString = [textItem.link absoluteString];
+    if (!strongSelf)
+      return;
+    NSString* URLString = [textItem.link absoluteString];
 
     if (URLString == vVivaldiTermsOfServiceUrl) {
       if (self.onTermsDidTap) {
-        self.onTermsDidTap(textItem.link,
+        self.onTermsDidTap(
+            textItem.link,
             l10n_util::GetNSString(
                 IDS_VIVALDI_IOS_ONBOARDING_START_AGREEMENT_LICENSE_TITLE));
       }
     } else if (URLString == vVivaldiCommunityPrivacyUrl) {
       if (self.onPrivacyPolicyDidTap) {
-        self.onPrivacyPolicyDidTap(textItem.link,
+        self.onPrivacyPolicyDidTap(
+            textItem.link,
             l10n_util::GetNSString(
-                  IDS_VIVALDI_IOS_ONBOARDING_START_AGREEMENT_PRIVACY_TITLE));
+                IDS_VIVALDI_IOS_ONBOARDING_START_AGREEMENT_PRIVACY_TITLE));
       }
     }
   }];

@@ -16,6 +16,6 @@ std::string GetSignedResourceUrl(SignedResourceUrl url_id);
 bool IsDebuggingSearchEngines();
 bool UsesCustomSearchEnginesUrl();
 bool UsesCustomSearchEnginesPromptUrl();
-}
+}  // namespace vivaldi
 
-#endif // COMPONENTS_SIGNATURE_VIVALDI_SIGNATURE_H_
+#endif  // COMPONENTS_SIGNATURE_VIVALDI_SIGNATURE_H_

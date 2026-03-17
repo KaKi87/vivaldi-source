@@ -43,6 +43,7 @@
 #include "ui/views/controls/image_view.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/table_layout_view.h"
+#include "ui/views/metadata/view_factory.h"
 #include "ui/views/view.h"
 
 namespace {
@@ -56,11 +57,11 @@ constexpr int kImageHeightPx = 252;
 namespace sharing_hub {
 
 ScreenshotCapturedBubble::ScreenshotCapturedBubble(
-    views::View* anchor_view,
+    views::BubbleAnchor anchor,
     content::WebContents* web_contents,
     const gfx::Image& image,
     Profile* profile)
-    : LocationBarBubbleDelegateView(anchor_view, nullptr),
+    : LocationBarBubbleDelegateView(anchor, nullptr),
       image_(image),
       web_contents_(web_contents->GetWeakPtr()),
       profile_(profile) {

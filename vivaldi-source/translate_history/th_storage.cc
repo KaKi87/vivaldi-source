@@ -48,16 +48,14 @@ TH_Storage::TH_Storage(TH_Model* model)
           backend_task_runner_,
           base::Milliseconds(kSaveDelayMS)),
       weak_factory_(this) {
-
   // Create the user-data directory if needed (NOT the file).
   base::FilePath user_data_dir;
   if (base::PathService::Get(ios::DIR_USER_DATA, &user_data_dir)) {
     backend_task_runner_->PostTask(
         FROM_HERE,
-        base::BindOnce([](const base::FilePath& dir) {
-            base::CreateDirectory(dir);
-        },
-        user_data_dir));
+        base::BindOnce(
+            [](const base::FilePath& dir) { base::CreateDirectory(dir); },
+            user_data_dir));
   }
 }
 #endif

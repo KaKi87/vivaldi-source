@@ -5,23 +5,22 @@
 #ifndef IOS_CHROME_BROWSER_TAB_SWITCHER_UI_BUNDLED_TAB_GRID_TAB_GRID_COORDINATOR_H_
 #define IOS_CHROME_BROWSER_TAB_SWITCHER_UI_BUNDLED_TAB_GRID_TAB_GRID_COORDINATOR_H_
 
-#import <Foundation/Foundation.h>
-
 #import "base/ios/block_types.h"
 #import "ios/chrome/browser/shared/coordinator/root_coordinator/root_coordinator.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/tab_grid_paging.h"
 
-@protocol ApplicationCommands;
+@class BrowserLayoutViewController;
 class Browser;
+@protocol SceneCommands;
 @protocol TabGridCoordinatorDelegate;
 
 @interface TabGridCoordinator : RootCoordinator
 
-- (instancetype)initWithApplicationCommandEndpoint:
-                    (id<ApplicationCommands>)applicationCommandEndpoint
-                                    regularBrowser:(Browser*)regularBrowser
-                                   inactiveBrowser:(Browser*)inactiveBrowser
-                                  incognitoBrowser:(Browser*)incognitoBrowser
+- (instancetype)initWithSceneCommandsEndpoint:
+                    (id<SceneCommands>)sceneCommandsEndpoint
+                               regularBrowser:(Browser*)regularBrowser
+                              inactiveBrowser:(Browser*)inactiveBrowser
+                             incognitoBrowser:(Browser*)incognitoBrowser
     NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;
@@ -37,9 +36,13 @@ class Browser;
 // The view controller, if any, that is active.
 @property(nonatomic, readonly, strong) UIViewController* activeViewController;
 
-// If this property is YES, calls to `showTabSwitcher:completion:` and
-// `showTabViewController:completion:` will present the given view controllers
-// without animation.  This should only be used by unittests.
+// The view controller for the Tab Grid.
+@property(nonatomic, readonly) UIViewController* viewController;
+
+// If this property is YES, calls to `showTabGridPage:animated:` and
+// `showBrowserLayoutViewController:completion:` will present the
+// given view controllers without animation.  This should only be used by
+// unittests.
 @property(nonatomic, readwrite, assign) BOOL animationsDisabledForTesting;
 
 // If this property is YES, it means the tab grid is the main user interface at
@@ -53,11 +56,12 @@ class Browser;
 // Displays the TabGrid at `page`.
 - (void)showTabGridPage:(TabGridPage)page;
 
-// Displays the given view controller.
+// Displays the given browser layout view controller.
 // Runs the given `completion` block after the view controller is visible.
-- (void)showTabViewController:(UIViewController*)viewController
-                    incognito:(BOOL)incognito
-                   completion:(ProceduralBlock)completion;
+- (void)showBrowserLayoutViewController:
+            (BrowserLayoutViewController*)viewController
+                              incognito:(BOOL)incognito
+                             completion:(ProceduralBlock)completion;
 
 // Sets the `mode` as the active one.
 - (void)setActiveMode:(TabGridMode)mode;

@@ -1,7 +1,7 @@
 // Copyright (c) 2025 Vivaldi Technologies AS. All rights reserved
 
-#include "base/logging.h"
 #include "extensions/vivaldi_browser_component_wrapper.h"
+#include "base/logging.h"
 
 static VivaldiBrowserComponentWrapper* wrapper_impl_ = nullptr;
 

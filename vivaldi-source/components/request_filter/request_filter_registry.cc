@@ -10,4 +10,4 @@ RequestFilterRegistry::~RequestFilterRegistry() = default;
 void RequestFilterRegistry::ClearCacheOnNavigation() {
   web_cache::WebCacheManager::GetInstance()->ClearCacheOnNavigation();
 }
-}
+}  // namespace vivaldi

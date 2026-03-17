@@ -9,20 +9,34 @@
 
 #include "base/feature_list.h"
 #include "base/functional/bind.h"
-#include "base/types/cxx23_to_underlying.h"
 #include "base/types/id_type.h"
+#include "build/build_config.h"
 #include "chrome/browser/contextual_cueing/caching_zero_state_suggestions_manager.h"
 #include "chrome/browser/contextual_cueing/contextual_cueing_features.h"
 #include "chrome/browser/contextual_cueing/contextual_cueing_service.h"
 #include "chrome/browser/glic/host/host.h"
 #include "chrome/browser/glic/public/context/glic_sharing_manager.h"
-#include "chrome/browser/glic/widget/glic_window_controller.h"
+#include "chrome/browser/glic/public/features.h"
+#include "chrome/browser/glic/public/glic_enabling.h"
+#include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
-#include "content/public/browser/page.h"
 #include "mojo/public/cpp/bindings/callback_helpers.h"
 #include "ui/base/page_transition_types.h"
 
 namespace glic {
+namespace {
+
+mojom::ZeroStateSuggestionsV2Ptr MakeEmptySuggestionsPtr(
+    std::optional<mojom::InvocationSource> invocation_source) {
+  auto suggestions_ptr = mojom::ZeroStateSuggestionsV2::New();
+  std::vector<mojom::SuggestionContentPtr> empty_suggestions;
+  suggestions_ptr->suggestions = std::move(empty_suggestions);
+  suggestions_ptr->invocation_source =
+      invocation_source.value_or(mojom::InvocationSource::kUnsupported);
+  return suggestions_ptr;
+}
+
+}  // namespace
 
 namespace {
 
@@ -36,15 +50,9 @@ std::vector<std::string> EmptySuggestions() {
   return {};
 }
 
-mojom::ZeroStateSuggestionsV2Ptr MakeEmptySuggestionsPtr() {
-  auto suggestions_ptr = mojom::ZeroStateSuggestionsV2::New();
-  std::vector<mojom::SuggestionContentPtr> empty_suggestions;
-  suggestions_ptr->suggestions = std::move(empty_suggestions);
-  return suggestions_ptr;
-}
-
-mojom::ZeroStateSuggestionsV2Ptr MakePendingSuggestionsPtr() {
-  auto pending_suggestions = MakeEmptySuggestionsPtr();
+mojom::ZeroStateSuggestionsV2Ptr MakePendingSuggestionsPtr(
+    std::optional<mojom::InvocationSource> invocation_source) {
+  auto pending_suggestions = MakeEmptySuggestionsPtr(invocation_source);
   pending_suggestions->is_pending = true;
   return pending_suggestions;
 }
@@ -57,7 +65,7 @@ bool HasUserNavigationBeyondInitial(content::WebContents& web_contents) {
   // user selected default page.
   while (index > 0) {
     content::NavigationEntry* entry = controller.GetEntryAtIndex(index);
-    auto transition = base::to_underlying(entry->GetTransitionType());
+    auto transition = std::to_underlying(entry->GetTransitionType());
     bool automatic = 0 != (transition & (ui::PAGE_TRANSITION_FORWARD_BACK |
                                          ui::PAGE_TRANSITION_HOME_PAGE |
                                          ui::PAGE_TRANSITION_FROM_API |
@@ -119,7 +127,7 @@ void GlicZeroStateSuggestionsManager::
   if (contextual_cueing_service_ && active_web_contents) {
     // Notify host that suggestions are pending.
     host().NotifyZeroStateSuggestion(
-        MakePendingSuggestionsPtr(),
+        MakePendingSuggestionsPtr(host().invocation_source()),
         mojom::ZeroStateSuggestionsOptions(is_first_run, supported_tools));
 
     if (caching_zero_state_manager_) {
@@ -168,7 +176,7 @@ void GlicZeroStateSuggestionsManager::
                                : nullptr;
   std::vector<content::WebContents*> contents_for_request = pinned_tab_data;
   if (active_web_contents &&
-      !Contains(contents_for_request, active_web_contents)) {
+      !std::ranges::contains(contents_for_request, active_web_contents)) {
     contents_for_request.push_back(active_web_contents);
   }
   FilterTabs(contents_for_request);
@@ -222,7 +230,7 @@ void GlicZeroStateSuggestionsManager::
     if (suggestions_pending) {
       // Notify host that suggestions are pending.
       host().NotifyZeroStateSuggestion(
-          MakePendingSuggestionsPtr(),
+          MakePendingSuggestionsPtr(host().invocation_source()),
           mojom::ZeroStateSuggestionsOptions(is_first_run, supported_tools));
     }
   }
@@ -259,6 +267,14 @@ void GlicZeroStateSuggestionsManager::ObserveZeroStateSuggestions(
         callback) {
   // Subscribe to changes in sharing.
   if (is_notifying) {
+    // Skip ZSS generation for unconsented users or if the panel was auto-opened
+    // for a PDF.
+    if (!GlicEnabling::HasConsentedForProfile(host().profile()) ||
+        WasAutoOpenedForPdf()) {
+      std::move(callback).Run(
+          MakeEmptySuggestionsPtr(host().invocation_source()));
+      return;
+    }
     // If there were previous subscriptions they will be unsubscribed when the
     // old values are destructed on assignment.
     // TODO: b/433738020 - Investigate whether we should listen to a different
@@ -285,7 +301,8 @@ void GlicZeroStateSuggestionsManager::ObserveZeroStateSuggestions(
                !pinned_tabs.empty()) {
       FilterTabs(pinned_tabs);
       if (pinned_tabs.empty()) {
-        std::move(callback).Run(MakeEmptySuggestionsPtr());
+        std::move(callback).Run(
+            MakeEmptySuggestionsPtr(host().invocation_source()));
         return;
       } else if (caching_zero_state_manager_) {
         caching_zero_state_manager_
@@ -382,6 +399,12 @@ void GlicZeroStateSuggestionsManager::Reset() {
   current_zero_state_suggestions_pinned_tab_data_change_subscription_ = {};
 }
 
+bool GlicZeroStateSuggestionsManager::WasAutoOpenedForPdf() {
+  return base::FeatureList::IsEnabled(features::kAutoOpenGlicForPdf) &&
+         host().invocation_source() ==
+             mojom::InvocationSource::kAutoOpenedForPdf;
+}
+
 base::WeakPtr<GlicZeroStateSuggestionsManager>
 GlicZeroStateSuggestionsManager::GetWeakPtr() {
   return weak_ptr_factory_.GetWeakPtr();
@@ -412,5 +435,4 @@ void GlicZeroStateSuggestionsManager::FilterTabs(
           }),
       tabs.end());
 }
-
 }  // namespace glic

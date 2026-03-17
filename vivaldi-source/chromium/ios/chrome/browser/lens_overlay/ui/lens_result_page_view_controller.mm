@@ -13,7 +13,7 @@
 #import "ios/chrome/browser/omnibox/ui/text_field_view_containing.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
-#import "ios/chrome/browser/toolbar/ui_bundled/toolbar_progress_bar.h"
+#import "ios/chrome/browser/toolbar/legacy/ui_bundled/toolbar_progress_bar.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
 #import "ios/chrome/common/ui/util/ui_util.h"
@@ -128,7 +128,7 @@ const CGFloat kGrabberTopPadding = 5;
 
   self.view.backgroundColor = [UIColor colorNamed:kPrimaryBackgroundColor];
 
-  CHECK(self.webViewContainer, kLensOverlayNotFatalUntil);
+  CHECK(self.webViewContainer);
   // Webview container.
   self.webViewContainer.translatesAutoresizingMaskIntoConstraints = NO;
   self.webViewContainer.clipsToBounds = YES;
@@ -301,9 +301,9 @@ const CGFloat kGrabberTopPadding = 5;
 }
 
 - (void)setEditView:(UIView<TextFieldViewContaining>*)editView {
-  CHECK(!_editView, kLensOverlayNotFatalUntil);
-  CHECK(editView, kLensOverlayNotFatalUntil);
-  CHECK(_omniboxContainer, kLensOverlayNotFatalUntil);
+  CHECK(!_editView);
+  CHECK(editView);
+  CHECK(_omniboxContainer);
   _editView = editView;
   _editView.translatesAutoresizingMaskIntoConstraints = NO;
   [_omniboxContainer insertSubview:_editView belowSubview:_omniboxTapTarget];
@@ -424,6 +424,9 @@ const CGFloat kGrabberTopPadding = 5;
 }
 
 - (void)popupDidCloseForPresenter:(OmniboxPopupPresenter*)presenter {
+}
+
+- (void)popupDidInitializePresenter:(OmniboxPopupPresenter*)presenter {
 }
 
 #pragma mark - LensToolbarConsumer

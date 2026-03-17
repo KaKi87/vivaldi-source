@@ -19,7 +19,8 @@ using base::TimeTicks;
 
 namespace update {
 
-// VivaldiUpdateBackend -----------------------------------------------------------
+// VivaldiUpdateBackend
+// -----------------------------------------------------------
 VivaldiUpdateBackend::VivaldiUpdateBackend(
     VivaldiUpdateDelegate* delegate,
     scoped_refptr<base::SequencedTaskRunner> task_runner)
@@ -65,8 +66,8 @@ void VivaldiUpdateBackend::StartUpdate(bool should_install_update) {
 }
 
 void VivaldiUpdateBackend::NotifyUpdateProgress(const AutoUpdateStatus& status,
-                                         const std::string& reason,
-                                         const int progress) {
+                                                const std::string& reason,
+                                                const int progress) {
   // Note; kNoUpdate is used to block multiple running updates.
   if (status == AutoUpdateStatus::kNoUpdate) {
     update_counter_ = 0;

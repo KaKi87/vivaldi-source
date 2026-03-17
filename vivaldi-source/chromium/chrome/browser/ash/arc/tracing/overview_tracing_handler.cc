@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40285824): Remove this and convert code to safer constructs.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "chrome/browser/ash/arc/tracing/overview_tracing_handler.h"
 
 #include <map>
@@ -14,6 +9,7 @@
 #include <string_view>
 #include <vector>
 
+#include "base/compiler_specific.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/i18n/time_formatting.h"
@@ -196,7 +192,7 @@ std::unique_ptr<OverviewTracingResult> BuildGraphicsModel(
   trace->model.set_app_icon_png(trace->task_icon_png);
   trace->model.set_platform(base::GetLinuxDistro());
   trace->model.set_timestamp(trace->timestamp);
-  base::Value::Dict model = trace->model.Serialize();
+  base::DictValue model = trace->model.Serialize();
 
   std::string json_content;
   base::JSONWriter::WriteWithOptions(
@@ -235,14 +231,14 @@ std::string OverviewTracingHandler::GetModelBaseNameFromTitle(
     }
     c = base::ToLowerASCII(c);
     if (c == ' ') {
-      normalized_name[index++] = '_';
+      UNSAFE_TODO(normalized_name[index++]) = '_';
       continue;
     }
     if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) {
-      normalized_name[index++] = c;
+      UNSAFE_TODO(normalized_name[index++]) = c;
     }
   }
-  normalized_name[index] = 0;
+  UNSAFE_TODO(normalized_name[index]) = 0;
 
   const std::string time =
       base::UnlocalizedTimeFormatWithPattern(timestamp, "yyyy-MM-dd_HH-mm-ss");

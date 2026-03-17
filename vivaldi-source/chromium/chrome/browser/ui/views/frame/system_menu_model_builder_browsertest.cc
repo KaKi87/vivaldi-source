@@ -17,12 +17,12 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/models/menu_model.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/glic_pref_names.h"
 #include "chrome/browser/glic/test_support/glic_test_util.h"
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 namespace {
 // Returns true if there exists a visible command with specified id and
 // (optionally) label in the given menu. False otherwise.

@@ -181,22 +181,14 @@ tint::Result<tint::core::ir::Module> GenerateIrModule(const tint::Program& progr
         return tint::Failure{"Unsupported enable used in shader"};
     }
 
-    auto ir = tint::wgsl::reader::ProgramToLoweredIR(program);
-    if (ir != tint::Success) {
-        return ir.Failure();
-    }
+    TINT_CHECK_RESULT_UNWRAP(ir, tint::wgsl::reader::ProgramToLoweredIR(program));
 
-    auto cfg = tint::fuzz::ir::SubstituteOverridesConfig(ir.Get());
-    auto substituteOverridesResult = tint::core::ir::transform::SubstituteOverrides(ir.Get(), cfg);
-    if (substituteOverridesResult != tint::Success) {
-        return substituteOverridesResult.Failure();
-    }
+    auto cfg = tint::fuzz::ir::SubstituteOverridesConfig(ir);
+    TINT_CHECK_RESULT(tint::core::ir::transform::SubstituteOverrides(ir, cfg));
 
-    if (auto val = tint::core::ir::Validate(ir.Get()); val != tint::Success) {
-        return val.Failure();
-    }
+    TINT_CHECK_RESULT(tint::core::ir::Validate(ir));
 
-    return ir.Move();
+    return ir;
 }
 
 /// @returns a fuzzer test case protobuf for the given program.
@@ -262,6 +254,7 @@ bool ProcessFile(const Options& options) {
     tint::cmd::LoadProgramOptions opts;
     opts.filename = options.input_filename;
     opts.printer = options.printer.get();
+    opts.input_format = tint::cmd::InputFormat::kWgsl;
 
     auto info = tint::cmd::LoadProgramInfo(opts);
     if (!info.program.IsValid()) {

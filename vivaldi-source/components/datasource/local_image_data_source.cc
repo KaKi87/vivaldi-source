@@ -27,8 +27,9 @@ void LocalImageDataClassHandler::GetData(
                                   std::move(callback));
 }
 
-std::string LocalImageDataClassHandler::GetMimetype(Profile* profile,
-                                             const std::string& data_id) {
+std::string LocalImageDataClassHandler::GetMimetype(
+    Profile* profile,
+    const std::string& data_id) {
   base::FilePath::StringType extension =
       base::FilePath::FromUTF8Unsafe(data_id).Extension();
   if (extension.empty()) {

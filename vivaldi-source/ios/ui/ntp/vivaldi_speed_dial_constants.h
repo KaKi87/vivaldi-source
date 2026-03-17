@@ -48,7 +48,6 @@ extern const CGFloat vSpeedDialFaviconCornerRadius;
 // Speed Dial favicon corner radius for icon layout
 extern const CGFloat vSpeedDialIconLayoutFaviconCornerRadius;
 
-
 #pragma mark - COLORS
 // Color for the shadow of the speed dial item
 extern NSString* vSpeedDialItemShadowColor;

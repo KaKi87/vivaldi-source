@@ -87,9 +87,7 @@ bool RegKey::ReadSZValue(HKEY root_key,
 }
 
 // Opens the Google Update ClientState key for a product.
-LONG OpenClientStateKey(HKEY root_key,
-                        REGSAM access,
-                        RegKey* key) {
+LONG OpenClientStateKey(HKEY root_key, REGSAM access, RegKey* key) {
   StackString<MAX_PATH> client_state_key;
   if (!client_state_key.assign(kClientStateKeyBase))
     return ERROR_BUFFER_OVERFLOW;

@@ -5,8 +5,8 @@
 
 #include "renderer/blink/vivaldi_spatnav_quad.h"
 #include "third_party/blink/renderer/core/dom/document.h"
-#include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/geometry/dom_rect.h"
+#include "third_party/blink/renderer/core/html_names.h"
 
 #include "renderer/mojo/vivaldi_frame_service.mojom.h"
 
@@ -47,10 +47,10 @@ class VivaldiSpatialNavigationController : content::RenderFrameObserver {
                 blink::DOMRect* new_rect,
                 std::string* href);
   void CreateIndicator();
-  void UpdateIndicator(bool resize, blink::DOMRect* new_rect,
+  void UpdateIndicator(bool resize,
+                       blink::DOMRect* new_rect,
                        blink::EventTarget* target);
-  void CloseSpatnavOrCurrentOpenMenu(bool& layout_changed,
-                                     bool& element_valid);
+  void CloseSpatnavOrCurrentOpenMenu(bool& layout_changed, bool& element_valid);
 
  private:
   class ScrollListener;
@@ -63,8 +63,7 @@ class VivaldiSpatialNavigationController : content::RenderFrameObserver {
 
   blink::Element* indicator_ = nullptr;
 
-  VivaldiSpatialNavigationController::ScrollListener*
-      scroll_listener_;
+  VivaldiSpatialNavigationController::ScrollListener* scroll_listener_;
 };
 
 #endif  // RENDERER_BLINK_VIVALDI_SPATIAL_NAVIGATION_CONTROLLER_H_

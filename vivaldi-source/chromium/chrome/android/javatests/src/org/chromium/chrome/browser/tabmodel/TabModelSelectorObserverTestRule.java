@@ -123,9 +123,7 @@ public class TabModelSelectorObserverTestRule extends ChromeBrowserTestRule {
 
                     @Override
                     public TabGroupModelFilter getFilter(boolean incognito) {
-                        return mSelector
-                                .getTabGroupModelFilterProvider()
-                                .getTabGroupModelFilter(incognito);
+                        return mSelector.getTabGroupModelFilter(incognito);
                     }
 
                     @Override
@@ -141,16 +139,10 @@ public class TabModelSelectorObserverTestRule extends ChromeBrowserTestRule {
 
         TabRemover normalTabRemover =
                 new PassthroughTabRemover(
-                        () ->
-                                mSelector
-                                        .getTabGroupModelFilterProvider()
-                                        .getTabGroupModelFilter(/* isIncognito= */ false));
+                        () -> mSelector.getTabGroupModelFilter(/* isIncognito= */ false));
         TabUngrouper normalTabUngrouper =
                 new PassthroughTabUngrouper(
-                        () ->
-                                mSelector
-                                        .getTabGroupModelFilterProvider()
-                                        .getTabGroupModelFilter(/* isIncognito= */ false));
+                        () -> mSelector.getTabGroupModelFilter(/* isIncognito= */ false));
         mNormalTabModel =
                 new TabModelSelectorTestTabModel(
                         ProfileManager.getLastUsedRegularProfile(),
@@ -165,16 +157,10 @@ public class TabModelSelectorObserverTestRule extends ChromeBrowserTestRule {
 
         TabRemover incognitoTabRemover =
                 new PassthroughTabRemover(
-                        () ->
-                                mSelector
-                                        .getTabGroupModelFilterProvider()
-                                        .getTabGroupModelFilter(/* isIncognito= */ true));
+                        () -> mSelector.getTabGroupModelFilter(/* isIncognito= */ true));
         TabUngrouper incognitoTabUngrouper =
                 new PassthroughTabUngrouper(
-                        () ->
-                                mSelector
-                                        .getTabGroupModelFilterProvider()
-                                        .getTabGroupModelFilter(/* isIncognito= */ true));
+                        () -> mSelector.getTabGroupModelFilter(/* isIncognito= */ true));
         mIncognitoTabModel =
                 new TabModelSelectorTestIncognitoTabModel(
                         ProfileManager.getLastUsedRegularProfile()
@@ -210,7 +196,7 @@ public class TabModelSelectorObserverTestRule extends ChromeBrowserTestRule {
             super(
                     profile,
                     activityType,
-                    /* isArchivedTabModel= */ false,
+                    TabModelType.STANDARD,
                     null,
                     null,
                     orderController,
@@ -224,11 +210,16 @@ public class TabModelSelectorObserverTestRule extends ChromeBrowserTestRule {
         }
 
         @Override
-        public void initializeNative(int activityType, boolean isArchivedTabModel) {
-            // Skip setting up the TabModelObserverJniBridge by using isArchivedTabModel = true.
+        protected void maybeAssertTabHasWebContents(Tab tab) {
+            // Skip this assertion as it is not needed for these tests.
+        }
+
+        @Override
+        public void initializeNative(int activityType, @TabModelType int tabModelType) {
+            // Skip setting up the TabModelObserverJniBridge by using the archived tab model.
             // Initializing this leads to unexpected observers being added and crashes due to
             // mObserverSet not being initialized. This test should be refactored.
-            super.initializeNative(activityType, /* isArchivedTabModel= */ true);
+            super.initializeNative(activityType, TabModelType.ARCHIVED);
         }
 
         @Override

@@ -20,7 +20,7 @@
 @end
 
 // TableViewCell that displays Ad and tracker setting option.
-@interface VivaldiATBSettingItemCell: LegacyTableViewCell
+@interface VivaldiATBSettingItemCell : LegacyTableViewCell
 
 - (void)configurWithItem:(VivaldiATBItem*)item
      userPreferredOption:(ATBSettingType)userPreferred

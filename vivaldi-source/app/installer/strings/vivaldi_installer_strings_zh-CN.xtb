@@ -1,21 +1,19 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="zh-CN">
-<translation id="1089894737218087497">独立版本模式安装</translation>
 <translation id="1682285232070778125">将 Vivaldi 设为默认浏览器</translation>
+<translation id="1775102330209840064">分享崩溃报告以帮助我们提高产品质量</translation>
 <translation id="1974060860693918893">高级</translation>
 <translation id="2053560788696003312">Vivaldi 需要 Windows 10 或更高版本。</translation>
 <translation id="2134216661302048561">Vivaldi 安装程序尚未完成安装。确定要立即离开吗？</translation>
-<translation id="2286454467119466181">简单</translation>
 <translation id="237789874664518125">版权所有 <ph name="YEAR" /> Vivaldi Technologies AS. 保留所有权利。 &lt;a&gt;隐私政策&lt;/a&gt;</translation>
-<translation id="3004507951429848293">点击“接受并更新”按钮即代表您同意并接受 Vivaldi 的&lt;a&gt;服务条款&lt;/a&gt;</translation>
+<translation id="3355081107855563356">单击“接受并安装”按钮即表示您同意 Vivaldi 的&lt;a&gt;服务条款&lt;/a&gt;</translation>
 <translation id="335985608243443814">浏览...</translation>
 <translation id="3485073444286678268">目标文件夹无效，请重新选择。</translation>
+<translation id="3601875200579023345">每用户</translation>
 <translation id="3784826321032465839">安装 Vivaldi</translation>
-<translation id="4079588913451946215">全局用户模式安装</translation>
+<translation id="4066679519692422625">由于未指定的错误，安装失败。请重新下载 Vivaldi。</translation>
 <translation id="421958613172216971">选择一个文件夹</translation>
-<translation id="4234678621326711327">单用户模式安装</translation>
-<translation id="4322221081772213228">点击“接受并安装”按钮即代表您同意并接受 Vivaldi 的&lt;a&gt;服务条款&lt;/a&gt;</translation>
 <translation id="4380252528729894811">目标文件夹</translation>
 <translation id="460304900852424163">停用自动更新（不建议）</translation>
 <translation id="4619978527973181021">接受并安装</translation>
@@ -23,11 +21,16 @@
 <translation id="5051728323101947360">将独立版本的 Vivaldi 设为默认应用</translation>
 <translation id="5247376421371319618">接受并更新</translation>
 <translation id="5302048478445481009">语言</translation>
+<translation id="6665592435383088482">独立安装</translation>
 <translation id="694714344624446243">Vivaldi 安装程序</translation>
+<translation id="7298195798382681320">建议的</translation>
 <translation id="7467493612551448880">您正在安装的 Vivaldi 版本未针对您正在运行的 Windows 版本进行优化。
 
 请访问 vivaldi.com/download 下载面向 Arm 平台 Windows 的版本。</translation>
 <translation id="7658239707568436148">取消</translation>
 <translation id="8773751185824654197">注意：如果要更新正在运行的 Vivaldi 浏览器，它将被关闭并重启</translation>
+<translation id="9163437061188815291">单击“接受并更新”按钮即表示您同意 Vivaldi 的&lt;a&gt;服务条款&lt;/a&gt;</translation>
+<translation id="9175596866737867642">准备好使用无与伦比的自定义选项和内置浏览器功能，以实现更好的性能、生产力和隐私保护 🎉</translation>
 <translation id="933060950687965486">安装类型</translation>
+<translation id="963837307749850257">所有用户</translation>
 </translationbundle>

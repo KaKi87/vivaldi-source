@@ -95,7 +95,8 @@ class SavedpasswordsGetFunction
 
 class SavedpasswordsCreateDelegateFunction : public ExtensionFunction {
  public:
-  DECLARE_EXTENSION_FUNCTION("savedpasswords.createDelegate", SAVEDPASSWORDS_CREATEDELEGATE)
+  DECLARE_EXTENSION_FUNCTION("savedpasswords.createDelegate",
+                             SAVEDPASSWORDS_CREATEDELEGATE)
   SavedpasswordsCreateDelegateFunction() = default;
 
  private:

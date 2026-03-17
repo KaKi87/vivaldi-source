@@ -10,7 +10,6 @@
 #include <string>
 #include <vector>
 
-#include "base/gtest_prod_util.h"
 #include "base/memory/ptr_util.h"
 #include "base/values.h"
 #include "build/build_config.h"
@@ -51,7 +50,7 @@ enum TextType {
 
 GURL GetFormattedURL(const std::string* url_string);
 
-bool ParseJsonToAnswerData(const base::Value::Dict& answer_json,
+bool ParseJsonToAnswerData(const base::DictValue& answer_json,
                            omnibox::RichAnswerTemplate* answer_template);
 
 // Logs which answer type was used (if any) at the time a user used the

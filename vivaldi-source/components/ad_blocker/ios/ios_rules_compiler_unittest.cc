@@ -15,7 +15,8 @@ bool FormatJSON(std::string& json) {
   serializer.set_pretty_print(true);
   int error_code;
   std::string error;
-  auto value = deserializer.Deserialize(&error_code, &error);
+  std::unique_ptr<base::Value> value =
+      deserializer.Deserialize(&error_code, &error);
   if (!value) {
     LOG(ERROR) << error_code << ":" << error;
     return false;
@@ -29,6 +30,7 @@ bool FormatJSON(std::string& json) {
 TEST(AdBlockIosRuleCompilerTest, SimpleRule) {
   RuleSourceSettings settings;
   ParseResult parse_result;
+  RequestFilterRule rule;
   RuleParser rule_parser(&parse_result, {});
   rule_parser.Parse("example");
   rule_parser.Parse("blåbærsyltetøy");
@@ -39,26 +41,13 @@ TEST(AdBlockIosRuleCompilerTest, SimpleRule) {
           {
             "trigger": {
               "url-filter": "example",
-              "url-filter-is-case-sensitive": false,
-              "load-context": ["child-frame"],
-              "resource-type": [
-                "document"
-              ]
-            },
-            "action": {
-              "type": "block"
-            }
-          },
-          {
-            "trigger": {
-              "url-filter": "example",
-              "url-filter-is-case-sensitive": false,
               "resource-type": [
                 "style-sheet",
                 "image",
                 "media",
                 "script",
                 "fetch",
+                "child-document",
                 "font",
                 "media",
                 "websocket",
@@ -74,8 +63,8 @@ TEST(AdBlockIosRuleCompilerTest, SimpleRule) {
       }
     },
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -95,7 +84,6 @@ TEST(AdBlockIosRuleCompilerTest, RuleWithResource) {
           {
             "trigger": {
               "url-filter": "something",
-              "url-filter-is-case-sensitive": false,
               "resource-type": [
                 "script"
               ]
@@ -120,8 +108,8 @@ TEST(AdBlockIosRuleCompilerTest, RuleWithResource) {
       }
     },
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -140,12 +128,8 @@ TEST(AdBlockIosRuleCompilerTest, SubdocumentRule) {
           {
             "trigger": {
               "url-filter": "something",
-              "url-filter-is-case-sensitive": false,
-              "load-context": [
-                "child-frame"
-              ],
               "resource-type": [
-                "document"
+                "child-document"
               ]
             },
             "action": {
@@ -156,8 +140,8 @@ TEST(AdBlockIosRuleCompilerTest, SubdocumentRule) {
       }
     },
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -177,7 +161,6 @@ TEST(AdBlockIosRuleCompilerTest, RuleWithParty) {
           {
             "trigger": {
               "url-filter": "something_from_self",
-              "url-filter-is-case-sensitive": false,
               "load-type": [
                 "first-party"
               ],
@@ -192,7 +175,6 @@ TEST(AdBlockIosRuleCompilerTest, RuleWithParty) {
           {
             "trigger": {
               "url-filter": "something_from_others",
-              "url-filter-is-case-sensitive": false,
               "load-type": [
                 "third-party"
               ],
@@ -208,8 +190,8 @@ TEST(AdBlockIosRuleCompilerTest, RuleWithParty) {
       }
     },
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -227,7 +209,6 @@ TEST(AdBlockIosRuleCompilerTest, AllowRuleWithResource) {
         {
           "trigger": {
             "url-filter": "something",
-            "url-filter-is-case-sensitive": false,
             "resource-type": [
               "script"
             ]
@@ -239,8 +220,8 @@ TEST(AdBlockIosRuleCompilerTest, AllowRuleWithResource) {
       ]
     },
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -262,7 +243,6 @@ TEST(AdBlockIosRuleCompilerTest, AnchoredRules) {
           {
             "trigger": {
               "url-filter": "^https:\\/\\/example\\.com\\/",
-              "url-filter-is-case-sensitive": false,
               "resource-type": [
                 "script"
               ]
@@ -273,8 +253,7 @@ TEST(AdBlockIosRuleCompilerTest, AnchoredRules) {
           },
           {
             "trigger": {
-              "url-filter": "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?google\\.com\\/",
-              "url-filter-is-case-sensitive": false,
+              "url-filter": "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*google\\.com\\/",
               "resource-type": [
                 "script"
               ]
@@ -286,7 +265,6 @@ TEST(AdBlockIosRuleCompilerTest, AnchoredRules) {
           {
             "trigger": {
               "url-filter": "ad\\.js$",
-              "url-filter-is-case-sensitive": false,
               "resource-type": [
                 "script"
               ]
@@ -299,8 +277,8 @@ TEST(AdBlockIosRuleCompilerTest, AnchoredRules) {
       }
     },
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -321,7 +299,6 @@ TEST(AdBlockIosRuleCompilerTest, WildcardsAndSpecialCharsRules) {
           {
             "trigger": {
               "url-filter": "part1.*part2\\?part\\(3\\)",
-              "url-filter-is-case-sensitive": false,
               "resource-type": [
                 "ping"
               ]
@@ -333,7 +310,6 @@ TEST(AdBlockIosRuleCompilerTest, WildcardsAndSpecialCharsRules) {
           {
             "trigger": {
               "url-filter": "example\\.com[^a-zA-Z0-9_.%-]bad([^a-zA-Z0-9_.%-].*)?$",
-              "url-filter-is-case-sensitive": false,
               "resource-type": [
                 "websocket"
               ]
@@ -345,7 +321,6 @@ TEST(AdBlockIosRuleCompilerTest, WildcardsAndSpecialCharsRules) {
           {
             "trigger": {
               "url-filter": "google\\.com[^a-zA-Z0-9_.%-]?$",
-              "url-filter-is-case-sensitive": false,
               "resource-type": [
                 "media"
               ]
@@ -358,8 +333,8 @@ TEST(AdBlockIosRuleCompilerTest, WildcardsAndSpecialCharsRules) {
       }
     },
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -383,8 +358,7 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithHost) {
         "generic": [
           {
             "trigger": {
-              "url-filter": "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?example\\.com[^a-zA-Z0-9_.%-].*advert",
-              "url-filter-is-case-sensitive": false,
+              "url-filter": "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*example\\.com[^a-zA-Z0-9_.%-].*advert",
               "resource-type": [
                 "image"
               ]
@@ -395,8 +369,7 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithHost) {
           },
           {
             "trigger": {
-              "url-filter": "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?foo\\.com\\/bar",
-              "url-filter-is-case-sensitive": false,
+              "url-filter": "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*foo\\.com\\/bar",
               "resource-type": [
                 "image"
               ]
@@ -407,8 +380,7 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithHost) {
           },
           {
             "trigger": {
-              "url-filter": "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?evil\\.google\\.com\\/something",
-              "url-filter-is-case-sensitive": false,
+              "url-filter": "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*evil\\.google\\.com\\/something",
               "resource-type": [
                 "image"
               ]
@@ -419,8 +391,7 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithHost) {
           },
           {
             "trigger": {
-              "url-filter": "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?ads\\.example\\.com\\/something",
-              "url-filter-is-case-sensitive": false,
+              "url-filter": "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*ads\\.example\\.com\\/something",
               "resource-type": [
                 "image"
               ]
@@ -431,8 +402,7 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithHost) {
           },
           {
             "trigger": {
-              "url-filter": "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?baz\\.com[^a-zA-Z0-9_.%-]",
-              "url-filter-is-case-sensitive": false,
+              "url-filter": "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*baz\\.com[^a-zA-Z0-9_.%-]",
               "resource-type": [
                 "image"
               ]
@@ -443,8 +413,7 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithHost) {
           },
           {
             "trigger": {
-              "url-filter": "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?xxx\\.elg\\.no[^a-zA-Z0-9_.%-]",
-              "url-filter-is-case-sensitive": false,
+              "url-filter": "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*xxx\\.elg\\.no[^a-zA-Z0-9_.%-]",
               "resource-type": [
                 "image"
               ]
@@ -455,8 +424,7 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithHost) {
           },
           {
             "trigger": {
-              "url-filter": "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?ulv\\.no[^a-zA-Z0-9_.%-].*ulv\\.no\\.zzz",
-              "url-filter-is-case-sensitive": false,
+              "url-filter": "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*ulv\\.no[^a-zA-Z0-9_.%-].*ulv\\.no\\.zzz",
               "resource-type": [
                 "image"
               ]
@@ -469,8 +437,8 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithHost) {
       }
     },
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -490,7 +458,6 @@ TEST(AdBlockIosRuleCompilerTest, RegexRules) {
           {
             "trigger": {
               "url-filter": "ad(vert)?[0-9]$",
-              "url-filter-is-case-sensitive": false,
               "resource-type": [
                 "image"
               ]
@@ -503,15 +470,93 @@ TEST(AdBlockIosRuleCompilerTest, RegexRules) {
       }
     },
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
             expected);
 }
 
-TEST(AdBlockIosRuleCompilerTest, DocumentActivationRules) {
+TEST(AdBlockIosRuleCompilerTest, DocumentRulesWithoutStrictBlocking) {
+  RuleSourceSettings settings;
+  ParseResult parse_result;
+  RuleParser rule_parser(&parse_result, {});
+  rule_parser.Parse("evil$document");
+  rule_parser.Parse("dangerous$script,document");
+  rule_parser.Parse("@@good$image,document");
+  std::string expected(R"===({
+    "network": {
+      "block": {
+        "generic": [
+          {
+            "trigger": {
+              "url-filter": "dangerous",
+              "resource-type": [
+                "script"
+              ]
+            },
+            "action": {
+              "type": "block"
+            }
+          }
+        ]
+      },
+      "allow" : [
+        {
+          "trigger": {
+            "url-filter": "good",
+
+            "resource-type": [
+              "image"
+            ]
+          },
+          "action": {
+            "type": "ignore-previous-rules"
+          }
+        },
+        {
+          "trigger": {
+            "url-filter": ".*",
+            "if-top-url": [ "good" ]
+          },
+          "action": {
+            "type": "ignore-previous-rules"
+          }
+        }
+      ]
+    },
+    "cosmetic": {
+      "allow": {
+        "generic" : [ {
+          "trigger": {
+            "url-filter": ".*",
+            "if-top-url": [ "good" ]
+          },
+          "action": {
+            "type": "ignore-previous-rules"
+          }
+        } ],
+        "specific" : [ {
+          "trigger": {
+            "url-filter": ".*",
+            "if-top-url": [ "good" ]
+          },
+          "action": {
+            "type": "ignore-previous-rules"
+          }
+        } ]
+      }
+    },
+    "scriptlets": [],
+    "version": 3
+  })===");
+  ASSERT_TRUE(FormatJSON(expected));
+  EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
+            expected);
+}
+
+TEST(AdBlockIosRuleCompilerTest, DocumentRulesWithStrictBlocking) {
   RuleSourceSettings settings;
   ParseResult parse_result;
   RuleParser rule_parser(&parse_result, {});
@@ -525,9 +570,8 @@ TEST(AdBlockIosRuleCompilerTest, DocumentActivationRules) {
           {
             "trigger": {
               "url-filter": "evil",
-              "url-filter-is-case-sensitive": false,
               "resource-type": [
-                "document"
+                "top-document"
               ]
             },
             "action": {
@@ -537,10 +581,9 @@ TEST(AdBlockIosRuleCompilerTest, DocumentActivationRules) {
           {
             "trigger": {
               "url-filter": "dangerous",
-              "url-filter-is-case-sensitive": false,
               "resource-type": [
                 "script",
-                "document"
+                "top-document"
               ]
             },
             "action": {
@@ -553,7 +596,7 @@ TEST(AdBlockIosRuleCompilerTest, DocumentActivationRules) {
         {
           "trigger": {
             "url-filter": "good",
-            "url-filter-is-case-sensitive": false,
+
             "resource-type": [
               "image"
             ]
@@ -565,9 +608,7 @@ TEST(AdBlockIosRuleCompilerTest, DocumentActivationRules) {
         {
           "trigger": {
             "url-filter": ".*",
-            "url-filter-is-case-sensitive": false,
-            "if-top-url": [ "good" ],
-            "top-url-filter-is-case-sensitive": false
+            "if-top-url": [ "good" ]
           },
           "action": {
             "type": "ignore-previous-rules"
@@ -576,25 +617,32 @@ TEST(AdBlockIosRuleCompilerTest, DocumentActivationRules) {
       ]
     },
     "cosmetic": {
-      "allow": [
-        {
+      "allow": {
+        "generic" : [ {
           "trigger": {
             "url-filter": ".*",
-            "url-filter-is-case-sensitive": false,
-            "if-top-url": [ "good" ],
-            "top-url-filter-is-case-sensitive": false
+            "if-top-url": [ "good" ]
           },
           "action": {
             "type": "ignore-previous-rules"
           }
-        }
-      ]
+        } ],
+        "specific" : [ {
+          "trigger": {
+            "url-filter": ".*",
+            "if-top-url": [ "good" ]
+          },
+          "action": {
+            "type": "ignore-previous-rules"
+          }
+        } ]
+      }
     },
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
-  EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
+  EXPECT_EQ(CompileIosRulesToString(true, parse_result, settings, true),
             expected);
 }
 
@@ -605,15 +653,14 @@ TEST(AdBlockIosRuleCompilerTest, OtherActivations) {
   rule_parser.Parse("@@no.generic.blocks$genericblock");
   rule_parser.Parse("@@no.generic.hide$generichide,match-case");
   rule_parser.Parse("@@no.element.hide$elemhide");
+  rule_parser.Parse("@@no.specific.hide$specifichide");
   std::string expected(R"===({
     "network": {
       "generic-allow" : [
         {
           "trigger": {
             "url-filter": ".*",
-            "url-filter-is-case-sensitive": false,
-            "if-top-url": [ "no\\.generic\\.blocks" ],
-            "top-url-filter-is-case-sensitive": false
+            "if-top-url": [ "no\\.generic\\.blocks" ]
           },
           "action": {
             "type": "ignore-previous-rules"
@@ -622,35 +669,52 @@ TEST(AdBlockIosRuleCompilerTest, OtherActivations) {
       ]
     },
     "cosmetic": {
-      "allow" : [
-        {
-          "trigger": {
-            "url-filter": ".*",
-            "url-filter-is-case-sensitive": false,
-            "if-top-url": [ "no\\.element\\.hide" ],
-            "top-url-filter-is-case-sensitive": false
+      "allow" : {
+        "specific": [
+          {
+            "trigger": {
+              "url-filter": ".*",
+              "if-top-url": [ "no\\.element\\.hide" ]
+            },
+            "action": {
+              "type": "ignore-previous-rules"
+            }
           },
-          "action": {
-            "type": "ignore-previous-rules"
+          {
+            "trigger": {
+              "url-filter": ".*",
+              "if-top-url": [ "no\\.specific\\.hide" ]
+            },
+            "action": {
+              "type": "ignore-previous-rules"
+            }
           }
-        }
-      ],
-      "generic-allow" : [
-        {
-          "trigger": {
-            "url-filter": ".*",
-            "url-filter-is-case-sensitive": false,
-            "if-top-url": [ "no\\.generic\\.hide" ],
-            "top-url-filter-is-case-sensitive": true
+        ],
+        "generic" : [
+          {
+            "trigger": {
+              "url-filter": ".*",
+              "if-top-url": [ "no\\.generic\\.hide" ],
+              "top-url-filter-is-case-sensitive": true
+            },
+            "action": {
+              "type": "ignore-previous-rules"
+            }
           },
-          "action": {
-            "type": "ignore-previous-rules"
+          {
+            "trigger": {
+              "url-filter": ".*",
+              "if-top-url": [ "no\\.element\\.hide" ]
+            },
+            "action": {
+              "type": "ignore-previous-rules"
+            }
           }
-        }
-      ]
+        ]
+      }
     },
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -661,7 +725,7 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithIncludedDomains) {
   RuleSourceSettings settings;
   ParseResult parse_result;
   RuleParser rule_parser(&parse_result, {});
-  rule_parser.Parse("danger$domain=evil.com,script");
+  rule_parser.Parse("danger$domain=evil.com|bad.*,script");
   rule_parser.Parse("@@allowed$domain=nice.com,script");
   std::string expected(R"===({
     "network": {
@@ -670,8 +734,10 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithIncludedDomains) {
           {
             "trigger": {
               "url-filter": "danger",
-              "url-filter-is-case-sensitive": false,
-              "if-top-url": [ "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?evil\\.com[:\\/]" ],
+              "if-top-url": [
+                "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*evil\\.com[:/]",
+                "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*bad\\..*[:/]"
+              ],
               "top-url-filter-is-case-sensitive": true,
               "resource-type": [
                 "script"
@@ -687,8 +753,9 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithIncludedDomains) {
         {
           "trigger": {
             "url-filter": "allowed",
-            "url-filter-is-case-sensitive": false,
-            "if-top-url": [ "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?nice\\.com[:\\/]" ],
+            "if-top-url": [
+              "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*nice\\.com[:/]"
+            ],
             "top-url-filter-is-case-sensitive": true,
             "resource-type": [
               "script"
@@ -701,8 +768,8 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithIncludedDomains) {
       ]
     },
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -714,7 +781,7 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithExcludedDomains) {
   ParseResult parse_result;
   RuleParser rule_parser(&parse_result, {});
   rule_parser.Parse("danger$domain=~nice.com,script");
-  rule_parser.Parse("@@allowed$domain=~evil.com,script");
+  rule_parser.Parse("@@allowed$domain=~evil.com|~/foot?.co(.uk|m)/,script");
   std::string expected(R"===({
     "network": {
       "block": {
@@ -722,8 +789,9 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithExcludedDomains) {
           {
             "trigger": {
               "url-filter": "danger",
-              "url-filter-is-case-sensitive": false,
-              "unless-top-url": [ "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?nice\\.com[:\\/]" ],
+              "unless-top-url": [
+                "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*nice\\.com[:/]"
+              ],
               "top-url-filter-is-case-sensitive": true,
               "resource-type": [
                 "script"
@@ -739,8 +807,10 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithExcludedDomains) {
         {
           "trigger": {
             "url-filter": "allowed",
-            "url-filter-is-case-sensitive": false,
-            "unless-top-url": [ "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?evil\\.com[:\\/]" ],
+            "unless-top-url": [
+              "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*evil\\.com[:/]",
+              "^[a-z][a-z+.-]*:\\/\\/foot?.co(.uk|m)[:/]"
+            ],
             "top-url-filter-is-case-sensitive": true,
             "resource-type": [
               "script"
@@ -753,8 +823,8 @@ TEST(AdBlockIosRuleCompilerTest, RulesWithExcludedDomains) {
       ]
     },
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -776,10 +846,9 @@ TEST(AdBlockIosRuleCompilerTest, BlockRuleWithInclusionsAndExclusions) {
           {
             "trigger": {
               "url-filter": "something",
-              "url-filter-is-case-sensitive": false,
               "if-top-url": [
-                "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?danger\\.com[:\\/]" ,
-                "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?evil\\.com[:\\/]"
+                "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*danger\\.com[:/]",
+                "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*evil\\.com[:/]"
               ],
               "top-url-filter-is-case-sensitive": true,
               "resource-type": [
@@ -793,10 +862,9 @@ TEST(AdBlockIosRuleCompilerTest, BlockRuleWithInclusionsAndExclusions) {
           {
             "trigger": {
               "url-filter": "something",
-              "url-filter-is-case-sensitive": false,
               "if-top-url": [
-                "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?safe\\.danger\\.com[:\\/]",
-                "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?good\\.evil\\.com[:\\/]"
+                "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*safe\\.danger\\.com[:/]",
+                "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*good\\.evil\\.com[:/]"
               ],
               "top-url-filter-is-case-sensitive": true,
               "resource-type": [
@@ -807,28 +875,12 @@ TEST(AdBlockIosRuleCompilerTest, BlockRuleWithInclusionsAndExclusions) {
               "type": "ignore-previous-rules"
             }
           }
-        ],
-        [
-          {
-            "trigger": {
-              "url-filter": "something",
-              "url-filter-is-case-sensitive": false,
-              "if-top-url": [ "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?except\\.good\\.evil\\.com[:\\/]" ],
-              "top-url-filter-is-case-sensitive": true,
-              "resource-type": [
-                "script"
-              ]
-            },
-            "action": {
-              "type": "block"
-            }
-          }
         ]
       ]
     },
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -843,8 +895,8 @@ TEST(AdBlockIosRuleCompilerTest, BlockRuleWithInclusionsCancelledByExclusions) {
   std::string expected(R"===({
     "network": {},
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -855,7 +907,7 @@ TEST(AdBlockIosRuleCompilerTest, BlockRuleWithSuperfluousExclusions) {
   RuleSourceSettings settings;
   ParseResult parse_result;
   RuleParser rule_parser(&parse_result, {});
-  rule_parser.Parse("something$domain=evil.com|~nice.com, script");
+  rule_parser.Parse("something$domain=evil.com|~nice.com,script");
   std::string expected(R"===({
     "network": {
       "block": {
@@ -863,8 +915,9 @@ TEST(AdBlockIosRuleCompilerTest, BlockRuleWithSuperfluousExclusions) {
           {
             "trigger": {
               "url-filter": "something",
-              "url-filter-is-case-sensitive": false,
-              "if-top-url": [ "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?evil\\.com[:\\/]" ],
+              "if-top-url": [
+                "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*evil\\.com[:/]"
+              ],
               "top-url-filter-is-case-sensitive": true,
               "resource-type": [
                 "script"
@@ -878,8 +931,8 @@ TEST(AdBlockIosRuleCompilerTest, BlockRuleWithSuperfluousExclusions) {
       }
     },
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -892,18 +945,16 @@ TEST(AdBlockIosRuleCompilerTest, AllowRuleWithInclusionsAndExclusions) {
   RuleParser rule_parser(&parse_result, {});
   rule_parser.Parse(
       "@@something$domain=nice.com|~bad.nice.com|except.bad.nice.com|foo."
-      "except.bad.nice.com|good.com|~evil.com|, script");
+      "except.bad.nice.com|good.com|~evil.com|,script");
   std::string expected(R"===({
     "network": {
       "allow": [
         {
           "trigger": {
             "url-filter": "something",
-            "url-filter-is-case-sensitive": false,
             "if-top-url": [
-              "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?good\\.com[:\\/]",
-              "^[a-z][a-z0-9.+-]*:(\\/\\/)?([^\\/]+@)?nice\\.com[:\\/]",
-              "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?except\\.bad\\.nice\\.com[:\\/]"
+              "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*good\\.com[:/]",
+              "^[a-z][a-z+.-]*:\\/\\/([^/]*\\.)*nice\\.com[:/]"
              ],
             "top-url-filter-is-case-sensitive": true,
             "resource-type": [
@@ -917,8 +968,8 @@ TEST(AdBlockIosRuleCompilerTest, AllowRuleWithInclusionsAndExclusions) {
       ]
     },
     "cosmetic": {},
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -934,43 +985,17 @@ TEST(AdBlockIosRuleCompilerTest, GenericCosmeticHideRule) {
   std::string expected(R"===({
     "network": {},
     "cosmetic": {
-        "selector": {
-        ".adbar" : {
-          "block": {
-            "generic" : [
-              {
-                "trigger": {
-                  "url-filter": ".*",
-                  "url-filter-is-case-sensitive": false
-                },
-                "action": {
-                  "type": "css-display-none",
-                  "selector": ".adbar"
-                }
-              }
-            ]
-          }
-        },
-        ".adfoo" : {
-          "block": {
-            "generic" : [
-            {
-                "trigger": {
-                  "url-filter": ".*",
-                  "url-filter-is-case-sensitive": false
-                },
-                "action": {
-                  "type": "css-display-none",
-                  "selector": ".adfoo"
-                }
-              }
-            ]
-          }
-        }
+      "selector": {
+        ".adbar" : [ {
+          ".type": 1
+        } ],
+        ".adfoo" : [ {
+          ".type": 1
+        } ]
       }
     },
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -982,34 +1007,40 @@ TEST(AdBlockIosRuleCompilerTest, SpecificCosmeticHideRule) {
   ParseResult parse_result;
   RuleParser rule_parser(&parse_result, {});
   rule_parser.Parse("example.com##.ad");
+  rule_parser.Parse("example.*,~skip.example.com##.ad2");
   std::string expected(R"===({
     "network": {},
     "cosmetic": {
-        "selector": {
-        ".ad": {
-          "block": {
-            "specific": [
-              {
-                "trigger": {
-                  "url-filter": ".*",
-                  "url-filter-is-case-sensitive": false,
-                  "if-top-url": [
-                    "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?example\\.com[:\\/]"
-                  ],
-                  "top-url-filter-is-case-sensitive": true
-                },
-                "action": {
-                  "type": "css-display-none",
-                  "selector": ".ad"
+      "selector": {
+        ".ad": [ {
+          ".": {
+            "com": {
+              "example": {
+                ".type": 1
+              }
+            }
+          }
+        } ],
+        ".ad2": [ {
+          ".": {
+            "com": {
+              "example": {
+                "skip": {
+                  ".type": 2
                 }
               }
-            ]
+            }
+          },
+          ".*": {
+            "example": {
+              ".type": 1
+            }
           }
-        }
+        } ]
       }
     },
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
@@ -1026,40 +1057,53 @@ TEST(AdBlockIosRuleCompilerTest, CosmeticAllowRule) {
     "network": {},
     "cosmetic": {
       "selector": {
-        ".show": {
-          "allow": [
-            {
-              "trigger": {
-                "url-filter": ".*",
-                "url-filter-is-case-sensitive": false,
-                "if-top-url": [
-                  "^[a-z][a-z0-9.+-]*:(\\/\\/)?(([^\\/]+@)?[^@:\\/\\[]+\\.)?example\\.com[:\\/]"
-                ],
-                "top-url-filter-is-case-sensitive": true
-              },
-              "action": {
-                "type": "ignore-previous-rules"
+        ".show": [ {
+          "." : {
+            "com": {
+              "example" : {
+                ".type": 2
               }
             }
-          ]
-        },
-        ".nice": {
-          "allow": [
-            {
-              "trigger": {
-                "url-filter": ".*",
-                "url-filter-is-case-sensitive": false
-              },
-              "action": {
-                "type": "ignore-previous-rules"
-              }
-            }
-          ]
-        }
+          }
+        } ],
+        ".nice": [ {
+          ".type": 2
+        } ]
       }
     },
-    "scriptlet": {},
-    "version": 1
+    "scriptlets": [],
+    "version": 3
+  })===");
+  ASSERT_TRUE(FormatJSON(expected));
+  EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),
+            expected);
+}
+
+TEST(AdBlockIosRuleCompilerTest, AbpSnippetRule) {
+  RuleSourceSettings settings;
+  ParseResult parse_result;
+  RuleParser rule_parser(&parse_result, {.allow_abp_snippets = true});
+  rule_parser.Parse(
+      "example.com#$#log 'Some log'; abort-on-property-write atob");
+  std::string expected(R"===({
+    "network": {},
+    "cosmetic": {},
+    "scriptlets": [ {
+      "domain-constraints": {
+        ".": {
+          "com": {
+            "example" : {
+              ".type": 1
+            }
+          }
+        }
+      },
+      "scriptlets": {
+        "abp-isolated.js": [ "[\"log\",\"Some log\"]," ],
+        "abp-main.js": [ "[\"abort-on-property-write\",\"atob\"]," ]
+      }
+    } ],
+    "version": 3
   })===");
   ASSERT_TRUE(FormatJSON(expected));
   EXPECT_EQ(CompileIosRulesToString(false, parse_result, settings, true),

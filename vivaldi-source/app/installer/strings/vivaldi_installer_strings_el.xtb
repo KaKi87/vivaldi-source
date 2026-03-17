@@ -1,21 +1,19 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <!DOCTYPE translationbundle>
 <translationbundle lang="el">
-<translation id="1089894737218087497">Εγκατάσταση αυτόνομα</translation>
 <translation id="1682285232070778125">Ορίστε το Vivaldi ως προεπιλεγμένο πρόγραμμα περιήγησης</translation>
+<translation id="1775102330209840064">Κοινοποιήστε αναφορές σφαλμάτων για να μας βοηθήσετε να βελτιώσουμε την ποιότητα του προϊόντος</translation>
 <translation id="1974060860693918893">Για προχωρημένους</translation>
 <translation id="2053560788696003312">Το Vivaldi απαιτεί Windows 10 ή νεότερη έκδοση.</translation>
 <translation id="2134216661302048561">Το πρόγραμμα εγκατάστασης του Vivaldi δεν ολοκλήρωσε την εγκατάσταση του προγράμματος περιήγησης Vivaldi. Είστε βέβαιοι ότι θέλετε να βγείτε τώρα;</translation>
-<translation id="2286454467119466181">Απλή</translation>
 <translation id="237789874664518125">Πνευματική ιδιοκτησία <ph name="YEAR" /> Vivaldi Technologies AS. Όλα τα δικαιώματα διατηρούνται. &lt;a&gt;Πολιτική Απορρήτου&lt;/a&gt;</translation>
-<translation id="3004507951429848293">Κάνοντας κλικ στο κουμπί "Αποδοχή και Ενημέρωση" συμφωνείτε με τους &lt;a&gt;Όρους Χρήσης&lt;/a&gt; του Vivaldi</translation>
+<translation id="3355081107855563356">Κάνοντας κλικ στο κουμπί «Αποδοχή και εγκατάσταση», αποδέχεστε τους &lt;a&gt;Όρους Παροχής Υπηρεσιών&lt;/a&gt; του Vivaldi</translation>
 <translation id="335985608243443814">Αναζήτηση...</translation>
 <translation id="3485073444286678268">Ο φάκελος προορισμού δεν είναι έγκυρος. Παρακαλώ επιλέξτε άλλο.</translation>
+<translation id="3601875200579023345">Ανά χρήστη</translation>
 <translation id="3784826321032465839">Εγκατάσταση Vivaldi</translation>
-<translation id="4079588913451946215">Εγκατάσταση για όλους τους χρήστες</translation>
+<translation id="4066679519692422625">Η εγκατάσταση απέτυχε λόγω απροσδιόριστου σφάλματος. Παρακαλούμε κατεβάστε το Vivaldi ξανά.</translation>
 <translation id="421958613172216971">Επιλέξτε ένα φάκελο</translation>
-<translation id="4234678621326711327">Εγκατάσταση ανά χρήστη</translation>
-<translation id="4322221081772213228">Κάνοντας κλικ στο κουμπί "Αποδοχή και Εγκατάσταση" συμφωνείτε με τους &lt;a&gt; Όρους Παροχής Υπηρεσιών&lt;/a&gt; της Vivaldi</translation>
 <translation id="4380252528729894811">Φάκελος Προορισμού</translation>
 <translation id="460304900852424163">Απενεργοποίηση αυτόματων ενημερώσεων (δεν συνιστάται)</translation>
 <translation id="4619978527973181021">Αποδοχή και Εγκατάσταση</translation>
@@ -23,11 +21,15 @@
 <translation id="5051728323101947360">Κάντε το αυτόνομο Vivaldi διαθέσιμο ως προεπιλεγμένη εφαρμογή</translation>
 <translation id="5247376421371319618">Αποδοχή και Ενημέρωση</translation>
 <translation id="5302048478445481009">Γλώσσα</translation>
+<translation id="6665592435383088482">Αυτόνομη</translation>
 <translation id="694714344624446243">Πρόγραμμα Εγκατάστασης Vivaldi</translation>
 <translation id="7467493612551448880">Η έκδοση του Vivaldi που εγκαθιστάτε δεν είναι βελτιστοποιημένη για την έκδοση των Windows που χρησιμοποιείτε.
 
 Επισκεφθείτε τη διεύθυνση vivaldi.com/download για να κατεβάσετε την έκδοση Windows on Arm.</translation>
 <translation id="7658239707568436148">Ακύρωση</translation>
 <translation id="8773751185824654197">Σημείωση: Εάν ενημερώσετε το πρόγραμμα περιήγησης Vivaldi ενώ αυτό εκτελείται, η εφαρμογή θα κλείσει και θα ξαναρχίσει</translation>
+<translation id="9163437061188815291">Κάνοντας κλικ στο κουμπί «Αποδοχή και ενημέρωση», αποδέχεστε τους &lt;a&gt;Όρους Παροχής Υπηρεσιών&lt;/a&gt; του Vivaldi</translation>
+<translation id="9175596866737867642">Ετοιμαστείτε για ασυναγώνιστες επιλογές προσαρμογής και ενσωματωμένες λειτουργίες προγράμματος περιήγησης για καλύτερη απόδοση, παραγωγικότητα και ιδιωτικότητα 🎉</translation>
 <translation id="933060950687965486">Τύπος Εγκατάστασης</translation>
+<translation id="963837307749850257">Όλοι οι χρήστες</translation>
 </translationbundle>

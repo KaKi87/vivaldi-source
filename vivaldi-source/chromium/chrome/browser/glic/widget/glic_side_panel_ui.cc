@@ -5,13 +5,14 @@
 #include "chrome/browser/glic/widget/glic_side_panel_ui.h"
 
 #include "base/notimplemented.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
+#include "chrome/browser/glic/common/application_hotkey_delegate.h"
+#include "chrome/browser/glic/common/glic_panel_hotkey_delegate.h"
 #include "chrome/browser/glic/public/glic_instance.h"
 #include "chrome/browser/glic/service/glic_ui_embedder.h"
 #include "chrome/browser/glic/service/metrics/glic_instance_metrics.h"
-#include "chrome/browser/glic/widget/application_hotkey_delegate.h"
 #include "chrome/browser/glic/widget/glic_inactive_side_panel_ui.h"
-#include "chrome/browser/glic/widget/glic_panel_hotkey_delegate.h"
 #include "chrome/browser/glic/widget/glic_view.h"
 #include "chrome/browser/glic/widget/glic_widget.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
@@ -132,11 +133,6 @@ void GlicSidePanelUi::Resize(const gfx::Size& size,
   std::move(callback).Run();
 }
 
-void GlicSidePanelUi::SetDraggableAreas(
-    const std::vector<gfx::Rect>& draggable_areas) {
-  NOTIMPLEMENTED();
-}
-
 void GlicSidePanelUi::EnableDragResize(bool enabled) {
   NOTIMPLEMENTED();
 }
@@ -162,7 +158,8 @@ bool GlicSidePanelUi::IsShowing() const {
   if (!glic_side_panel_coordinator) {
     return false;
   }
-  return glic_side_panel_coordinator->IsShowing();
+  return glic_side_panel_coordinator->state() !=
+         GlicSidePanelCoordinator::State::kClosed;
 }
 
 void GlicSidePanelUi::Focus() {
@@ -186,7 +183,11 @@ void GlicSidePanelUi::SidePanelStateChanged(
   // Showing only happens through glic entrypoint, hiding can also be triggered
   // by side panel coordinator when replacing glic with another entry.
   if (state != GlicSidePanelCoordinator::State::kShown && tab_) {
-    instance_metrics_->OnSidePanelClosed(tab_.get());
+    GlicInstanceMetrics::CloseReason reason =
+        state == GlicSidePanelCoordinator::State::kBackgrounded
+            ? GlicInstanceMetrics::CloseReason::kTabSwitched
+            : GlicInstanceMetrics::CloseReason::kExplicitlyClosed;
+    instance_metrics_->OnSidePanelClosed(tab_.get(), reason);
     panel_state_.kind = mojom::PanelStateKind::kHidden;
     delegate_->NotifyPanelStateChanged();
     // NOTE: `this` will be destroyed after this call.
@@ -236,20 +237,26 @@ void GlicSidePanelUi::Show(const ShowOptions& options) {
   glic_side_panel_coordinator->Show(suppress_animations);
 }
 
-void GlicSidePanelUi::Close() {
+void GlicSidePanelUi::Close(const CloseOptions& options) {
   if (screenshot_capturer_) {
     screenshot_capturer_->CloseScreenPicker();
   }
   auto* glic_side_panel_coordinator = GetGlicSidePanelCoordinator();
-  if (!glic_side_panel_coordinator || !IsShowing()) {
+  if (!glic_side_panel_coordinator) {
     return;
   }
   // NOTE: `this` will be destroyed after this call.
-  glic_side_panel_coordinator->Close();
+  glic_side_panel_coordinator->Close(options);
 }
 
 void GlicSidePanelUi::ClosePanel() {
-  Close();
+  Close(CloseOptions());
+}
+
+void GlicSidePanelUi::OnReload() {
+  if (glic_view_) {
+    glic_view_->SetWebContents(delegate_->host().webui_contents());
+  }
 }
 
 std::unique_ptr<GlicUiEmbedder> GlicSidePanelUi::CreateInactiveEmbedder()
@@ -303,10 +310,7 @@ void GlicSidePanelUi::OnBrowserWindowDeactivated(BrowserWindowInterface* bwi) {
 }
 
 GlicSidePanelCoordinator* GlicSidePanelUi::GetGlicSidePanelCoordinator() const {
-  if (!tab_ || !tab_->GetTabFeatures()) {
-    return nullptr;
-  }
-  return tab_->GetTabFeatures()->glic_side_panel_coordinator();
+  return GlicSidePanelCoordinator::GetForTab(tab_.get());
 }
 
 std::string GlicSidePanelUi::DescribeForTesting() {

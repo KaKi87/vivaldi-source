@@ -20,6 +20,7 @@
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/shared/ui/elements/extended_touch_target_button.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
+#import "ios/chrome/browser/shared/ui/util/color_palette/tab_group_color_palette.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid/grid_constants.h"
 #import "ios/chrome/browser/tab_switcher/ui_bundled/tab_grid/grid/tab_group_grid_view_controller.h"
@@ -54,6 +55,7 @@ constexpr CGFloat kBottomToolbarMargin = 8;
 constexpr CGFloat kButtonSpacing = 10;
 constexpr CGFloat kCloseImageSize = 12.5;
 constexpr CGFloat kMenuImageSize = 16;
+constexpr CGFloat kButtonAlpha = 0.6;
 
 // Animation.
 constexpr CGFloat kTranslationCompletion = 0;
@@ -68,6 +70,13 @@ constexpr CGFloat kContainerMargin = 12;
 constexpr CGFloat kContainerMultiplier = 0.8;
 constexpr CGFloat kContainerCornerRadius = 24;
 constexpr CGFloat kContainerBackgroundAlpha = 0.8;
+
+// Vivaldi
+UIColor* BottomGradientColorForTraits(UITraitCollection* traits) {
+  UIColor* baseColor = UIColor.systemBackgroundColor;
+  return [baseColor resolvedColorWithTraitCollection:traits];
+}
+// End Vivaldi
 
 // Returns a button to be added to the top toolbar.
 UIButton* TopToolbarButton(NSString* symbol_name,
@@ -120,7 +129,7 @@ UIButton* TopToolbarButton(NSString* symbol_name,
   UIView* _topToolbarBackground;
   // The stack view containing the buttons of the top toolbar.
   UIStackView* _topToolbarButtonsStackView;
-  // The the tab group menu button.
+  // The tab group menu button.
   UIButton* _menuButton;
   // Tab Groups handler.
   __weak id<TabGroupsCommands> _handler;
@@ -166,6 +175,8 @@ UIButton* TopToolbarButton(NSString* symbol_name,
   UIPanGestureRecognizer* _swipeDownGestureRecognizer;
   // Face pile provider.
   id<FacePileProviding> _facePileProvider;
+  // The color palette for the tab group view.
+  TabGroupColorPalette* _tabGroupColorPalette;
 }
 
 #pragma mark - Public
@@ -190,8 +201,12 @@ UIButton* TopToolbarButton(NSString* symbol_name,
     // dark mode regardless of the theme of the grid.
 
 #if defined(VIVALDI_BUILD)
-    // To support both light and dark mode.
-    self.overrideUserInterfaceStyle = UIUserInterfaceStyleUnspecified;
+    if (!incognito) {
+      // To support both light and dark mode.
+      self.overrideUserInterfaceStyle = UIUserInterfaceStyleUnspecified;
+    } else {
+      self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    }
 #else
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
 #endif // End Vivaldi
@@ -272,6 +287,18 @@ UIButton* TopToolbarButton(NSString* symbol_name,
   _bottomGradient.hidden = self.gridViewController.scrolledToBottom;
   _topToolbarBackground.hidden = self.gridViewController.scrolledToTop;
 }
+
+// Vivaldi
+- (void)updateBottomGradientColors {
+  if (![_bottomGradient isKindOfClass:[GradientView class]]) {
+    return;
+  }
+  GradientView* gradient = static_cast<GradientView*>(_bottomGradient);
+  UIColor* bottomColor = BottomGradientColorForTraits(self.traitCollection);
+  UIColor* topColor = [bottomColor colorWithAlphaComponent:0.0f];
+  [gradient setStartColor:topColor endColor:bottomColor];
+}
+// End Vivaldi
 
 #pragma mark - UIViewController
 
@@ -389,7 +416,13 @@ UIButton* TopToolbarButton(NSString* symbol_name,
 
   // Add the toolbar after the grid to make sure it is above it.
   _bottomGradient = [[GradientView alloc] initWithTopColor:UIColor.clearColor
+
+#if defined(VIVALDI_BUILD)
+                                               bottomColor:UIColor.clearColor];
+#else
                                                bottomColor:UIColor.blackColor];
+#endif // End Vivaldi
+
   _bottomGradient.translatesAutoresizingMaskIntoConstraints = NO;
   _bottomGradient.userInteractionEnabled = NO;
   [_container addSubview:_bottomGradient];
@@ -408,6 +441,13 @@ UIButton* TopToolbarButton(NSString* symbol_name,
                      withAction:@selector(sizeClassDidChange)];
   [self registerForTraitChanges:@[ UITraitHorizontalSizeClass.class ]
                      withAction:@selector(sizeClassDidChange)];
+
+  // Vivaldi
+  [self updateBottomGradientColors];
+  [self registerForTraitChanges:@[ UITraitUserInterfaceStyle.class ]
+                     withAction:@selector(updateBottomGradientColors)];
+  // End Vivaldi
+
 }
 
 - (UIStatusBarStyle)preferredStatusBarStyle {
@@ -453,7 +493,12 @@ UIButton* TopToolbarButton(NSString* symbol_name,
 - (void)setGroupColor:(UIColor*)color {
   _groupColor = color;
   _gridViewController.groupColor = color;
-  [_coloredDotView setBackgroundColor:_groupColor];
+}
+
+- (void)setTabGroupColorPalette:(TabGroupColorPalette*)tabGroupColorPalette {
+  _tabGroupColorPalette = tabGroupColorPalette;
+  // Forward it to the TabGroupGridViewController.
+  _gridViewController.tabGroupColorPalette = _tabGroupColorPalette;
 }
 
 - (void)setShareAvailable:(BOOL)shareAvailable {
@@ -528,6 +573,10 @@ UIButton* TopToolbarButton(NSString* symbol_name,
   button.accessibilityIdentifier = kTabGroupOverflowMenuButtonIdentifier;
   button.accessibilityLabel = l10n_util::GetNSString(
       IDS_IOS_TAB_GROUP_THREE_DOT_MENU_BUTTON_ACCESSIBILITY_LABEL);
+  if (IsTabGroupColorOnSurfaceEnabled()) {
+    button.backgroundColor = [_tabGroupColorPalette.commonColor
+        colorWithAlphaComponent:kButtonAlpha];
+  }
   return button;
 }
 
@@ -543,6 +592,10 @@ UIButton* TopToolbarButton(NSString* symbol_name,
                 primaryAction:[UIAction actionWithHandler:^(UIAction* action) {
                   [weakSelf didTapFacePileButton];
                 }]];
+  if (IsTabGroupColorOnSurfaceEnabled()) {
+    container.backgroundColor = [_tabGroupColorPalette.commonColor
+        colorWithAlphaComponent:kButtonAlpha];
+  }
   container.accessibilityIdentifier = kTabGroupFacePileButtonIdentifier;
   [self updateFacePileContainer:container withFacePile:_facePileView];
   return container;
@@ -571,6 +624,10 @@ UIButton* TopToolbarButton(NSString* symbol_name,
       TopToolbarButton(kXMarkSymbol, closeAction, kCloseImageSize);
   closeButton.accessibilityLabel = l10n_util::GetNSString(IDS_CLOSE);
   closeButton.accessibilityIdentifier = kTabGroupCloseButtonIdentifier;
+  if (IsTabGroupColorOnSurfaceEnabled()) {
+    closeButton.backgroundColor = [_tabGroupColorPalette.commonColor
+        colorWithAlphaComponent:kButtonAlpha];
+  }
 
   [stackView addArrangedSubview:closeButton];
 
@@ -582,7 +639,13 @@ UIButton* TopToolbarButton(NSString* symbol_name,
   _topToolbarBackground = [[UIVisualEffectView alloc]
       initWithEffect:
           [UIBlurEffect
+
+#if defined(VIVALDI_BUILD)
+              effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterial]];
+#else
               effectWithStyle:UIBlurEffectStyleSystemUltraThinMaterialDark]];
+#endif // End Vivaldi
+
   _topToolbarBackground.translatesAutoresizingMaskIntoConstraints = NO;
 
   UIView* topToolbar = [[UIView alloc] init];
@@ -633,7 +696,11 @@ UIButton* TopToolbarButton(NSString* symbol_name,
   UIView* dotView = [[UIView alloc] initWithFrame:CGRectZero];
   dotView.translatesAutoresizingMaskIntoConstraints = NO;
   dotView.layer.cornerRadius = kDotSize / 2;
-  dotView.backgroundColor = _groupColor;
+  if (IsTabGroupColorOnSurfaceEnabled()) {
+    dotView.backgroundColor = _tabGroupColorPalette.commonColor;
+  } else {
+    dotView.backgroundColor = _groupColor;
+  }
 
   [NSLayoutConstraint activateConstraints:@[
     [dotView.heightAnchor constraintEqualToConstant:kDotSize],
@@ -713,6 +780,10 @@ UIButton* TopToolbarButton(NSString* symbol_name,
       _incognito ? TabGridPageIncognitoTabs : TabGridPageRegularTabs;
   bottomToolbar.mode = TabGridMode::kNormal;
   bottomToolbar.isInTabGroupView = YES;
+  if (IsTabGroupColorOnSurfaceEnabled()) {
+    [_bottomToolbar
+        updateNewTabButtonBackgroundColor:_tabGroupColorPalette.commonColor];
+  }
 
   [_container addSubview:bottomToolbar];
 
@@ -1057,7 +1128,11 @@ UIButton* TopToolbarButton(NSString* symbol_name,
 #pragma mark - TabGridToolbarsGridDelegate
 
 - (void)closeAllButtonTapped:(id)sender {
-  NOTREACHED();
+  NOTREACHED() << "Should not be called in a tab group.";
+}
+
+- (void)closeOtherTabsButtonTapped:(id)sender {
+  NOTREACHED() << "Should not be called in a tab group.";
 }
 
 - (void)doneButtonTapped:(id)sende {
@@ -1089,6 +1164,18 @@ UIButton* TopToolbarButton(NSString* symbol_name,
 }
 
 - (void)selectTabsButtonTapped:(id)sender {
+  NOTREACHED();
+}
+
+- (void)pageActionMenuEntrypointTapped:(id)sender {
+  NOTREACHED();
+}
+
+- (void)createNewTabGroupButtonTapped:(id)sender {
+  NOTREACHED();
+}
+
+- (void)deleteBrowsingDataButtonTapped:(id)sender {
   NOTREACHED();
 }
 

@@ -122,7 +122,7 @@ suite('SidePanelPowerBookmarksContextMenuTest', () => {
   test('ShowsMenuItemsForSingleSelectUrl', async () => {
     const selection = [service.findBookmarkWithId('3')!];
     powerBookmarksContextMenu.showAtPosition(
-        new MouseEvent('click'), selection, false, false, false);
+        new MouseEvent('click'), selection, false, false, false, 1);
 
     await waitAfterNextRender(powerBookmarksContextMenu);
 
@@ -161,7 +161,7 @@ suite('SidePanelPowerBookmarksContextMenuTest', () => {
   test('ShowsMenuItemsForSingleSelectFolder', async () => {
     const selection = [service.findBookmarkWithId('5')!];
     powerBookmarksContextMenu.showAtPosition(
-        new MouseEvent('click'), selection, false, false, false);
+        new MouseEvent('click'), selection, false, false, false, 1);
 
     await waitAfterNextRender(powerBookmarksContextMenu);
 
@@ -202,7 +202,7 @@ suite('SidePanelPowerBookmarksContextMenuTest', () => {
     const selection =
         [service.findBookmarkWithId('3')!, service.findBookmarkWithId('4')!];
     powerBookmarksContextMenu.showAtPosition(
-        new MouseEvent('click'), selection, false, false, false);
+        new MouseEvent('click'), selection, false, false, false, 2);
 
     await waitAfterNextRender(powerBookmarksContextMenu);
 
@@ -238,7 +238,7 @@ suite('SidePanelPowerBookmarksContextMenuTest', () => {
   test('ShowsMenuItemsForPriceTracking', async () => {
     const selection = [service.findBookmarkWithId('4')!];
     powerBookmarksContextMenu.showAtPosition(
-        new MouseEvent('click'), selection, true, true, false);
+        new MouseEvent('click'), selection, true, true, false, 1);
 
     await waitAfterNextRender(powerBookmarksContextMenu);
 
@@ -285,7 +285,7 @@ suite('SidePanelPowerBookmarksContextMenuTest', () => {
 
     const selection = [service.findBookmarkWithId('5')!];
     powerBookmarksContextMenu.showAtPosition(
-        new MouseEvent('click'), selection, false, false, false);
+        new MouseEvent('click'), selection, false, false, false, 1);
 
     await waitAfterNextRender(powerBookmarksContextMenu);
 
@@ -318,43 +318,26 @@ suite('SidePanelPowerBookmarksContextMenuTest', () => {
         true);
   });
 
-  test('ShowsMenuItemsForUserWithSplitViewDisabled', async () => {
+  test('ShowsMenuItemsWithIncognitoDisabledForNotAllowedUrls', async () => {
     loadTimeData.overrideValues({
-      splitViewEnabled: false,
       isIncognitoModeAvailable: true,
     });
 
     const selection = [service.findBookmarkWithId('3')!];
+    // Set incognito allowed count to 0.
     powerBookmarksContextMenu.showAtPosition(
-        new MouseEvent('click'), selection, false, false, false);
+        new MouseEvent('click'), selection, false, false, false, 0);
 
     await waitAfterNextRender(powerBookmarksContextMenu);
 
     const menuItems = powerBookmarksContextMenu.shadowRoot!.querySelectorAll(
         '.dropdown-item');
-    assertEquals(menuItems.length, 6);
+    assertEquals(menuItems.length, 7);
+    const incognitoButton = menuItems[2] as HTMLButtonElement;
     assertEquals(
-        menuItems[0]!.textContent.includes(
-            loadTimeData.getString('menuOpenNewTab')),
-        true);
-    assertEquals(
-        menuItems[1]!.textContent.includes(
-            loadTimeData.getString('menuOpenNewWindow')),
-        true);
-    assertEquals(
-        menuItems[2]!.textContent.includes(
+        incognitoButton.textContent.includes(
             loadTimeData.getString('menuOpenIncognito')),
         true);
-    assertEquals(
-        menuItems[3]!.textContent.includes(loadTimeData.getString('menuEdit')),
-        true);
-    assertEquals(
-        menuItems[4]!.textContent.includes(
-            loadTimeData.getString('menuMoveToBookmarksBar')),
-        true);
-    assertEquals(
-        menuItems[5]!.textContent.includes(
-            loadTimeData.getString('tooltipDelete')),
-        true);
+    assertEquals(incognitoButton.disabled, true);
   });
 });

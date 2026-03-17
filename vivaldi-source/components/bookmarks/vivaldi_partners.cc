@@ -30,8 +30,8 @@ const std::string GetBookmarkResourceDir() {
   // Append subfolder for XDD (LCV/Master) bookmarks
   const std::string lcv_master_vehicle("XDD");
   JNIEnv* env = base::android::AttachCurrentThread();
-  if (Java_CarDataProvider_isModel(env,
-      base::android::ConvertUTF8ToJavaString(env, lcv_master_vehicle))) {
+  if (Java_CarDataProvider_isModel(env, base::android::ConvertUTF8ToJavaString(
+                                            env, lcv_master_vehicle))) {
     bookmark_resource_dir += "/" + lcv_master_vehicle;
   }
 #endif
@@ -89,7 +89,7 @@ bool IsValidBookmarkName(bool folder, std::string_view name) {
 
 bool ParsePartnerDatabaseDetailsList(
     bool is_folder,
-    base::Value::List& list,
+    base::ListValue& list,
     std::vector<PartnerDetails>& details_list) {
   for (size_t i = 0; i < list.size(); ++i) {
     auto error = [&](std::string_view message) -> bool {
@@ -98,7 +98,7 @@ bool ParsePartnerDatabaseDetailsList(
                  << "] - " << message;
       return false;
     };
-    base::Value::Dict* dict = list[i].GetIfDict();
+    base::DictValue* dict = list[i].GetIfDict();
     if (!dict)
       return error("entry is not an object");
     PartnerDetails details;
@@ -283,15 +283,15 @@ bool PartnerDatabase::ParseJson(base::Value root_value,
     return false;
   };
 
-  base::Value::Dict* root_dict = root_value.GetIfDict();
+  base::DictValue* root_dict = root_value.GetIfDict();
   if (!root_dict)
     return error("partner db json is not an object");
 
-  base::Value::List* folders = root_dict->FindList(kFoldersKey);
+  base::ListValue* folders = root_dict->FindList(kFoldersKey);
   if (!folders)
     return error(std::string("missing ") + kFoldersKey + " key");
 
-  base::Value::List* bookmarks = root_dict->FindList(kBookmarksKey);
+  base::ListValue* bookmarks = root_dict->FindList(kBookmarksKey);
   if (!bookmarks)
     return error(std::string("missing ") + kBookmarksKey + " key");
 
@@ -315,8 +315,7 @@ bool PartnerDatabase::ParseJson(base::Value root_value,
     }
   }
   name_index_ =
-      base::flat_map<std::string_view, const PartnerDetails*>(
-      std::move(names));
+      base::flat_map<std::string_view, const PartnerDetails*>(std::move(names));
   if (name_index_.size() != details_list_.size())
     return error("duplicated names");
   size_t added_uuids = uuids.size();

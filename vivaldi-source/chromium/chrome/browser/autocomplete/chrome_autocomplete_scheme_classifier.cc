@@ -26,7 +26,7 @@
 #endif
 
 #if BUILDFLAG(IS_ANDROID)
-static jlong
+static int64_t
 JNI_ChromeAutocompleteSchemeClassifier_CreateAutocompleteClassifier(
     JNIEnv* env,
     Profile* profile) {
@@ -38,7 +38,7 @@ JNI_ChromeAutocompleteSchemeClassifier_CreateAutocompleteClassifier(
 
 static void JNI_ChromeAutocompleteSchemeClassifier_DeleteAutocompleteClassifier(
     JNIEnv* env,
-    jlong chrome_autocomplete_scheme_classifier) {
+    int64_t chrome_autocomplete_scheme_classifier) {
   delete reinterpret_cast<ChromeAutocompleteSchemeClassifier*>(
       chrome_autocomplete_scheme_classifier);
 }
@@ -48,8 +48,7 @@ static void JNI_ChromeAutocompleteSchemeClassifier_DeleteAutocompleteClassifier(
 namespace {
 bool IsCustomSchemeHandledByWebApp(Profile* profile,
                                    const std::string& scheme) {
-  return chromeos::features::IsWebAppManifestProtocolHandlerSupportEnabled() &&
-         !web_app::GetWebAppIdsForProtocolUrl(
+  return !web_app::GetWebAppIdsForProtocolUrl(
               profile, GURL(scheme + url::kStandardSchemeSeparator))
               .empty();
 }

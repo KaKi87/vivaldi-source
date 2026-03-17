@@ -81,7 +81,6 @@
 <translation id="4250431568374086873">Your connection to this site is not fully secure</translation>
 <translation id="4265872034478892965">Allowed by your administrator</translation>
 <translation id="4305666528087210886">Your file couldn’t be accessed</translation>
-<translation id="4408413947728134509">Cookies <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> didn’t accept your login certificate, or one may not have been provided.</translation>
 <translation id="4506599922270137252">Contacting the system admin</translation>
 <translation id="4522570452068850558">Details</translation>
@@ -96,7 +95,6 @@
 <translation id="483241715238664915">Turn on warnings</translation>
 <translation id="4943872375798546930">No results</translation>
 <translation id="5023310440958281426">Check your administrator's policies</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 in use)} other {(# in use)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Checking the proxy address<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bit)</translation>
 <translation id="5355557959165512791">You cannot visit <ph name="SITE" /> right now because its certificate has been revoked. Network errors and attacks are usually temporary, so this page will probably work later.</translation>
@@ -116,7 +114,6 @@
 <translation id="5810442152076338065">Your connection to <ph name="DOMAIN" /> is encrypted using an obsolete cipher suite.</translation>
 <translation id="5838278095973806738">You should not enter any sensitive information on this site (for example, passwords or credit cards), because it could be stolen by attackers.</translation>
 <translation id="5869405914158311789">This site can’t be reached</translation>
-<translation id="5920262536204764679">{NUM_COOKIES, plural, =1 {1 in use} other {# in use}}</translation>
 <translation id="5932224571077948991">Site shows intrusive or misleading ads</translation>
 <translation id="6051221802930200923">You cannot visit <ph name="SITE" /> right now because the website uses certificate pinning. Network errors and attacks are usually temporary, so this page will probably work later.</translation>
 <translation id="6146055958333702838">Check any cables and reboot any routers, modems or other network

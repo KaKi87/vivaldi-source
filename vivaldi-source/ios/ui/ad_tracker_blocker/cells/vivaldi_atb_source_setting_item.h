@@ -14,7 +14,6 @@
 
 @property(nonatomic, strong) VivaldiATBSourceItem* source;
 
-
 @end
 
 #endif  // IOS_UI_AD_TRACKER_BLOCKER_CELLS_VIVALDI_ATB_SOURCE_SETTING_ITEM_H_

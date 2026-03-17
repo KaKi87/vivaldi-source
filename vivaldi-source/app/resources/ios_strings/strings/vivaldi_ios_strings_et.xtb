@@ -6,6 +6,7 @@
 <translation id="1137850887415122856">Privaatsete kaartide lukustamiseks on vaja Touch ID’d, Face ID’d või lukustuskoodi.</translation>
 <translation id="1189137610071296104">Ava kaardivirnas</translation>
 <translation id="1310184829257917508">Küsitakse, kas avada link teisest rakendusest privaatsel kaardil</translation>
+<translation id="1624481300475123200">Paroolide automaatne täitmine</translation>
 <translation id="1743244221910283364">Tühista muudatused</translation>
 <translation id="2010481384079864967">{count, plural,
         =1 {Lisa kaart virna}
@@ -22,6 +23,7 @@
 <translation id="2565593432251168402">Kaardivirnu luues saab korda luua</translation>
 <translation id="2783161812871838616">Saidi arvutiversioon</translation>
 <translation id="2806957659107692459">Loo kaardivirn</translation>
+<translation id="2830375794722738493">Privaatsete kaartide varjamine</translation>
 <translation id="2899836479226240291">Kui soovid lingid automaatselt Vivaldis avada, määra Vivaldi oma vaikimisi brauseriks.</translation>
 <translation id="3365529507898144230">Salvesta pilt</translation>
 <translation id="3434473769478814796">Aseta ja mine</translation>
@@ -60,6 +62,9 @@
 <translation id="5431239785743546285">Loetud</translation>
 <translation id="5521301883748677039">Kas kustutada kaardivirn?</translation>
 <translation id="5544011153887687593">Kaardivirna kaart. <ph name="TAB_INDEX_IN_GROUP" /> kokku <ph name="NUMBER_OF_TABS_IN_GROUP" />-st.</translation>
+<translation id="5548760955356983418">Handoffi abil saad alustada veebisirvimist selles seadmes ja seejärel oma Mac’is hõlpsasti jätkata. Avatud veebilehte kuvatakse Mac’i Dockis.
+
+Handoff peab olema lubatud ka seadme üldseadetes (Settings &gt; General) ning seadmed peavad kasutama sama Apple’i kontot.</translation>
 <translation id="5614553682702429503">Kas salvestada parool?</translation>
 <translation id="5620163320393916465">Salvestatud paroole pole</translation>
 <translation id="570209299585559496">Kõigi saitide puhul vaikimisi arvutiversiooni kasutamise sisse lülitamiseks vali seaded ja siis sisuseaded</translation>
@@ -72,9 +77,11 @@
 <translation id="6233792867654386826">Avab sisestatud URL-id Vivaldis.</translation>
 <translation id="6271462272606946663">Peida „Saidi mobiiliversioon”</translation>
 <translation id="6309282378909663947">Paroolid Vivaldi paroolihaldurist</translation>
+<translation id="6464648082977038075">Sulge privaatsed kaardid</translation>
 <translation id="6478587527114893588">Sulge kaardivirn</translation>
 <translation id="6527405730445064713">Kaardivirn. Laiendatud.</translation>
 <translation id="6532106788206463496">Salvesta muudatused</translation>
+<translation id="6575010608310776688">Jätka privaatses režiimis</translation>
 <translation id="6636411080833380839">Eemalda kaardivirnast</translation>
 <translation id="6644512095122093795">Pakutakse paroolide salvestamist</translation>
 <translation id="6666425778700353369">Kaardivirn kustutatakse kõigist seadmetest, kuhu kontoga <ph name="USER_EMAIL" /> sisse logitud oled.</translation>
@@ -97,6 +104,7 @@
 <translation id="7585610907974664408">Uus privaatne kaart virnas</translation>
 <translation id="7661319142491611883">Laienda kaardivirn</translation>
 <translation id="7706213624515206557">Näita kaardivirna kõiki kaarte</translation>
+<translation id="7937179923651776879">Juurdepääs paroolidele igast rakendusest</translation>
 <translation id="7961015016161918242">Mitte kunagi</translation>
 <translation id="8326104954595890674">Uus privaatne kaart</translation>
 <translation id="8345989863850359861">Kas eemaldada kaart ja kustutada virn?</translation>
@@ -112,6 +120,8 @@
 <translation id="8951084872625418241">Uus kaart virnas</translation>
 <translation id="9042893549633094279">Privaatsus ja turvalisus</translation>
 <translation id="9094033019050270033">Parooli uuendamine</translation>
+<translation id="9203116392574189331">Handoff</translation>
 <translation id="944434461715569989">Välju kaardivirnast</translation>
 <translation id="959061183386231608">Kaardid jäävad selles seadmes avatuks, kuid teave virnast kustutatakse jäädavalt.</translation>
+<translation id="988141524645182168">Teised seadmed</translation>
 </translationbundle>

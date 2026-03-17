@@ -5,7 +5,6 @@
 package org.chromium.chrome.browser.toolbar.bottom;
 
 import android.graphics.RectF;
-import android.view.View;
 
 import org.jni_zero.JNINamespace;
 import org.jni_zero.NativeMethods;
@@ -13,7 +12,6 @@ import org.jni_zero.NativeMethods;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.cc.input.OffsetTag;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.layouts.SceneOverlay;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneLayer;
 import org.chromium.chrome.browser.layouts.scene_layer.SceneOverlayLayer;
@@ -129,13 +127,6 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
     @Override
     public SceneOverlayLayer getUpdatedSceneOverlayTree(
             RectF viewport, RectF visibleViewport, ResourceManager resourceManager) {
-        boolean isShadowVisible;
-        if (ChromeFeatureList.sBcivBottomControls.isEnabled()) {
-            isShadowVisible = true;
-        } else {
-            // The composited shadow should be visible if the Android toolbar's isn't.
-            isShadowVisible = mBottomView.getVisibility() != View.VISIBLE;
-        }
 
         // Note(david@vivaldi.com): Apply the height of bottom view as an offset to send scene off
         // screen instead of making scene invisible. This will ensure that all scrolling offsets
@@ -149,6 +140,7 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
         } else if (mBrowserControlsManager != null
                 && mBrowserControlsManager.getBrowserControlHiddenRatio() == 0)
             mCurrentYOffsetPx = 0;
+        // End Vivaldi
 
         ScrollingBottomViewSceneLayerJni.get()
                 .updateScrollingBottomViewLayer(
@@ -158,7 +150,7 @@ public class ScrollingBottomViewSceneLayer extends SceneOverlayLayer implements 
                         mTopShadowHeightPx,
                         mCurrentXOffsetPx,
                         viewport.height() + mCurrentYOffsetPx,
-                        isShadowVisible,
+                        true,
                         mOffsetTag);
 
         return this;

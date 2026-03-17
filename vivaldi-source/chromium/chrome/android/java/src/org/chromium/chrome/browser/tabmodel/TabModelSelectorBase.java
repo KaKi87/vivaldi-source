@@ -9,11 +9,16 @@ import static org.chromium.build.NullUtil.assumeNonNull;
 import android.app.Activity;
 
 import org.chromium.base.Callback;
+import org.chromium.base.CallbackController;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.ObserverList;
 import org.chromium.base.ResettersForTesting;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.tab.Tab;
@@ -25,9 +30,12 @@ import org.chromium.components.tabs.TabStripCollection;
 import org.chromium.content_public.browser.LoadUrlParams;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
+
+// Vivaldi
+import org.chromium.build.BuildConfig;
 
 /** Implement methods shared across the different model implementations. */
 @NullMarked
@@ -48,12 +56,10 @@ public abstract class TabModelSelectorBase
     private final List<TabModelInternal> mTabModelInternals = new ArrayList<>();
     private @Nullable IncognitoTabModel mIncognitoTabModel;
 
-    private final TabGroupModelFilterProvider mTabGroupModelFilterProvider =
-            new TabGroupModelFilterProvider();
-    private final ObservableSupplierImpl<TabModel> mTabModelSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplier<@Nullable Tab> mCurrentTabSupplier;
-    private final ObservableSupplier<Integer> mCurrentModelTabCountSupplier;
+    private final SettableMonotonicObservableSupplier<TabModel> mTabModelSupplier =
+            ObservableSuppliers.createMonotonic();
+    private final NullableObservableSupplier<Tab> mCurrentTabSupplier;
+    private final NonNullObservableSupplier<Integer> mCurrentModelTabCountSupplier;
 
     private final ObserverList<TabModelSelectorObserver> mObservers = new ObserverList<>();
     private final ObserverList<IncognitoTabModelObserver> mIncognitoObservers =
@@ -62,6 +68,14 @@ public abstract class TabModelSelectorBase
     private final TabCreatorManager mTabCreatorManager;
 
     private final Callback<TabModel> mIncognitoReauthDialogDelegateCallback;
+
+    private final SettableNullableObservableSupplier<TabGroupModelFilter>
+            mCurrentTabGroupModelFilterSupplier = ObservableSuppliers.createNullable();
+    private final Callback<TabModel> mCurrentTabModelObserver = this::onCurrentTabModelChanged;
+    private final List<TabModelObserver> mPendingTabModelFilterObserver = new ArrayList<>();
+    private List<TabGroupModelFilterInternal> mTabGroupModelFilters = new ArrayList<>();
+    private @Nullable CallbackController mCallbackController = new CallbackController();
+
     protected @Nullable IncognitoReauthDialogDelegate mIncognitoReauthDialogDelegate;
 
     private boolean mTabStateInitialized;
@@ -80,11 +94,9 @@ public abstract class TabModelSelectorBase
                 };
         mTabModelSupplier.addObserver(mIncognitoReauthDialogDelegateCallback);
         mCurrentTabSupplier =
-                mTabModelSupplier.createTransitive(
-                        (Function<TabModel, ObservableSupplier<@Nullable Tab>>)
-                                TabModel::getCurrentTabSupplier);
+                mTabModelSupplier.createTransitiveNullable(TabModel::getCurrentTabSupplier);
         mCurrentModelTabCountSupplier =
-                mTabModelSupplier.createTransitive(TabModel::getTabCountSupplier);
+                mTabModelSupplier.createTransitiveNonNull(0, TabModel::getTabCountSupplier);
     }
 
     // Do not use @Initializer. Not called immediately after constructor.
@@ -99,8 +111,7 @@ public abstract class TabModelSelectorBase
         mIncognitoTabModel = incognitoModelHolder.tabModel;
         int activeModelIndex = getModelIndex(mStartIncognito);
         assert activeModelIndex != MODEL_NOT_FOUND;
-        mTabGroupModelFilterProvider.init(
-                this,
+        setupTabGroupModelFilters(
                 List.of(
                         normalModelHolder.tabGroupModelFilter,
                         incognitoModelHolder.tabGroupModelFilter));
@@ -128,7 +139,7 @@ public abstract class TabModelSelectorBase
                     }
                 };
 
-        mTabGroupModelFilterProvider.addTabGroupModelFilterObserver(tabModelObserver);
+        addTabGroupModelFilterObserver(tabModelObserver);
 
         if (sObserverForTesting != null) {
             addObserver(sObserverForTesting);
@@ -153,8 +164,7 @@ public abstract class TabModelSelectorBase
      *
      * @param tabContentProvider A {@link TabContentManager} instance.
      */
-    public void onNativeLibraryReady(
-            TabContentManager tabContentProvider, boolean wasTabCollectionsActive) {}
+    public void onNativeLibraryReady(TabContentManager tabContentProvider) {}
 
     @Override
     public void onTabsViewShown() {}
@@ -180,6 +190,10 @@ public abstract class TabModelSelectorBase
     public @Nullable Tab getCurrentTab() {
         // TODO(crbug.com/40287823): Migrate this to use mCurrentTabSupplier.get(). Presently, a
         // large number of tests depend on using this from a non-UI thread.
+        if (BuildConfig.IS_VIVALDI && mCurrentTabSupplier != null) { // Vivaldi VAB-12449
+            // Vivaldi VAB-12459
+            return getCurrentModel().index() == MODEL_NOT_FOUND ? null : mCurrentTabSupplier.get();
+        } // End Vivaldi
         return TabModelUtils.getCurrentTab(getCurrentModel());
     }
 
@@ -207,17 +221,17 @@ public abstract class TabModelSelectorBase
     }
 
     @Override
-    public ObservableSupplier<TabModel> getCurrentTabModelSupplier() {
+    public MonotonicObservableSupplier<TabModel> getCurrentTabModelSupplier() {
         return mTabModelSupplier;
     }
 
     @Override
-    public ObservableSupplier<@Nullable Tab> getCurrentTabSupplier() {
+    public NullableObservableSupplier<Tab> getCurrentTabSupplier() {
         return mCurrentTabSupplier;
     }
 
     @Override
-    public ObservableSupplier<Integer> getCurrentModelTabCountSupplier() {
+    public NonNullObservableSupplier<Integer> getCurrentModelTabCountSupplier() {
         return mCurrentModelTabCountSupplier;
     }
 
@@ -230,7 +244,7 @@ public abstract class TabModelSelectorBase
 
     @Override
     public TabGroupModelFilter getFilter(boolean incognito) {
-        return assumeNonNull(mTabGroupModelFilterProvider.getTabGroupModelFilter(incognito));
+        return assumeNonNull(getTabGroupModelFilter(incognito));
     }
 
     private int getModelIndex(boolean incognito) {
@@ -238,11 +252,6 @@ public abstract class TabModelSelectorBase
             if (incognito == mTabModelInternals.get(i).isIncognito()) return i;
         }
         return MODEL_NOT_FOUND;
-    }
-
-    @Override
-    public TabGroupModelFilterProvider getTabGroupModelFilterProvider() {
-        return mTabGroupModelFilterProvider;
     }
 
     @Override
@@ -312,7 +321,7 @@ public abstract class TabModelSelectorBase
 
         // In case the tab needs to be closed while a reparenting task is executing. This could be
         // the case for navigations progressing while the tab is being moved between web clients.
-        if (tab.isDetached()) {
+        if (tab.isDetachedFromActivity()) {
             tab.setDidCloseWhileDetached();
             return true;
         }
@@ -331,7 +340,7 @@ public abstract class TabModelSelectorBase
                             + " Is destroyed "
                             + tab.isDestroyed()
                             + " Is detached "
-                            + tab.isDetached();
+                            + tab.isDetachedFromActivity();
             return false;
         }
     }
@@ -403,7 +412,13 @@ public abstract class TabModelSelectorBase
     public void destroy() {
         for (TabModelSelectorObserver listener : mObservers) listener.onDestroyed();
         mTabModelSupplier.removeObserver(mIncognitoReauthDialogDelegateCallback);
-        mTabGroupModelFilterProvider.destroy();
+
+        if (mCallbackController != null) {
+            mCallbackController.destroy();
+            mCallbackController = null;
+        }
+        mPendingTabModelFilterObserver.clear();
+        mTabModelSupplier.removeObserver(mCurrentTabModelObserver);
 
         if (mIncognitoTabModel != null) {
             mIncognitoTabModel.removeIncognitoObserver(this);
@@ -495,5 +510,94 @@ public abstract class TabModelSelectorBase
             return tabModel;
         }
         return null;
+    }
+
+    @Override
+    public @Nullable TabGroupModelFilter getTabGroupModelFilter(boolean isIncognito) {
+        for (TabGroupModelFilter filter : mTabGroupModelFilters) {
+            if (filter.getTabModel().isIncognito() == isIncognito) {
+                return filter;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public void addTabGroupModelFilterObserver(TabModelObserver observer) {
+        if (mTabGroupModelFilters.isEmpty()) {
+            mPendingTabModelFilterObserver.add(observer);
+            return;
+        }
+
+        for (TabGroupModelFilter filter : mTabGroupModelFilters) {
+            filter.addObserver(observer);
+        }
+    }
+
+    @Override
+    public void removeTabGroupModelFilterObserver(TabModelObserver observer) {
+        if (mTabGroupModelFilters.isEmpty() && !mPendingTabModelFilterObserver.isEmpty()) {
+            mPendingTabModelFilterObserver.remove(observer);
+            return;
+        }
+
+        for (TabGroupModelFilter filter : mTabGroupModelFilters) {
+            filter.removeObserver(observer);
+        }
+    }
+
+    @Override
+    public @Nullable TabGroupModelFilter getCurrentTabGroupModelFilter() {
+        return mCurrentTabGroupModelFilterSupplier.get();
+    }
+
+    @Override
+    public NullableObservableSupplier<TabGroupModelFilter> getCurrentTabGroupModelFilterSupplier() {
+        return mCurrentTabGroupModelFilterSupplier;
+    }
+
+    @Override
+    public void resetTabGroupModelFilterListForTesting() {
+        mTabGroupModelFilters = Collections.emptyList();
+        mCurrentTabGroupModelFilterSupplier.set(null);
+        mTabModelSupplier.removeObserver(mCurrentTabModelObserver);
+        mCallbackController = new CallbackController();
+    }
+
+    private void setupTabGroupModelFilters(List<TabGroupModelFilterInternal> filters) {
+        assert mTabGroupModelFilters.isEmpty();
+        assert !filters.isEmpty();
+        mTabGroupModelFilters = Collections.unmodifiableList(filters);
+
+        // Register the pending observers
+        for (TabModelObserver observer : mPendingTabModelFilterObserver) {
+            for (TabGroupModelFilter filter : mTabGroupModelFilters) {
+                filter.addObserver(observer);
+            }
+        }
+        mPendingTabModelFilterObserver.clear();
+
+        assumeNonNull(mCallbackController);
+        TabModelUtils.runOnTabStateInitialized(
+                this,
+                mCallbackController.makeCancelable(
+                        (unusedTabModelSelector) -> {
+                            for (TabGroupModelFilterInternal filter : mTabGroupModelFilters) {
+                                filter.markTabStateInitialized();
+                            }
+                        }));
+        mTabModelSupplier.addObserver(mCurrentTabModelObserver);
+    }
+
+    private void onCurrentTabModelChanged(TabModel model) {
+        for (TabGroupModelFilter filter : mTabGroupModelFilters) {
+            if (filter.getTabModel().isActiveModel()) {
+                mCurrentTabGroupModelFilterSupplier.set(filter);
+                return;
+            }
+        }
+        assert model == null
+                : "Non-null current TabModel should set an active TabGroupModelFilter.";
+        mCurrentTabGroupModelFilterSupplier.set(null);
     }
 }

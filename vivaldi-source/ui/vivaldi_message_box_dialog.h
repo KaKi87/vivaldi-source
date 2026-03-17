@@ -16,7 +16,8 @@ class MessageBoxView;
 namespace vivaldi {
 
 /** Customized Message box dialog with more options.
- * Clone of the original code found in chrome/browser/ui/views/message_box_dialog.h
+ * Clone of the original code found in
+ * chrome/browser/ui/views/message_box_dialog.h
  */
 class VivaldiMessageBoxDialog : public views::DialogDelegate,
                                 public views::WidgetObserver {
@@ -28,13 +29,12 @@ class VivaldiMessageBoxDialog : public views::DialogDelegate,
   VivaldiMessageBoxDialog& operator=(const VivaldiMessageBoxDialog&) = delete;
 
   struct Config {
-    Config(
-      std::u16string title,
-      std::u16string message,
-      chrome::MessageBoxType type,
-      std::u16string yes_text,
-      std::u16string no_text,
-      std::u16string checkbox_text);
+    Config(std::u16string title,
+           std::u16string message,
+           chrome::MessageBoxType type,
+           std::u16string yes_text,
+           std::u16string no_text,
+           std::u16string checkbox_text);
 
     ~Config();
 
@@ -44,8 +44,8 @@ class VivaldiMessageBoxDialog : public views::DialogDelegate,
     std::u16string yes_text;
     std::u16string no_text;
     std::u16string checkbox_text;
-    gfx::Size size; // When set, it get to be the overall window size.
-    bool cancel_default = false; // Cancel button should be default.
+    gfx::Size size;  // When set, it get to be the overall window size.
+    bool cancel_default = false;  // Cancel button should be default.
   };
 
   static chrome::MessageBoxResult Show(
@@ -59,8 +59,7 @@ class VivaldiMessageBoxDialog : public views::DialogDelegate,
   bool ShouldShowCloseButton() const override;
 
  private:
- VivaldiMessageBoxDialog(const Config &config,
-                         bool is_system_modal);
+  VivaldiMessageBoxDialog(const Config& config, bool is_system_modal);
   ~VivaldiMessageBoxDialog() override;
 
   void Run(MessageBoxResultCallback result_callback);

@@ -22,9 +22,12 @@ namespace features {
 
 BASE_DECLARE_FEATURE(kAllowEyeDropperWGCScreenCapture);
 
+BASE_DECLARE_FEATURE(kBrowserWidgetCacheThemeService);
+
 BASE_DECLARE_FEATURE(kCreateNewTabGroupAppMenuTopLevel);
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+BASE_DECLARE_FEATURE(kDseIntegrity);
 BASE_DECLARE_FEATURE(kFewerUpdateConfirmations);
 #endif
 
@@ -53,6 +56,14 @@ BASE_DECLARE_FEATURE(kPdfInfoBar);
 enum class PdfInfoBarTrigger { kPdfLoad = 0, kStartup = 1 };
 
 BASE_DECLARE_FEATURE_PARAM(PdfInfoBarTrigger, kPdfInfoBarTrigger);
+
+BASE_DECLARE_FEATURE(kSeparateDefaultAndPinPrompt);
+BASE_DECLARE_FEATURE_PARAM(int, kSeparateDefaultAndPinPromptRandSeed);
+BASE_DECLARE_FEATURE_PARAM(int, kSeparateDefaultAndPinPromptPinMaxCount);
+BASE_DECLARE_FEATURE_PARAM(int, kSeparateDefaultAndPinPromptPinCooldownDays);
+BASE_DECLARE_FEATURE_PARAM(int, kSeparateDefaultAndPinPromptDefaultMaxCount);
+BASE_DECLARE_FEATURE_PARAM(int,
+                           kSeparateDefaultAndPinPromptDefaultCooldownDays);
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
 
 #if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
@@ -139,107 +150,13 @@ BASE_DECLARE_FEATURE(kPreloadTopChromeWebUILessNavigations);
 
 BASE_DECLARE_FEATURE(kPressAndHoldEscToExitBrowserFullscreen);
 
-BASE_DECLARE_FEATURE(kReloadSelectionModel);
-
-BASE_DECLARE_FEATURE(kCloseActiveTabInSplitViewViaHotkey);
-
 BASE_DECLARE_FEATURE(kScrimForBrowserWindowModal);
 
 BASE_DECLARE_FEATURE(kSideBySide);
 
-BASE_DECLARE_FEATURE_PARAM(base::TimeDelta, kSideBySideShowDropTargetDelay);
-BASE_DECLARE_FEATURE_PARAM(base::TimeDelta,
-                           kSideBySideShowDropTargetForLinkDelay);
-BASE_DECLARE_FEATURE_PARAM(base::TimeDelta,
-                           kSideBySideShowDropTargetForLinkAfterHideDelay);
-BASE_DECLARE_FEATURE_PARAM(
-    base::TimeDelta,
-    kSideBySideShowDropTargetForLinkAfterHideLookbackWindow);
-BASE_DECLARE_FEATURE_PARAM(base::TimeDelta, kSideBySideHideDropTargetDelay);
-BASE_DECLARE_FEATURE_PARAM(base::TimeDelta, kSideBySideShowNudgeDelay);
-
-// Feature params for the width of the multi-contents drop target.
-// If the `kSideBySideDropTargetNudge` feature is enabled, then these only
-// apply for tab dragging.
-BASE_DECLARE_FEATURE_PARAM(int, kSideBySideDropTargetMinWidth);
-BASE_DECLARE_FEATURE_PARAM(int, kSideBySideDropTargetMaxWidth);
-BASE_DECLARE_FEATURE_PARAM(int, kSideBySideDropTargetTargetWidthPercentage);
-BASE_DECLARE_FEATURE_PARAM(int,
-                           kSideBySideDropTargetForLinkTargetWidthPercentage);
-
-// The size of the edge of the screen where the Split View drop target is hidden
-// will be the max of the width and the percentage times the screen width.
-BASE_DECLARE_FEATURE_PARAM(int, kSideBySideDropTargetHideForOSWidth);
-BASE_DECLARE_FEATURE_PARAM(double, kSideBySideDropTargetHideForOSPercentage);
-
-// Feature and params to control the "nudge" behavior of drop targets.
-BASE_DECLARE_FEATURE(kSideBySideDropTargetNudge);
-BASE_DECLARE_FEATURE_PARAM(int, kSideBySideDropTargetNudgeMinWidth);
-BASE_DECLARE_FEATURE_PARAM(int, kSideBySideDropTargetNudgeMaxWidth);
-BASE_DECLARE_FEATURE_PARAM(int,
-                           kSideBySideDropTargetNudgeTargetWidthPercentage);
-BASE_DECLARE_FEATURE_PARAM(int, kSideBySideDropTargetNudgeToFullMinWidth);
-BASE_DECLARE_FEATURE_PARAM(int, kSideBySideDropTargetNudgeToFullMaxWidth);
-BASE_DECLARE_FEATURE_PARAM(
-    int,
-    kSideBySideDropTargetNudgeToFullTargetWidthPercentage);
-// The ratio of window width that will trigger a nudge to show/hide.
-BASE_DECLARE_FEATURE_PARAM(double, kSideBySideDropTargetNudgeShowRatio);
-// The total amount of times the nudge may be shown before we stop showing it.
-BASE_DECLARE_FEATURE_PARAM(int, kSideBySideDropTargetNudgeShownLimit);
-// The total amount of times the drop target may be used with a link before we
-// stop showing the nudge.
-BASE_DECLARE_FEATURE_PARAM(int, kSideBySideDropTargetNudgeUsedLimit);
-
-enum class MiniToolbarActiveConfiguration {
-  // Hides the toolbar in the active view.
-  Hide,
-  // Shows only the menu button in the active view.
-  ShowMenu,
-  // Shows only the close button in the active view.
-  ShowClose,
-};
-
-BASE_DECLARE_FEATURE_PARAM(MiniToolbarActiveConfiguration,
-                           kSideBySideMiniToolbarActiveConfiguration);
-
-BASE_DECLARE_FEATURE_PARAM(int, kSideBySideSnapDistance);
-
-BASE_DECLARE_FEATURE_PARAM(int, kSideBySideIphTabSwitchCount);
-
-BASE_DECLARE_FEATURE(kSideBySideSessionRestore);
-
-bool IsRestoringSplitViewEnabled();
-
 BASE_DECLARE_FEATURE(kSideBySideLinkMenuNewBadge);
 
-BASE_DECLARE_FEATURE(kSideBySideKeyboardShortcut);
-
-bool IsSideBySideKeyboardShortcutEnabled();
-
-BASE_DECLARE_FEATURE(kSideBySideFocusClearing);
-
-enum class SidePanelRelativeAlignment {
-  // Shows the toolbar and content height side panels on the same side.
-  kShowPanelsOnSameSide,
-  // Shows the toolbar and content height side panels on opposite sides.
-  kShowPanelsOnOppositeSides,
-};
-BASE_DECLARE_FEATURE_PARAM(SidePanelRelativeAlignment,
-                           kSidePanelRelativeAlignment);
-
-BASE_DECLARE_FEATURE(kAppBrowserUseNewLayout);
-
-BASE_DECLARE_FEATURE(kPopupBrowserUseNewLayout);
-
-BASE_DECLARE_FEATURE(kTabbedBrowserUseNewLayout);
-
 BASE_DECLARE_FEATURE(kTabDuplicateMetrics);
-
-BASE_DECLARE_FEATURE(kTabScrollingButtonPosition);
-
-inline constexpr char kTabScrollingButtonPositionParameterName[] =
-    "buttonPosition";
 
 BASE_DECLARE_FEATURE(kTabGroupsCollapseFreezing);
 BASE_DECLARE_FEATURE(kTabGroupHoverCards);
@@ -247,6 +164,7 @@ BASE_DECLARE_FEATURE(kTabGroupHoverCards);
 #if !BUILDFLAG(IS_ANDROID)
 // General improvements to tab group menus
 BASE_DECLARE_FEATURE(kTabGroupMenuImprovements);
+bool IsTabGroupMenuImprovementsEnabled();
 BASE_DECLARE_FEATURE(kTabGroupMenuMoreEntryPoints);
 bool IsTabGroupMenuMoreEntryPointsEnabled();
 
@@ -438,17 +356,6 @@ BASE_DECLARE_FEATURE(kByDateHistoryInSidePanel);
 // Controls whether to use the TabStrip browser api's controller.
 BASE_DECLARE_FEATURE(kTabStripBrowserApi);
 
-// Controls where tab search lives in the browser. By default, the tab search
-// feature lives in the tab strip. The feature moves to the toolbar button if
-// the user is in the US and `kLaunchedTabSearchToolbarButton` is enabled or if
-// `kTabstripComboButton` is enabled and `kTabSearchToolbarButton` is true.
-BASE_DECLARE_FEATURE(kTabstripComboButton);
-BASE_DECLARE_FEATURE(kLaunchedTabSearchToolbarButton);
-
-BASE_DECLARE_FEATURE_PARAM(bool, kTabSearchToolbarButton);
-
-bool HasTabSearchToolbarButton();
-
 #if !BUILDFLAG(IS_ANDROID)
 // Controls whether to add new tabs to active tab group or to the end of the
 // tab strip.
@@ -457,6 +364,14 @@ BASE_DECLARE_FEATURE(kNewTabAddsToActiveGroup);
 bool IsNewTabAddsToActiveGroupEnabled();
 
 bool IsWebUIReloadButtonEnabled();
+
+bool IsWebUIHomeButtonEnabled();
+
+bool IsWebUISplitTabsButtonEnabled();
+
+bool IsWebUILocationBarEnabled();
+
+bool IsWebUIToolbarEnabled();
 #endif  // !BUILDFLAG(IS_ANDROID)
 
 // Controls whether to show a toast for Chrome non milestone update.
@@ -477,6 +392,11 @@ bool IsAndroidAnimatedProgressBarInBrowserEnabled();
 BASE_DECLARE_FEATURE(kWhatsNewDesktopRefresh);
 
 BASE_DECLARE_FEATURE(kTabGroupsFocusing);
+BASE_DECLARE_FEATURE_PARAM(bool, kTabGroupsFocusingPinnedTabs);
+
+#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+BASE_DECLARE_FEATURE(kUpdaterUI);
+#endif
 
 }  // namespace features
 

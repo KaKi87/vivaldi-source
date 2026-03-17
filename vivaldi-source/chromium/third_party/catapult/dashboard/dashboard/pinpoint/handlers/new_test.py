@@ -267,6 +267,23 @@ class NewTest(_NewTest):
         'exp: chromium@3 (%s) (Variant: 1)' % (', '.join(expected_exp_args)),
     )
 
+  def testComparisonModeTry_CrossbenchNoExtraBrowserFlagsWrapping(self):
+    request = dict(_BASE_REQUEST)
+    request['comparison_mode'] = 'try'
+    request['benchmark'] = 'speedometer3.crossbench'
+    request['base_extra_args'] = '--enable-features=MyFeatureA'
+    request['experiment_extra_args'] = '--enable-features=MyFeatureB'
+
+    response = self.Post('/api/new', request, status=200)
+    job = job_module.JobFromId(json.loads(response.body)['jobId'])
+    self.assertIn('--enable-features=MyFeatureA', str(job.state._changes[0]))
+    self.assertNotIn('--extra-browser-args="--enable-features=MyFeatureA"',
+                     str(job.state._changes[0]))
+    self.assertIn('--enable-features=MyFeatureB', str(job.state._changes[1]))
+    self.assertNotIn('--extra-browser-args="--enable-features=MyFeatureB"',
+                     str(job.state._changes[1]))
+
+
   def testComparisonModeTry_BaseNoPatchAndExperimentCommitPatch(self):
     request = dict(_BASE_REQUEST)
     request['comparison_mode'] = 'try'
@@ -529,7 +546,7 @@ class NewTest(_NewTest):
     post_issue.assert_called_once_with(
         12345, 'chromium', comment=mock.ANY, send_email=False)
     message = post_issue.call_args.kwargs['comment']
-    self.assertIn('Pinpoint job created and queued:', message)
+    self.assertIn('created and queued', message)
 
   def testExtraArgsSupported(self):
     request = dict(_BASE_REQUEST)

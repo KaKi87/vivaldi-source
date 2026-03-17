@@ -27,7 +27,8 @@ constexpr char kPortalSecretBusName[] = "org.freedesktop.portal.Secret";
 constexpr char kPortalRequestBusName[] = "org.freedesktop.portal.Request";
 
 constexpr char kPortalDesktopObjectPath[] = "/org/freedesktop/portal/desktop";
-constexpr char kPortalDesktopRequestObjectPath[] = "/org/freedesktop/portal/desktop/request/";
+constexpr char kPortalDesktopRequestObjectPath[] =
+    "/org/freedesktop/portal/desktop/request/";
 
 // receive timeout for secret, then we report that we can't receive
 const unsigned kSecretReceiveTimeout = 5;
@@ -69,9 +70,8 @@ bool SecretPortalDBus::RetrieveSecret(std::optional<std::string> token,
   secret_reader_ = std::make_unique<base::File>(std::move(read_fd));
 
   // Proxy to the desktop portal.
-  scoped_refptr<dbus::ObjectProxy> proxy =
-      bus_->GetObjectProxy(kPortalDesktopBusName,
-                           dbus::ObjectPath{kPortalDesktopObjectPath});
+  scoped_refptr<dbus::ObjectProxy> proxy = bus_->GetObjectProxy(
+      kPortalDesktopBusName, dbus::ObjectPath{kPortalDesktopObjectPath});
 
   // We generate a random handle token (non-guessable) for the Request object
   // path.
@@ -82,11 +82,11 @@ bool SecretPortalDBus::RetrieveSecret(std::optional<std::string> token,
   std::string client_name_element =
       ConvertNameToPathElement(bus_->GetConnectionName());
   auto advised_request_path =
-      dbus::ObjectPath{kPortalDesktopRequestObjectPath +
-                       client_name_element + "/" + handle_token};
+      dbus::ObjectPath{kPortalDesktopRequestObjectPath + client_name_element +
+                       "/" + handle_token};
 
-  scoped_refptr<dbus::ObjectProxy> request_proxy = bus_->GetObjectProxy(
-      kPortalDesktopBusName, advised_request_path);
+  scoped_refptr<dbus::ObjectProxy> request_proxy =
+      bus_->GetObjectProxy(kPortalDesktopBusName, advised_request_path);
 
   // This will be used to block until we get something out of the portal (or
   // timeout).
@@ -101,8 +101,7 @@ bool SecretPortalDBus::RetrieveSecret(std::optional<std::string> token,
       base::BindOnce(&SecretPortalDBus::OnConnected, base::Unretained(this)));
 
   // The environment is prepared. Now call the Method.
-  dbus::MethodCall method_call(kPortalSecretBusName,
-                               "RetrieveSecret");
+  dbus::MethodCall method_call(kPortalSecretBusName, "RetrieveSecret");
 
   dbus::MessageWriter writer(&method_call);
   writer.AppendFileDescriptor(write_fd.get());

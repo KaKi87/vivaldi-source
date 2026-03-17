@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">La connessione a questo sito non è completamente sicura</translation>
 <translation id="4265872034478892965">Consentita dall'amministratore</translation>
 <translation id="4305666528087210886">Impossibile accedere al file</translation>
-<translation id="4408413947728134509">Cookie <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> non ha accettato il certificato di accesso oppure non ne è stato fornito uno.</translation>
 <translation id="4506599922270137252">Contattare l'amministratore di sistema</translation>
 <translation id="4522570452068850558">Dettagli</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">Nessun risultato</translation>
 <translation id="5017554619425969104">Testo copiato</translation>
 <translation id="5023310440958281426">Consulta le norme dell'amministratore</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1{(1 in uso)}other{(# in uso)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Controllare l'indirizzo proxy<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(a 64 bit)</translation>
 <translation id="5216942107514965959">Ultima visita oggi</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">Non dovresti inserire dati sensibili in questo sito (ad esempio password o carte di credito) perché potrebbero essere rubati da utenti malintenzionati.</translation>
 <translation id="5863515189965725638">Modifica IBAN</translation>
 <translation id="5869405914158311789">Impossibile raggiungere il sito</translation>
-<translation id="5920262536204764679">{NUM_COOKIES, plural, =1 {1 in uso} other {# in uso}}</translation>
 <translation id="5932224571077948991">Il sito mostra annunci invasivi o fuorvianti</translation>
 <translation id="6051221802930200923">Al momento non puoi visitare <ph name="SITE" /> perché il sito web utilizza il blocco dei certificati. Errori di rete e attacchi sono in genere temporanei, quindi questa pagina probabilmente funzionerà più tardi.</translation>
 <translation id="6146055958333702838">Controlla eventuali cavi e riavvia eventuali router, modem o altri

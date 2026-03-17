@@ -1,21 +1,21 @@
 // Copyright (c) 2025 Vivaldi Technologies AS. All rights reserved
 
-#include "chrome/browser/ui/views/profiles/profile_picker_view.h"
 #include "ui/views/profile_picker_frame.h"
+#include "app/vivaldi_apptools.h"
+#include "chrome/browser/ui/views/profiles/profile_picker_view.h"
 #include "third_party/skia/include/core/SkRegion.h"
 #include "ui/base/hit_test.h"
-#include "app/vivaldi_apptools.h"
 
 namespace vivaldi {
 
 namespace {
 static constexpr int kCornerSize = 16;
 static constexpr int kBorderSize = 5;
-} // namespace
+}  // namespace
 
 PickerFrame::PickerFrame(ProfilePickerView* profile_picker)
-  : profile_picker_(profile_picker) {
-    CHECK(vivaldi::IsVivaldiRunning());
+    : profile_picker_(profile_picker) {
+  CHECK(vivaldi::IsVivaldiRunning());
 }
 
 gfx::Rect PickerFrame::GetBoundsForClientView() const {
@@ -77,4 +77,4 @@ gfx::Size PickerFrame::GetMinimumSize() const {
   return gfx::Size(400, 300);
 }
 
-} // namespace vivaldi
+}  // namespace vivaldi

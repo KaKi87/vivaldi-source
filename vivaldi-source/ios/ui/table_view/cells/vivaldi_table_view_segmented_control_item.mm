@@ -27,7 +27,8 @@ const CGFloat kPadding = 9.0;
            withStyler:(ChromeTableViewStyler*)styler {
   [super configureCell:tableCell withStyler:styler];
   VivaldiTableViewSegmentedControlCell* cell =
-      base::apple::ObjCCastStrict<VivaldiTableViewSegmentedControlCell>(tableCell);
+      base::apple::ObjCCastStrict<VivaldiTableViewSegmentedControlCell>(
+          tableCell);
   [cell setSelectionStyle:UITableViewCellSelectionStyleNone];
 
   [cell initWithLabels:self.labels];
@@ -35,7 +36,6 @@ const CGFloat kPadding = 9.0;
 }
 
 @end
-
 
 @interface VivaldiTableViewSegmentedControlCell ()
 
@@ -51,18 +51,19 @@ const CGFloat kPadding = 9.0;
   return self;
 }
 
--(void)initWithLabels:(NSArray*)labels {
+- (void)initWithLabels:(NSArray*)labels {
   if (!self.segmentedControl) {
     self.segmentedControl = [[UISegmentedControl alloc] initWithItems:labels];
     [self.contentView addSubview:self.segmentedControl];
 
     // Layout
-    [self.segmentedControl fillSuperviewWithPadding:
-      UIEdgeInsetsMake(kPadding, kPadding, kPadding, kPadding)];
+    [self.segmentedControl
+        fillSuperviewWithPadding:UIEdgeInsetsMake(kPadding, kPadding, kPadding,
+                                                  kPadding)];
   }
 }
 
--(void)setSelectedItem:(NSInteger)selectedItem {
+- (void)setSelectedItem:(NSInteger)selectedItem {
   if (!self.segmentedControl) {
     return;
   }

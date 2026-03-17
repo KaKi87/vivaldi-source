@@ -14,6 +14,8 @@
 #include "base/strings/string_util.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
+#include "components/optimization_guide/content/browser/media_transcript_provider.h"
+#include "content/public/browser/document_picture_in_picture_window_controller.h"
 #include "content/public/browser/media_session.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
@@ -41,11 +43,14 @@ GlicMediaContext::~GlicMediaContext() {
 }
 
 bool GlicMediaContext::OnResult(const media::SpeechRecognitionResult& result) {
+  // Do not turn off transcription here, since there's no way to re-enable it
+  // later when IsExcludedFromTranscript() changes.
+  if (IsExcludedFromTranscript()) {
+    return true;
+  }
+
   Transcript* transcript = GetOrCreateTranscript();
   if (!transcript) {
-    // Do not turn off transcription here, since there's no way to re-enable it
-    // later.  For example, if `IsExcludedByTranscript()` changes, then we'd be
-    // stuck without transcription.
     return true;
   }
 
@@ -134,6 +139,16 @@ void GlicMediaContext::HandleFinalResult(Transcript* transcript,
     // chunk can be added in media time order.
     transcript->transcript_chunks_.erase(transcript->nonfinal_chunk_it_);
     transcript->nonfinal_chunk_it_ = transcript->transcript_chunks_.end();
+  }
+
+  if (transcript->next_sequence_number_ == 0) {
+    content::WebContents* web_contents =
+        content::WebContents::FromRenderFrameHost(&render_frame_host());
+
+    if (auto* provider =
+            optimization_guide::MediaTranscriptProvider::GetFor(web_contents)) {
+      provider->OnTranscriptionBeginForFrame(&render_frame_host());
+    }
   }
 
   // Process final result.
@@ -241,7 +256,8 @@ std::string GlicMediaContext::GetContext() const {
 std::list<GlicMediaContext::TranscriptChunk>
 GlicMediaContext::GetTranscriptChunks() const {
   const Transcript* transcript = GetTranscriptIfExists();
-  if (!transcript) {
+  // Don't return transcripts if we don't have any final chunk.
+  if (!transcript || transcript->next_sequence_number_ == 0) {
     return {};
   }
   return transcript->transcript_chunks_;
@@ -258,12 +274,38 @@ void GlicMediaContext::OnPeerConnectionRemoved() {
 }
 
 bool GlicMediaContext::IsExcludedFromTranscript() const {
+  // Exclude transcripts if there are active peer connections.
+  if (num_peer_connections_ > 0) {
+    return true;
+  }
+
   content::WebContents* web_contents =
       content::WebContents::FromRenderFrameHost(&render_frame_host());
-  return num_peer_connections_ > 0 ||
-         MediaCaptureDevicesDispatcher::GetInstance()
-             ->GetMediaStreamCaptureIndicator()
-             ->IsCapturingUserMedia(web_contents);
+  if (!web_contents) {
+    return true;
+  }
+
+  // Check if the main web contents is capturing media.
+  if (MediaCaptureDevicesDispatcher::GetInstance()
+          ->GetMediaStreamCaptureIndicator()
+          ->IsCapturingUserMedia(web_contents)) {
+    return true;
+  }
+
+  // Check if any document picture-in-picture window is capturing media.
+  auto* pip_controller = content::PictureInPictureWindowController::
+      GetOrCreateDocumentPictureInPictureController(web_contents);
+  if (pip_controller) {
+    if (auto* pip_web_contents = pip_controller->GetChildWebContents()) {
+      if (MediaCaptureDevicesDispatcher::GetInstance()
+              ->GetMediaStreamCaptureIndicator()
+              ->IsCapturingUserMedia(pip_web_contents)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 void GlicMediaContext::RemoveOverlappingChunks(

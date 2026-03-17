@@ -3,20 +3,20 @@
 #import "ios/most_visited_sites/vivaldi_most_visited_sites_manager.h"
 
 #import "base/strings/sys_string_conversions.h"
+#import "components/ntp_tiles/most_visited_sites.h"
 #import "components/prefs/pref_service.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/cells/content_suggestions_tile_saver.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/cells/most_visited_tiles_config.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/content_suggestions_image_data_source.h"
+#import "ios/chrome/browser/content_suggestions/most_visited_tiles/ui/most_visited_tiles_config.h"
+#import "ios/chrome/browser/content_suggestions/ui/cells/content_suggestions_tile_saver.h"
+#import "ios/chrome/browser/content_suggestions/ui/content_suggestions_image_data_source.h"
 #import "ios/chrome/browser/favicon/model/ios_chrome_large_icon_cache_factory.h"
 #import "ios/chrome/browser/favicon/model/ios_chrome_large_icon_service_factory.h"
 #import "ios/chrome/browser/favicon/ui_bundled/favicon_attributes_provider.h"
 #import "ios/chrome/browser/ntp_tiles/model/ios_most_visited_sites_factory.h"
 #import "ios/chrome/browser/ntp_tiles/model/most_visited_sites_observer_bridge.h"
-#import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
-#import "ios/chrome/browser/signin/model/chrome_account_manager_service_factory.h"
 #import "ios/chrome/browser/signin/model/chrome_account_manager_service.h"
+#import "ios/chrome/browser/signin/model/chrome_account_manager_service_factory.h"
 #import "ios/chrome/common/app_group/app_group_constants.h"
 
 namespace {
@@ -30,9 +30,9 @@ const CGFloat kMostVisitedFaviconMinimalSize = 32;
 
 }  // namespace
 
-@interface VivaldiMostVisitedSitesManager()<
-                MostVisitedSitesObserving,
-                ContentSuggestionsImageDataSource> {
+@interface VivaldiMostVisitedSitesManager () <
+    MostVisitedSitesObserving,
+    ContentSuggestionsImageDataSource> {
   std::unique_ptr<ntp_tiles::MostVisitedSites> _mostVisitedSites;
   std::unique_ptr<ntp_tiles::MostVisitedSitesObserverBridge> _mostVisitedBridge;
 }
@@ -41,7 +41,7 @@ const CGFloat kMostVisitedFaviconMinimalSize = 32;
 // Most visited items from the MostVisitedSites service (copied upon receiving
 // the callback). Those items are up to date with the model.
 @property(nonatomic, strong)
-    NSMutableArray<ContentSuggestionsMostVisitedItem*>* freshMostVisitedItems;
+    NSMutableArray<MostVisitedItem*>* freshMostVisitedItems;
 @end
 
 @implementation VivaldiMostVisitedSitesManager {
@@ -70,20 +70,26 @@ const CGFloat kMostVisitedFaviconMinimalSize = 32;
     std::unique_ptr<ntp_tiles::MostVisitedSites> mostVisitedFactory =
         IOSMostVisitedSitesFactory::NewForBrowserState(_profile);
 
-    _mostVisitedAttributesProvider =
-        [[FaviconAttributesProvider alloc]
-            initWithFaviconSize:kMostVisitedFaviconSize
-                 minFaviconSize:kMostVisitedFaviconMinimalSize
-               largeIconService:largeIconService];
+    _mostVisitedAttributesProvider = [[FaviconAttributesProvider alloc]
+        initWithFaviconSize:kMostVisitedFaviconSize
+             minFaviconSize:kMostVisitedFaviconMinimalSize
+           largeIconService:largeIconService];
     // Set a cache only for the Most Visited provider, as the cache is
     // overwritten for every new results and the size of the favicon fetched for
     // the suggestions is much smaller.
     _mostVisitedAttributesProvider.cache = largeIconCache;
-    _mostVisitedSites = std::move(std::move(mostVisitedFactory));
+    _mostVisitedSites = std::move(mostVisitedFactory);
     _mostVisitedBridge =
-        std::make_unique<ntp_tiles::MostVisitedSitesObserverBridge>(self);
-    _mostVisitedSites->AddMostVisitedURLsObserver(
-          _mostVisitedBridge.get(),kMaxNumMostVisitedTiles);
+        std::make_unique<ntp_tiles::MostVisitedSitesObserverBridge>(
+            self, _mostVisitedSites.get());
+    // Keep Speed Dial Top Sites backed by real Top Sites only. Upstream
+    // defaults changed and now depend on explicit tile-type configuration.
+    _mostVisitedSites->EnableTileTypes(
+        ntp_tiles::MostVisitedSites::EnableTileTypesOptions()
+            .with_top_sites(true)
+            .with_custom_links(false));
+    _mostVisitedSites->AddMostVisitedURLsObserver(_mostVisitedBridge.get(),
+                                                  kMaxNumMostVisitedTiles);
   }
   return self;
 }
@@ -100,13 +106,13 @@ const CGFloat kMostVisitedFaviconMinimalSize = 32;
   _localState = nullptr;
 }
 
-- (void)removeMostVisited:(ContentSuggestionsMostVisitedItem*)item {
+- (void)removeMostVisited:(MostVisitedItem*)item {
   [self blockMostVisitedURL:item.URL];
 }
 
 - (void)refreshMostVisitedTiles {
-  // Refresh in case there are new MVT to show.
-  _mostVisitedSites->RefreshTiles();
+  // Force TopSites to sync with history before refreshing UI.
+  _mostVisitedSites->Refresh();
 }
 
 - (void)setConsumer:(id<VivaldiMostVisitedSitesConsumer>)consumer {
@@ -127,10 +133,10 @@ const CGFloat kMostVisitedFaviconMinimalSize = 32;
 
 // Replaces the Most Visited items currently displayed by the most recent ones.
 - (void)useFreshMostVisited {
-  const base::Value::List& oldMostVisitedSites =
+  const base::ListValue& oldMostVisitedSites =
       _localState->GetList(prefs::kIosLatestMostVisitedSites);
-  base::Value::List freshMostVisitedSites;
-  for (ContentSuggestionsMostVisitedItem* item in _freshMostVisitedItems) {
+  base::ListValue freshMostVisitedSites;
+  for (MostVisitedItem* item in _freshMostVisitedItems) {
     freshMostVisitedSites.Append(item.URL.spec());
   }
   // Don't check for a change in the Most Visited Sites if the device doesn't
@@ -142,9 +148,10 @@ const CGFloat kMostVisitedFaviconMinimalSize = 32;
                 oldMostVisitedSites:oldMostVisitedSites];
   }
   _localState->SetList(prefs::kIosLatestMostVisitedSites,
-                        std::move(freshMostVisitedSites));
+                       std::move(freshMostVisitedSites));
 
-  _mostVisitedConfig = [[MostVisitedTilesConfig alloc] init];
+  _mostVisitedConfig =
+      [[MostVisitedTilesConfig alloc] initWithLayoutGuideCenter:nil];
   _mostVisitedConfig.mostVisitedItems = _freshMostVisitedItems;
   _mostVisitedConfig.imageDataSource = self;
   [self.consumer setMostVisitedTilesConfig:_mostVisitedConfig];
@@ -152,9 +159,8 @@ const CGFloat kMostVisitedFaviconMinimalSize = 32;
 
 // Logs a User Action if `freshMostVisitedSites` has at least one site that
 // isn't in `oldMostVisitedSites`.
-- (void)
-  lookForNewMostVisitedSite:(const base::Value::List&)freshMostVisitedSites
-  oldMostVisitedSites:(const base::Value::List&)oldMostVisitedSites {
+- (void)lookForNewMostVisitedSite:(const base::ListValue&)freshMostVisitedSites
+              oldMostVisitedSites:(const base::ListValue&)oldMostVisitedSites {
   for (auto const& freshSiteURLValue : freshMostVisitedSites) {
     BOOL freshSiteInOldList = NO;
     for (auto const& oldSiteURLValue : oldMostVisitedSites) {
@@ -165,9 +171,8 @@ const CGFloat kMostVisitedFaviconMinimalSize = 32;
     }
     if (!freshSiteInOldList) {
       // Reset impressions since freshness.
-      GetApplicationContext()->GetLocalState()->
-          SetInteger(
-            prefs::kIosMagicStackSegmentationMVTImpressionsSinceFreshness, 0);
+      _localState->SetInteger(
+          prefs::kIosMagicStackSegmentationMVTImpressionsSinceFreshness, 0);
       return;
     }
   }
@@ -183,9 +188,20 @@ const CGFloat kMostVisitedFaviconMinimalSize = 32;
 
 #pragma mark - MostVisitedSitesObserving
 
-- (void)onMostVisitedURLsAvailable:
-      (const ntp_tiles::NTPTilesVector&)mostVisited {
+- (void)mostVisitedSites:(ntp_tiles::MostVisitedSites*)mostVisitedSites
+          didUpdateTiles:(const ntp_tiles::NTPTilesVector&)tiles {
+  (void)mostVisitedSites;
+  [self onMostVisitedURLsAvailable:tiles];
+}
 
+- (void)mostVisitedSites:(ntp_tiles::MostVisitedSites*)mostVisitedSites
+    didUpdateFaviconForURL:(const GURL&)siteURL {
+  (void)mostVisitedSites;
+  [self onIconMadeAvailable:siteURL];
+}
+
+- (void)onMostVisitedURLsAvailable:
+    (const ntp_tiles::NTPTilesVector&)mostVisited {
   // This is used by the content widget.
   content_suggestions_tile_saver::SaveMostVisitedToDisk(
       mostVisited, _mostVisitedAttributesProvider,
@@ -194,8 +210,7 @@ const CGFloat kMostVisitedFaviconMinimalSize = 32;
 
   _freshMostVisitedItems = [NSMutableArray array];
   for (const ntp_tiles::NTPTile& tile : mostVisited) {
-    ContentSuggestionsMostVisitedItem* item =
-        [[ContentSuggestionsMostVisitedItem alloc] init];
+    MostVisitedItem* item = [[MostVisitedItem alloc] init];
     item.title = base::SysUTF16ToNSString(tile.title);
     item.URL = tile.url;
     item.source = tile.source;
@@ -212,19 +227,18 @@ const CGFloat kMostVisitedFaviconMinimalSize = 32;
       siteURL, _mostVisitedAttributesProvider,
       app_group::ShortcutsWidgetFaviconsFolder(),
       ChromeAccountManagerServiceFactory::GetForProfile(self.profile));
-  for (ContentSuggestionsMostVisitedItem* item in _mostVisitedConfig
-       .mostVisitedItems) {
-         if (item.URL == siteURL) {
-           FaviconCompletionHandler completion =
-              _mostVisitedFetchFaviconCallbacks[siteURL];
-           if (completion) {
-             [_mostVisitedAttributesProvider
-                  fetchFaviconAttributesForURL:siteURL
-                        completion:completion];
-           }
-           return;
-         }
-       }
+  for (MostVisitedItem* item in _mostVisitedConfig.mostVisitedItems) {
+    if (item.URL == siteURL) {
+      FaviconCompletionHandler completion =
+          _mostVisitedFetchFaviconCallbacks[siteURL];
+      if (completion) {
+        [_mostVisitedAttributesProvider
+            fetchFaviconAttributesForURL:siteURL
+                              completion:completion];
+      }
+      return;
+    }
+  }
 }
 
 @end

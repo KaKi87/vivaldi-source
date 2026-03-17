@@ -709,13 +709,25 @@ public class WebsitePermissionsFetcherTest {
                         SITE_WILDCARD,
                         /* isEmbargoed= */ false,
                         SessionModel.DURABLE));
+        websitePreferenceBridge.addPermissionInfo(
+                new PermissionInfo(
+                        ContentSettingsType.LOCAL_NETWORK,
+                        ORIGIN,
+                        SITE_WILDCARD,
+                        /* isEmbargoed= */ false,
+                        SessionModel.DURABLE));
+        websitePreferenceBridge.addPermissionInfo(
+                new PermissionInfo(
+                        ContentSettingsType.LOOPBACK_NETWORK,
+                        ORIGIN,
+                        SITE_WILDCARD,
+                        /* isEmbargoed= */ false,
+                        SessionModel.DURABLE));
 
         // Add content setting exception types.
         // If the ContentSettingsType.MAX_VALUE value changes *and* a new value has been exposed on
         // Android, then please update this code block to include a test for your new type.
         // Otherwise, just update count in the assert.
-        // TODO(https://b/332704817): Add test for Tracking Protection content setting after Android
-        // integration.
         assertEquals(120, ContentSettingsType.MAX_VALUE);
         websitePreferenceBridge.addContentSettingException(
                 new ContentSettingException(
@@ -822,6 +834,20 @@ public class WebsitePermissionsFetcherTest {
                         ContentSetting.DEFAULT,
                         ProviderType.PREF_PROVIDER,
                         /* isEmbargoed= */ false));
+        websitePreferenceBridge.addContentSettingException(
+                new ContentSettingException(
+                        ContentSettingsType.LOCAL_NETWORK,
+                        ORIGIN,
+                        ContentSetting.DEFAULT,
+                        ProviderType.PREF_PROVIDER,
+                        /* isEmbargoed= */ false));
+        websitePreferenceBridge.addContentSettingException(
+                new ContentSettingException(
+                        ContentSettingsType.LOOPBACK_NETWORK,
+                        ORIGIN,
+                        ContentSetting.DEFAULT,
+                        ProviderType.PREF_PROVIDER,
+                        /* isEmbargoed= */ false));
 
         int storageSize = 256;
         int sharedDictionarySize = 12345;
@@ -899,6 +925,9 @@ public class WebsitePermissionsFetcherTest {
                     Assert.assertNotNull(site.getPermissionInfo(ContentSettingsType.AR));
                     Assert.assertNotNull(
                             site.getPermissionInfo(ContentSettingsType.LOCAL_NETWORK_ACCESS));
+                    Assert.assertNotNull(site.getPermissionInfo(ContentSettingsType.LOCAL_NETWORK));
+                    Assert.assertNotNull(
+                            site.getPermissionInfo(ContentSettingsType.LOOPBACK_NETWORK));
 
                     // Check content setting exception types.
                     assertEquals(

@@ -18,8 +18,8 @@
 - (instancetype)initWithCoder:(NSCoder*)aDecoder NS_UNAVAILABLE;
 
 //// DELEGATE
-@property (nonatomic,weak)
-  id<VivaldiBookmarkFolderSelectionHeaderViewDelegate> delegate;
+@property(nonatomic, weak) id<VivaldiBookmarkFolderSelectionHeaderViewDelegate>
+    delegate;
 
 // SETTERS
 /// Sets the show only speed dial toggle state

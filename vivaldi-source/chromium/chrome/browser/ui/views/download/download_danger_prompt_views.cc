@@ -264,9 +264,10 @@ std::u16string DownloadDangerPromptViews::GetMessageBody() const {
       case download::DOWNLOAD_DANGER_TYPE_SENSITIVE_CONTENT_WARNING:
         return l10n_util::GetStringUTF16(
             IDS_PROMPT_DOWNLOAD_SENSITIVE_CONTENT_WARNING);
+      case download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_ONEDRIVE:
       case download::DOWNLOAD_DANGER_TYPE_FORCE_SAVE_TO_GDRIVE:
         return l10n_util::GetStringUTF16(
-            IDS_PROMPT_DOWNLOAD_FORCED_SAVE_TO_GDRIVE);
+            IDS_PROMPT_DOWNLOAD_FORCED_SAVE_TO_CLOUD);
       case download::DOWNLOAD_DANGER_TYPE_SENSITIVE_CONTENT_BLOCK:
         return l10n_util::GetStringUTF16(
             IDS_PROMPT_DOWNLOAD_SENSITIVE_CONTENT_BLOCKED);

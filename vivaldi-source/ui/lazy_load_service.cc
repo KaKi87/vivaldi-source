@@ -20,7 +20,7 @@ namespace vivaldi {
 
 const char LazyLoadService::kLazyLoadIsSafe[] = "lazy_load_is_safe";
 
-//static
+// static
 void LazyLoadService::OnWillRestoreTab(content::WebContents* web_contents) {
   web_contents->SetUserData(&vivaldi::LazyLoadService::kLazyLoadIsSafe,
                             std::make_unique<base::SupportsUserData::Data>());

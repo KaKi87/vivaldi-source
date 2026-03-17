@@ -23,6 +23,7 @@
 <translation id="2565593432251168402">タブスタックを作成して整理整頓を保つ</translation>
 <translation id="2783161812871838616">デスクトップ版サイトをリクエストする</translation>
 <translation id="2806957659107692459">スタックを作成する</translation>
+<translation id="2830375794722738493">プライベートタブを非表示にする</translation>
 <translation id="2899836479226240291">Vivaldi をデフォルトのブラウザアプリに設定すると、Vivaldi で自動的にリンクを開くことができます。</translation>
 <translation id="3365529507898144230">写真に保存</translation>
 <translation id="3434473769478814796">貼り付けて移動</translation>
@@ -61,6 +62,9 @@
 <translation id="5431239785743546285">既読のページ</translation>
 <translation id="5521301883748677039">スタックを削除しますか？</translation>
 <translation id="5544011153887687593">タブスタックのタブ。<ph name="TAB_INDEX_IN_GROUP" /> の <ph name="NUMBER_OF_TABS_IN_GROUP" />。</translation>
+<translation id="5548760955356983418">Handoff を使うと、このデバイスでウェブサイトの閲覧を開始し、その続きを簡単に Mac で行うことができます。現在開いているウェブサイトは、Mac の Dock に表示されます。
+
+Handoff は「設定」の「一般」でも有効にする必要があり、さらにデバイス同士が同じ iCloud アカウントを使用している必要があります。</translation>
 <translation id="5614553682702429503">パスワードを保存しますか？</translation>
 <translation id="5620163320393916465">保存されたパスワードはありません</translation>
 <translation id="570209299585559496">設定 &gt;コンテンツの設定で、デフォルトサイトビューをデスクトップに変更できます</translation>
@@ -73,9 +77,11 @@
 <translation id="6233792867654386826">入力した URL を Vivaldi で開く。</translation>
 <translation id="6271462272606946663">モバイルサイトのリクエストを非表示にする</translation>
 <translation id="6309282378909663947">Vivaldi パスワードマネージャーで保存されたパスワード</translation>
+<translation id="6464648082977038075">プライベートタブを閉じる</translation>
 <translation id="6478587527114893588">スタックを閉じる</translation>
 <translation id="6527405730445064713">タブスタック。展開されています。</translation>
 <translation id="6532106788206463496">変更を保存</translation>
+<translation id="6575010608310776688">プライベートモードで続ける</translation>
 <translation id="6636411080833380839">スタックから取り出す</translation>
 <translation id="6644512095122093795">パスワードを保存する</translation>
 <translation id="6666425778700353369">これにより、<ph name="USER_EMAIL" /> でサインインしているすべてのデバイスからスタックが削除されます。</translation>
@@ -117,4 +123,5 @@
 <translation id="9203116392574189331">Handoff</translation>
 <translation id="944434461715569989">スタックを離れる</translation>
 <translation id="959061183386231608">タブはこのデバイスで開いたままになりますが、スタックは永久に削除されます。</translation>
+<translation id="988141524645182168">他のデバイス</translation>
 </translationbundle>

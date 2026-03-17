@@ -74,8 +74,7 @@ class BookmarkContextMenuShowFunction
   std::unique_ptr<::vivaldi::BookmarkMenuContainer> bookmark_menu_container_;
 };
 
-class BookmarkContextMenuCloseFunction
-    : public ExtensionFunction {
+class BookmarkContextMenuCloseFunction : public ExtensionFunction {
  public:
   DECLARE_EXTENSION_FUNCTION("bookmarkContextMenu.close",
                              BOOKMARKCONTEXTMENU_CLOSE)

@@ -15,7 +15,7 @@
 #include "chrome/browser/ash/app_mode/kiosk_system_session.h"
 #endif  // BUILDFLAG(IS_CHROMEOS)
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/host/guest_util.h"
 #endif
 
@@ -46,7 +46,7 @@ void ChromeGuestViewManagerDelegate::OnGuestAdded(
   ash::KioskController::Get().OnGuestAdded(guest_web_contents);
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   // Check if guest belongs to glic and apply specific customizations if so.
   glic::OnGuestAdded(guest_web_contents);
 #endif
@@ -74,8 +74,12 @@ void ChromeGuestViewManagerDelegate::OnGuestAdded(
 // isolated and that it's only exposed in the expected schemes / feature modes.
 bool ChromeGuestViewManagerDelegate::IsOwnedByControlledFrameEmbedder(
     const guest_view::GuestViewBase* guest) {
+#if BUILDFLAG(ENABLE_EXTENSIONS)
   return ExtensionsGuestViewManagerDelegate::
       IsGuestAvailableToContextWithFeature(guest, "controlledFrameInternal");
+#else
+  return false;
+#endif
 }
 
 }  // namespace extensions

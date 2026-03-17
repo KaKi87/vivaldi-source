@@ -33,6 +33,8 @@ namespace {
 // access features.
 #if BUILDFLAG(GOOGLE_CHROME_BRANDING)
 constexpr wchar_t kLimitedAccessFeatureIdentity[] = L"0qgpfzgh1edfy";
+#elif defined(VIVALDI_BUILD)
+constexpr wchar_t kLimitedAccessFeatureIdentity[] = L"24asejx21aks6";
 #else
 constexpr wchar_t kLimitedAccessFeatureIdentity[] = L"b06a12530me7r";
 #endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)

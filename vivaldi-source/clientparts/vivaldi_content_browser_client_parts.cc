@@ -10,6 +10,7 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/webui_url_constants.h"
 #include "chrome/grit/platform_locale_settings.h"
+#include "components/navigation_throttle/vivaldi_exdata_util.h"
 #include "components/prefs/pref_service.h"
 #include "components/request_filter/request_filter_manager.h"
 #include "content/public/browser/browser_url_handler.h"
@@ -19,7 +20,6 @@
 #include "third_party/blink/public/common/web_preferences/web_preferences.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "vivaldi/prefs/vivaldi_gen_prefs.h"
-#include "components/navigation_throttle/vivaldi_exdata_util.h"
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "browser/vivaldi_webcontents_util.h"
@@ -36,8 +36,8 @@
 #include "extensions/browser/process_map.h"
 #if BUILDFLAG(IS_LINUX)
 #include "content/public/common/content_switches.h"
-#endif // IS_LINUX
-#endif // VIVALDI_V8_CONTEXT_SNAPSHOT
+#endif  // IS_LINUX
+#endif  // VIVALDI_V8_CONTEXT_SNAPSHOT
 
 #include "app/vivaldi_apptools.h"
 
@@ -56,7 +56,7 @@ bool HandleVivaldiURLRewrite(GURL* url,
     if (url->host() == chrome::kChromeUIAboutHost) {
       replacements.SetHostStr(chrome::kChromeUIVersionHost);
     }
-#endif //  IS_ANDROID
+#endif  //  IS_ANDROID
     *url = url->ReplaceComponents(replacements);
     return true;
   }
@@ -162,7 +162,8 @@ void VivaldiContentBrowserClientParts::OverrideWebPreferences(
 
       // Only if the owner url indicates vivaldi ext and the webview is marked
       // as editor by name...
-      // This is not enough to enable JS in the webview. The other part lives in:
+      // This is not enough to enable JS in the webview. The other part lives
+      // in:
       // PageSpecificContentSettingsDelegate::IsFrameAllowlistedForJavaScript
       if (owner_is_vivaldi_ui && guest->IsVivaldiEditorView()) {
         web_prefs->javascript_enabled = true;
@@ -180,7 +181,7 @@ void VivaldiContentBrowserClientParts::OverrideWebPreferences(
           prefs->GetBoolean(vivaldiprefs::kWebpagesAccessKeys);
     }
 
-#endif //ENABLE_EXTENSIONS
+#endif  // ENABLE_EXTENSIONS
   }
 #endif  // !IS_ANDROID
 }
@@ -203,13 +204,12 @@ void VivaldiContentBrowserClientParts::AppendExtraRendererCommandLineSwitches(
   }
 #endif
 
-  Profile* profile =
-      Profile::FromBrowserContext(process.GetBrowserContext());
+  Profile* profile = Profile::FromBrowserContext(process.GetBrowserContext());
   DCHECK(profile);
-  if (extensions::ProcessMap::Get(profile) && extensions::ProcessMap::Get(profile)
-          ->Contains(vivaldi::kVivaldiAppId,
-                                                     process.GetDeprecatedID())) {
+  if (extensions::ProcessMap::Get(profile) &&
+      extensions::ProcessMap::Get(profile)->Contains(
+          vivaldi::kVivaldiAppId, process.GetDeprecatedID())) {
     command_line->AppendSwitch(switches::kVivaldiSnapshotProcess);
   }
-#endif // VIVALDI_V8_CONTEXT_SNAPSHOT
+#endif  // VIVALDI_V8_CONTEXT_SNAPSHOT
 }

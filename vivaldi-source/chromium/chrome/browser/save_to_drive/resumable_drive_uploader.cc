@@ -14,6 +14,7 @@
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_view_util.h"
 #include "base/values.h"
 #include "chrome/browser/save_to_drive/content_reader.h"
 #include "chrome/browser/save_to_drive/drive_uploader.h"
@@ -107,9 +108,9 @@ void ResumableDriveUploader::UploadFile() {
       GURL(kDriveUploadUrl), endpoint_fetcher::HttpMethod::kPost,
       kJsonContentType,
       *base::WriteJson(
-          base::Value::Dict()
+          base::DictValue()
               .Set("name", title_)
-              .Set("parents", base::Value::List().Append(parent_folder_->id))),
+              .Set("parents", base::ListValue().Append(parent_folder_->id))),
       request_headers, base::DoNothing());
 
   initiation_endpoint_fetcher_->Fetch(

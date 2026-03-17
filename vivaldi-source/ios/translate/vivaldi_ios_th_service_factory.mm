@@ -11,21 +11,21 @@ namespace translate_history {
 
 // static
 TH_Model* VivaldiIOSTHServiceFactory::GetForProfile(ProfileIOS* profile) {
-  return GetInstance()->GetServiceForProfileAs<TH_Model>(
-      profile, /*create=*/true);
+  return GetInstance()->GetServiceForProfileAs<TH_Model>(profile,
+                                                         /*create=*/true);
 }
 
 // static
 TH_Model* VivaldiIOSTHServiceFactory::GetForProfileIfExists(
-   ProfileIOS* profile) {
+    ProfileIOS* profile) {
   // Since this is called as part of destroying the browser state, we need this
   // extra test to avoid running into code that tests whether the browser state
   // is still valid.
   if (!GetInstance()->IsServiceCreated(profile)) {
     return nullptr;
   }
-  return GetInstance()->GetServiceForProfileAs<TH_Model>(
-      profile, /*create=*/false);
+  return GetInstance()->GetServiceForProfileAs<TH_Model>(profile,
+                                                         /*create=*/false);
 }
 
 // static

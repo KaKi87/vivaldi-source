@@ -53,8 +53,11 @@ import org.robolectric.shadows.ShadowLooper;
 
 import org.chromium.base.Callback;
 import org.chromium.base.Token;
-import org.chromium.base.supplier.ObservableSupplier;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableMonotonicObservableSupplier;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
@@ -72,7 +75,6 @@ import org.chromium.chrome.browser.hub.SingleChildViewManager;
 import org.chromium.chrome.browser.price_tracking.PriceTrackingFeatures;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.profiles.ProfileProvider;
-import org.chromium.chrome.browser.share.ShareDelegateSupplier;
 import org.chromium.chrome.browser.tab.MockTab;
 import org.chromium.chrome.browser.tab.TabCreationState;
 import org.chromium.chrome.browser.tab.TabId;
@@ -145,26 +147,27 @@ public class TabSwitcherPaneCoordinatorUnitTest {
     @Mock private MessagingBackendService mMessagingBackendService;
     @Mock private ServiceStatus mServiceStatus;
     @Mock private EdgeToEdgeController mEdgeToEdgeController;
-    @Mock private ShareDelegateSupplier mShareDelegateSupplier;
     @Mock private TabBookmarker mTabBookmarker;
     @Mock private BookmarkModel mBookmarkModel;
     @Mock private UndoBarThrottle mUndoBarThrottle;
     @Mock private TabGridContextMenuCoordinator mTabGridContextMenuCoordinator;
     @Mock private TabListGroupMenuCoordinator mTabListGroupMenuCoordinator;
     @Mock private PriceWelcomeMessageController mPriceWelcomeMessageController;
-    @Mock private ObservableSupplierImpl<Boolean> mHubSearchBoxVisibilitySupplier;
-    private final ObservableSupplierImpl<TabGroupModelFilter> mTabGroupModelFilterSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<Boolean> mIsVisibleSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<Boolean> mIsAnimatingSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<EdgeToEdgeController> mEdgeToEdgeSupplier =
-            new ObservableSupplierImpl<>();
-    private final ObservableSupplierImpl<TabBookmarker> mTabBookmarkerSupplier =
-            new ObservableSupplierImpl<>(mTabBookmarker);
-    private final ObservableSupplierImpl<View> mOverlayViewSupplier =
-            new ObservableSupplierImpl<>();
+
+    private final SettableNonNullObservableSupplier<Boolean> mHubSearchBoxVisibilitySupplier =
+            ObservableSuppliers.createNonNull(false);
+    private final SettableMonotonicObservableSupplier<TabGroupModelFilter>
+            mTabGroupModelFilterSupplier = ObservableSuppliers.createMonotonic();
+    private final SettableNonNullObservableSupplier<Boolean> mIsVisibleSupplier =
+            ObservableSuppliers.createNonNull(false);
+    private final SettableNonNullObservableSupplier<Boolean> mIsAnimatingSupplier =
+            ObservableSuppliers.createNonNull(false);
+    private final SettableMonotonicObservableSupplier<EdgeToEdgeController> mEdgeToEdgeSupplier =
+            ObservableSuppliers.createMonotonic();
+    private final SettableNonNullObservableSupplier<TabBookmarker> mTabBookmarkerSupplier =
+            ObservableSuppliers.createNonNull(mTabBookmarker);
+    private final SettableNullableObservableSupplier<View> mOverlayViewSupplier =
+            ObservableSuppliers.createNullable();
 
     private SingleChildViewManager mOverlayViewManager;
     private MockTabModel mTabModel;
@@ -178,6 +181,8 @@ public class TabSwitcherPaneCoordinatorUnitTest {
 
     @Before
     public void setUp() {
+        mTabGroupModelFilterSupplier.set(mTabGroupModelFilter);
+
         when(mFaviconHelperJniMock.init()).thenReturn(1L);
         FaviconHelperJni.setInstanceForTesting(mFaviconHelperJniMock);
 
@@ -203,10 +208,6 @@ public class TabSwitcherPaneCoordinatorUnitTest {
         mTabModel = spy(new MockTabModel(mProfile, null));
         when(mTabGroupModelFilter.getTabModel()).thenReturn(mTabModel);
         when(mTabGroupModelFilter.isTabModelRestored()).thenReturn(true);
-
-        mTabGroupModelFilterSupplier.set(mTabGroupModelFilter);
-        mIsVisibleSupplier.set(false);
-        mIsAnimatingSupplier.set(false);
 
         BookmarkModel.setInstanceForTesting(mBookmarkModel);
 
@@ -256,7 +257,7 @@ public class TabSwitcherPaneCoordinatorUnitTest {
                         },
                         mEdgeToEdgeSupplier,
                         /* desktopWindowStateManager= */ null,
-                        mShareDelegateSupplier,
+                        /* shareDelegateSupplier= */ ObservableSuppliers.alwaysNull(),
                         mTabBookmarkerSupplier,
                         mUndoBarThrottle,
                         mOverlayViewSupplier::set,
@@ -306,7 +307,7 @@ public class TabSwitcherPaneCoordinatorUnitTest {
 
     @Test
     public void testShowTabListEditor() {
-        ObservableSupplier<Boolean> handlesBackPressSupplier =
+        NonNullObservableSupplier<Boolean> handlesBackPressSupplier =
                 mCoordinator.getHandleBackPressChangedSupplier();
         assertFalse(handlesBackPressSupplier.get());
 
@@ -472,17 +473,6 @@ public class TabSwitcherPaneCoordinatorUnitTest {
     }
 
     @Test
-    @DisableFeatures(ChromeFeatureList.TAB_GROUP_PARITY_BOTTOM_SHEET_ANDROID)
-    public void testOnLongPressOnTabCard_FeatureDisabled() {
-        View cardView = new View(mActivity);
-        mCoordinator.onLongPressOnTabCard(
-                mTabGridContextMenuCoordinator, mTabListGroupMenuCoordinator, 1, cardView);
-
-        verify(mTabGridContextMenuCoordinator, never()).showMenu(any(), anyInt(), anyBoolean());
-    }
-
-    @Test
-    @EnableFeatures(ChromeFeatureList.TAB_GROUP_PARITY_BOTTOM_SHEET_ANDROID)
     public void testOnLongPressOnTabCard_FeatureEnabled_NotGrouped() {
         View cardView = new View(mActivity);
 
@@ -500,7 +490,6 @@ public class TabSwitcherPaneCoordinatorUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.TAB_GROUP_PARITY_BOTTOM_SHEET_ANDROID)
     public void testOnLongPressOnTabCard_FeatureEnabled_Grouped() {
         View cardView = new View(mActivity);
 
@@ -519,7 +508,6 @@ public class TabSwitcherPaneCoordinatorUnitTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.TAB_GROUP_PARITY_BOTTOM_SHEET_ANDROID)
     public void testOnLongPressOnTabCard_FeatureEnabled_NullCardView() {
         @TabId int tabId = 1;
         MockTab tab = MockTab.createAndInitialize(tabId, mProfile);
@@ -603,11 +591,11 @@ public class TabSwitcherPaneCoordinatorUnitTest {
         MockTab tab = new MockTab(1, mProfile);
 
         doReturn(0).when(mTabModel).getPinnedTabsCount();
-        when(mHubSearchBoxVisibilitySupplier.get()).thenReturn(true);
+        mHubSearchBoxVisibilitySupplier.set(true);
 
         mTabModelObserver.didChangePinState(tab);
         ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
-        verify(mHubSearchBoxVisibilitySupplier, times(1)).set(true);
+        assertTrue(mHubSearchBoxVisibilitySupplier.get());
     }
 
     @Test
@@ -616,11 +604,10 @@ public class TabSwitcherPaneCoordinatorUnitTest {
         MockTab tab = new MockTab(1, mProfile);
 
         doReturn(1).when(mTabModel).getPinnedTabsCount();
-        when(mHubSearchBoxVisibilitySupplier.get()).thenReturn(false);
 
         mTabModelObserver.didChangePinState(tab);
         ShadowLooper.runUiThreadTasksIncludingDelayedTasks();
-        verify(mHubSearchBoxVisibilitySupplier, never()).set(true);
+        assertFalse(mHubSearchBoxVisibilitySupplier.get());
     }
 
     @Test

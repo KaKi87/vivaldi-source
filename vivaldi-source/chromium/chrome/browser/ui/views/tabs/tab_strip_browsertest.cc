@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "base/byte_count.h"
+#include "base/byte_size.h"
 #include "base/strings/string_util.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/task_environment.h"
@@ -17,16 +17,19 @@
 #include "chrome/browser/ui/browser_command_controller.h"
 #include "chrome/browser/ui/browser_tabstrip.h"
 #include "chrome/browser/ui/performance_controls/tab_resource_usage_tab_helper.h"
+#include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/tabs/alert/tab_alert.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
+#include "chrome/browser/ui/tabs/tab_group_attention_indicator.h"
+#include "chrome/browser/ui/tabs/tab_group_features.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_renderer_data.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
+#include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
@@ -44,6 +47,10 @@
 #include "ui/gfx/scoped_animation_duration_scale_mode.h"
 #include "ui/views/test/ax_event_counter.h"
 #include "url/gurl.h"
+
+#if BUILDFLAG(IS_CHROMEOS)
+#include "chrome/browser/ash/boca/on_task/on_task_locked_controller.h"
+#endif
 
 namespace {
 ui::MouseEvent GetDummyEvent() {
@@ -64,7 +71,7 @@ class TabStripBrowsertest : public InProcessBrowserTest {
   TabStripModel* tab_strip_model() { return browser()->tab_strip_model(); }
 
   TabStrip* tab_strip() {
-    return views::AsViewClass<TabStripRegionView>(
+    return views::AsViewClass<HorizontalTabStripRegionView>(
                browser()->GetBrowserView().tab_strip_view())
         ->tab_strip();
   }
@@ -997,8 +1004,7 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, AccessibleName) {
 
   // AccessibleName should update with crashedstatus
   TabRendererData tab_renderer_data = tab_strip()->tab_at(1)->data();
-  tab_renderer_data.crashed_status =
-      base::TERMINATION_STATUS_PROCESS_WAS_KILLED;
+  tab_renderer_data.is_crashed = true;
   tab_strip()->tab_at(1)->SetData(tab_renderer_data);
   data = ui::AXNodeData();
   tab_strip()->tab_at(1)->GetViewAccessibility().GetAccessibleNodeData(&data);
@@ -1021,7 +1027,9 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, AccessibleName) {
   // AccessibleName update with alert on tab
   tab_renderer_data = tab_strip()->tab_at(new_index)->data();
   tab_renderer_data.network_state = TabNetworkState::kLoading;
-  tab_renderer_data.alert_state.push_back(tabs::TabAlert::kAudioPlaying);
+  RecentlyAudibleHelper::FromWebContents(
+      tab_strip_model()->GetWebContentsAt(new_index))
+      ->SetCurrentlyAudibleForTesting();
   tab_strip()->tab_at(new_index)->SetData(tab_renderer_data);
   data = ui::AXNodeData();
   tab_strip()->tab_at(new_index)->GetViewAccessibility().GetAccessibleNodeData(
@@ -1033,7 +1041,7 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, AccessibleName) {
   // AccessibleName update with tab resource usage update
   tab_renderer_data = tab_strip()->tab_at(new_index)->data();
   auto tab_resource_usage = base::MakeRefCounted<TabResourceUsage>();
-  tab_resource_usage->SetMemoryUsage(base::ByteCount(100));
+  tab_resource_usage->SetMemoryUsage(base::ByteSize(100));
   tab_renderer_data.tab_resource_usage = std::move(tab_resource_usage);
   tab_strip()->tab_at(new_index)->SetData(tab_renderer_data);
   data = ui::AXNodeData();
@@ -1043,7 +1051,7 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, AccessibleName) {
                 IDS_TAB_AX_MEMORY_USAGE,
                 l10n_util::GetStringFUTF16(
                     IDS_TAB_AX_LABEL_AUDIO_PLAYING_FORMAT, title),
-                ui::FormatBytes(base::ByteCount(100))),
+                ui::FormatBytes(base::ByteSize(100))),
             data.GetString16Attribute(ax::mojom::StringAttribute::kName));
 }
 
@@ -1487,17 +1495,7 @@ IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, ExtendTabSelection) {
   EXPECT_TRUE(tab_strip()->IsTabSelected(tab_strip()->tab_at(3)));
 }
 
-class TabStripSplitViewBrowsertest : public TabStripBrowsertest {
- public:
-  TabStripSplitViewBrowsertest() {
-    scoped_feature_list_.InitWithFeatures({features::kSideBySide}, {});
-  }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(TabStripSplitViewBrowsertest, CreateSplitUKMLogged) {
+IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, CreateSplitUKMLogged) {
   std::unique_ptr<ukm::TestAutoSetUkmRecorder> ukm_recorder_ =
       std::make_unique<ukm::TestAutoSetUkmRecorder>();
 
@@ -1525,8 +1523,7 @@ IN_PROC_BROWSER_TEST_F(TabStripSplitViewBrowsertest, CreateSplitUKMLogged) {
           entries[1], ukm::builders::SplitView_Created::kSplitEventIdName));
 }
 
-IN_PROC_BROWSER_TEST_F(TabStripSplitViewBrowsertest,
-                       SwapTabIntoSplitUKMLogged) {
+IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, SwapTabIntoSplitUKMLogged) {
   std::unique_ptr<ukm::TestAutoSetUkmRecorder> ukm_recorder_ =
       std::make_unique<ukm::TestAutoSetUkmRecorder>();
 
@@ -1561,8 +1558,7 @@ IN_PROC_BROWSER_TEST_F(TabStripSplitViewBrowsertest,
           entries[1], ukm::builders::SplitView_Updated::kSplitEventIdName));
 }
 
-IN_PROC_BROWSER_TEST_F(TabStripSplitViewBrowsertest,
-                       NavigateSplitTabUKMLogged) {
+IN_PROC_BROWSER_TEST_F(TabStripBrowsertest, NavigateSplitTabUKMLogged) {
   std::unique_ptr<ukm::TestAutoSetUkmRecorder> ukm_recorder_ =
       std::make_unique<ukm::TestAutoSetUkmRecorder>();
 
@@ -1594,6 +1590,47 @@ IN_PROC_BROWSER_TEST_F(TabStripSplitViewBrowsertest,
           entries[1], ukm::builders::SplitView_Updated::kSplitEventIdName));
 }
 
+#if BUILDFLAG(IS_CHROMEOS)
+IN_PROC_BROWSER_TEST_F(TabStripBrowsertest,
+                       CloseButtonHiddenWhenLockedForOnTask) {
+  ash::boca::OnTaskLockedController::From(browser())->set_locked_for_on_task(
+      true);
+
+  AppendTab();
+  AppendTab();
+  tab_strip_model()->ActivateTabAt(1);
+  ASSERT_EQ(3, tab_strip_model()->count());
+  TabStrip* const tab_strip = BrowserView::GetBrowserViewForBrowser(browser())
+                                  ->horizontal_tab_strip_for_testing();
+
+  Tab* const tab0 = tab_strip->tab_at(0);
+  ASSERT_FALSE(tab0->IsActive());
+  EXPECT_FALSE(tab0->showing_close_button_for_testing());
+
+  Tab* const tab1 = tab_strip->tab_at(1);
+  ASSERT_TRUE(tab1->IsActive());
+  EXPECT_FALSE(tab1->showing_close_button_for_testing());
+
+  Tab* tab2 = tab_strip->tab_at(2);
+  ASSERT_FALSE(tab2->IsActive());
+  EXPECT_FALSE(tab2->showing_close_button_for_testing());
+
+  // Switch tabs and confirm close button remains hidden for all opened tabs.
+  // tab_strip_->SelectTab(tab2, dummy_event_);
+  tab_strip_model()->ActivateTabAt(2);
+  ASSERT_TRUE(tab2->IsActive());
+  EXPECT_FALSE(tab0->showing_close_button_for_testing());
+  EXPECT_FALSE(tab1->showing_close_button_for_testing());
+  EXPECT_FALSE(tab2->showing_close_button_for_testing());
+
+  // Closing a tab should not alter tab close button visibility either.
+  tab_strip->CloseTab(tab2, CloseTabSource::kFromMouse);
+  tab2 = nullptr;
+  EXPECT_FALSE(tab0->showing_close_button_for_testing());
+  EXPECT_FALSE(tab1->showing_close_button_for_testing());
+}
+#endif
+
 class TabStripSaveBrowsertest : public TabStripBrowsertest {
  public:
   TabStripSaveBrowsertest() {
@@ -1615,9 +1652,14 @@ IN_PROC_BROWSER_TEST_F(TabStripSaveBrowsertest, AttentionIndicatorIsShown) {
 
   auto* group_header = tab_strip()->group_header(group);
 
-  group_header->SetTabGroupNeedsAttention(true);
+  TabGroup* tab_group =
+      browser()->tab_strip_model()->group_model()->GetTabGroup(group);
+
+  TabGroupAttentionIndicator* attention_indicator =
+      tab_group->GetTabGroupFeatures()->attention_indicator();
+  attention_indicator->SetHasAttention(true);
   EXPECT_TRUE(group_header->attention_indicator_->GetVisible());
 
-  group_header->SetTabGroupNeedsAttention(false);
+  attention_indicator->SetHasAttention(false);
   EXPECT_FALSE(group_header->attention_indicator_->GetVisible());
 }

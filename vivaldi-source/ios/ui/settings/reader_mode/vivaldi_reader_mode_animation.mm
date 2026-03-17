@@ -355,10 +355,10 @@ CAGradientLayer* GetAnimatedWipeEffect(CGRect frame,
 
 // Adds the "wipe" effect animation to `window` with `mediaTime`.
 - (void)addWipeEffectAnimationWithMediaTime:(CFTimeInterval)mediaTime {
-  _gradientLayer = GetAnimatedWipeEffect(
-      _window.bounds, kAnimationDuration,
-      [_window.layer convertTime:mediaTime fromLayer:nil], self.startPoint,
-      self.wipeColor);
+  _gradientLayer = GetAnimatedWipeEffect(_window.bounds, kAnimationDuration,
+                                         [_window.layer convertTime:mediaTime
+                                                          fromLayer:nil],
+                                         self.startPoint, self.wipeColor);
   // The grid view is scrollable. The animation should happen on what is visible
   // in the window not in the middle of the grid view which might not even be
   // visible.

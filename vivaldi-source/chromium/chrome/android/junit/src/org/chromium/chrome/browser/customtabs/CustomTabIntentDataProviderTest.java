@@ -1775,7 +1775,6 @@ public class CustomTabIntentDataProviderTest {
 
     @Test
     @Config(sdk = Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @EnableFeatures({ChromeFeatureList.ANDROID_MINIMAL_UI_LARGE_SCREEN})
     public void testTwaMinUiEnabledDisplayMode_ResolveToMinimalUi() {
         // on sdk < 35 min ui is not supported
         checkResolvedDisplayMode(
@@ -1783,24 +1782,14 @@ public class CustomTabIntentDataProviderTest {
     }
 
     @Test
-    @Config(sdk = Build.VERSION_CODES.VANILLA_ICE_CREAM)
-    @DisableFeatures({ChromeFeatureList.ANDROID_MINIMAL_UI_LARGE_SCREEN})
-    public void testTwaMinUiDisabledDisplayMode_ResolveToStandalone() {
-        checkResolvedDisplayMode(
-                new TrustedWebActivityDisplayMode.MinimalUiMode(), null, DisplayMode.STANDALONE);
-    }
-
-    @Test
-    @Config(sdk = Build.VERSION_CODES.VANILLA_ICE_CREAM)
-    @EnableFeatures({ChromeFeatureList.ANDROID_MINIMAL_UI_LARGE_SCREEN})
+    @Config(sdk = {Build.VERSION_CODES.VANILLA_ICE_CREAM, 36})
     public void testTwaBrowserModeWithEnabledMinUI_ResolveToMinimalUi() {
         checkResolvedDisplayMode(
                 new TrustedWebActivityDisplayMode.BrowserMode(), null, DisplayMode.MINIMAL_UI);
     }
 
     @Test
-    @Config(sdk = Build.VERSION_CODES.VANILLA_ICE_CREAM)
-    @EnableFeatures({ChromeFeatureList.ANDROID_MINIMAL_UI_LARGE_SCREEN})
+    @Config(sdk = {Build.VERSION_CODES.VANILLA_ICE_CREAM, 36})
     public void testTwaBrowserModeWithEnabledMinUI_ResolveDisplayOverrideToMinimalUi() {
         checkResolvedDisplayMode(
                 null,
@@ -1808,23 +1797,16 @@ public class CustomTabIntentDataProviderTest {
                 DisplayMode.MINIMAL_UI);
     }
 
+    // Pinned to SDK 29 and 34 because it tests behavior specific to < SDK 35.
+    @Config(sdk = {29, 34})
     @Test
-    @EnableFeatures({ChromeFeatureList.ANDROID_MINIMAL_UI_LARGE_SCREEN})
     public void testTwaBrowserModeWithEnabledMinUiPreSdk35_ResolveToMinimalUi() {
         checkResolvedDisplayMode(
                 new TrustedWebActivityDisplayMode.BrowserMode(), null, DisplayMode.STANDALONE);
     }
 
     @Test
-    @Config(sdk = Build.VERSION_CODES.VANILLA_ICE_CREAM)
-    @DisableFeatures({ChromeFeatureList.ANDROID_MINIMAL_UI_LARGE_SCREEN})
-    public void testTwaBrowserModeWithDisabledMinimalUi_ResolveToStandalone() {
-        checkResolvedDisplayMode(
-                new TrustedWebActivityDisplayMode.BrowserMode(), null, DisplayMode.STANDALONE);
-    }
-
-    @Test
-    @Config(sdk = Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    @Config(sdk = {Build.VERSION_CODES.VANILLA_ICE_CREAM, 36})
     @DisableFeatures({ChromeFeatureList.ANDROID_WINDOW_CONTROLS_OVERLAY})
     public void testTwaBrowserModeWithDisabledWindowControlsOverlay_ResolveToStandalone() {
         checkResolvedDisplayMode(
@@ -1835,7 +1817,7 @@ public class CustomTabIntentDataProviderTest {
     }
 
     @Test
-    @Config(sdk = Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    @Config(sdk = {Build.VERSION_CODES.VANILLA_ICE_CREAM, 36})
     @EnableFeatures({ChromeFeatureList.ANDROID_WINDOW_CONTROLS_OVERLAY})
     public void testTwaBrowserModeWithEnableWindowControlsOverlay_ResolveToWindowControlsOverlay() {
         checkResolvedDisplayMode(
@@ -1846,7 +1828,7 @@ public class CustomTabIntentDataProviderTest {
     }
 
     @Test
-    @Config(sdk = Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    @Config(sdk = {Build.VERSION_CODES.VANILLA_ICE_CREAM, 36})
     @EnableFeatures({ChromeFeatureList.ANDROID_WINDOW_CONTROLS_OVERLAY})
     public void
             testTwaBrowserModeWithEnableWindowControlsOverlay_IgnoreWindowControlsOverlayNotInDisplayOverride() {
@@ -1955,8 +1937,7 @@ public class CustomTabIntentDataProviderTest {
     }
 
     @Test
-    @Config(sdk = Build.VERSION_CODES.VANILLA_ICE_CREAM)
-    @EnableFeatures(ChromeFeatureList.ANDROID_WEB_APP_MENU_BUTTON)
+    @Config(sdk = {Build.VERSION_CODES.VANILLA_ICE_CREAM, 36})
     public void uiTypeTwa_withExperimentFlag_returnsWebAppMenu() {
         CustomTabsSession session =
                 CustomTabsSession.createMockSessionForTesting(
@@ -2545,11 +2526,32 @@ public class CustomTabIntentDataProviderTest {
     }
 
     @Test
+    public void minimalUiWebapp_properties() {
+        Intent intent = new Intent();
+        intent.putExtra(
+                CustomTabIntentDataProvider.EXTRA_UI_TYPE, CustomTabsUiType.MINIMAL_UI_WEBAPP);
+        setIsTrustedCustomTab(intent);
+
+        CustomTabIntentDataProvider dataProvider =
+                new CustomTabIntentDataProvider(intent, mContext, COLOR_SCHEME_LIGHT);
+
+        assertEquals(CustomTabsUiType.MINIMAL_UI_WEBAPP, dataProvider.getUiType());
+        assertFalse(
+                "Minimal UI Webapp should NOT support optional button",
+                dataProvider.isOptionalButtonSupported());
+        assertEquals(
+                "Minimal UI Webapp should allow Open in Browser",
+                CustomTabsIntent.OPEN_IN_BROWSER_STATE_DEFAULT,
+                dataProvider.getOpenInBrowserButtonState());
+    }
+
+    @Test
     public void uiTypes_openInBrowserButtonState() {
         final int stateDefault = CustomTabsIntent.OPEN_IN_BROWSER_STATE_DEFAULT;
         final int stateOff = CustomTabsIntent.OPEN_IN_BROWSER_STATE_OFF;
 
         assertEquals(stateDefault, getOibStateForType(CustomTabsUiType.DEFAULT));
+        assertEquals(stateDefault, getOibStateForType(CustomTabsUiType.MINIMAL_UI_WEBAPP));
 
         assertEquals(stateOff, getOibStateForType(CustomTabsUiType.NETWORK_BOUND_TAB));
         assertEquals(stateOff, getOibStateForType(CustomTabsUiType.AUTH_TAB));
@@ -2569,7 +2571,6 @@ public class CustomTabIntentDataProviderTest {
     }
 
     @Test
-    @EnableFeatures(ChromeFeatureList.ANDROID_WEB_APP_MENU_BUTTON)
     public void uiTypes_openInBrowserButtonState_twa() {
         final int stateOff = CustomTabsIntent.OPEN_IN_BROWSER_STATE_OFF;
         assertEquals(stateOff, getOibStateForType(CustomTabsUiType.TRUSTED_WEB_ACTIVITY));

@@ -19,7 +19,7 @@ import android.view.View;
 import org.chromium.base.MathUtils;
 import org.chromium.base.Token;
 import org.chromium.base.metrics.RecordUserAction;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.SettableNullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.compositor.overlays.strip.AnimationHost;
@@ -65,7 +65,7 @@ public abstract class ReorderStrategyBase implements ReorderStrategy { // Vivald
     protected final TabModel mModel;
     protected final TabGroupModelFilter mTabGroupModelFilter;
     protected final View mContainerView;
-    protected final ObservableSupplierImpl<@Nullable Token> mGroupIdToHideSupplier;
+    protected final SettableNullableObservableSupplier<Token> mGroupIdToHideSupplier;
     protected final Supplier<Float> mTabWidthSupplier;
     private final Supplier<Long> mLastReorderScrollTimeSupplier;
 
@@ -77,7 +77,7 @@ public abstract class ReorderStrategyBase implements ReorderStrategy { // Vivald
             TabModel model,
             TabGroupModelFilter tabGroupModelFilter,
             View containerView,
-            ObservableSupplierImpl<@Nullable Token> groupIdToHideSupplier,
+            SettableNullableObservableSupplier<Token> groupIdToHideSupplier,
             Supplier<Float> tabWidthSupplier,
             Supplier<Long> lastReorderScrollTimeSupplier) {
         // TODO(crbug.com/409392603): Investigate splitting this class even further.
@@ -133,7 +133,9 @@ public abstract class ReorderStrategyBase implements ReorderStrategy { // Vivald
             @ActionType int actionType) {
         // Exit reorder mode if the dialog will show. Tab drag and drop is cancelled elsewhere.
         Runnable beforeSyncDialogRunnable =
-                () -> mReorderDelegate.stopReorderMode(stripViews, groupTitles);
+                () ->
+                        mReorderDelegate.stopReorderMode(
+                                stripViews, groupTitles, /* isDragCancelled= */ false);
         String userAction =
                 interactingTabs.size() > 1
                         ? "MobileToolbarReorderTab.TabsRemovedFromGroup"

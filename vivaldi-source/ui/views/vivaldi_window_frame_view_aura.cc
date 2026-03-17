@@ -66,17 +66,21 @@ class VivaldiWindowFrameViewAura : public views::FrameView {
   void Layout(PassKey key) override;
 
   raw_ptr<VivaldiBrowserWindow> window_;
+
+  std::unique_ptr<VivaldiWindowFrameEventObserver> vivaldi_native_frame_view_;
 };
 
 VivaldiWindowFrameViewAura::VivaldiWindowFrameViewAura(
     VivaldiBrowserWindow* window)
-    : window_(window) {}
+    : window_(window),
+      vivaldi_native_frame_view_(
+          std::make_unique<VivaldiWindowFrameEventObserver>(window_)) {}
 
 VivaldiWindowFrameViewAura::~VivaldiWindowFrameViewAura() = default;
 
 // views::FrameView implementation.
 
- void VivaldiWindowFrameViewAura::Layout(PassKey key) {
+void VivaldiWindowFrameViewAura::Layout(PassKey key) {
   // Don't layout when transitioning to and from fullscreen.
   if (!window_->is_in_fullscreen_transition_) {
     LayoutSuperclass<views::FrameView>(this);
@@ -115,8 +119,6 @@ int VivaldiWindowFrameViewAura::NonClientHitTest(const gfx::Point& point) {
   if (!widget)
     return HTNOWHERE;
 
-  window_->ReportNCMousePosition(point);
-
   if (widget->IsFullscreen())
     return HTCLIENT;
 
@@ -124,8 +126,6 @@ int VivaldiWindowFrameViewAura::NonClientHitTest(const gfx::Point& point) {
   // Points outside the (possibly expanded) bounds can be discarded.
   if (!expanded_bounds.Contains(point))
     return HTNOWHERE;
-
-
 
 #if BUILDFLAG(IS_WIN)
   if (window_->GetMaximizeButtonBounds().Contains(point)) {
@@ -191,7 +191,7 @@ gfx::Size VivaldiWindowFrameViewAura::GetMinimumSize() const {
   views::Widget* widget = window_->GetWidget();
   if (!widget) {
     LOG(ERROR) << "GetMinimumSize called with no widget";
-    return gfx::Size(1,1);
+    return gfx::Size(1, 1);
   }
   gfx::Size min_size = widget->client_view()->GetMinimumSize();
   min_size.SetToMax(gfx::Size(1, 1));

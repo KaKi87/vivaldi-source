@@ -14,4 +14,3 @@ This is a testharness.js-based test.
 [FAIL] Elements in the "owner" window of a scoped registry are not always upgraded first
   Failed to construct 'CustomElementRegistry': Illegal constructor
 Harness: the test ran to completion.
-

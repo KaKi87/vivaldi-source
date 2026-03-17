@@ -37,6 +37,7 @@
 #include "ui/views/cascading_property.h"
 #include "ui/views/controls/button/button_controller.h"
 #include "ui/views/controls/focus_ring.h"
+#include "ui/views/property_effects.h"
 #include "ui/views/style/platform_style.h"
 
 float PageActionIconView::Delegate::GetPageActionInkDropVisibleOpacity() const {
@@ -44,7 +45,7 @@ float PageActionIconView::Delegate::GetPageActionInkDropVisibleOpacity() const {
 }
 
 int PageActionIconView::Delegate::GetPageActionIconSize() const {
-  return GetLayoutConstant(LOCATION_BAR_TRAILING_ICON_SIZE);
+  return GetLayoutConstant(LayoutConstant::kLocationBarTrailingIconSize);
 }
 
 gfx::Insets PageActionIconView::Delegate::GetPageActionIconInsets(
@@ -298,11 +299,14 @@ void PageActionIconView::UpdateIconImage() {
   if (IconColorShouldMatchForeground()) {
     icon_color = GetForegroundColor();
   }
-  const gfx::ImageSkia image = gfx::CreateVectorIconWithBadge(
-      GetVectorIcon(), icon_size, icon_color, GetVectorIconBadge());
-  if (!image.isNull()) {
-    SetImageModel(ui::ImageModel::FromImageSkia(image));
-  }
+
+  const gfx::VectorIcon& badge = GetVectorIconBadge();
+  // Bypass IconLabelBubbleView::SetImageModel to preserve the VectorIconModel
+  // for High Contrast correctness.
+  SetImageModel(
+      views::Button::STATE_NORMAL,
+      ui::ImageModel::FromVectorIcon(GetVectorIcon(), icon_color, icon_size,
+                                     badge.is_empty() ? nullptr : &badge));
 }
 
 void PageActionIconView::SetIsLoading(bool is_loading) {

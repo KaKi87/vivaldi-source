@@ -28,7 +28,7 @@ PrefService* StatsReporterImpl::GetLocalState() {
   return GetApplicationContext()->GetLocalState();
 }
 
-//static
+// static
 scoped_refptr<network::SharedURLLoaderFactory>
 StatsReporterImpl::GetUrlLoaderFactory() {
   return GetApplicationContext()->GetSharedURLLoaderFactory();

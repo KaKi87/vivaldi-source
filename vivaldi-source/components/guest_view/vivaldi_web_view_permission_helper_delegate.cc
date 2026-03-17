@@ -22,14 +22,14 @@ void WebViewPermissionHelperDelegate::SetDownloadInformation(
 }
 
 void WebViewPermissionHelper::RegisterProtocolHandler(
-  content::RenderFrameHost* requesting_frame,
-  const std::string& protocol,
-  const GURL& url,
-  bool user_gesture) {
-
+    content::RenderFrameHost* requesting_frame,
+    const std::string& protocol,
+    const GURL& url,
+    bool user_gesture) {
   // Check if already decided
   if (VivaldiBrowserComponentWrapper::GetInstance()
-          ->IsProtocolHandlerAlreadyDecided(web_view_guest()->web_contents(), protocol, url)) {
+          ->IsProtocolHandlerAlreadyDecided(web_view_guest()->web_contents(),
+                                            protocol, url)) {
     // Already handled by registry - don't show permission dialog
     return;
   }
@@ -41,9 +41,9 @@ void WebViewPermissionHelper::RegisterProtocolHandler(
   DCHECK(handler.IsValid());
 
   VivaldiBrowserComponentWrapper::GetInstance()->HandleRegisterHandlerRequest(
-    web_view_guest()->web_contents(), &handler);
+      web_view_guest()->web_contents(), &handler);
 
-  base::Value::Dict request_info;
+  base::DictValue request_info;
   request_info.Set(guest_view::kUrl, url.spec());
 
   std::u16string protocolDisplay = handler.GetProtocolDisplayName();
@@ -52,20 +52,17 @@ void WebViewPermissionHelper::RegisterProtocolHandler(
   WebViewPermissionType request_type = WEB_VIEW_PROTOCOL_HANDLING;
 
   RequestPermission(
-    request_type, std::move(request_info),
-    base::BindOnce(&WebViewPermissionHelper::OnProtocolPermissionResponse,
-      weak_factory_.GetWeakPtr()),
-    false);
+      request_type, std::move(request_info),
+      base::BindOnce(&WebViewPermissionHelper::OnProtocolPermissionResponse,
+                     weak_factory_.GetWeakPtr()),
+      false);
 }
 
 void WebViewPermissionHelper::OnProtocolPermissionResponse(
-  bool allow,
-  const std::string& user_input) {
-
+    bool allow,
+    const std::string& user_input) {
   VivaldiBrowserComponentWrapper::GetInstance()->SetOrRollbackProtocolHandler(
       web_view_guest()->web_contents(), allow);
-
 }
-
 
 }  // namespace extensions

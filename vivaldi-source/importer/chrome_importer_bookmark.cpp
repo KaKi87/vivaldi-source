@@ -53,7 +53,7 @@ class ChromeBookmarkReader {
   }
 
  private:
-  void DecodeNode(const base::Value::Dict& dict);
+  void DecodeNode(const base::DictValue& dict);
 
   std::vector<std::u16string> current_folder_;
   std::vector<user_data_importer::ImportedBookmarkEntry> bookmarks_;
@@ -69,17 +69,17 @@ ImportResult ChromeBookmarkReader::LoadFile(const base::FilePath& file) {
     return result;
   }
 
-  base::Value::Dict* root_dict = root_value.GetIfDict();
+  base::DictValue* root_dict = root_value.GetIfDict();
   if (!root_dict)
     return import_result::Error(IDS_IMPORT_ERROR_INVALID_BOOKMARK_FILE);
 
-  const base::Value::Dict* roots = root_dict->FindDict("roots");
+  const base::DictValue* roots = root_dict->FindDict("roots");
   if (!roots)
     return import_result::Error(IDS_IMPORT_ERROR_INVALID_BOOKMARK_FILE);
 
-  auto decode_named_folder = [&](const base::Value::Dict& parent,
+  auto decode_named_folder = [&](const base::DictValue& parent,
                                  std::string_view folder_name) -> void {
-    if (const base::Value::Dict* dict = parent.FindDict(folder_name)) {
+    if (const base::DictValue* dict = parent.FindDict(folder_name)) {
       DecodeNode(*dict);
     }
   };
@@ -88,7 +88,7 @@ ImportResult ChromeBookmarkReader::LoadFile(const base::FilePath& file) {
   decode_named_folder(*roots, "other");
 
   // Opera 20+ uses a custom root.
-  if (const base::Value::Dict* custom_root = roots->FindDict("custom_root")) {
+  if (const base::DictValue* custom_root = roots->FindDict("custom_root")) {
     decode_named_folder(*custom_root, "unsorted");
     decode_named_folder(*custom_root, "speedDial");
     decode_named_folder(*custom_root, "trash");
@@ -98,7 +98,7 @@ ImportResult ChromeBookmarkReader::LoadFile(const base::FilePath& file) {
   return import_result::Success();
 }
 
-void ChromeBookmarkReader::DecodeNode(const base::Value::Dict& dict) {
+void ChromeBookmarkReader::DecodeNode(const base::DictValue& dict) {
   const std::string* type_string = dict.FindString(kTypeKey);
   if (!type_string)
     return;
@@ -112,7 +112,7 @@ void ChromeBookmarkReader::DecodeNode(const base::Value::Dict& dict) {
     return;
   }
 
-  const base::Value::List* children = nullptr;
+  const base::ListValue* children = nullptr;
   if (is_folder) {
     children = dict.FindList(kChildrenKey);
     // Skip empty folders.
@@ -174,7 +174,7 @@ void ChromeBookmarkReader::DecodeNode(const base::Value::Dict& dict) {
     current_folder_.push_back(name);
 
     for (auto& child_value : *children) {
-      if (const base::Value::Dict* child = child_value.GetIfDict()) {
+      if (const base::DictValue* child = child_value.GetIfDict()) {
         DecodeNode(*child);
       }
     }
@@ -186,8 +186,9 @@ void ChromeBookmarkReader::DecodeNode(const base::Value::Dict& dict) {
 
 ImportResult ChromiumImporter::ImportBookMarks() {
   if (bookmarkfilename_.empty()) {
-    // Vivaldi: Don't call NotifyEnded() here - it ends the entire import process!
-    // The caller (chromium_importer.cpp) already handles item-level notifications.
+    // Vivaldi: Don't call NotifyEnded() here - it ends the entire import
+    // process! The caller (chromium_importer.cpp) already handles item-level
+    // notifications.
     return import_result::Success();  // nothing to import, but okay.
   }
 

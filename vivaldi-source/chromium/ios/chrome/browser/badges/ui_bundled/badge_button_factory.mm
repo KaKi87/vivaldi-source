@@ -16,6 +16,7 @@
 #import "ios/chrome/browser/badges/ui_bundled/badge_overflow_menu_util.h"
 #import "ios/chrome/browser/infobars/model/infobar_ios.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
+#import "ios/chrome/browser/reader_mode/model/constants.h"
 #import "ios/chrome/browser/shared/ui/symbols/symbols.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/grit/ios_strings.h"
@@ -68,17 +69,19 @@ const CGFloat kInfobarSymbolPointSizeModifier = 4;
         return [self permissionsCameraBadgeButton];
       case kBadgeTypePermissionsMicrophone:
         return [self permissionsMicrophoneBadgeButton];
+      case kBadgeTypeReaderMode:
+
+        if (IsVivaldiRunning()) {
+          return [self vivaldiReaderModeBadgeButton];
+        } // End Vivaldi
+
+        return [self readerModeBadgeButton];
       case kBadgeTypeNone:
       case kBadgeTypePasswordSave:
       case kBadgeTypePasswordUpdate:
       case kBadgeTypeSaveCard:
       case kBadgeTypeSaveAddressProfile:
         NOTREACHED() << "Badge of type " << badgeType << " should not be used.";
-
-      // Vivaldi
-      case kBadgeTypeReaderMode:
-        return [self readerModeBadgeButton];
-      // End Vivaldi
     }
   } else {
     switch (badgeType) {
@@ -106,12 +109,13 @@ const CGFloat kInfobarSymbolPointSizeModifier = 4;
         return [self permissionsCameraBadgeButton];
       case kBadgeTypePermissionsMicrophone:
         return [self permissionsMicrophoneBadgeButton];
-
-      // Vivaldi
       case kBadgeTypeReaderMode:
-        return [self readerModeBadgeButton];
-      // End Vivaldi
 
+        if (IsVivaldiRunning()) {
+          return [self vivaldiReaderModeBadgeButton];
+        } // End Vivaldi
+
+        return [self readerModeBadgeButton];
       case kBadgeTypeNone:
         NOTREACHED() << "A badge should not have kBadgeTypeNone";
     }
@@ -379,6 +383,20 @@ const CGFloat kInfobarSymbolPointSizeModifier = 4;
   return button;
 }
 
+- (BadgeButton*)readerModeBadgeButton {
+  BadgeButton* button =
+      [self createButtonForType:kBadgeTypeReaderMode
+                          image:DefaultSymbolTemplateWithPointSize(
+                                    GetReaderModeSymbolName(),
+                                    [self infoBarSymbolPointSize])];
+  button.accessibilityIdentifier =
+      kBadgeButtonReaderModeAccessibilityIdentifier;
+  button.accessibilityLabel =
+      l10n_util::GetNSString(IDS_IOS_READER_MODE_CHIP_ACCESSIBILITY_LABEL);
+  ;
+  return button;
+}
+
 - (BadgeButton*)createButtonForType:(BadgeType)badgeType image:(UIImage*)image {
   BadgeButton* button = [BadgeButton badgeButtonWithType:badgeType];
   UIImageSymbolConfiguration* symbolConfig = [UIImageSymbolConfiguration
@@ -406,7 +424,7 @@ const CGFloat kInfobarSymbolPointSizeModifier = 4;
 }
 
 // Vivaldi
-- (BadgeButton*)readerModeBadgeButton {
+- (BadgeButton*)vivaldiReaderModeBadgeButton {
   // Use a book symbol for reader mode
   UIImage* image =
     [CustomSymbolWithPointSize(vInfobarBadgeReaderMode, kInfobarSymbolPointSize)

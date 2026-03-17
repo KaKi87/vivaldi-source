@@ -29,19 +29,18 @@ using translate_history::TH_Node;
 
 namespace {
 // Language code mapping - maps various codes to canonical codes for consistency
-constexpr std::pair<std::string_view, std::string_view> kLanguageCodeMapping[] = {
-    {"sr", "sr-Cyrl"},
-    {"zh-CN", "zh-Hans"},
-    {"zh-TW", "zh-Hant"},
-    {"iw", "he"},
-    {"jw", "jv"},
+constexpr std::pair<std::string_view, std::string_view> kLanguageCodeMapping[] =
+    {
+        {"sr", "sr-Cyrl"}, {"zh-CN", "zh-Hans"}, {"zh-TW", "zh-Hant"},
+        {"iw", "he"},      {"jw", "jv"},
 };
 }  // namespace
 
 // Get canonical code for consistency
 std::string getCanonicalCode(const std::string& code) {
   for (auto&& entry : kLanguageCodeMapping) {
-    if (entry.first == code) return std::string(entry.second);
+    if (entry.first == code)
+      return std::string(entry.second);
   }
   return code;
 }  // namespace

@@ -94,7 +94,6 @@ pokušajte da ga uklonite sa liste i ponovo ga dodate.</translation>
 <translation id="4250431568374086873">Veza sa ovim sajtom nije potpuno bezbedna</translation>
 <translation id="4265872034478892965">Dozvolio administrator</translation>
 <translation id="4305666528087210886">Nije moguće pristupiti datoteci</translation>
-<translation id="4408413947728134509">Kolačići (<ph name="NUM_COOKIES" />)</translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> nije prihvatio sertifikat za prijavljivanje ili sertifikat za prijavljivanje nije priložen.</translation>
 <translation id="4506599922270137252">da se obratite administratoru sistema</translation>
 <translation id="4522570452068850558">Detalji</translation>
@@ -111,7 +110,6 @@ pokušajte da ga uklonite sa liste i ponovo ga dodate.</translation>
 <translation id="4943872375798546930">Nema rezultata</translation>
 <translation id="5017554619425969104">Tekst koji ste kopirali</translation>
 <translation id="5023310440958281426">Proverite smernice administratora</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1 {koristi se 1} one {koristi se #} few {koriste se #} other {koristi se #}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />da proverite adresu proksija<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 bita)</translation>
 <translation id="5216942107514965959">Poslednja poseta danas</translation>
@@ -133,7 +131,6 @@ pokušajte da ga uklonite sa liste i ponovo ga dodate.</translation>
 <translation id="5838278095973806738">Nemojte da unosite osetljive informacije na ovom sajtu (na primer, lozinke ili kreditne kartice) jer napadači mogu da ih ukradu.</translation>
 <translation id="5863515189965725638">Uredi IBAN</translation>
 <translation id="5869405914158311789">Ovaj sajt nije dostupan</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1 {Koristi se 1} one {Koristi se #} few {Koriste se #} other {Koristi se #}}</translation>
 <translation id="5932224571077948991">Sajt prikazuje nametljive ili obmanjujuće reklame</translation>
 <translation id="6051221802930200923">Ne možete posetiti sada <ph name="SITE" /> jer veb sajt koristi proveru sertifikata. Greške i napadi na mreži su obično privremeni, pa će ova stranica verovatno funkcionisati kasnije.</translation>
 <translation id="6146055958333702838">Proverite sve kablove i ponovo pokrenite sve rutere, modeme

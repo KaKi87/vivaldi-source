@@ -8,7 +8,6 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 
-
 namespace vivaldi_bookmark_kit {
 
 class BookmarkThumbnailThemeTabHelper
@@ -34,7 +33,8 @@ class BookmarkThumbnailThemeTabHelper
   // content::WebContentsObserver implementation
   // Invoked when theme color is changed.
   void DidChangeThemeColor() override;
-  void DidFinishNavigation(content::NavigationHandle* navigation_handle) override;
+  void DidFinishNavigation(
+      content::NavigationHandle* navigation_handle) override;
   void WebContentsDestroyed() override;
 
   void UpdateBookmarkThemeColor();

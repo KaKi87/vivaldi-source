@@ -93,7 +93,6 @@
 <translation id="4250431568374086873">Tu conexión con este sitio no es completamente segura</translation>
 <translation id="4265872034478892965">Permitido por tu administrador</translation>
 <translation id="4305666528087210886">No se pudo acceder a tu archivo</translation>
-<translation id="4408413947728134509">Cookies <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> no aceptó tu certificado de acceso o es posible que no se haya proporcionado.</translation>
 <translation id="4506599922270137252">Contactar con el administrador del sistema</translation>
 <translation id="4522570452068850558">Detalles</translation>
@@ -110,7 +109,6 @@
 <translation id="4943872375798546930">Sin resultados</translation>
 <translation id="5017554619425969104">Texto que copiaste</translation>
 <translation id="5023310440958281426">Consulte las políticas del administrador</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1{(1 en uso)} other {(# en uso)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />Comprobar la dirección de proxy<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64 bits)</translation>
 <translation id="5355557959165512791">No puedes visitar <ph name="SITE" /> ahora porque su certificado ha sido revocado. Los ataques y errores de red suelen ser temporales, por lo que es posible que esta página funcione más tarde.</translation>
@@ -130,7 +128,6 @@
 <translation id="5810442152076338065">Tu conexión a <ph name="DOMAIN" /> está encriptada con un conjunto de cifrado obsoleto.</translation>
 <translation id="5838278095973806738">No debes introducir información confidencial en este sitio (p. ej., contraseñas o tarjetas de crédito), ya que los atacantes podrían robártela.</translation>
 <translation id="5869405914158311789">No se puede acceder a este sitio</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{1 en uso}other{# en uso}}</translation>
 <translation id="5932224571077948991">El sitio muestra anuncios invasivos o engañosos</translation>
 <translation id="6051221802930200923">No puedes visitar <ph name="SITE" /> ahora porque el sitio web usa la fijación de certificados. Los ataques y errores de red suelen ser temporales, por lo que es posible que esta página funcione más tarde.</translation>
 <translation id="6146055958333702838">Revisa los cables y reinicia los routers, módems u otros dispositivos

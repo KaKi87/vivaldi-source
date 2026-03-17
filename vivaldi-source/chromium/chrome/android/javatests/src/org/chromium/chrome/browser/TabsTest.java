@@ -27,7 +27,6 @@ import android.os.SystemClock;
 import android.util.DisplayMetrics;
 import android.view.View;
 
-import androidx.test.espresso.Espresso;
 import androidx.test.filters.LargeTest;
 import androidx.test.filters.MediumTest;
 import androidx.test.filters.SmallTest;
@@ -46,7 +45,6 @@ import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
-import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
@@ -86,6 +84,7 @@ import org.chromium.content_public.browser.test.util.DOMUtils;
 import org.chromium.content_public.browser.test.util.JavaScriptUtils;
 import org.chromium.content_public.browser.test.util.TouchCommon;
 import org.chromium.content_public.browser.test.util.UiUtils;
+import org.chromium.content_public.common.ContentFeatures;
 import org.chromium.content_public.common.ContentSwitches;
 import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.modaldialog.ModalDialogProperties;
@@ -100,6 +99,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /** General Tab tests. */
 @RunWith(ChromeJUnit4ClassRunner.class)
 @CommandLineFlags.Add({ChromeSwitches.DISABLE_FIRST_RUN_EXPERIENCE})
+@DisableFeatures({ContentFeatures.ANDROID_DESKTOP_ZOOM_SCALING})
 @DoNotBatch(
         reason =
                 "https://crbug.com/1347598: Side effects are causing flakes in CI and failures"
@@ -286,7 +286,9 @@ public class TabsTest {
                             mActivityTestRule
                                     .getKeyboardDelegate()
                                     .isKeyboardShowing(
-                                            mActivityTestRule.getActivity().getTabsView());
+                                            mActivityTestRule
+                                                    .getActivity()
+                                                    .getTabsViewForTesting());
                     Criteria.checkThat(isKeyboardShowing, Matchers.is(show));
                 });
     }
@@ -299,7 +301,7 @@ public class TabsTest {
     @LargeTest
     @Restriction(DeviceFormFactor.TABLET_OR_DESKTOP)
     @Feature({"Android-TabSwitcher"})
-    @DisableIf.Device(DeviceFormFactor.ONLY_TABLET) // crbug.com/353910783
+    @DisabledTest(message = "crbug.com/353910783")
     public void testHideKeyboard() throws Exception {
         // Open a new tab(The 1st tab) and click node.
         mActivityTestRule.loadUrlInNewTab(getUrl(TEST_FILE_PATH), false);
@@ -520,7 +522,7 @@ public class TabsTest {
             TabUiTestHelper.enterTabSwitcher(cta);
 
             // Switch back to the tab view from the tab-switcher mode.
-            Espresso.pressBack();
+            TabUiTestHelper.leaveTabSwitcher(cta);
 
             assertEquals(
                     "URL mismatch after switching back to the tab from tab-switch mode",
@@ -643,7 +645,8 @@ public class TabsTest {
         final View urlBar = mActivityTestRule.getActivity().findViewById(R.id.url_bar);
         final TabModel model =
                 mActivityTestRule.getActivity().getTabModelSelector().getCurrentModel();
-        final Tab oldTab = TabModelUtils.getCurrentTab(model);
+        final Tab oldTab =
+                ThreadUtils.runOnUiThreadBlocking(() -> TabModelUtils.getCurrentTab(model));
 
         assertNotNull("Tab should have a view", oldTab.getView());
 
@@ -875,7 +878,7 @@ public class TabsTest {
     @Test
     @MediumTest
     @Feature({"Android-TabSwitcher"})
-    @DisableFeatures(ChromeFeatureList.ANDROID_TAB_DECLUTTER_RESCUE_KILLSWITCH)
+    @DisabledTest(message = "https://crbug.com/471243722")
     public void testIncognitoTabsNotRestoredAfterSwipe() throws Exception {
         mActivityTestRule.loadUrl(getUrl(TEST_PAGE_FILE_PATH));
 

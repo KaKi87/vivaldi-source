@@ -11,6 +11,7 @@ import androidx.preference.Preference;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.components.browser_ui.settings.SettingsUtils;
+import org.chromium.components.browser_ui.settings.search.BaseSearchIndexProvider;
 import org.chromium.components.browser_ui.site_settings.BaseSiteSettingsFragment;
 
 import java.util.List;
@@ -91,4 +92,10 @@ public class PageInfoAdPersonalizationSettings extends BaseSiteSettingsFragment
         }
         return false;
     }
+
+    // The index logic is left empty as there is no dynamic logic to be handled.
+    public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+            new BaseSearchIndexProvider(
+                    PageInfoAdPersonalizationSettings.class.getName(),
+                    R.xml.page_info_ad_personalization_preference);
 }

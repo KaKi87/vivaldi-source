@@ -14,12 +14,12 @@
 #import "components/language/core/browser/pref_names.h"
 #import "components/os_crypt/sync/os_crypt.h"
 #import "components/prefs/pref_service.h"
-#import "components/sync_device_info/local_device_info_util.h"
 #import "components/sync/base/command_line_switches.h"
 #import "components/sync/base/user_selectable_type.h"
-#import "components/sync/service/sync_service_observer.h"
 #import "components/sync/service/sync_service.h"
+#import "components/sync/service/sync_service_observer.h"
 #import "components/sync/service/sync_user_settings.h"
+#import "components/sync_device_info/local_device_info_util.h"
 #import "ios/chrome/browser/net/model/crurl.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/ui/table_view/cells/table_view_detail_text_item.h"
@@ -34,8 +34,8 @@
 #import "ios/ui/settings/sync/cells/vivaldi_table_view_sync_user_info_item.h"
 #import "ios/ui/settings/sync/cells/vivaldi_table_view_text_item.h"
 #import "ios/ui/settings/sync/manager/vivaldi_account_simplified_state.h"
-#import "ios/ui/settings/sync/manager/vivaldi_account_sync_manager_consumer.h"
 #import "ios/ui/settings/sync/manager/vivaldi_account_sync_manager.h"
+#import "ios/ui/settings/sync/manager/vivaldi_account_sync_manager_consumer.h"
 #import "ios/ui/settings/sync/manager/vivaldi_donation_badge_tier.h"
 #import "ios/ui/settings/sync/manager/vivaldi_sync_simplified_state.h"
 #import "ios/ui/settings/sync/vivaldi_create_account_ui_helper.h"
@@ -47,9 +47,9 @@
 #import "sync/vivaldi_sync_service_impl.h"
 #import "sync/vivaldi_sync_ui_helpers.h"
 #import "ui/base/l10n/l10n_util.h"
-#import "vivaldi_account/vivaldi_account_manager.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 #import "vivaldi/prefs/vivaldi_gen_prefs.h"
+#import "vivaldi_account/vivaldi_account_manager.h"
 
 using base::SysNSStringToUTF8;
 using base::SysUTF8ToNSString;
@@ -151,8 +151,7 @@ struct PendingRegistration {
   }
 }
 
-- (void)setSettingsConsumer:
-        (id<VivaldiSyncSettingsConsumer>)settingsConsumer {
+- (void)setSettingsConsumer:(id<VivaldiSyncSettingsConsumer>)settingsConsumer {
   _settingsConsumer = settingsConsumer;
   [self updateSwitchItemTargets];
 }
@@ -510,36 +509,40 @@ struct PendingRegistration {
     return;
   }
   if (syncAll) {
-    [self.settingsConsumer.tableView performBatchUpdates:^{
-      [self removeItemsFromUI:self.syncSelectedItems];
-      self.segmentedControlItem.selectedItem = SyncAll;
-      [self addItemsToUI:self.syncAllItems
-               toSection:SectionIdentifierSyncItems];
-      [self updateStartSyncingSection];
-      [self.settingsConsumer reloadSection:SectionIdentifierSyncItems];
-      if ([self.settingsConsumer.tableViewModel
-              hasSectionForSectionIdentifier:
-                  SectionIdentifierSyncStartSyncing]) {
-        [self.settingsConsumer reloadSection:SectionIdentifierSyncStartSyncing];
-      }
-    }
-                                              completion:nil];
+    [self.settingsConsumer.tableView
+        performBatchUpdates:^{
+          [self removeItemsFromUI:self.syncSelectedItems];
+          self.segmentedControlItem.selectedItem = SyncAll;
+          [self addItemsToUI:self.syncAllItems
+                   toSection:SectionIdentifierSyncItems];
+          [self updateStartSyncingSection];
+          [self.settingsConsumer reloadSection:SectionIdentifierSyncItems];
+          if ([self.settingsConsumer.tableViewModel
+                  hasSectionForSectionIdentifier:
+                      SectionIdentifierSyncStartSyncing]) {
+            [self.settingsConsumer
+                reloadSection:SectionIdentifierSyncStartSyncing];
+          }
+        }
+                 completion:nil];
   } else {
-    [self.settingsConsumer.tableView performBatchUpdates:^{
-      [self removeItemsFromUI:self.syncAllItems];
-      self.segmentedControlItem.selectedItem = SyncSelected;
-      [self refreshSyncSelectedItems];
-      [self addItemsToUI:self.syncSelectedItems
-               toSection:SectionIdentifierSyncItems];
-      [self updateStartSyncingSection];
-      [self.settingsConsumer reloadSection:SectionIdentifierSyncItems];
-      if ([self.settingsConsumer.tableViewModel
-              hasSectionForSectionIdentifier:
-                  SectionIdentifierSyncStartSyncing]) {
-        [self.settingsConsumer reloadSection:SectionIdentifierSyncStartSyncing];
-      }
-    }
-                                              completion:nil];
+    [self.settingsConsumer.tableView
+        performBatchUpdates:^{
+          [self removeItemsFromUI:self.syncAllItems];
+          self.segmentedControlItem.selectedItem = SyncSelected;
+          [self refreshSyncSelectedItems];
+          [self addItemsToUI:self.syncSelectedItems
+                   toSection:SectionIdentifierSyncItems];
+          [self updateStartSyncingSection];
+          [self.settingsConsumer reloadSection:SectionIdentifierSyncItems];
+          if ([self.settingsConsumer.tableViewModel
+                  hasSectionForSectionIdentifier:
+                      SectionIdentifierSyncStartSyncing]) {
+            [self.settingsConsumer
+                reloadSection:SectionIdentifierSyncStartSyncing];
+          }
+        }
+                 completion:nil];
   }
 }
 
@@ -597,8 +600,7 @@ struct PendingRegistration {
 }
 
 - (void)tabsSwitchToggled:(UISwitch*)sender {
-  [self updateChosenTypes:syncer::UserSelectableType::kTabs
-                     isOn:sender.isOn];
+  [self updateChosenTypes:syncer::UserSelectableType::kTabs isOn:sender.isOn];
 }
 
 - (void)historySwitchToggled:(UISwitch*)sender {
@@ -612,8 +614,7 @@ struct PendingRegistration {
 }
 
 - (void)notesSwitchToggled:(UISwitch*)sender {
-  [self updateChosenTypes:syncer::UserSelectableType::kNotes
-                     isOn:sender.isOn];
+  [self updateChosenTypes:syncer::UserSelectableType::kNotes isOn:sender.isOn];
 }
 
 - (void)updateUserInfoSection {
@@ -674,13 +675,14 @@ struct PendingRegistration {
       color = [self getCycleStatusColor:cycleData.commit_status];
       lastSyncDate = cycleData.cycle_start_time.ToNSDate();
     } else {
-      statusText = l10n_util::GetNSStringF(IDS_VIVALDI_SYNC_ERROR_STATUS,
-         base::SysNSStringToUTF16(l10n_util::GetNSString(
-            [self getCycleStatusMessageId:cycleData.download_updates_status])));
+      statusText = l10n_util::GetNSStringF(
+          IDS_VIVALDI_SYNC_ERROR_STATUS,
+          base::SysNSStringToUTF16(l10n_util::GetNSString([self
+              getCycleStatusMessageId:cycleData.download_updates_status])));
       color = [self getCycleStatusColor:cycleData.download_updates_status];
       if (!net::NetworkChangeNotifier::IsOffline() &&
           (cycleData.download_updates_status == CycleStatus::NETWORK_ERROR ||
-          cycleData.download_updates_status == CycleStatus::SERVER_ERROR)) {
+           cycleData.download_updates_status == CycleStatus::SERVER_ERROR)) {
         [self shouldAddSyncStatusSectionFooter:YES];
       }
     }
@@ -806,7 +808,7 @@ struct PendingRegistration {
 
   // Checking & Setting Donation Badges
   if (_syncManager) {
-    [self setBadgeWithTier: [_syncManager donationBadgeTier]];
+    [self setBadgeWithTier:[_syncManager donationBadgeTier]];
   }
   // Add a default avatar image
   self.userInfoItem.userAvatar =
@@ -865,13 +867,12 @@ struct PendingRegistration {
 - (void)shouldAddSyncStatusSectionFooter:(BOOL)add {
   TableViewModel* model = self.settingsConsumer.tableViewModel;
 
-  if (![model hasSectionForSectionIdentifier: SectionIdentifierSyncStatus]) {
+  if (![model hasSectionForSectionIdentifier:SectionIdentifierSyncStatus]) {
     return;
   }
 
-  TableViewLinkHeaderFooterItem* footer =
-      [[TableViewLinkHeaderFooterItem alloc]
-          initWithType:ItemTypeSyncStatusFooter];
+  TableViewLinkHeaderFooterItem* footer = [[TableViewLinkHeaderFooterItem alloc]
+      initWithType:ItemTypeSyncStatusFooter];
   footer.forceIndents = YES;
   footer.text =
       l10n_util::GetNSString(IDS_VIVALDI_SYNC_ERROR_STATUS_DESCRIPTION);
@@ -881,8 +882,7 @@ struct PendingRegistration {
     [model setFooter:footer
         forSectionWithIdentifier:SectionIdentifierSyncStatus];
   } else {
-    [model setFooter:nil
-        forSectionWithIdentifier:SectionIdentifierSyncStatus];
+    [model setFooter:nil forSectionWithIdentifier:SectionIdentifierSyncStatus];
   }
 
   [self.settingsConsumer reloadSection:SectionIdentifierSyncStatus];
@@ -917,13 +917,13 @@ struct PendingRegistration {
       l10n_util::GetNSString(IDS_VIVALDI_START_SYNCING);
   self.startSyncingButton.textAlignment = NSTextAlignmentCenter;
 
-  self.startSyncingButton.backgroundColor =
-      [UIColor colorNamed:kBlueColor];
+  self.startSyncingButton.backgroundColor = [UIColor colorNamed:kBlueColor];
   self.startSyncingButton.textColor =
       [UIColor colorNamed:kSolidButtonTextColor];
   self.startSyncingButton.enabled = [self getStartSyncingButtonEnabled];
 
-  if (![model hasSectionForSectionIdentifier:SectionIdentifierSyncStartSyncing]) {
+  if (![model
+          hasSectionForSectionIdentifier:SectionIdentifierSyncStartSyncing]) {
     [model addSectionWithIdentifier:SectionIdentifierSyncStartSyncing];
   }
   [self updateStartSyncingSection];
@@ -1240,7 +1240,7 @@ struct PendingRegistration {
           ? pref_service->GetString(language::prefs::kApplicationLocale)
           : GetApplicationContext()->GetApplicationLocaleStorage()->Get();
 
-  base::Value::Dict dict;
+  base::DictValue dict;
   dict.Set(vParamUsername, pendingRegistration.username);
   dict.Set(vParamPassword, pendingRegistration.password);
   dict.Set(vParamEmailAddress, pendingRegistration.recoveryEmailAddress);
@@ -1263,7 +1263,7 @@ struct PendingRegistration {
   }
 
   base::Value val = std::move(readResult).value();
-  const base::Value::Dict& dict = val.GetDict();
+  const base::DictValue& dict = val.GetDict();
   if (!error && dict.FindString(vSuccessKey)) {
     [self setPendingRegistration];
     [self setSessionName:deviceName];
@@ -1307,7 +1307,7 @@ struct PendingRegistration {
                     pending_registration);
 }
 
-- (std::unique_ptr<base::Value::Dict>)getPendingRegistration {
+- (std::unique_ptr<base::DictValue>)getPendingRegistration {
   const base::Value& pref_value =
       _prefService->GetValue(vivaldiprefs::kVivaldiAccountPendingRegistration);
 
@@ -1330,7 +1330,7 @@ struct PendingRegistration {
   if (!OSCrypt::DecryptString(encrypted_password, &password)) {
     return nullptr;
   }
-  auto pending_registration = std::make_unique<base::Value::Dict>();
+  auto pending_registration = std::make_unique<base::DictValue>();
   pending_registration->Set(kUsernameKey, *username);
   pending_registration->Set(kPasswordKey, password);
   pending_registration->Set(kRecoveryEmailKey, *recovery_email);
@@ -1343,9 +1343,9 @@ struct PendingRegistration {
 }
 
 - (void)setSessionName:(NSString*)name {
-  NSString* sessionName =
-      [name stringByTrimmingCharactersInSet:
-          [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+  NSString* sessionName = [name
+      stringByTrimmingCharactersInSet:[NSCharacterSet
+                                          whitespaceAndNewlineCharacterSet]];
 
   // If sessionName is nil or empty, save default client name.
   if ([sessionName length] == 0) {
@@ -1364,8 +1364,9 @@ struct PendingRegistration {
 - (NSString*)sessionName {
   NSString* sessionName = base::SysUTF8ToNSString(
       _prefService->GetString(vivaldiprefs::kSyncSessionName));
-  sessionName = [sessionName stringByTrimmingCharactersInSet:
-                    [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+  sessionName = [sessionName
+      stringByTrimmingCharactersInSet:[NSCharacterSet
+                                          whitespaceAndNewlineCharacterSet]];
 
   // If sessionName is empty try checking if local device name is already
   // available. If thats also not available force calling the method to load
@@ -1383,23 +1384,22 @@ struct PendingRegistration {
 
 - (void)geLocalDeviceClientName {
   __weak __typeof(self) weakSelf = self;
-  dispatch_async(dispatch_get_global_queue(
-    DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),^{
+  dispatch_async(
+      dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        std::string deviceName = syncer::GetPersonalizableDeviceNameBlocking();
+        NSString* deviceNameNSString = base::SysUTF8ToNSString(deviceName);
 
-    std::string deviceName = syncer::GetPersonalizableDeviceNameBlocking();
-    NSString *deviceNameNSString = base::SysUTF8ToNSString(deviceName);
+        dispatch_async(dispatch_get_main_queue(), ^{
+          weakSelf.localDeviceClientName = deviceNameNSString;
 
-    dispatch_async(dispatch_get_main_queue(), ^{
-      weakSelf.localDeviceClientName = deviceNameNSString;
-
-      // Update only if needed
-      if (weakSelf.userInfoItem &&
-          [weakSelf.userInfoItem.sessionName length] == 0) {
-        weakSelf.userInfoItem.sessionName = deviceNameNSString;
-        [weakSelf updateUserInfoSection];
-      }
-    });
-  });
+          // Update only if needed
+          if (weakSelf.userInfoItem &&
+              [weakSelf.userInfoItem.sessionName length] == 0) {
+            weakSelf.userInfoItem.sessionName = deviceNameNSString;
+            [weakSelf updateUserInfoSection];
+          }
+        });
+      });
 }
 
 #pragma mark Private - Donation Tier Methods

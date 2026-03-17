@@ -20,9 +20,7 @@
 const char* kVivaldiUIVivaldiProfilePickerUI = "profile-picker";
 
 VivaldiProfilePickerUI::VivaldiProfilePickerUI(::content::WebUI* web_ui)
-    : content::WebUIController(web_ui),
-      profile_(Profile::FromWebUI(web_ui))
-{
+    : content::WebUIController(web_ui), profile_(Profile::FromWebUI(web_ui)) {
   CHECK(profile_);
   ::content::WebUIDataSource* source = ::content::WebUIDataSource::CreateAndAdd(
       web_ui->GetWebContents()->GetBrowserContext(),
@@ -50,8 +48,9 @@ VivaldiProfilePickerUI::VivaldiProfilePickerUI(::content::WebUI* web_ui)
   web_ui->AddMessageHandler(std::make_unique<VivaldiProfilePickerHandler>());
 
   // This is due to chrome://theme URLs
-  content::URLDataSource::Add(profile_, std::make_unique<ThemeSource>(profile_,
-        /*serve_untrusted=*/false));
+  content::URLDataSource::Add(
+      profile_, std::make_unique<ThemeSource>(profile_,
+                                              /*serve_untrusted=*/false));
 }
 
 void VivaldiProfilePickerUI::WebUIRenderFrameCreated(

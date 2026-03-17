@@ -6,6 +6,18 @@ source_set("base") {
   deps = [ "//base" ]
 }
 
+source_set("obsolete_md5") {
+  sources = [
+    "vivaldi_md5.cc",
+    "vivaldi_md5.h",
+  ]
+
+  deps = [
+    "//base",
+    "//crypto",
+  ]
+}
+
 action("edge_version") {
   edge_version_file = "edge_versions.json"
   edge_version_header = "$target_gen_dir/base/edge_version.h"

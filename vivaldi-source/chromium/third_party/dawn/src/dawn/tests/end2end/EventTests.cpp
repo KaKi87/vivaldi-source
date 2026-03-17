@@ -379,6 +379,9 @@ TEST_P(EventCompletionTests, WorkDoneSimple) {
 
 // WorkDone event before device loss, wait afterward.
 TEST_P(EventCompletionTests, WorkDoneAcrossDeviceLoss) {
+    // TODO(crbug.com/469831341): Flaky on Snapdragon X Elite devices w/ D3D11.
+    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm() && IsD3D11());
+
     TrivialSubmit();
     TrackForTest(OnSubmittedWorkDone(wgpu::QueueWorkDoneStatus::Success));
     TestWaitAll();
@@ -394,10 +397,13 @@ TEST_P(EventCompletionTests, WorkDoneAfterDeviceLoss) {
 
 // WorkDone event twice after submitting some trivial work.
 TEST_P(EventCompletionTests, WorkDoneTwice) {
-    // TODO(crbug.com/440123094): Investigate crash on WebGPU on Metal.
+    // TODO(crbug.com/413053623): Investigate crash on WebGPU on Metal.
     DAWN_SUPPRESS_TEST_IF(IsWebGPUOn(wgpu::BackendType::Metal) &&
                           GetParam().mWaitTypeAndCallbackMode ==
                               WaitTypeAndCallbackMode::Spin_AllowSpontaneous);
+
+    // TODO(crbug.com/469831341): Flaky on Snapdragon X Elite devices w/ D3D11.
+    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm() && IsD3D11());
 
     TrivialSubmit();
     TrackForTest(OnSubmittedWorkDone(wgpu::QueueWorkDoneStatus::Success));
@@ -416,6 +422,9 @@ TEST_P(EventCompletionTests, WorkDoneNoWork) {
 
 // WorkDone event after all work has completed already.
 TEST_P(EventCompletionTests, WorkDoneAlreadyCompleted) {
+    // TODO(crbug.com/469831341): Flaky on Snapdragon X Elite devices w/ D3D11.
+    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm() && IsD3D11());
+
     TrivialSubmit();
     TrackForTest(OnSubmittedWorkDone(wgpu::QueueWorkDoneStatus::Success));
     TestWaitAll();
@@ -510,6 +519,9 @@ TEST_P(WaitAnyTests, UnsupportedTimeout) {
 }
 
 TEST_P(WaitAnyTests, UnsupportedCount) {
+    // TODO(crbug.com/474391710): Flaky on Snapdragon X Elite w/ D3D11.
+    DAWN_SUPPRESS_TEST_IF(IsWindows() && IsQualcomm() && IsD3D11());
+
     for (uint64_t timeout : {uint64_t(0), uint64_t(1)}) {
         // We don't support values higher than the default (64), and if you ask for lower than 64
         // you still get 64. DawnTest doesn't request anything (so requests 0) so gets 64.

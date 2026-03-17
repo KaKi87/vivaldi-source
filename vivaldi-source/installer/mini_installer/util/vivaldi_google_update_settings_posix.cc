@@ -7,6 +7,7 @@
 #include "base/no_destructor.h"
 #include "base/synchronization/lock.h"
 #include "base/task/lazy_thread_pool_task_runner.h"
+#include "components/crash/core/app/crashpad.h"
 
 namespace {
 
@@ -43,7 +44,10 @@ bool GoogleUpdateSettings::GetCollectStatsConsent() {
 
 // static
 bool GoogleUpdateSettings::SetCollectStatsConsent(bool consented) {
-  return false;
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+  crash_reporter::SetUploadConsent(consented);
+#endif
+  return true;
 }
 
 // static

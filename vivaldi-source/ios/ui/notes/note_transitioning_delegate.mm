@@ -11,22 +11,24 @@
 @implementation NoteTransitioningDelegate
 
 - (UIPresentationController*)
-presentationControllerForPresentedViewController:(UIViewController*)presented
-                        presentingViewController:(UIViewController*)presenting
-                            sourceViewController:(UIViewController*)source {
+    presentationControllerForPresentedViewController:
+        (UIViewController*)presented
+                            presentingViewController:
+                                (UIViewController*)presenting
+                                sourceViewController:(UIViewController*)source {
   /*TableViewPresentationController* controller =
       [[TableViewPresentationController alloc]
           initWithPresentedViewController:presented
                  presentingViewController:presenting];
   controller.modalDelegate = self.presentationControllerModalDelegate;
   return controller;*/
-  return nil; // TODO
+  return nil;  // TODO
 }
 
 - (id<UIViewControllerAnimatedTransitioning>)
-animationControllerForPresentedController:(UIViewController*)presented
-                     presentingController:(UIViewController*)presenting
-                         sourceController:(UIViewController*)source {
+    animationControllerForPresentedController:(UIViewController*)presented
+                         presentingController:(UIViewController*)presenting
+                             sourceController:(UIViewController*)source {
   /*if (self.presentationControllerModalDelegate) {
     TableViewPresentationController* controller =
         base::mac::ObjCCast<TableViewPresentationController>(
@@ -51,7 +53,7 @@ animationControllerForPresentedController:(UIViewController*)presented
 }
 
 - (id<UIViewControllerAnimatedTransitioning>)
-animationControllerForDismissedController:(UIViewController*)dismissed {
+    animationControllerForDismissedController:(UIViewController*)dismissed {
   /*if (self.presentationControllerModalDelegate) {
     TableViewPresentationController* controller =
         base::mac::ObjCCast<TableViewPresentationController>(

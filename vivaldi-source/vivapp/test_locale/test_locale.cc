@@ -23,7 +23,7 @@ int main() {
 
   base::i18n::InitializeICU();
   auto manifest =
-      base::Value::Dict().Set(extensions::manifest_keys::kDefaultLocale, "en");
+      base::DictValue().Set(extensions::manifest_keys::kDefaultLocale, "en");
   std::u16string error;
   if (!extension_l10n_util::ValidateExtensionLocales(
           base::FilePath(FILE_PATH_LITERAL("resources/vivaldi")), manifest,

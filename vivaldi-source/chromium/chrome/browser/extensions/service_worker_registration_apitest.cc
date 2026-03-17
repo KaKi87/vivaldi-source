@@ -17,6 +17,7 @@
 #include "chrome/browser/extensions/chrome_test_extension_loader.h"
 #include "chrome/browser/extensions/crx_installer.h"
 #include "chrome/browser/extensions/extension_apitest.h"
+#include "chrome/browser/extensions/extension_install_prompt.h"
 #include "chrome/browser/extensions/extension_service.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
@@ -39,6 +40,7 @@
 #include "extensions/browser/service_worker/service_worker_task_queue.h"
 #include "extensions/browser/service_worker/service_worker_test_utils.h"
 #include "extensions/common/extension.h"
+#include "extensions/common/extension_builder.h"
 #include "extensions/common/manifest_handlers/background_info.h"
 #include "extensions/common/mojom/manifest.mojom.h"
 #include "extensions/test/extension_background_page_waiter.h"
@@ -871,6 +873,67 @@ IN_PROC_BROWSER_TEST_F(ServiceWorkerRegistrationApiTest,
   EXPECT_EQ("storage changed version 2: count 4", open_tab_and_get_result());
 }
 
+// Tests that installing an extension with a service worker immediately after
+// uninstalling it does not result in the service worker not being registered.
+// Regression test for crbug.com/463925496.
+IN_PROC_BROWSER_TEST_F(ServiceWorkerRegistrationApiTest, ExtensionReinstall) {
+  const ExtensionId test_extension_id("iegclhlplifhodhkoafiokenjoapiobj");
+  base::HistogramTester histogram_tester;
+  auto SetupExtension = [&](ExtensionBuilder& builder,
+                            TestExtensionDir& test_dir) {
+    static constexpr char kSwJs[] = "chrome.test.sendMessage('ready');";
+    test_dir.WriteFile(FILE_PATH_LITERAL("sw.js"), kSwJs);
+
+    auto manifest = base::DictValue()
+                        .Set("name", "Extension SW reinstall test")
+                        .Set("version", "0.1")
+                        .Set("manifest_version", 3)
+                        .Set("background",
+                             base::DictValue().Set("service_worker", "sw.js"));
+    builder.SetManifest(std::move(manifest));
+    builder.SetPath(test_dir.UnpackedPath());
+    builder.SetID(test_extension_id);
+  };
+
+  ExtensionBuilder builder;
+  TestExtensionDir test_dir;
+  SetupExtension(builder, test_dir);
+
+  ExtensionBuilder reinstalled_builder;
+  SetupExtension(reinstalled_builder, test_dir);
+
+  ExtensionRegistrationAndUnregistrationWaiter registration_waiter(
+      test_extension_id);
+  scoped_refptr<const Extension> extension(builder.Build());
+  extension_registrar()->AddExtension(extension.get());
+  {
+    SCOPED_TRACE("waiting for extension registration to finish");
+    registration_waiter.WaitForWorkerRegistrationAttemptCompleted();
+    EXPECT_EQ(content::ServiceWorkerCapability::SERVICE_WORKER_NO_FETCH_HANDLER,
+              GetServiceWorkerRegistrationState(*extension));
+  }
+
+  UninstallExtension(extension->id());
+
+  ExtensionRegistrationAndUnregistrationWaiter registration_waiter2(
+      test_extension_id);
+  scoped_refptr<const Extension> reinstalled_extension(
+      reinstalled_builder.Build());
+  extension_registrar()->AddExtension(reinstalled_extension.get());
+  // Expect the service worker to be registered again.
+  {
+    SCOPED_TRACE("waiting for extension re-registration to finish");
+    registration_waiter2.WaitForWorkerRegistrationAttemptCompleted();
+    EXPECT_EQ(content::ServiceWorkerCapability::SERVICE_WORKER_NO_FETCH_HANDLER,
+              GetServiceWorkerRegistrationState(*reinstalled_extension));
+  }
+
+  CheckBooleanHistogramCounts(
+      "Extensions.ServiceWorkerBackground."
+      "WorkerRegistrationRetryForUnregistrationAttemptsResult",
+      /*true_count=*/1, /*false_count=*/0, histogram_tester);
+}
+
 class ServiceWorkerExtensionUpdateOnBrowserRestartRegistrationApiTest
     : public ServiceWorkerRegistrationApiTest {
  protected:
@@ -881,11 +944,6 @@ class ServiceWorkerExtensionUpdateOnBrowserRestartRegistrationApiTest
     // confirm the update works as expected.
     set_open_about_blank_on_browser_launch(false);
 
-    // Create the observer now because the browser will be started after we call
-    // `ServiceWorkerRegistrationApiTest::SetUp()`.
-    browser_start_new_tab_observer_ =
-        std::make_unique<ui_test_utils::UrlLoadObserver>(new_tab_url());
-
     ServiceWorkerRegistrationApiTest::SetUp();
   }
 
@@ -895,7 +953,7 @@ class ServiceWorkerExtensionUpdateOnBrowserRestartRegistrationApiTest
     {
       SCOPED_TRACE(
           "waiting for the initial new tab to open after browser start");
-      browser_start_new_tab_observer_->Wait();
+      EXPECT_TRUE(content::WaitForLoadStop(GetActiveWebContents()));
     }
   }
 
@@ -907,13 +965,6 @@ class ServiceWorkerExtensionUpdateOnBrowserRestartRegistrationApiTest
         std::make_unique<ExtensionTestMessageListener>("v2 installed");
     v2_update_histogram_tester_ = std::make_unique<base::HistogramTester>();
     ServiceWorkerRegistrationApiTest::CreatedBrowserMainParts(main_parts);
-  }
-
-  void TearDownOnMainThread() override {
-    ServiceWorkerRegistrationApiTest::TearDownOnMainThread();
-
-    // Prevent dangling pointer on test teardown.
-    browser_start_new_tab_observer_.reset();
   }
 
   // Ensure any new tab that is opened defaults goes to chrome://newtab.
@@ -934,10 +985,6 @@ class ServiceWorkerExtensionUpdateOnBrowserRestartRegistrationApiTest
     return content::EvalJs(GetActiveWebContents(),
                            "getCurrentVersionOfBackgroundContext();");
   }
-
-  // Observes that chrome://newtab loads on test start.
-  std::unique_ptr<ui_test_utils::UrlLoadObserver>
-      browser_start_new_tab_observer_;
 
   std::unique_ptr<ExtensionTestMessageListener> v2_install_listener_;
   std::unique_ptr<base::HistogramTester> v2_update_histogram_tester_;

@@ -16,7 +16,7 @@ NSString* vOverflowReload = @"vivaldi_overflow_reload";
 NSString* vOverflowStop = @"vivaldi_overflow_stop";
 NSString* vOverflowNewTab = @"vivaldi_overflow_new_tab";
 NSString* vOverflowNewPrivateTab = @"vivaldi_overflow_new_private_tab";
-NSString* vOverflowNewWindow = @"vivaldi_overflow_new_window"; // iPad only.
+NSString* vOverflowNewWindow = @"vivaldi_overflow_new_window";  // iPad only.
 
 NSString* vOverflowAddTo = @"vivaldi_overflow_add_to";
 NSString* vOverflowEdit = @"vivaldi_overflow_edit";

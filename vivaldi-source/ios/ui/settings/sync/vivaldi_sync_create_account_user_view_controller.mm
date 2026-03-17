@@ -34,12 +34,10 @@ typedef NS_ENUM(NSInteger, ItemType) {
   ItemTypeError,
 };
 
-@interface VivaldiSyncCreateAccountUserViewController () <
-    UITextFieldDelegate,
-    UITextViewDelegate> {
-
-BOOL usernameIsValid;
-BOOL emailIsValid;
+@interface VivaldiSyncCreateAccountUserViewController () <UITextFieldDelegate,
+                                                          UITextViewDelegate> {
+  BOOL usernameIsValid;
+  BOOL emailIsValid;
 }
 
 @property(nonatomic, strong) VivaldiTableViewTextEditItem* usernameItem;
@@ -99,16 +97,15 @@ BOOL emailIsValid;
     NSParagraphStyleAttributeName : paragraphStyle
   };
   NSDictionary* linkAttributes = @{
-      NSLinkAttributeName : [NSURL URLWithString:@""],
+    NSLinkAttributeName : [NSURL URLWithString:@""],
   };
 
   auto subtitleText = AttributedStringFromStringWithLink(
-      l10n_util::GetNSString(IDS_VIVALDI_LOG_IN_TEXT),
-      textAttributes, linkAttributes);
+      l10n_util::GetNSString(IDS_VIVALDI_LOG_IN_TEXT), textAttributes,
+      linkAttributes);
   title.subtitle = subtitleText;
 
-  [model addItem:title
-      toSectionWithIdentifier:SectionIdentifierHeader];
+  [model addItem:title toSectionWithIdentifier:SectionIdentifierHeader];
 
   self.usernameItem =
       [[VivaldiTableViewTextEditItem alloc] initWithType:ItemTypeUsername];
@@ -118,8 +115,8 @@ BOOL emailIsValid;
   self.usernameItem.textFieldEnabled = YES;
   self.usernameItem.hideIcon = YES;
   self.usernameItem.autoCapitalizationType = UITextAutocapitalizationTypeNone;
-  self.usernameItem.identifyingIconAccessibilityLabel = l10n_util::GetNSString(
-      IDS_VIVALDI_ACCOUNT_USERNAME);
+  self.usernameItem.identifyingIconAccessibilityLabel =
+      l10n_util::GetNSString(IDS_VIVALDI_ACCOUNT_USERNAME);
   self.usernameItem.textContentType = UITextContentTypeUsername;
   self.usernameItem.keyboardType = UIKeyboardTypeDefault;
 
@@ -141,9 +138,8 @@ BOOL emailIsValid;
   [model addItem:self.recoveryEmailItem
       toSectionWithIdentifier:SectionIdentifierUserDetails];
 
-  self.nextButton =
-      [[VivaldiTableViewTextSpinnerButtonItem alloc]
-          initWithType:ItemTypeNextButton];
+  self.nextButton = [[VivaldiTableViewTextSpinnerButtonItem alloc]
+      initWithType:ItemTypeNextButton];
   self.nextButton.buttonText =
       l10n_util::GetNSString(IDS_VIVALDI_CREATE_ACCOUNT_NEXT);
   self.nextButton.buttonBackgroundColor = [UIColor colorNamed:kBlueColor];
@@ -152,7 +148,7 @@ BOOL emailIsValid;
   self.nextButton.disableButtonIntrinsicWidth = YES;
 
   [self.tableViewModel addItem:self.nextButton
-      toSectionWithIdentifier:SectionIdentifierNextButton];
+       toSectionWithIdentifier:SectionIdentifierNextButton];
 }
 
 #pragma mark - UITableViewDelegate
@@ -180,12 +176,11 @@ BOOL emailIsValid;
   switch (itemType) {
     case ItemTypeNextButton: {
       VivaldiTableViewTextSpinnerButtonCell* tableViewTextButtonCell =
-          base::apple::ObjCCastStrict<VivaldiTableViewTextSpinnerButtonCell>
-                                                                        (cell);
-      [tableViewTextButtonCell.button
-                 addTarget:self
-                    action:@selector(nextButtonPressed:)
-          forControlEvents:UIControlEventTouchUpInside];
+          base::apple::ObjCCastStrict<VivaldiTableViewTextSpinnerButtonCell>(
+              cell);
+      [tableViewTextButtonCell.button addTarget:self
+                                         action:@selector(nextButtonPressed:)
+                               forControlEvents:UIControlEventTouchUpInside];
       [tableViewTextButtonCell
           setActivityIndicatorEnabled:self.nextButton.activityInProgress];
       break;
@@ -194,16 +189,16 @@ BOOL emailIsValid;
       VivaldiTableViewTextEditCell* editCell =
           base::apple::ObjCCast<VivaldiTableViewTextEditCell>(cell);
       [editCell.textField addTarget:self
-                     action:@selector(usernameChanged:)
-           forControlEvents:UIControlEventEditingChanged];
+                             action:@selector(usernameChanged:)
+                   forControlEvents:UIControlEventEditingChanged];
       break;
     }
     case ItemTypeRecoveryEmail: {
       VivaldiTableViewTextEditCell* editCell =
           base::apple::ObjCCast<VivaldiTableViewTextEditCell>(cell);
       [editCell.textField addTarget:self
-                     action:@selector(recoveryEmailChanged:)
-           forControlEvents:UIControlEventEditingChanged];
+                             action:@selector(recoveryEmailChanged:)
+                   forControlEvents:UIControlEventEditingChanged];
       break;
     }
     case ItemTypeTitle: {
@@ -252,7 +247,7 @@ BOOL emailIsValid;
 - (void)validateFieldWithServer:(std::string)field
                           value:(std::string)value
               completionHandler:(ServerRequestCompletionHandler)handler {
-  base::Value::Dict dict;
+  base::DictValue dict;
   dict.Set(vParamField, field);
   dict.Set(vParamValue, value);
 
@@ -266,15 +261,15 @@ BOOL emailIsValid;
   std::optional<base::Value> readResult = NSDataToDict(data);
   if (error || !readResult.has_value()) {
     emailIsValid = NO;
-    [self showErrorCellWithMessage:
-        l10n_util::GetNSString(IDS_SYNC_SERVER_OTHER_ERROR)];
+    [self showErrorCellWithMessage:l10n_util::GetNSString(
+                                       IDS_SYNC_SERVER_OTHER_ERROR)];
     return;
   }
 
   [self removeErrorCell:SectionIdentifierUserDetails itemType:ItemTypeError];
 
   base::Value val = std::move(readResult).value();
-  const base::Value::Dict& dict = val.GetDict();
+  const base::DictValue& dict = val.GetDict();
   if (dict.FindString(vSuccessKey)) {
     emailIsValid = YES;
     [self runUserInfoValidation];
@@ -283,17 +278,14 @@ BOOL emailIsValid;
     emailIsValid = NO;
     NSString* e = base::SysUTF8ToNSString(*(dict.FindString(vErrorKey)));
     if ([e containsString:vErrorCode1004]) {
-      errorMessage =
-        l10n_util::GetNSString(IDS_SYNC_EMAIL_ALREADY_REGISTERED);
+      errorMessage = l10n_util::GetNSString(IDS_SYNC_EMAIL_ALREADY_REGISTERED);
     } else if ([e containsString:vErrorCode2002]) {
-      errorMessage =
-          l10n_util::GetNSString(IDS_EMAIL_NOT_ACCEPTED);
+      errorMessage = l10n_util::GetNSString(IDS_EMAIL_NOT_ACCEPTED);
     } else {
-      errorMessage =
-          l10n_util::GetNSString(IDS_SYNC_NOT_VALID_EMAIL_ERROR);
+      errorMessage = l10n_util::GetNSString(IDS_SYNC_NOT_VALID_EMAIL_ERROR);
     }
 
-    if(errorMessage) {
+    if (errorMessage) {
       [self showErrorCellWithMessage:errorMessage];
     }
   }
@@ -305,22 +297,22 @@ BOOL emailIsValid;
   std::optional<base::Value> readResult = NSDataToDict(data);
   if (error || !readResult.has_value()) {
     usernameIsValid = NO;
-    [self showErrorCellWithMessage:
-        l10n_util::GetNSString(IDS_SYNC_SERVER_OTHER_ERROR)];
+    [self showErrorCellWithMessage:l10n_util::GetNSString(
+                                       IDS_SYNC_SERVER_OTHER_ERROR)];
     return;
   }
 
   [self removeErrorCell:SectionIdentifierUserDetails itemType:ItemTypeError];
 
   base::Value val = std::move(readResult).value();
-  const base::Value::Dict& dict = val.GetDict();
+  const base::DictValue& dict = val.GetDict();
   if (dict.FindString(vSuccessKey)) {
     usernameIsValid = YES;
     [self runUserInfoValidation];
   } else {
     usernameIsValid = NO;
-    [self showErrorCellWithMessage:
-        l10n_util::GetNSString(IDS_SYNC_USER_EXISTS)];
+    [self
+        showErrorCellWithMessage:l10n_util::GetNSString(IDS_SYNC_USER_EXISTS)];
   }
 }
 
@@ -356,16 +348,17 @@ BOOL emailIsValid;
     __weak __typeof__(self) weakSelf = self;
     [self setNextButtonActivityEnabled:YES];
     [self validateFieldWithServer:vParamUsername
-                value:base::SysNSStringToUTF8(self.usernameItem.textFieldValue)
+                            value:base::SysNSStringToUTF8(
+                                      self.usernameItem.textFieldValue)
                 completionHandler:^(NSData* data, NSURLResponse* response,
-                                      NSError* error) {
-      dispatch_async(dispatch_get_main_queue(), ^{
-        [weakSelf setNextButtonActivityEnabled:NO];
-        [weakSelf onUserNameValidationResponse:data
-                                      response:response
-                                        error:error];
-      });
-    }];
+                                    NSError* error) {
+                  dispatch_async(dispatch_get_main_queue(), ^{
+                    [weakSelf setNextButtonActivityEnabled:NO];
+                    [weakSelf onUserNameValidationResponse:data
+                                                  response:response
+                                                     error:error];
+                  });
+                }];
     return;
   } else if (![self validEmail:self.recoveryEmailItem.textFieldValue]) {
     errorMessage = l10n_util::GetNSString(IDS_SYNC_NOT_VALID_EMAIL_ERROR);
@@ -373,16 +366,17 @@ BOOL emailIsValid;
     __weak __typeof__(self) weakSelf = self;
     [self setNextButtonActivityEnabled:YES];
     [self validateFieldWithServer:vParamEmailFieldName
-            value:base::SysNSStringToUTF8(self.recoveryEmailItem.textFieldValue)
-            completionHandler:^(NSData* data, NSURLResponse* response,
-                                      NSError* error) {
-      dispatch_async(dispatch_get_main_queue(), ^{
-        [weakSelf setNextButtonActivityEnabled:NO];
-        [weakSelf onEmailValidationResponse:data
-                                      response:response
-                                        error:error];
-      });
-    }];
+                            value:base::SysNSStringToUTF8(
+                                      self.recoveryEmailItem.textFieldValue)
+                completionHandler:^(NSData* data, NSURLResponse* response,
+                                    NSError* error) {
+                  dispatch_async(dispatch_get_main_queue(), ^{
+                    [weakSelf setNextButtonActivityEnabled:NO];
+                    [weakSelf onEmailValidationResponse:data
+                                               response:response
+                                                  error:error];
+                  });
+                }];
     return;
   }
 

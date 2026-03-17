@@ -9,6 +9,7 @@
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/process/launch.h"
+#include "base/strings/strcat.h"
 #include "base/strings/strcat_win.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/test_reg_util_win.h"
@@ -457,7 +458,7 @@ TEST(Enroll, EnrollToGoogleMdmIfNeeded_NotEnabled) {
   InitializeRegistryOverrideForTesting(&registry_override);
 
   // EnrollToGoogleMdmIfNeeded() should be a noop.
-  ASSERT_EQ(S_OK, EnrollToGoogleMdmIfNeeded(base::Value::Dict()));
+  ASSERT_EQ(S_OK, EnrollToGoogleMdmIfNeeded(base::DictValue()));
 }
 
 // Tests all possible data combinations sent to EnrollToGoogleMdmIfNeeded to
@@ -512,7 +513,7 @@ TEST_P(GcpEnrollmentArgsTest, EnrollToGoogleMdmIfNeeded_MissingArgs) {
                         has(serial_number) && has(machine_guid) &&
                         has(is_user_ad_joined);
 
-  base::Value::Dict properties;
+  base::DictValue properties;
   const auto set_property = [&](std::string_view key, const char* value) {
     if (value) {
       properties.Set(key, value);

@@ -19,9 +19,35 @@ update_target("//chrome/browser/ui:ui") {
   allow_circular_includes_from += [
     "//vivaldi/ui",
   ]
+
+  if (!is_android) {
+    deps -= [
+      "//chrome/browser/default_browser",
+      "//chrome/browser/ui/startup/default_browser_prompt",
+      "//chrome/browser/ui/startup/default_browser_prompt:impl",
+    ]
+    allow_circular_includes_from -= [
+      "//chrome/browser/ui/startup/default_browser_prompt:impl",
+    ]
+  }
+  if (is_win || is_mac) {
+    deps -= [
+      "//chrome/browser/ui/startup/default_browser_prompt/pin_infobar",
+    ]
+  }
 }
 
 update_target("//chrome/browser/ui/startup:impl") {
+  if (is_win || is_mac || is_linux) {
+    deps -= [
+      "//chrome/browser/ui/startup/default_browser_prompt",
+    ]
+  }
+  if (is_win || is_mac) {
+    deps -= [
+      "//chrome/browser/ui/startup/default_browser_prompt/pin_infobar",
+    ]
+  }
   configs += [
     "//vivaldi/gn/config:release_kind",
   ]

@@ -20,10 +20,12 @@
 #import "components/prefs/pref_service.h"
 #import "components/signin/ios/browser/features.h"
 #import "components/signin/public/base/signin_switches.h"
+#import "components/signin/public/identity_manager/account_info.h"
 #import "components/signin/public/identity_manager/identity_manager.h"
 #import "components/signin/public/identity_manager/tribool.h"
 #import "components/sync/service/sync_service.h"
 #import "components/sync/service/sync_user_settings.h"
+#import "google_apis/gaia/gaia_auth_util.h"
 #import "ios/chrome/app/application_delegate/app_state.h"
 #import "ios/chrome/app/change_profile_commands.h"
 #import "ios/chrome/app/profile/profile_state.h"
@@ -385,12 +387,16 @@ Tribool TriboolFromCapabilityResult(SystemIdentityCapabilityResult result) {
 NSArray<id<SystemIdentity>>* GetIdentitiesOnDevice(
     signin::IdentityManager* identityManager,
     ChromeAccountManagerService* accountManagerService) {
+  CHECK(identityManager);
+  CHECK(accountManagerService);
   std::vector<AccountInfo> accountInfos =
       identityManager->GetAccountsOnDevice();
   return accountManagerService->GetIdentitiesOnDeviceWithGaiaIDs(accountInfos);
 }
 
 NSArray<id<SystemIdentity>>* GetIdentitiesOnDevice(ProfileIOS* profile) {
+  CHECK(profile);
+  CHECK(!profile->IsOffTheRecord());
   return GetIdentitiesOnDevice(
       IdentityManagerFactory::GetForProfile(profile),
       ChromeAccountManagerServiceFactory::GetForProfile(profile));
@@ -404,10 +410,16 @@ id<SystemIdentity> GetDefaultIdentityOnDevice(
   return [identitiesOnDevice firstObject];
 }
 
-id<SystemIdentity> GetDefaultIdentityOnDevice(ProfileIOS* profile) {
-  return GetDefaultIdentityOnDevice(
-      IdentityManagerFactory::GetForProfile(profile),
-      ChromeAccountManagerServiceFactory::GetForProfile(profile));
+std::optional<AccountInfo> GetAccountInfoOnDeviceWithEmail(
+    signin::IdentityManager* identityManager,
+    std::string email) {
+  for (const AccountInfo& account_info :
+       identityManager->GetAccountsOnDevice()) {
+    if (gaia::AreEmailsSame(account_info.GetEmail(), email)) {
+      return account_info;
+    }
+  }
+  return std::nullopt;
 }
 
 ProfileSignoutRequest::ProfileSignoutRequest(

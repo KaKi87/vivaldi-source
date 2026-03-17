@@ -76,7 +76,6 @@
 <translation id="4250431568374086873">Tilkoplinga til denne nettstaden er ikkje heilt trygg</translation>
 <translation id="4265872034478892965">Tillate av administratoren din</translation>
 <translation id="4305666528087210886">Fikk ikkje tilgang til fila</translation>
-<translation id="4408413947728134509">Informasjonskapslar <ph name="NUM_COOKIES" /></translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> godtok ikkje påloggingssertifikatet ditt eller det vart ikkje oppgjeve.</translation>
 <translation id="4506599922270137252">kontakt systemadministratoren</translation>
 <translation id="4522570452068850558">Detaljar</translation>
@@ -91,7 +90,6 @@
 <translation id="483241715238664915">Slå på åtvaringar</translation>
 <translation id="4943872375798546930">Ingen resultat</translation>
 <translation id="5023310440958281426">Sjå over administratoren sine reglar</translation>
-<translation id="5068778127327928576">{NUM_COOKIES, plural, =1 {(1 i bruk)} other {(# i bruk)}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />sjå over mellomtenaradressa<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">(64-bit)</translation>
 <translation id="5355557959165512791">Du kan ikkje besøkja <ph name="SITE" /> nett no fordi nettstaden har fått trekt attende sertifikatet sitt. Nettverksfeil og -åtak er ofte mellombelse, so denne sida vil sannsynlegvis fungera seinare.</translation>
@@ -111,7 +109,6 @@
 <translation id="5810442152076338065">Tilkoplinga di til <ph name="DOMAIN" /> er kryptert med ein utgått krypteringspakke.</translation>
 <translation id="5838278095973806738">Du bør ikkje skriva inn sensitive data på denne nettstaden (t.d. passord eller kredittkortnummer) då dei kan verta stolne av åtakarar.</translation>
 <translation id="5869405914158311789">Klarer ikkje å nå nettstaden</translation>
-<translation id="5920262536204764679">{NUM_COOKIES, plural, =1 {1 i bruk} other {# i bruk}}</translation>
 <translation id="5932224571077948991">Nettstaden syner påtrengjande eller villeiande annonsar</translation>
 <translation id="6051221802930200923">Du kan ikkje besøkja <ph name="SITE" /> nett no fordi nettstaden bruker sertifikatlåsing. Nettverksfeil og -åtak er ofte mellombelse, so denne sida vil sannsynlegvis fungera seinare.</translation>
 <translation id="6146055958333702838">Sjå over kablane og start om att rutarar, modem eller andre nettverks-

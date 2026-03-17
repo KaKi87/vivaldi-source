@@ -12,14 +12,14 @@ namespace direct_match {
 
 // static
 DirectMatchService* DirectMatchServiceFactory::GetForProfile(
-  ProfileIOS* profile) {
+    ProfileIOS* profile) {
   return GetInstance()->GetServiceForProfileAs<DirectMatchService>(
       profile, /*create=*/true);
 }
 
 // static
 DirectMatchService* DirectMatchServiceFactory::GetForProfileIfExists(
-   ProfileIOS* profile) {
+    ProfileIOS* profile) {
   // Since this is called as part of destroying the browser state, we need this
   // extra test to avoid running into code that tests whether the browser state
   // is still valid.
@@ -43,8 +43,8 @@ DirectMatchServiceFactory::DirectMatchServiceFactory()
 
 DirectMatchServiceFactory::~DirectMatchServiceFactory() {}
 
-std::unique_ptr<KeyedService> DirectMatchServiceFactory::BuildServiceInstanceFor(
-  ProfileIOS* profile) const {
+std::unique_ptr<KeyedService>
+DirectMatchServiceFactory::BuildServiceInstanceFor(ProfileIOS* profile) const {
   auto direct_match_service = std::make_unique<DirectMatchService>();
   auto URLLoaderFactory = GetApplicationContext()->GetSharedURLLoaderFactory();
   direct_match_service->Load(URLLoaderFactory, profile->GetPrefs());

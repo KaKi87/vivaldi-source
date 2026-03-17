@@ -369,13 +369,10 @@ PoolTestMixin<TMixin>::~PoolTestMixin() {
 
 // See v8:5945.
 TEST_F(PoolTest, UnmapOnTeardown) {
-  // Disable the heartbeat task for the test as otherwise it may concurrently
-  // release the page that is later checked for permissions.
-  FlagScope<int> reset_page_pool_timeout(&v8_flags.page_pool_timeout, 0);
-  // Then wait for the task to finish, if scheduled.
+  // Wait for the task to finish and disable rescheduling.
   pool()->CancelAndWaitForTaskToFinishForTesting();
 
-  PageMetadata* page =
+  NormalPage* page =
       allocator()->AllocatePage(MemoryAllocator::AllocationMode::kRegular,
                                 static_cast<PagedSpace*>(heap()->old_space()),
                                 Executability::NOT_EXECUTABLE);
@@ -398,6 +395,9 @@ TEST_F(PoolTest, UnmapOnTeardown) {
 #else
   tracking_page_allocator()->CheckIsFree(chunk_address, page_size);
 #endif  // V8_COMPRESS_POINTERS
+
+  // Wait for the task to finish and disable rescheduling.
+  pool()->ReenableTaskForTesting();
 }
 #endif  // !V8_OS_FUCHSIA && !V8_ENABLE_SANDBOX
 

@@ -10,8 +10,8 @@
 #import "ios/ui/settings/sync/vivaldi_sync_coordinator.h"
 #import "ios/vivaldi_account/vivaldi_account_manager_factory.h"
 #import "ui/base/l10n/l10n_util_mac.h"
-#import "vivaldi_account/vivaldi_account_manager.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
+#import "vivaldi_account/vivaldi_account_manager.h"
 
 @interface VivaldiSyncErrorDialogCoordinator () <VivaldiSyncCoordinatorDelegate>
 @property(nonatomic, strong) VivaldiSyncErrorDialogViewProvider* viewProvider;
@@ -26,7 +26,6 @@
 
 @implementation VivaldiSyncErrorDialogCoordinator
 
-
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                                    browser:(Browser*)browser {
   self = [super initWithBaseViewController:viewController browser:browser];
@@ -40,20 +39,20 @@
 
 - (void)start {
   self.viewProvider = [[VivaldiSyncErrorDialogViewProvider alloc] init];
-  self.viewController =
-    [VivaldiSyncErrorDialogViewProvider makeViewController];
-       self.viewController.title =
-         l10n_util::GetNSString(IDS_IOS_SYNC_ERROR_DIALOG_TITLE);
+  self.viewController = [VivaldiSyncErrorDialogViewProvider makeViewController];
+  self.viewController.title =
+      l10n_util::GetNSString(IDS_IOS_SYNC_ERROR_DIALOG_TITLE);
   self.viewController.navigationItem.largeTitleDisplayMode =
-    UINavigationItemLargeTitleDisplayModeNever;
-  UINavigationController* navigationController =
-  [[UINavigationController alloc]
-    initWithRootViewController:self.viewController];
+      UINavigationItemLargeTitleDisplayModeNever;
+  UINavigationController* navigationController = [[UINavigationController alloc]
+      initWithRootViewController:self.viewController];
   self.navigationController = navigationController;
   UISheetPresentationController* sheetPc =
-    navigationController.sheetPresentationController;
-  sheetPc.detents = @[UISheetPresentationControllerDetent.mediumDetent,
-                      UISheetPresentationControllerDetent.largeDetent];
+      navigationController.sheetPresentationController;
+  sheetPc.detents = @[
+    UISheetPresentationControllerDetent.mediumDetent,
+    UISheetPresentationControllerDetent.largeDetent
+  ];
   sheetPc.prefersScrollingExpandsWhenScrolledToEdge = NO;
   sheetPc.widthFollowsPreferredContentSizeWhenEdgeAttached = YES;
   [self.baseViewController presentViewController:navigationController
@@ -62,8 +61,8 @@
   [self observeTapAndNavigationEvents];
   // Set the last sync error dialog shown date to today
   [VivaldiSyncErrorDialogPrefs
-    setLastSyncErrorDialogShownDate:[NSDate date]
-                    withPrefService:self.browser->GetProfile()->GetPrefs()];
+      setLastSyncErrorDialogShownDate:[NSDate date]
+                      withPrefService:self.browser->GetProfile()->GetPrefs()];
 }
 
 - (void)stop {
@@ -75,7 +74,7 @@
 #pragma mark - Private
 
 - (void)observeTapAndNavigationEvents {
-   __weak __typeof(self) weakSelf = self;
+  __weak __typeof(self) weakSelf = self;
   [self.viewProvider observeOpenSettingsButtonTapEvent:^{
     [weakSelf openSettingsButtonTap];
   }];
@@ -84,14 +83,14 @@
   }];
 }
 
-- (void) openSettingsButtonTap {
+- (void)openSettingsButtonTap {
   // Call the delegate to show the sync error dialog
   __weak __typeof(self) weakSelf = self;
-  [self.viewController dismissViewControllerAnimated:YES
-                                          completion:^{
-    [weakSelf.delegate showSyncErrorDialog];
-
-  }];
+  [self.viewController
+      dismissViewControllerAnimated:YES
+                         completion:^{
+                           [weakSelf.delegate showSyncErrorDialog];
+                         }];
 }
 
 - (void)noThanksButtonTap {
@@ -99,19 +98,17 @@
   [VivaldiSyncErrorDialogPrefs setShouldAskUserAgain:NO
                                      withPrefService:prefService];
   vivaldi::VivaldiAccountManager* account_manager =
-    vivaldi::VivaldiAccountManagerFactory::GetForProfile(
-                                self.browser->GetProfile());
+      vivaldi::VivaldiAccountManagerFactory::GetForProfile(
+          self.browser->GetProfile());
   if (account_manager) {
     account_manager->Logout();
   }
-  [self.viewController dismissViewControllerAnimated:YES
-                                          completion:nil];
+  [self.viewController dismissViewControllerAnimated:YES completion:nil];
   [self stop];
 }
 
 #pragma mark - VivaldiSyncCoordinatorDelegate
-- (void)vivaldiSyncCoordinatorWasRemoved:
-    (VivaldiSyncCoordinator*)coordinator {
+- (void)vivaldiSyncCoordinatorWasRemoved:(VivaldiSyncCoordinator*)coordinator {
   DCHECK_EQ(self.vivaldiSyncCoordinator, coordinator);
   [self.vivaldiSyncCoordinator stop];
   self.vivaldiSyncCoordinator.delegate = nil;

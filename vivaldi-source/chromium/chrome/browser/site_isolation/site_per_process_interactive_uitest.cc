@@ -6,7 +6,6 @@
 #include <variant>
 
 #include "base/command_line.h"
-#include "base/containers/contains.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/string_number_conversions.h"
@@ -897,8 +896,15 @@ IN_PROC_BROWSER_TEST_F(SitePerProcessInteractiveBrowserTest,
       [web_contents](content::RenderFrameHost* receiver,
                      const gfx::Point& point) {
         auto content_bounds = web_contents->GetContainerBounds();
-        ui_controls::SendMouseMove(point.x() + content_bounds.x(),
-                                   point.y() + content_bounds.y());
+        // Wait for the mouse move to be processed before sending the click.
+        // On Wayland, SendMouseClick uses last_mouse_location() to find the
+        // target window; if the move hasn't been processed yet,
+        // last_mouse_location() is stale and the test clicks wrong point.
+        base::RunLoop move_loop;
+        ui_controls::SendMouseMoveNotifyWhenDone(point.x() + content_bounds.x(),
+                                                 point.y() + content_bounds.y(),
+                                                 move_loop.QuitClosure());
+        move_loop.Run();
         ui_controls::SendMouseClick(ui_controls::LEFT);
 
         LOG(INFO) << "Click element";
@@ -1132,7 +1138,7 @@ void WaitForMultipleFullscreenEvents(
     std::vector<std::string> response_params = base::SplitString(
         response, " ", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
     if (response_params[0] == "fullscreenchange") {
-      EXPECT_TRUE(base::Contains(remaining_events, response_params[1]));
+      EXPECT_TRUE(remaining_events.contains(response_params[1]));
       remaining_events.erase(response_params[1]);
     } else if (response_params[0] == "resize") {
       resize_validated = true;

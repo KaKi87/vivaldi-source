@@ -8,7 +8,9 @@ import static org.chromium.build.NullUtil.assertNonNull;
 
 import org.chromium.base.Log;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.ObservableSuppliers;
+import org.chromium.base.supplier.SettableNonNullObservableSupplier;
 import org.chromium.build.annotations.EnsuresNonNullIf;
 import org.chromium.build.annotations.MonotonicNonNull;
 import org.chromium.build.annotations.NullMarked;
@@ -23,6 +25,7 @@ import org.chromium.chrome.browser.browser_controls.TopControlsStacker.TopContro
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.toolbar.ControlContainer;
 import org.chromium.chrome.browser.toolbar.top.tab_strip.TabStripTransitionCoordinator.TabStripTransitionHandler;
+import org.chromium.ui.util.TokenHolder;
 
 /**
  * Top control layer representing tab strip. It can have different state than the current height
@@ -30,13 +33,15 @@ import org.chromium.chrome.browser.toolbar.top.tab_strip.TabStripTransitionCoord
  * during tab strip height transition.
  */
 @NullMarked
-public class TabStripTopControlLayer extends ObservableSupplierImpl<Integer>
-        implements TopControlLayer, TabStripTransitionHandler {
+public class TabStripTopControlLayer implements TopControlLayer, TabStripTransitionHandler {
     private static final String TAG = "TabStripLayer";
     private final TopControlsStacker mTopControlsStacker;
     private final BrowserControlsStateProvider mBrowserControls;
     private final ControlContainer mControlContainer;
+    private final SettableNonNullObservableSupplier<Integer> mSupplier;
+    private final @Nullable TokenHolder mLockTopControlsTokenJar;
 
+    private int mLockTopControlsToken = TokenHolder.INVALID_TOKEN;
     private @Nullable BrowserControlsOffsetTagsInfo mOffsetTagsInfo;
 
     // Not null after #initializeWithNative.
@@ -51,6 +56,7 @@ public class TabStripTopControlLayer extends ObservableSupplierImpl<Integer>
         public final int targetHeight;
         public final boolean applyScrimOverlay;
         public final Runnable transitionStartedCallback;
+        public final boolean hasAnimation;
         public final @TopControlVisibility int visibility;
 
         private boolean mIsStarted;
@@ -65,12 +71,13 @@ public class TabStripTopControlLayer extends ObservableSupplierImpl<Integer>
             this.applyScrimOverlay = applyScrimOverlay;
             this.transitionStartedCallback = transitionStartedCallback;
 
-            visibility = calculateVisibility(startHeight, targetHeight);
+            hasAnimation = calculateHasAnimation(startHeight, targetHeight, applyScrimOverlay);
+            visibility = calculateVisibility(startHeight, targetHeight, hasAnimation);
         }
 
         private static @TopControlVisibility int calculateVisibility(
-                int startHeight, int targetHeight) {
-            if (startHeight == targetHeight) {
+                int startHeight, int targetHeight, boolean hasAnimation) {
+            if (!hasAnimation) {
                 return targetHeight > 0
                         ? TopControlVisibility.VISIBLE
                         : TopControlVisibility.HIDDEN;
@@ -80,6 +87,13 @@ public class TabStripTopControlLayer extends ObservableSupplierImpl<Integer>
             return isIncreasing
                     ? TopControlVisibility.SHOWING_TOP_ANCHOR
                     : TopControlVisibility.HIDING_TOP_ANCHOR;
+        }
+
+        private static boolean calculateHasAnimation(
+                int startHeight, int targetHeight, boolean applyScrimOverlay) {
+            if (startHeight == targetHeight) return false;
+
+            return applyScrimOverlay && (startHeight == 0 || targetHeight == 0);
         }
 
         /** Returns true only when this method is called the first time. */
@@ -98,16 +112,20 @@ public class TabStripTopControlLayer extends ObservableSupplierImpl<Integer>
      * @param topControlsStacker The top controls stacker instance.
      * @param browserControls The browser controls instance.
      * @param controlContainer The {@link ControlContainer} instance.
+     * @param lockTopControlsTokenJar {@link TokenHolder} from TopControlLockCoordinator that used
+     *     to preserve the lock top controls state.
      */
     public TabStripTopControlLayer(
             int tabStripHeight,
             TopControlsStacker topControlsStacker,
             BrowserControlsStateProvider browserControls,
-            ControlContainer controlContainer) {
-        super(tabStripHeight);
+            ControlContainer controlContainer,
+            @Nullable TokenHolder lockTopControlsTokenJar) {
         mTopControlsStacker = topControlsStacker;
         mBrowserControls = browserControls;
         mControlContainer = controlContainer;
+        mLockTopControlsTokenJar = lockTopControlsTokenJar;
+        mSupplier = ObservableSuppliers.createNonNull(tabStripHeight);
 
         if (ChromeFeatureList.sTopControlsRefactor.isEnabled()) {
             mTopControlsStacker.addControl(this);
@@ -117,6 +135,11 @@ public class TabStripTopControlLayer extends ObservableSupplierImpl<Integer>
     /** Destroy the instance and remove all dependencies. */
     public void destroy() {
         mTopControlsStacker.removeControl(this);
+        mSupplier.destroy();
+        if (mLockTopControlsTokenJar != null) {
+            mLockTopControlsTokenJar.releaseToken(mLockTopControlsToken);
+            mLockTopControlsToken = TokenHolder.INVALID_TOKEN;
+        }
     }
 
     /**
@@ -126,6 +149,16 @@ public class TabStripTopControlLayer extends ObservableSupplierImpl<Integer>
      */
     public void initializeWithNative(TabStripSceneLayerHolder tabStrip) {
         mTabStrip = tabStrip;
+
+        mTabStrip.updateOffsetTagsInfo(mOffsetTagsInfo);
+    }
+
+    public NonNullObservableSupplier<Integer> getSupplier() {
+        return mSupplier;
+    }
+
+    public void set(int tabStripHeight) {
+        mSupplier.set(tabStripHeight);
     }
 
     // Implements TopControlLayer
@@ -137,7 +170,7 @@ public class TabStripTopControlLayer extends ObservableSupplierImpl<Integer>
 
     @Override
     public int getTopControlHeight() {
-        return get();
+        return mSupplier.get();
     }
 
     @Override
@@ -151,7 +184,7 @@ public class TabStripTopControlLayer extends ObservableSupplierImpl<Integer>
         // when scrolled offscreen or obscured, except when hidden by height transition.
         //
         // TODO(crbug.com/417238089): Possibly add way to notify stacker of visibility changes.
-        boolean isTabStripVisibleAsLayer = get() > 0;
+        boolean isTabStripVisibleAsLayer = getTopControlHeight() > 0;
         return isTabStripVisibleAsLayer
                 ? TopControlVisibility.VISIBLE
                 : TopControlVisibility.HIDDEN;
@@ -209,16 +242,31 @@ public class TabStripTopControlLayer extends ObservableSupplierImpl<Integer>
 
         // TODO(crbug.com/41481630): Supplier can have an inconsistent value with
         //  mToolbar.getTabStripHeight().
-        set(newHeight);
+        mSupplier.set(newHeight);
+
+        if (BrowserControlsUtils.isTopControlsRefactorOffsetEnabled()
+                && isInTransition()
+                && mTransitionState.targetHeight != mTransitionState.startHeight) {
+            mTopControlsStacker.requestLayerUpdateSync(mTransitionState.hasAnimation);
+        }
     }
 
     private void prepForTransitionRequested(
             int newHeight, boolean applyScrimOverlay, Runnable onHeightTransitionStartCallback) {
-        if (mTabStrip == null) return;
+        if (mTabStrip == null && !canTransitionWithoutTabStrip()) return;
 
         if (mTransitionState != null) {
             notifyTransitionFinished(false);
         }
+
+        // Request lock top controls token before we establish the transition, since it might
+        // trigger a call to update the browser controls height.
+        if (mLockTopControlsTokenJar != null) {
+            int oldToken = mLockTopControlsToken;
+            mLockTopControlsToken = mLockTopControlsTokenJar.acquireToken();
+            mLockTopControlsTokenJar.releaseToken(oldToken);
+        }
+
         mTransitionState =
                 new TransitionState(
                         getTopControlHeight(),
@@ -241,7 +289,16 @@ public class TabStripTopControlLayer extends ObservableSupplierImpl<Integer>
         if (!isInTransition()) return;
 
         // Once transition is finished, put the offset tags back so layers can scroll as intended.
-        assertNonNull(mTabStrip).updateOffsetTagsInfo(mOffsetTagsInfo);
+        if (mTabStrip != null) {
+            mTabStrip.updateOffsetTagsInfo(mOffsetTagsInfo);
+        } else {
+            assert canTransitionWithoutTabStrip() : "Transition started when mTabStrip == null.";
+        }
+
+        if (mLockTopControlsTokenJar != null) {
+            mLockTopControlsTokenJar.releaseToken(mLockTopControlsToken);
+            mLockTopControlsToken = TokenHolder.INVALID_TOKEN;
+        }
 
         notifyTransitionFinished(true);
         mTransitionState = null;
@@ -279,13 +336,21 @@ public class TabStripTopControlLayer extends ObservableSupplierImpl<Integer>
         mTransitionState.transitionStartedCallback.run();
         mControlContainer.onHeightChanged(
                 mTransitionState.targetHeight, mTransitionState.applyScrimOverlay);
-        assertNonNull(mTabStrip)
-                .onHeightChanged(mTransitionState.targetHeight, mTransitionState.applyScrimOverlay);
+        if (mTabStrip != null) {
+            mTabStrip.onHeightChanged(
+                    mTransitionState.targetHeight, mTransitionState.applyScrimOverlay);
+        } else {
+            assert canTransitionWithoutTabStrip() : "Transition started when mTabStrip == null.";
+        }
     }
 
     private void notifyTransitionFinished(boolean success) {
         mControlContainer.onHeightTransitionFinished(success);
-        assertNonNull(mTabStrip).onHeightTransitionFinished(success);
+        if (mTabStrip != null) {
+            mTabStrip.onHeightTransitionFinished(success);
+        } else {
+            assert canTransitionWithoutTabStrip() : "Transition finished when mTabStrip == null.";
+        }
 
         recordTabStripTransitionFinished(success);
         if (!success) {
@@ -296,5 +361,10 @@ public class TabStripTopControlLayer extends ObservableSupplierImpl<Integer>
     private void recordTabStripTransitionFinished(boolean finished) {
         RecordHistogram.recordBooleanHistogram(
                 "Android.DynamicTopChrome.TabStripTransition.Finished", finished);
+    }
+
+    private boolean canTransitionWithoutTabStrip() {
+        return BrowserControlsUtils.isForceTopChromeHeightAdjustmentOnStartupEnabled(
+                mControlContainer.getView().getContext());
     }
 }

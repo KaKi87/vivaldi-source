@@ -10,7 +10,8 @@
 namespace vivaldi {
 
 const base::Version& GetVivaldiVersion() {
-  static const base::NoDestructor<base::Version> version(VIVALDI_VERSION_STRING);
+  static const base::NoDestructor<base::Version> version(
+      VIVALDI_VERSION_STRING);
   DCHECK(version->IsValid());
   return *version;
 }

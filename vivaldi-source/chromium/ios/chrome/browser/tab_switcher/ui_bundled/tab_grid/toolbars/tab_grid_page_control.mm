@@ -320,7 +320,7 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
   if (@available(iOS 26, *)) {
   } else {
     if (IsVivaldiRunning()) {
-      self.background.backgroundColor = [UIColor colorNamed:vBackgroundColor];
+      [self updateVivaldiBackgroundForSelectedPage];
     } else {
     CGFloat backgroundAlpha =
         scrolledToEdge ? kScrolledToTopBackgroundAlpha : kBackgroundAlpha;
@@ -364,8 +364,10 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
     else
       _selectedPage = TabGridPageClosedTabs;
 
-    if (_selectedPage != previousSelectedPage)
+    if (_selectedPage != previousSelectedPage) {
       [self updateSelectedPageAccessibility];
+      [self updateVivaldiBackgroundForSelectedPage];
+    }
 
     return;
   } // End Vivaldi
@@ -431,6 +433,11 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
 
   _selectedPage = selectedPage;
   [self updateSelectedPageAccessibility];
+
+  if (IsVivaldiRunning()) {
+    [self updateVivaldiBackgroundForSelectedPage];
+  } // End Vivaldi
+
   if (animated) {
     // Scale duration to the distance the slider travels, but cap it at
     // the slider move duration. This means that for motion induced by
@@ -1101,13 +1108,11 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
   // Vivaldi
   self.remoteTabsHoverView = [self configureHoverView];;
   self.closedHoverView = [self configureHoverView];;
-  // End Vivaldi
-
-  // Vivaldi
   [self.remoteTabsHoverView
       addInteraction:[[UIPointerInteraction alloc] initWithDelegate:self]];
   [self.closedHoverView
       addInteraction:[[UIPointerInteraction alloc] initWithDelegate:self]];
+  [self updateVivaldiBackgroundForSelectedPage];
   // End Vivaldi
 
   [self.sliderView
@@ -1364,6 +1369,20 @@ UIImageView* ImageViewForSymbol(NSString* symbol_name,
     return TabGridPageRegularTabs;
   }
 }
+
+- (void)updateVivaldiBackgroundForSelectedPage {
+  if (@available(iOS 26, *)) {
+    return;
+  }
+  UIColor* baseColor = [UIColor colorNamed:vBackgroundColor];
+  if (self.selectedPage == TabGridPageIncognitoTabs) {
+    // Use 20% opacity of base color for private tabs.
+    self.background.backgroundColor = [baseColor colorWithAlphaComponent:0.2];
+    return;
+  }
+  self.background.backgroundColor = baseColor;
+}
+
 // End Vivaldi
 
 @end

@@ -11,7 +11,7 @@ NS_SWIFT_UI_ACTOR
 @protocol VivaldiPageZoomSettingsConsumer
 - (void)setPreferenceForPageZoomLevel:(NSInteger)level;
 - (void)setPreferenceForDomainSettings:
-    (NSDictionary<NSString *, NSNumber *> *) dict;
+    (NSDictionary<NSString*, NSNumber*>*)dict;
 @end
 
 #endif  // IOS_UI_SETTINGS_PAGEZOOM_VIVALDI_PAGEZOOM_SETTINGS_CONSUMER_H_

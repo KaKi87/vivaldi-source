@@ -11,10 +11,10 @@
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/utils/observable_boolean.h"
 #import "ios/ui/settings/appearance/vivaldi_appearance_settings_prefs_helper.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
 @interface VivaldiAppearanceSettingsMediator () <BooleanObserver,
-                                                PrefObserverDelegate> {
+                                                 PrefObserverDelegate> {
   PrefService* _prefs;
   // Pref observer to track changes to prefs.
   std::unique_ptr<PrefObserverBridge> _prefObserverBridge;
@@ -46,28 +46,25 @@
     _prefObserverBridge->ObserveChangesForPreference(
         vivaldiprefs::kVivaldiCustomAccentColor, &_prefChangeRegistrar);
 
-    _forceWebpageDarkThemeEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                prefName:vivaldiprefs::kVivaldiWebsiteAppearanceForceDarkTheme];
+    _forceWebpageDarkThemeEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::
+                                kVivaldiWebsiteAppearanceForceDarkTheme];
     [_forceWebpageDarkThemeEnabled setObserver:self];
 
-    _dynamicAccentColorEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                prefName:vivaldiprefs::kVivaldiDynamicAccentColorEnabled];
+    _dynamicAccentColorEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kVivaldiDynamicAccentColorEnabled];
     [_dynamicAccentColorEnabled setObserver:self];
 
-    _bottomOmniboxEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:GetApplicationContext()->GetLocalState()
-                prefName:omnibox::kIsOmniboxInBottomPosition];
+    _bottomOmniboxEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:GetApplicationContext()->GetLocalState()
+                   prefName:omnibox::kIsOmniboxInBottomPosition];
     [_bottomOmniboxEnabled setObserver:self];
 
-    _tabBarEnabled =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                       prefName:vivaldiprefs::kVivaldiDesktopTabsEnabled];
+    _tabBarEnabled = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kVivaldiDesktopTabsEnabled];
     [_tabBarEnabled setObserver:self];
   }
   return self;
@@ -102,14 +99,13 @@
   [self.consumer
       setPreferenceWebsiteAppearanceStyle:[self websiteAppearanceStyle]];
   [self.consumer
-      setPreferenceWebpageForceDarkThemeEnabled:
-          [_forceWebpageDarkThemeEnabled value]];
+      setPreferenceWebpageForceDarkThemeEnabled:[_forceWebpageDarkThemeEnabled
+                                                    value]];
 
   [self.consumer
-      setPreferenceDynamicAccentColorEnabled:
-          [_dynamicAccentColorEnabled value]];
-  [self.consumer
-      setPreferenceCustomAccentColor:[self customAccentColor]];
+      setPreferenceDynamicAccentColorEnabled:[_dynamicAccentColorEnabled
+                                                 value]];
+  [self.consumer setPreferenceCustomAccentColor:[self customAccentColor]];
 
   [self.consumer setPreferenceForOmniboxAtBottom:[_bottomOmniboxEnabled value]];
   [self.consumer setPreferenceForTabBarEnabled:[_tabBarEnabled value]];
@@ -141,8 +137,7 @@
     [self.consumer
         setPreferenceWebsiteAppearanceStyle:[self websiteAppearanceStyle]];
   } else if (preferenceName == vivaldiprefs::kVivaldiCustomAccentColor) {
-    [self.consumer
-        setPreferenceCustomAccentColor:[self customAccentColor]];
+    [self.consumer setPreferenceCustomAccentColor:[self customAccentColor]];
   }
 }
 

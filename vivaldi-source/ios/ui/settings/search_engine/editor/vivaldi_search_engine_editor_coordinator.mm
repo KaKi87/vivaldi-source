@@ -4,17 +4,17 @@
 
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
+#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 #import "ios/ui/helpers/helpers_swift.h"
 #import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_mediator.h"
 #import "ios/ui/settings/search_engine/editor/vivaldi_search_engine_editor_swift.h"
 #import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
-#import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
 
 namespace {
 NSString* const kCustomDetentIdentifier = @"searchEngineCustomDetent";
 const CGFloat minimumDetentHeight = 280.0;
-}
+}  // namespace
 
 @interface VivaldiSearchEngineEditorCoordinator () <
     VivaldiHostingControllerPresentationDelegate> {
@@ -32,8 +32,7 @@ const CGFloat minimumDetentHeight = 280.0;
 @property(nonatomic, strong) VivaldiSearchEngineEditorMediator* mediator;
 
 // Whether we're adding or editing.
-@property(nonatomic, assign)
-    VivaldiSearchEngineEditorEntryReason entryReason;
+@property(nonatomic, assign) VivaldiSearchEngineEditorEntryReason entryReason;
 
 // Whether the user has made unsaved changes
 @property(nonatomic, assign) BOOL hasActiveChanges;
@@ -71,25 +70,22 @@ const CGFloat minimumDetentHeight = 280.0;
   return self;
 }
 
-- (instancetype)initWithBaseNavigationController:
-                    (UINavigationController*)navigationController
-                                         browser:(Browser*)browser
-                                      entryPoint:
-                                          (VivaldiSearchEngineEditorEntryPoint)
-                                              entryPoint
-                                     entryReason:
-                                         (VivaldiSearchEngineEditorEntryReason)
-                                             entryReason
-                                            item:
-                                                (VivaldiSearchEngineEditorItem*)
-                                                    item
-                                     allowsCancel:(BOOL)allowsCancel {
+- (instancetype)
+    initWithBaseNavigationController:
+        (UINavigationController*)navigationController
+                             browser:(Browser*)browser
+                          entryPoint:
+                              (VivaldiSearchEngineEditorEntryPoint)entryPoint
+                         entryReason:
+                             (VivaldiSearchEngineEditorEntryReason)entryReason
+                                item:(VivaldiSearchEngineEditorItem*)item
+                        allowsCancel:(BOOL)allowsCancel {
   self = [self initWithBaseViewController:navigationController
-                                   browser:browser
-                                entryPoint:entryPoint
-                               entryReason:entryReason
-                                      item:item
-                               allowsCancel:allowsCancel];
+                                  browser:browser
+                               entryPoint:entryPoint
+                              entryReason:entryReason
+                                     item:item
+                             allowsCancel:allowsCancel];
   if (self) {
     _baseNavigationController = navigationController;
   }
@@ -136,13 +132,11 @@ const CGFloat minimumDetentHeight = 280.0;
                                       entryPoint:self.entryPoint];
 
   NSString* title = nil;
-  if (self.entryPoint ==
-      VivaldiSearchEngineEditorEntryPointContextMenu) {
-    title = l10n_util::GetNSString(
-        IDS_VIVALDI_CONTEXT_MENU_ADD_AS_ENGINE_TITLE);
+  if (self.entryPoint == VivaldiSearchEngineEditorEntryPointContextMenu) {
+    title =
+        l10n_util::GetNSString(IDS_VIVALDI_CONTEXT_MENU_ADD_AS_ENGINE_TITLE);
   } else {
-    title = (self.entryReason ==
-             VivaldiSearchEngineEditorEntryReasonEdit)
+    title = (self.entryReason == VivaldiSearchEngineEditorEntryReasonEdit)
                 ? l10n_util::GetNSString(
                       IDS_VIVALDI_SEARCH_ENGINE_EDITOR_EDIT_ENGINE_TITLE)
                 : l10n_util::GetNSString(
@@ -153,17 +147,16 @@ const CGFloat minimumDetentHeight = 280.0;
   self.controller.navigationItem.largeTitleDisplayMode =
       UINavigationItemLargeTitleDisplayModeNever;
   self.controller.modalPresentationStyle = UIModalPresentationPageSheet;
-  _navigationController =
-      [[UINavigationController alloc] initWithRootViewController:self.controller];
+  _navigationController = [[UINavigationController alloc]
+      initWithRootViewController:self.controller];
 
   if (self.allowsCancel) {
-    UIBarButtonItem *cancelItem =
-        [[UIBarButtonItem alloc]
-            initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
-                                 target:self
-                                 action:@selector(handleCancelButtonTap)];
-    _navigationController.topViewController
-        .navigationItem.leftBarButtonItem = cancelItem;
+    UIBarButtonItem* cancelItem = [[UIBarButtonItem alloc]
+        initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
+                             target:self
+                             action:@selector(handleCancelButtonTap)];
+    _navigationController.topViewController.navigationItem.leftBarButtonItem =
+        cancelItem;
   }
   [self setupSheetPresentationController];
 }
@@ -190,7 +183,7 @@ const CGFloat minimumDetentHeight = 280.0;
 }
 
 - (void)setupSheetPresentationController {
-  UISheetPresentationController *sheetPc =
+  UISheetPresentationController* sheetPc =
       _navigationController.sheetPresentationController;
   // When iPad full screen or 2/3 SplitView support only large detent because
   // medium detent cuts the contents makes the dialog small and off centered.
@@ -215,10 +208,10 @@ const CGFloat minimumDetentHeight = 280.0;
 }
 
 - (void)presentViewController {
-  if (self.entryPoint ==
-      VivaldiSearchEngineEditorEntryPointContextMenu) {
+  if (self.entryPoint == VivaldiSearchEngineEditorEntryPointContextMenu) {
     [self.baseViewController presentViewController:_navigationController
-                                          animated:YES completion:nil];
+                                          animated:YES
+                                        completion:nil];
   } else {
     [self.baseNavigationController pushViewController:self.controller
                                              animated:YES];

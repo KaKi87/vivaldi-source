@@ -250,11 +250,25 @@ Device::Device(const ObjectBaseParams& params,
             }
         },
         nullptr, nullptr};
+    static constexpr WGPULoggingCallbackInfo kDefaultLoggingCallbackInfo = {
+        nullptr,
+        [](WGPULoggingType, WGPUStringView, void*, void*) {
+            static bool calledOnce = false;
+            if (!calledOnce) {
+                calledOnce = true;
+                dawn::WarningLog() << "No Dawn device logging callback callback was set. This is "
+                                      "probably not intended. If you really want to ignore logs "
+                                      "and suppress this message, set the callback explicitly.";
+            }
+        },
+        nullptr, nullptr};
 #else
     static constexpr WGPUDeviceLostCallbackInfo kDefaultDeviceLostCallbackInfo = {
         nullptr, WGPUCallbackMode_AllowSpontaneous, nullptr, nullptr, nullptr};
     static constexpr WGPUUncapturedErrorCallbackInfo kDefaultUncapturedErrorCallbackInfo =
         kEmptyUncapturedErrorCallbackInfo;
+    static constexpr WGPULoggingCallbackInfo kDefaultLoggingCallbackInfo =
+        kEmptyLoggingCallbackInfo;
 #endif  // DAWN_ENABLE_ASSERTS
 
     WGPUDeviceLostCallbackInfo deviceLostCallbackInfo = kDefaultDeviceLostCallbackInfo;
@@ -267,6 +281,8 @@ Device::Device(const ObjectBaseParams& params,
     if (descriptor != nullptr && descriptor->uncapturedErrorCallbackInfo.callback != nullptr) {
         mUncapturedErrorCallbackInfo = descriptor->uncapturedErrorCallbackInfo;
     }
+
+    mLoggingCallbackInfo = kDefaultLoggingCallbackInfo;
 }
 
 ObjectType Device::GetObjectType() const {
@@ -275,6 +291,27 @@ ObjectType Device::GetObjectType() const {
 
 bool Device::IsAlive() const {
     return mIsAlive;
+}
+
+Queue* Device::GetQueue() {
+    // The queue is lazily created because if a Device is created by Reserve/Inject, we cannot send
+    // the GetQueue message until it has been injected on the Server. It cannot happen immediately
+    // on construction.
+    if (mQueue == nullptr) {
+        // Get the primary queue for this device.
+        Client* client = GetClient();
+        mQueue = client->Make<Queue>(GetEventManagerHandle());
+
+        DeviceGetQueueCmd cmd;
+        cmd.self = ToAPI(this);
+        cmd.result = mQueue->GetWireHandle(client);
+        client->SerializeCommand(cmd);
+    }
+    return mQueue.Get();
+}
+
+const LimitsAndFeatures& Device::GetLimitsAndFeatures() const {
+    return mLimitsAndFeatures;
 }
 
 void Device::WillDropLastExternalRef() {
@@ -395,29 +432,25 @@ WGPUBuffer Device::APICreateErrorBuffer(const WGPUBufferDescriptor* descriptor) 
     return Buffer::CreateError(this, descriptor);
 }
 
+WGPUResourceTable Device::APICreateResourceTable(const WGPUResourceTableDescriptor* descriptor) {
+    return ResourceTable::Create(this, descriptor);
+}
+
+WGPUTexture Device::APICreateTexture(const WGPUTextureDescriptor* descriptor) {
+    return Texture::Create(this, descriptor);
+}
+
+WGPUTexture Device::APICreateErrorTexture(const WGPUTextureDescriptor* descriptor) {
+    return Texture::CreateError(this, descriptor);
+}
+
 WGPUAdapter Device::APIGetAdapter() const {
     Ref<Adapter> adapter = mAdapter;
     return ReturnToAPI(std::move(adapter));
 }
 
 WGPUQueue Device::APIGetQueue() {
-    // The queue is lazily created because if a Device is created by
-    // Reserve/Inject, we cannot send the GetQueue message until
-    // it has been injected on the Server. It cannot happen immediately
-    // on construction.
-    if (mQueue == nullptr) {
-        // Get the primary queue for this device.
-        Client* client = GetClient();
-        mQueue = client->Make<Queue>(GetEventManagerHandle());
-
-        DeviceGetQueueCmd cmd;
-        cmd.self = ToAPI(this);
-        cmd.result = mQueue->GetWireHandle(client);
-
-        client->SerializeCommand(cmd);
-    }
-
-    Ref<Queue> queue = mQueue;
+    Ref<Queue> queue = GetQueue();
     return ReturnToAPI(std::move(queue));
 }
 

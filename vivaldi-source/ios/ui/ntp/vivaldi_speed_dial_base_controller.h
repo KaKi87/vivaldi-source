@@ -10,15 +10,15 @@
 #import "ios/ui/ntp/vivaldi_speed_dial_view_controller_delegate.h"
 
 namespace bookmarks {
-  class BookmarkModel;
+class BookmarkModel;
 }
 
 // The controller that contains the speed dial folder menu and the child pages.
-@interface VivaldiSpeedDialBaseController : UIViewController
-    <SpeedDialHomeConsumer>
+@interface VivaldiSpeedDialBaseController
+    : UIViewController <SpeedDialHomeConsumer>
 
 // DELEGATE
-@property (nonatomic, weak) id<SpeedDialViewControllerDelegate> delegate;
+@property(nonatomic, weak) id<SpeedDialViewControllerDelegate> delegate;
 
 // INITIALIZER
 - (instancetype)initWithBrowser:(Browser*)browser

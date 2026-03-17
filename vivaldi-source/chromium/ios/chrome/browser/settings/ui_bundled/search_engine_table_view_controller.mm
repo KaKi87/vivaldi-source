@@ -21,6 +21,7 @@
 #import "components/search_engines/search_engines_pref_names.h"
 #import "components/search_engines/template_url_service.h"
 #import "components/search_engines/template_url_service_observer.h"
+#import "components/search_engines/template_url_starter_pack_data.h"
 #import "components/signin/public/base/signin_switches.h"
 #import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/favicon/model/ios_chrome_favicon_loader_factory.h"
@@ -534,10 +535,6 @@ const char kUmaSelectDefaultSearchEngine[] =
     return;
   }
 
-  // TODO(b/280753739) Update this method to return the correct list of search
-  // engines directly (for both choice-screen-eligible users and
-  // non-choice-screen-eligible users). This way we don't have to worry about
-  // calling two different methods anymore.
   std::vector<raw_ptr<TemplateURL, VectorExperimental>> urls =
       _templateURLService->GetTemplateURLs();
   _firstList.clear();
@@ -548,7 +545,8 @@ const char kUmaSelectDefaultSearchEngine[] =
   if (vivaldi::IsVivaldiRunning()) {
     for (TemplateURL* url : urls) {
       if ((url->is_active() != TemplateURLData::ActiveStatus::kFalse) &&
-          url->starter_pack_id() <= 0) {
+          url->starter_pack_id() ==
+              template_url_starter_pack_data::StarterPackId::kNone) {
           _firstList.push_back(url);
       }
     }
@@ -557,7 +555,8 @@ const char kUmaSelectDefaultSearchEngine[] =
   // Classify TemplateURLs.
   for (TemplateURL* url : urls) {
     // Starter pack is not supported on iOS.
-    if (url->starter_pack_id() != 0) {
+    if (url->starter_pack_id() !=
+        template_url_starter_pack_data::StarterPackId::kNone) {
       continue;
     }
 

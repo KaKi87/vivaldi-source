@@ -39,6 +39,8 @@
 namespace {
 /// Constants for cancel button styling.
 static const CGFloat kCancelButtonIconSize = 30;
+/// Constants for the default header height.
+static const CGFloat kHeaderDefaultHeight = 48;
 
 /// Constants for timer update intervals.
 static constexpr base::TimeDelta kNormalUpdateInterval =
@@ -126,9 +128,10 @@ typedef NSDiffableDataSourceSnapshot<DownloadListGroupItem*, DownloadListItem*>
 #pragma mark - Private
 
 - (void)setupFilterHeaderView {
-  self.filterHeaderView = [[DownloadListTableViewHeader alloc] init];
+  self.filterHeaderView = [[DownloadListTableViewHeader alloc]
+      initWithFrame:CGRectMake(0, 0, self.tableView.bounds.size.width,
+                               kHeaderDefaultHeight)];
   self.filterHeaderView.mutator = self.mutator;
-  [self updateTableHeaderViewFrame];
 }
 
 - (void)updateTableHeaderViewFrame {
@@ -136,10 +139,12 @@ typedef NSDiffableDataSourceSnapshot<DownloadListGroupItem*, DownloadListItem*>
     return;
   }
 
-  [self.filterHeaderView setNeedsLayout];
-  [self.filterHeaderView layoutIfNeeded];
-
+  // Ensure view is loaded before accessing tableView.
+  if (!self.viewLoaded) {
+    return;
+  }
   CGFloat width = self.tableView.bounds.size.width;
+
   CGSize fittingSize = [self.filterHeaderView
       systemLayoutSizeFittingSize:CGSizeMake(
                                       width,
@@ -535,9 +540,7 @@ typedef NSDiffableDataSourceSnapshot<DownloadListGroupItem*, DownloadListItem*>
 
 - (void)setEmptyState:(BOOL)empty {
   if (empty) {
-    // Empty downloads: show small title and empty view.
-    self.navigationItem.largeTitleDisplayMode =
-        UINavigationItemLargeTitleDisplayModeNever;
+    // Show empty view illustration.
     if (!self.tableView.backgroundView) {
       UIImage* emptyImage = [UIImage imageNamed:@"download_list_empty"];
       TableViewIllustratedEmptyView* emptyView = [[TableViewIllustratedEmptyView
@@ -551,9 +554,7 @@ typedef NSDiffableDataSourceSnapshot<DownloadListGroupItem*, DownloadListItem*>
       self.tableView.backgroundView = emptyView;
     }
   } else {
-    // Non-empty downloads: show large title initially and hide empty view.
-    self.navigationItem.largeTitleDisplayMode =
-        UINavigationItemLargeTitleDisplayModeAlways;
+    // Hide the empty view.
     self.tableView.backgroundView = nil;
   }
   if (self.filterHeaderView && self.filterHeaderView.isHidden == NO) {
@@ -563,20 +564,25 @@ typedef NSDiffableDataSourceSnapshot<DownloadListGroupItem*, DownloadListItem*>
 
 - (void)setDownloadListHeaderShown:(BOOL)shown {
   if (shown) {
-    // Show the filter view if it's not already set.
+    // Records exist: allow automatic large/small title transition based on
+    // scroll position, and show filter header.
+    self.navigationItem.largeTitleDisplayMode =
+        UINavigationItemLargeTitleDisplayModeAutomatic;
     if (self.tableView.tableHeaderView != self.filterHeaderView) {
       self.tableView.tableHeaderView = self.filterHeaderView;
     }
   } else {
-    // Hide the filter view by setting tableHeaderView to nil.
+    // No records at all: show small title and hide filter header.
+    self.navigationItem.largeTitleDisplayMode =
+        UINavigationItemLargeTitleDisplayModeNever;
     self.tableView.tableHeaderView = nil;
   }
 }
 
 #pragma mark - UIAdaptivePresentationControllerDelegate
 
-/// Called before the presentation controller will dismiss.
-- (void)presentationControllerWillDismiss:
+/// Called after the presentation controller did dismiss.
+- (void)presentationControllerDidDismiss:
     (UIPresentationController*)presentationController {
   [self.downloadListHandler hideDownloadList];
 }

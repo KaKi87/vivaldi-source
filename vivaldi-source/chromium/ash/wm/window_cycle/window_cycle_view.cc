@@ -54,6 +54,7 @@
 #include "ui/views/controls/label.h"
 #include "ui/views/highlight_border.h"
 #include "ui/views/layout/box_layout.h"
+#include "ui/views/metadata/view_factory.h"
 #include "ui/views/view.h"
 
 namespace ash {
@@ -119,8 +120,9 @@ WindowMiniViewBase* BuildAndConfigureCycleView(
     if (auto* snap_group =
             snap_group_controller->GetSnapGroupForGivenWindow(window)) {
       if (!same_app_only ||
-          (same_app_only && base::Contains(windows, snap_group->window1()) &&
-           base::Contains(windows, snap_group->window2()))) {
+          (same_app_only &&
+           std::ranges::contains(windows, snap_group->window1()) &&
+           std::ranges::contains(windows, snap_group->window2()))) {
         // Create `GroupContainerCycleView` if `window` is physically left / top
         // snapped, which adds two child views subsequently. Skip adding
         // `GroupContainerCycleView` if `window` is secondary snapped since the

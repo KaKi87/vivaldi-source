@@ -36,7 +36,7 @@ class GuestViewInternalCreateGuestFunction : public ExtensionFunction {
   /* Vivaldi specific: This will return any WebContents created and owned by
    * either the tabstrip or popup-webcontents manager. Returns true if
    * WebContents was found elsewhere.*/
-  bool GetExternalWebContents(const base::Value::Dict& create_params);
+  bool GetExternalWebContents(const base::DictValue& create_params);
 };
 
 class GuestViewInternalDestroyUnattachedGuestFunction

@@ -22,12 +22,13 @@ class DuckDuckGoRulesParser {
   void Parse(const base::Value& root);
 
  private:
-  void AddBlockingRuleForDomain(const std::string& domain,
-                                const base::Value::List* excluded_origins);
+  void AddBlockingRuleForDomain(
+      const std::string& domain,
+      const std::optional<std::set<std::string>>& excluded_origins);
   void ParseRule(const base::Value& rule,
                  const std::string& domain,
                  bool default_ignore,
-                 const base::Value::List* excluded_origins);
+                 const std::optional<std::set<std::string>>& excluded_origins);
   std::optional<RegularResourceTypes> GetTypes(
       const base::Value* rule_properties);
   std::optional<std::set<std::string>> GetDomains(

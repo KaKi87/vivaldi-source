@@ -5,7 +5,6 @@
 #ifndef CHROME_BROWSER_WEB_APPLICATIONS_WEB_APP_INSTALL_FINALIZER_H_
 #define CHROME_BROWSER_WEB_APPLICATIONS_WEB_APP_INSTALL_FINALIZER_H_
 
-#include <map>
 #include <memory>
 #include <vector>
 
@@ -23,9 +22,11 @@
 #include "chrome/browser/web_applications/web_app_chromeos_data.h"
 #include "chrome/browser/web_applications/web_app_install_info.h"
 #include "chrome/browser/web_applications/web_app_management_type.h"
+#include "chrome/browser/web_applications/web_app_origin_association_manager.h"
 #include "components/webapps/browser/install_result_code.h"
 #include "components/webapps/browser/installable/installable_metrics.h"
 #include "components/webapps/common/web_app_id.h"
+#include "third_party/abseil-cpp/absl/container/flat_hash_set.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -43,6 +44,7 @@ namespace web_app {
 
 class IsolatedWebAppStorageLocation;
 class WebApp;
+class FinalizeInstallJob;
 class WebAppProvider;
 
 // An finalizer for the installation process, represents the last step.
@@ -134,30 +136,26 @@ class WebAppInstallFinalizer {
 
   Profile* profile() { return profile_; }
 
-  // Writes external config data to the web_app DB, mapped per source.
-  void WriteExternalConfigMapInfo(
-      WebApp& web_app,
-      WebAppManagement::Type source,
-      bool is_placeholder,
-      GURL install_url,
-      std::vector<std::string> additional_policy_ids);
-
   void SetClockForTesting(base::Clock* clock);
 
+  base::WeakPtr<WebAppInstallFinalizer> GetWeakPtr() {
+    return weak_ptr_factory_.GetWeakPtr();
+  }
+
  private:
+  friend class FinalizeInstallJob;
+
   using CommitCallback = base::OnceCallback<void(bool success)>;
 
-  void UpdateIsolationDataAndResetPendingUpdateInfo(
-      WebApp* web_app,
-      const IsolatedWebAppStorageLocation& location,
-      const IwaVersion& version,
-      std::optional<IsolatedWebAppIntegrityBlockData> integrity_block_data);
+  void OnInstallJobFinished(FinalizeInstallJob* job,
+                            InstallFinalizedCallback callback,
+                            const webapps::AppId& app_id,
+                            webapps::InstallResultCode code);
 
   void OnOriginAssociationValidatedForUpdate(
       WebAppInstallInfo web_app_info,
       InstallFinalizedCallback callback,
-      webapps::AppId app_id,
-      ScopeExtensions validated_scope_extensions);
+      OriginAssociations validated_origin_associations);
 
   void SetWebAppManifestFieldsAndWriteData(
       const WebAppInstallInfo& web_app_info,
@@ -176,11 +174,11 @@ class WebAppInstallFinalizer {
                           CommitCallback commit_callback,
                           bool success);
 
-  void OnOriginAssociationValidated(WebAppInstallInfo web_app_info,
-                                    FinalizeOptions options,
-                                    InstallFinalizedCallback callback,
-                                    webapps::AppId app_id,
-                                    ScopeExtensions validated_scope_extensions);
+  void OnOriginAssociationValidated(
+      WebAppInstallInfo web_app_info,
+      FinalizeOptions options,
+      InstallFinalizedCallback callback,
+      OriginAssociations validated_origin_associations);
 
   void OnDatabaseCommitCompletedForInstall(InstallFinalizedCallback callback,
                                            webapps::AppId app_id,
@@ -215,6 +213,8 @@ class WebAppInstallFinalizer {
   const raw_ptr<Profile> profile_;
   raw_ptr<WebAppProvider> provider_ = nullptr;
   raw_ptr<base::Clock> clock_{base::DefaultClock::GetInstance()};
+
+  absl::flat_hash_set<std::unique_ptr<FinalizeInstallJob>> install_jobs_;
 
   bool started_ = false;
 

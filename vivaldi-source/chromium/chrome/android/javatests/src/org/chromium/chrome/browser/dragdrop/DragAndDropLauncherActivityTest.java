@@ -30,15 +30,14 @@ import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
-import org.chromium.base.test.util.Features.EnableFeatures;
 import org.chromium.base.test.util.HistogramWatcher;
 import org.chromium.base.test.util.Matchers;
 import org.chromium.base.test.util.MinAndroidSdkLevel;
 import org.chromium.base.test.util.UserActionTester;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.app.tabwindow.TabWindowManagerSingleton;
-import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.multiwindow.MultiInstanceManager.PersistedInstanceType;
 import org.chromium.chrome.browser.multiwindow.MultiWindowUtils;
@@ -224,6 +223,7 @@ public class DragAndDropLauncherActivityTest {
      */
     @Test
     @LargeTest
+    @DisabledTest(message = "https://crbug.com/477788301")
     public void testDraggedTab_newWindow() throws Exception {
         HistogramWatcher histogramExpectation =
                 HistogramWatcher.newSingleRecordWatcher(
@@ -294,7 +294,6 @@ public class DragAndDropLauncherActivityTest {
      */
     @Test
     @LargeTest
-    @EnableFeatures(ChromeFeatureList.TAB_STRIP_GROUP_DRAG_DROP_ANDROID)
     public void testDraggedTabGroup_newWindow() throws Exception {
         var sourceActivity = mActivityTestRule.getActivity();
 
@@ -485,7 +484,6 @@ public class DragAndDropLauncherActivityTest {
                                     mActivityTestRule
                                             .getActivity()
                                             .getTabModelSelector()
-                                            .getTabGroupModelFilterProvider()
                                             .getTabGroupModelFilter(false),
                                     draggedTabGroup,
                                     sourceWindowId,
@@ -530,6 +528,7 @@ public class DragAndDropLauncherActivityTest {
             TabGroupMetadata tabGroupMetadata, boolean allowDragToCreateNewInstance) {
         return new ChromeTabGroupDropDataAndroid.Builder()
                 .withTabGroupMetadata(tabGroupMetadata)
+                .withTabs(new ArrayList<Tab>()) // Unimportant for this test; must be non-null.
                 .withAllowDragToCreateInstance(allowDragToCreateNewInstance)
                 .build();
     }

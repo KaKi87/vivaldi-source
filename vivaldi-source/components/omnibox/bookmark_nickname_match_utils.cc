@@ -86,8 +86,7 @@ AutocompleteMatch NicknameMatchToAutocompleteMatch(
 
   match.fill_into_edit = nickname;
 
-  base::TrimWhitespace(nickname, base::TRIM_LEADING,
-                       &match.description);
+  base::TrimWhitespace(nickname, base::TRIM_LEADING, &match.description);
   auto description_terms = FindTermMatches(input.text(), match.description);
   match.description_class = ClassifyTermMatches(
       description_terms, match.description.length(),
@@ -95,7 +94,6 @@ AutocompleteMatch NicknameMatchToAutocompleteMatch(
 
   size_t inline_autocomplete_offset = URLPrefix::GetInlineAutocompleteOffset(
       input.text(), input.text(), false, nickname);
-
 
   // If rich autocompletion applies, we skip trying the alternatives below.
   if (!match.TryRichAutocompletion(input, match.contents, match.description) &&

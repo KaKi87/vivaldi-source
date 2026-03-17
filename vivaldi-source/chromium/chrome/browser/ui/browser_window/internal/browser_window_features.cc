@@ -28,6 +28,7 @@
 #include "chrome/browser/media/router/media_router_feature.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/sessions/session_service_factory.h"
+#include "chrome/browser/skills/skills_ui_window_controller.h"
 #include "chrome/browser/tab_group_sync/tab_group_sync_service_factory.h"
 #include "chrome/browser/ui/bookmarks/bookmark_bar_controller.h"
 #include "chrome/browser/ui/breadcrumb_manager_browser_agent.h"
@@ -45,9 +46,10 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/desktop_browser_window_capabilities.h"
 #include "chrome/browser/ui/browser_window/public/embedder_browser_window_features.h"
-#include "chrome/browser/ui/commerce/product_specifications_entry_point_controller.h"
+#include "chrome/browser/ui/context_highlight/context_highlight_window_feature.h"
 #include "chrome/browser/ui/contextual_search/searchbox_context_data.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
+#include "chrome/browser/ui/extensions/extension_installed_watcher.h"
 #include "chrome/browser/ui/extensions/mv2_disabled_dialog_controller.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
 #include "chrome/browser/ui/find_bar/find_bar_controller.h"
@@ -58,9 +60,11 @@
 #include "chrome/browser/ui/promos/ios_promo_controller.h"
 #include "chrome/browser/ui/signin/signin_view_controller.h"
 #include "chrome/browser/ui/sync/browser_synced_window_delegate.h"
+#include "chrome/browser/ui/tab_search_feature.h"
 #include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/tabs/glic_nudge_controller.h"
 #include "chrome/browser/ui/tabs/organization/tab_declutter_controller.h"
+#include "chrome/browser/ui/tabs/projects/projects_panel_state_controller.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/most_recent_shared_tab_update_store.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/saved_tab_groups/session_service_tab_group_sync_observer.h"
@@ -78,15 +82,16 @@
 #include "chrome/browser/ui/toolbar/pinned_toolbar/tab_search_toolbar_button_controller.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/color_provider_browser_helper.h"
+#include "chrome/browser/ui/views/contextual_tasks/contextual_tasks_close_button_controller.h"
 #include "chrome/browser/ui/views/contextual_tasks/contextual_tasks_ephemeral_button_controller.h"
 #include "chrome/browser/ui/views/data_sharing/data_sharing_bubble_controller.h"
 #include "chrome/browser/ui/views/extensions/extension_keybinding_registry_views.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/contents_border_controller.h"
 #include "chrome/browser/ui/views/frame/find_bar_owner_views.h"
+#include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
 #include "chrome/browser/ui/views/frame/immersive_mode_controller.h"
 #include "chrome/browser/ui/views/frame/scrim_view_controller.h"
-#include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
 #include "chrome/browser/ui/views/fullscreen_control/fullscreen_control_host.h"
 #include "chrome/browser/ui/views/incognito_clear_browsing_data_dialog_coordinator.h"
 #include "chrome/browser/ui/views/interaction/browser_elements_views.h"
@@ -112,10 +117,12 @@
 #include "chrome/browser/ui/views/tabs/tab_strip_action_container.h"
 #include "chrome/browser/ui/views/toolbar/chrome_labs/chrome_labs_coordinator.h"
 #include "chrome/browser/ui/views/toolbar/pinned_toolbar_actions_controller.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "chrome/browser/ui/views/translate/translate_bubble_controller.h"
 #include "chrome/browser/ui/views/upgrade_notification_controller.h"
 #include "chrome/browser/ui/views/user_education/impl/browser_user_education_interface_impl.h"
 #include "chrome/browser/ui/waap/initial_web_ui_manager.h"
+#include "chrome/browser/ui/waap/initial_webui_window_metrics_manager.h"
 #include "chrome/browser/ui/web_applications/app_browser_controller.h"
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/ui/webui_browser/browser_elements_webui_browser.h"
@@ -161,20 +168,23 @@
 #include "chrome/browser/ui/views/frame/windows_taskbar_icon_updater.h"
 #endif
 
+#if BUILDFLAG(IS_CHROMEOS)
+#include "chrome/browser/ash/boca/on_task/on_task_locked_controller.h"
+#endif
+
 #if !BUILDFLAG(IS_CHROMEOS)
 #include "chrome/browser/download/bubble/download_bubble_ui_controller.h"
 #include "chrome/browser/download/bubble/download_display_controller.h"
 #include "chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.h"
 #endif
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/actor/ui/task_list_bubble/actor_task_list_bubble_controller.h"
 #include "chrome/browser/glic/browser_ui/glic_button_controller.h"
 #include "chrome/browser/glic/browser_ui/glic_iph_controller.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/ui/tabs/glic_actor_nudge_controller.h"
-#include "chrome/browser/ui/tabs/glic_actor_task_icon_controller.h"
 #include "chrome/browser/ui/views/side_panel/glic/glic_legacy_side_panel_coordinator.h"
 #endif
 
@@ -215,6 +225,14 @@ void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
   // This is used only for the controllers which will be created on demand
   // later.
   browser_ = browser;
+
+  // `InitialWebUIWindowMetricsManager` depends on Browser (for Profile) and
+  // must be initialized before BrowserView creation because it is used by
+  // various views which are created during BrowserView::Init.
+  if (waap::IsInitialWebUIMetricsLoggingEnabled()) {
+    initial_webui_window_metrics_manager_ =
+        std::make_unique<InitialWebUIWindowMetricsManager>(browser);
+  }
 
   searchbox_context_data_ = std::make_unique<SearchboxContextData>();
 
@@ -259,19 +277,6 @@ void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
           profile, browser->GetTabStripModel());
     }
 
-    if (profile->IsRegularProfile()) {
-      auto* shopping_service =
-          commerce::ShoppingServiceFactory::GetForBrowserContext(profile);
-      if (shopping_service && commerce::CanLoadProductSpecificationsFullPageUi(
-                                  shopping_service->GetAccountChecker())) {
-        product_specifications_entry_point_controller_ =
-            GetUserDataFactory()
-                .CreateInstance<
-                    commerce::ProductSpecificationsEntryPointController>(
-                    *browser, browser);
-      }
-    }
-
     if (profile->IsRegularProfile() &&
         browser->GetTabStripModel()->SupportsTabGroups() &&
         tab_groups::TabGroupSyncServiceFactory::GetForProfile(profile)) {
@@ -289,7 +294,7 @@ void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
           std::make_unique<tabs::TabDeclutterController>(browser);
     }
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
     if (glic::GlicEnabling::IsProfileEligible(profile)) {
       DCHECK(features::HasTabSearchToolbarButton());
       glic_iph_controller_ = std::make_unique<glic::GlicIphController>(
@@ -297,14 +302,30 @@ void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
       glic_nudge_controller_ =
           std::make_unique<tabs::GlicNudgeController>(browser);
     }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
     if (tabs::IsVerticalTabsFeatureEnabled()) {
+      const std::optional<bool>& restored_state_collapsed =
+          browser->GetBrowserForMigrationOnly()
+              ->is_vertical_tabs_initially_collapsed();
+      const std::optional<int>& restored_state_uncollapsed_width =
+          browser->GetBrowserForMigrationOnly()
+              ->get_vertical_tabs_initial_uncollapsed_width();
+
       vertical_tab_strip_state_controller_ =
-          std::make_unique<tabs::VerticalTabStripStateController>(
-              profile->GetPrefs(), browser_actions_->root_action_item(),
-              SessionServiceFactory::GetForProfile(browser_->GetProfile()),
-              browser_->GetSessionID());
+          GetUserDataFactory()
+              .CreateInstance<tabs::VerticalTabStripStateController>(
+                  *browser, browser, profile->GetPrefs(),
+                  browser_actions_->root_action_item(),
+                  SessionServiceFactory::GetForProfile(browser_->GetProfile()),
+                  browser_->GetSessionID(), restored_state_collapsed,
+                  restored_state_uncollapsed_width);
+    }
+
+    if (tabs::IsProjectsPanelFeatureEnabled()) {
+      projects_panel_state_controller_ =
+          GetUserDataFactory().CreateInstance<ProjectsPanelStateController>(
+              *browser, browser, browser_actions_->root_action_item());
     }
   }
 
@@ -373,15 +394,20 @@ void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
   signin_view_controller_ = std::make_unique<SigninViewController>(
       browser, profile, tab_strip_model_);
 
+  extension_installed_watcher_ =
+      std::make_unique<ExtensionInstalledWatcher>(profile);
+
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
   if (base::FeatureList::IsEnabled(features::kPdfInfoBar)) {
     pdf_infobar_controller_ =
         std::make_unique<pdf::infobar::PdfInfoBarController>(browser);
   }
+  /* Vivaldi
   if (base::FeatureList::IsEnabled(features::kOfferPinToTaskbarInfoBar)) {
     pin_infobar_controller_ =
         std::make_unique<default_browser::PinInfoBarController>(browser);
   }
+  */
 #endif
 
   data_sharing_bubble_controller_ =
@@ -413,13 +439,17 @@ void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
       browser->GetType() == BrowserWindowInterface::Type::TYPE_DEVTOOLS);
 #endif  // defined(USE_AURA)
 
-  if (features::kGlicActorUiBorderGlow.Get()) {
+  if (base::FeatureList::IsEnabled(features::kGlicActorUi) &&
+      features::kGlicActorUiBorderGlow.Get()) {
     actor_border_view_controller_ =
         std::make_unique<ActorBorderViewController>(browser);
   }
 
   browser_select_file_dialog_controller_ =
       std::make_unique<BrowserSelectFileDialogController>(profile);
+
+  context_highlight_window_feature_ =
+      std::make_unique<ContextHighlightWindowFeature>(*browser);
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
   profile_customization_bubble_sync_controller_ =
@@ -431,6 +461,12 @@ void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
               session_restore_infobar::SessionRestoreInfobarController>(
               *browser, browser);
 #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+
+#if BUILDFLAG(IS_CHROMEOS)
+  on_task_locked_controller_ =
+      GetUserDataFactory().CreateInstance<ash::boca::OnTaskLockedController>(
+          *browser, browser);
+#endif  // BUILDFLAG(IS_CHROMEOS)
 
   // Initialize embedder features last.
   embedder_browser_window_features_ =
@@ -559,21 +595,19 @@ void BrowserWindowFeatures::InitPostWindowConstruction(Browser* browser) {
               *browser, browser);
     }
 
-    if (base::FeatureList::IsEnabled(features::kSideBySide)) {
-      if (browser_view) {
-        split_tab_highlight_controller_ =
-            std::make_unique<split_tabs::SplitTabHighlightController>(
-                browser_view);
-      }
+    if (browser_view) {
+      split_tab_highlight_controller_ =
+          std::make_unique<split_tabs::SplitTabHighlightController>(
+              browser_view);
+    }
 
-      if (base::FeatureList::IsEnabled(
-              feature_engagement::kIPHSideBySidePinnableFeature) ||
-          base::FeatureList::IsEnabled(
-              feature_engagement::kIPHSideBySideTabSwitchFeature)) {
-        split_view_iph_controller_ =
-            GetUserDataFactory().CreateInstance<SplitViewIphController>(
-                *browser, browser);
-      }
+    if (base::FeatureList::IsEnabled(
+            feature_engagement::kIPHSideBySidePinnableFeature) ||
+        base::FeatureList::IsEnabled(
+            feature_engagement::kIPHSideBySideTabSwitchFeature)) {
+      split_view_iph_controller_ =
+          GetUserDataFactory().CreateInstance<SplitViewIphController>(*browser,
+                                                                      browser);
     }
 
     if (vivaldi::IsVivaldiRunning()) {
@@ -611,7 +645,7 @@ void BrowserWindowFeatures::InitPostWindowConstruction(Browser* browser) {
   if (browser_view) {
     color_provider_browser_helper_ =
         std::make_unique<ColorProviderBrowserHelper>(
-            browser->GetTabStripModel(), browser_view->GetWidget());
+            browser->GetTabStripModel(), browser_view->GetWidget(), browser);
   }
 
   live_tab_context_ = std::make_unique<BrowserLiveTabContext>(
@@ -663,7 +697,9 @@ void BrowserWindowFeatures::InitPostWindowConstruction(Browser* browser) {
             extension_keybinding_delegate_.get());
   }
 
-  initial_web_ui_manager_ = std::make_unique<InitialWebUIManager>(browser);
+  if (browser->is_type_normal()) {
+    initial_web_ui_manager_ = std::make_unique<InitialWebUIManager>(browser);
+  }
 
   // Initialize post-window dependent embedder features last.
   embedder_browser_window_features_->InitPostWindowConstruction(browser);
@@ -691,7 +727,8 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
   // making this for most browser.h types, we should also stop making the
   // contents_height_side_panel_.
   side_panel_coordinator_ =
-      std::make_unique<SidePanelCoordinator>(browser_view);
+      GetUserDataFactory().CreateInstance<SidePanelCoordinator>(*browser_,
+                                                                browser_view);
 
   if (HistorySidePanelCoordinator::IsSupported()) {
     history_side_panel_coordinator_ =
@@ -706,14 +743,14 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
     comments_side_panel_coordinator_ =
         std::make_unique<CommentsSidePanelCoordinator>(browser_view->browser());
   }
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (!glic::GlicEnabling::IsMultiInstanceEnabled() &&
       glic::GlicKeyedService::Get(browser_view->GetProfile())) {
     glic_side_panel_coordinator_ =
         std::make_unique<glic::GlicLegacySidePanelCoordinator>(
             browser_view->browser());
   }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
   if (base::FeatureList::IsEnabled(contextual_tasks::kContextualTasks)) {
     contextual_tasks_active_task_context_provider_ =
@@ -721,16 +758,17 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
             browser_,
             contextual_tasks::ContextualTasksServiceFactory::GetForProfile(
                 browser_->GetProfile()));
-    contextual_tasks_side_panel_coordinator_ =
-        GetUserDataFactory()
-            .CreateInstance<
-                contextual_tasks::ContextualTasksSidePanelCoordinator>(
-                *browser_, browser_);
-
     contextual_tasks_entry_point_eligibility_manager_ =
         GetUserDataFactory()
             .CreateInstance<contextual_tasks::EntryPointEligibilityManager>(
                 *browser_, browser_);
+    contextual_tasks_side_panel_coordinator_ =
+        GetUserDataFactory()
+            .CreateInstance<
+                contextual_tasks::ContextualTasksSidePanelCoordinator>(
+                *browser_, browser_,
+                contextual_tasks_active_task_context_provider_.get(),
+                contextual_tasks_entry_point_eligibility_manager_.get());
 
     if (contextual_tasks::kShowEntryPoint.Get() ==
         contextual_tasks::EntryPointOption::kToolbarRevisit) {
@@ -739,6 +777,13 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
               .CreateInstance<ContextualTasksEphemeralButtonController>(
                   *browser_, browser_);
     }
+
+    contextual_tasks_close_button_controller_ =
+        GetUserDataFactory()
+            .CreateInstance<ContextualTasksCloseButtonController>(
+                *browser_, browser_,
+                contextual_tasks_entry_point_eligibility_manager_.get(),
+                contextual_tasks_side_panel_coordinator_.get());
   }
 
   side_panel_coordinator_->Init(browser_view->browser());
@@ -752,7 +797,7 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
           *browser_, &chrome::CreateImmersiveModeController, browser_view);
 
   if (browser_view->GetIsNormalType()) {
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
     glic::GlicKeyedService* glic_service =
         glic::GlicKeyedService::Get(browser_view->GetProfile());
     if (glic_service) {
@@ -761,37 +806,28 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
           BrowserElementsViews::From(browser_view->browser())
               ->GetViewAs<TabStripActionContainer>(
                   kTabStripActionContainerElementId),
+          BrowserElementsViews::From(browser_view->browser())
+              ->GetViewAs<ToolbarView>(ToolbarView::kToolbarElementId),
           glic_service);
 
-      if (features::kGlicActorUiTaskIcon.Get() &&
+      if (base::FeatureList::IsEnabled(features::kGlicActorUi) &&
+          features::kGlicActorUiTaskIcon.Get() &&
           browser_->GetProfile()->IsRegularProfile()) {
-        if (base::FeatureList::IsEnabled(features::kGlicActorUiNudgeRedesign)) {
-          // Will be referenced in GlicActorNudgeController and thus needs to be
-          // instantiated first.
-          actor_task_list_bubble_controller_ =
-              GetUserDataFactory()
-                  .CreateInstance<ActorTaskListBubbleController>(*browser_,
-                                                                 browser_);
-          // Includes browser twice to enable injecting for testing.
-          glic_actor_nudge_controller_ =
-              GetUserDataFactory()
-                  .CreateInstance<tabs::GlicActorNudgeController>(
-                      *browser_, browser_,
-                      BrowserElementsViews::From(browser_view->browser())
-                          ->GetViewAs<TabStripActionContainer>(
-                              kTabStripActionContainerElementId));
-        } else {
-          glic_actor_task_icon_controller_ =
-              GetUserDataFactory()
-                  .CreateInstance<tabs::GlicActorTaskIconController>(
-                      *browser_, browser_,
-                      BrowserElementsViews::From(browser_view->browser())
-                          ->GetViewAs<TabStripActionContainer>(
-                              kTabStripActionContainerElementId));
-        }
+        // Will be referenced in GlicActorNudgeController and thus needs to be
+        // instantiated first.
+        actor_task_list_bubble_controller_ =
+            GetUserDataFactory().CreateInstance<ActorTaskListBubbleController>(
+                *browser_, browser_);
+        // Includes browser twice to enable injecting for testing.
+        glic_actor_nudge_controller_ =
+            GetUserDataFactory().CreateInstance<tabs::GlicActorNudgeController>(
+                *browser_, browser_,
+                BrowserElementsViews::From(browser_view->browser())
+                    ->GetViewAs<TabStripActionContainer>(
+                        kTabStripActionContainerElementId));
       }
     }
-#endif  // BUILDFLAG(ENABLE_GLIC)
+#endif  // BUILDFLAG(ENABLE_GLIC) // Vivaldi keep disabled
 
     // Memory Saver mode is default off but is available to turn on.
     // The controller relies on performance manager which isn't initialized in
@@ -820,7 +856,8 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
               *browser_, browser_, std::move(container_overlay_view_pairs));
     }
 
-    if (features::HasTabSearchToolbarButton()) {
+    if (features::HasTabSearchToolbarButton() ||
+        tabs::IsVerticalTabsFeatureEnabled()) {
       tab_search_toolbar_button_controller_ =
           std::make_unique<TabSearchToolbarButtonController>(browser_view);
     }
@@ -867,6 +904,9 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
   omnibox_popup_closer_ =
       std::make_unique<omnibox::OmniboxPopupCloser>(browser_view);
 
+  skills_ui_window_controller_ =
+      std::make_unique<skills::SkillsUiWindowController>(browser_);
+
   // Initialize post-BrowserView-dependent embedder features last.
   embedder_browser_window_features_->InitPostBrowserViewConstruction(
       browser_view);
@@ -894,14 +934,15 @@ void BrowserWindowFeatures::TearDownPreBrowserWindowDestruction() {
   extension_window_controller_.reset();
   actor_border_view_controller_.reset();
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   glic_button_controller_.reset();
-  glic_actor_task_icon_controller_.reset();
   glic_actor_nudge_controller_.reset();
   actor_task_list_bubble_controller_.reset();
 #endif
 
+  contextual_tasks_close_button_controller_.reset();
   contextual_tasks_side_panel_coordinator_.reset();
+  contextual_tasks_entry_point_eligibility_manager_.reset();
 
 #if !BUILDFLAG(IS_CHROMEOS)
   if (download_toolbar_ui_controller_) {
@@ -967,6 +1008,8 @@ void BrowserWindowFeatures::TearDownPreBrowserWindowDestruction() {
 
   split_tab_highlight_controller_.reset();
 
+  extension_installed_watcher_.reset();
+
 #if BUILDFLAG(IS_WIN)
   windows_taskbar_icon_updater_.reset();
 #endif
@@ -993,7 +1036,11 @@ void BrowserWindowFeatures::TearDownPreBrowserWindowDestruction() {
 
 #ifndef VIVALDI_BUILD
   ai_mode_page_action_controller_.reset();
-#endif
+#endif // Vivaldi
+
+  skills_ui_window_controller_.reset();
+
+  context_highlight_window_feature_.reset();
 }
 
 SidePanelUI* BrowserWindowFeatures::side_panel_ui() {
@@ -1002,7 +1049,7 @@ SidePanelUI* BrowserWindowFeatures::side_panel_ui() {
     return vivaldi_side_panel_coordinator_.get();
   } // End Vivaldi
 
-  if (webui_browser::IsWebUIBrowserEnabled()) {
+  if (webui_browser::IsWebUIBrowserEnabled() && webui_browser_side_panel_ui_) {
     return webui_browser_side_panel_ui_.get();
   }
 

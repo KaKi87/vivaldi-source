@@ -2,7 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/containers/contains.h"
+#include <algorithm>
+
 #include "base/strings/string_util.h"
 #include "device/vr/openxr/openxr_util.h"
 #include "device/vr/openxr/test/openxr_negotiate.h"
@@ -218,7 +219,7 @@ XrResult xrCreateInstance(const XrInstanceCreateInfo* create_info,
   auto supported_extensions = OpenXrTestHelper::GetSupportedExtensions();
   bool all_valid = std::ranges::all_of(
       enabled_extensions, [&supported_extensions](std::string_view name) {
-        return base::Contains(supported_extensions, name);
+        return std::ranges::contains(supported_extensions, name);
       });
 
   RETURN_IF_FALSE(all_valid, XR_ERROR_VALIDATION_FAILURE,
@@ -337,8 +338,9 @@ XrResult xrCreateSwapchain(XrSession session,
             "XrSwapchainCreateInfo width is zero");
   RETURN_IF(create_info->height == 0, XR_ERROR_VALIDATION_FAILURE,
             "XrSwapchainCreateInfo height is zero");
-  RETURN_IF(create_info->faceCount != 1, XR_ERROR_VALIDATION_FAILURE,
-            "XrSwapchainCreateInfo faceCount is not 1");
+  RETURN_IF(create_info->faceCount != 1 && create_info->faceCount != 6,
+            XR_ERROR_VALIDATION_FAILURE,
+            "XrSwapchainCreateInfo faceCount is not 1 or 6");
   RETURN_IF(create_info->arraySize != 1, XR_ERROR_VALIDATION_FAILURE,
             "XrSwapchainCreateInfo arraySize invalid");
   RETURN_IF(create_info->mipCount != 1, XR_ERROR_VALIDATION_FAILURE,
@@ -400,22 +402,23 @@ XrResult xrEndFrame(XrSession session, const XrFrameEndInfo* frame_end_info) {
                 OpenXrTestHelper::kEnvironmentBlendMode,
             XR_ERROR_VALIDATION_FAILURE,
             "XrFrameEndInfo environmentBlendMode invalid");
-  // We currently only support one layer per view configuration.
-  RETURN_IF(frame_end_info->layerCount != 1, XR_ERROR_VALIDATION_FAILURE,
-            "XrFrameEndInfo layerCount invalid");
-  RETURN_IF(frame_end_info->layers == nullptr, XR_ERROR_LAYER_INVALID,
-            "XrFrameEndInfo has nullptr layers");
+  if (frame_end_info->layerCount) {
+    RETURN_IF(frame_end_info->layers == nullptr, XR_ERROR_LAYER_INVALID,
+              "XrFrameEndInfo has nullptr layers");
 
-  // SAFETY: Test-only implementation of a C-Style API that thus has to provide
-  // arrays as a pointer and a size. The sole callers are our own product/test
-  // code.
-  auto layers = UNSAFE_BUFFERS(
-      base::span(frame_end_info->layers, frame_end_info->layerCount));
-  for (const auto* layer : layers) {
-    const XrCompositionLayerProjection* primary_layer_ptr =
-        reinterpret_cast<const XrCompositionLayerProjection*>(layer);
-    RETURN_IF_XR_FAILED(g_test_helper.ValidateXrCompositionLayerProjection(
-        g_test_helper.PrimaryViewConfig(), *primary_layer_ptr));
+    // SAFETY: Test-only implementation of a C-Style API that thus has to
+    // provide arrays as a pointer and a size. The sole callers are our own
+    // product/test code.
+    auto layers = UNSAFE_BUFFERS(
+        base::span(frame_end_info->layers, frame_end_info->layerCount));
+    for (const auto* layer : layers) {
+      if (layer->type == XR_TYPE_COMPOSITION_LAYER_PROJECTION) {
+        const XrCompositionLayerProjection* primary_layer_ptr =
+            reinterpret_cast<const XrCompositionLayerProjection*>(layer);
+        RETURN_IF_XR_FAILED(g_test_helper.ValidateXrCompositionLayerProjection(
+            g_test_helper.PrimaryViewConfig(), *primary_layer_ptr));
+      }
+    }
   }
 
   if (frame_end_info->next != nullptr) {
@@ -459,8 +462,7 @@ XrResult xrEndFrame(XrSession session, const XrFrameEndInfo* frame_end_info) {
                 XR_ERROR_VALIDATION_FAILURE,
                 "XrSecondaryViewConfigurationLayerInfoMSFT "
                 "environmentBlendMode invalid");
-      // We currently only support one layer per view configuration.
-      RETURN_IF(layer_info.layerCount != 1, XR_ERROR_VALIDATION_FAILURE,
+      RETURN_IF(layer_info.layerCount == 0, XR_ERROR_VALIDATION_FAILURE,
                 "XrSecondaryViewConfigurationLayerInfoMSFT layerCount invalid");
       RETURN_IF(layer_info.layers == nullptr, XR_ERROR_LAYER_INVALID,
                 "XrSecondaryViewConfigurationLayerInfoMSFT has nullptr layers");
@@ -1011,6 +1013,7 @@ XrResult xrGetSystemProperties(XrInstance instance,
 
   *system_properties = g_test_helper.GetSystemProperties();
   system_properties->systemId = system_id;
+  system_properties->graphicsProperties.maxLayerCount = 16;
 
   return XR_SUCCESS;
 }

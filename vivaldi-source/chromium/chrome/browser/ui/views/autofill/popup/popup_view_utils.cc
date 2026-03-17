@@ -274,7 +274,7 @@ bool BoundsOverlapWithOpenPermissionsPrompt(
 bool BoundsOverlapWithPictureInPictureWindow(const gfx::Rect& screen_bounds) {
   std::optional<gfx::Rect> pip_window_bounds =
       PictureInPictureWindowManager::GetInstance()
-          ->GetPictureInPictureWindowBounds();
+          ->GetPictureInPictureWindowBoundsInScreen();
   return pip_window_bounds && pip_window_bounds->Intersects(screen_bounds);
 }
 
@@ -565,6 +565,8 @@ bool IsExpandableSuggestionType(SuggestionType type) {
     case SuggestionType::kInsecureContextPaymentDisabledMessage:
     case SuggestionType::kManageAddress:
     case SuggestionType::kManageAutofillAi:
+    case SuggestionType::kManageAutofillAiIdentityDocs:
+    case SuggestionType::kManageAutofillAiTravel:
     case SuggestionType::kManageCreditCard:
     case SuggestionType::kManageIban:
     case SuggestionType::kManageLoyaltyCard:

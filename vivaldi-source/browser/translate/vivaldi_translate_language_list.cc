@@ -86,7 +86,7 @@ void VivaldiTranslateLanguageList::SetPrefsListAsDefault() {
 }
 
 void VivaldiTranslateLanguageList::SetListInChromium(
-    const base::Value::List& list) {
+    const base::ListValue& list) {
   translate::TranslateLanguageList* language_list =
       translate::TranslateDownloadManager::GetInstance()->language_list();
   if (language_list) {
@@ -205,7 +205,7 @@ void VivaldiTranslateLanguageList::StartDownload() {
 }
 
 void VivaldiTranslateLanguageList::OnListDownloaded(
-    std::unique_ptr<std::string> response_body) {
+    std::optional<std::string> response_body) {
   do {
     if (!response_body || response_body->empty()) {
       LOG(WARNING) << "Downloading language list from server "
@@ -219,7 +219,7 @@ void VivaldiTranslateLanguageList::OnListDownloaded(
       LOG(ERROR) << "Invalid language list JSON";
       break;
     }
-    base::Value::List* list = json->GetIfList();
+    base::ListValue* list = json->GetIfList();
     if (!list ||
         !std::all_of(list->begin(), list->end(),
                      [](const base::Value& v) { return v.is_string(); })) {

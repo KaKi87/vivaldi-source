@@ -19,7 +19,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/tabs/tab_icon.h"
+#include "chrome/browser/ui/views/tabs/tab/tab_icon.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
 #include "components/embedder_support/switches.h"
@@ -50,6 +50,8 @@ class JavaScriptDialogTest : public InProcessBrowserTest {
     host_resolver()->AddRule("*", "127.0.0.1");
     ASSERT_TRUE(embedded_test_server()->Start());
   }
+
+  TabStripModel* tab_strip_model() { return browser()->tab_strip_model(); }
 
  private:
   friend class JavaScriptDialogDismissalCauseTester;
@@ -484,19 +486,7 @@ IN_PROC_BROWSER_TEST_P(JavaScriptDialogOriginTest, TitleForNonHTTPOrigin) {
             dialog_manager->GetTitle(tab, subframe->GetLastCommittedOrigin()));
 }
 
-class JavaScriptDialogForSplitViewTest : public JavaScriptDialogTest {
- public:
-  JavaScriptDialogForSplitViewTest() {
-    scoped_feature_list_.InitWithFeatures({features::kSideBySide}, {});
-  }
-
-  TabStripModel* tab_strip_model() { return browser()->tab_strip_model(); }
-
- private:
-  base::test::ScopedFeatureList scoped_feature_list_;
-};
-
-IN_PROC_BROWSER_TEST_F(JavaScriptDialogForSplitViewTest,
+IN_PROC_BROWSER_TEST_F(JavaScriptDialogTest,
                        HandlesSwappingTabWithDialogIntoSplitView) {
   // Create three tabs with the first two in a split view.
   chrome::NewTab(browser());
@@ -523,7 +513,7 @@ IN_PROC_BROWSER_TEST_F(JavaScriptDialogForSplitViewTest,
   tab_strip_model()->ActivateTabAt(0);
   ASSERT_TRUE(browser()
                   ->GetBrowserView()
-                  .tabstrip()
+                  .horizontal_tab_strip_for_testing()
                   ->tab_at(2)
                   ->GetTabIconForTesting()
                   ->GetShowingAttentionIndicator());

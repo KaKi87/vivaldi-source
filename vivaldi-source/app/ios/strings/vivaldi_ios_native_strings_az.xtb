@@ -55,6 +55,7 @@
 <translation id="1573784689611551537">Reklam əıngəlləmə mənbələrini idarə edin</translation>
 <translation id="1577761519530347814">Saxlanılmış veb səhifə şifrələrini eyniləşdirin</translation>
 <translation id="1620921465699122417">Tərcümə ediləcək mətni daxil edin</translation>
+<translation id="1624621765073396937">Vərəqi bağlamaq üçün sürüşdürmək</translation>
 <translation id="1631998297781042533">Populyar saytlar</translation>
 <translation id="1644574205037202324">Tarixçə</translation>
 <translation id="1655816024544228768">İdman</translation>
@@ -106,6 +107,7 @@
 <translation id="2330644510603114741">Vərəq davranışları</translation>
 <translation id="233493642829799329">Bunu dəyişdirmək bəzi vərəqlərinizin yenidən yüklənməsinə gətirib çıxara bilər</translation>
 <translation id="2336309953058658733">Səbəti boşaldın</translation>
+<translation id="2336679896177818431">Ünvan sətrində yuxarı və ya aşağı sürüşdürmək vərəq dəəyişdiricini açır</translation>
 <translation id="2359808026110333948">Davam edin</translation>
 <translation id="2386793615875593361">1 seçildi</translation>
 <translation id="2387049655823108978">Başqa cihazlardakı açıq vərəqləri eyniləşdirin</translation>
@@ -127,6 +129,7 @@
 <translation id="261264557609353020">Başlanğıc səhifə</translation>
 <translation id="2619628557366098325">Portuqalca (<ph name="ORIGIN" />)</translation>
 <translation id="2620436844016719705">Sistem</translation>
+<translation id="2638305832232696831">Ünvan sətrini sürüşdürmə jestini aktiv etmək</translation>
 <translation id="2653659639078652383">Göndərmək</translation>
 <translation id="2666092431469916601">Yuxarıda</translation>
 <translation id="2677862276555105603">Reklam
@@ -153,6 +156,7 @@
 <translation id="2862504765180635001">Bunu eşitdiyimizə təəssüfləndik!</translation>
 <translation id="2878511608894704031">Hamısını silin</translation>
 <translation id="2884735088411646852">Çeşidləmə</translation>
+<translation id="2892480112292889945"><ph name="ORIGIN" /> (Müxtəlif elementləri əngəlləyir))</translation>
 <translation id="2898963176829412617">Yeni qovluq…</translation>
 <translation id="2918704853620385162">Sonuncu vərəq bağlandıqda yeni vərəq açılsın</translation>
 <translation id="2924890236896835588">Qrupun adı</translation>
@@ -172,6 +176,7 @@
 <translation id="3142562627629111859">Yeni qrup</translation>
 <translation id="3157931365184549694">Bərpa edin</translation>
 <translation id="3159285901314605198">Arxa fon şəkli</translation>
+<translation id="317084213044777332">Əsas axtarış mühərriki kimi təyin etmək</translation>
 <translation id="3177673846235066154">Server məlumatlarınızı qəbul etmədi.</translation>
 <translation id="3180057018690062250">Yayım</translation>
 <translation id="3180358318770512945">Valideyin nəzarəti</translation>
@@ -496,6 +501,7 @@
 <translation id="6946395294519639514">Panellər sayəsində lazımi alətlərəl veb-bələdçinin yan panelində əlinizin altında olacaq.</translation>
 <translation id="6951435330868954105">Standart ayarları idarə edin</translation>
 <translation id="6951948201878750661">B rəngi seçmək üçün vurun</translation>
+<translation id="6954630860045222581">Paneli göstərmək</translation>
 <translation id="6967884871145366229">Məxfilik ayarları</translation>
 <translation id="6973630695168034713">Qovluqlar</translation>
 <translation id="7000227144065890583">URL təklifləri</translation>
@@ -593,6 +599,7 @@
 <translation id="8066170816074394954">Server xətası.</translation>
 <translation id="8076492880354921740">Vərəqlər</translation>
 <translation id="8077675488769462025">Aktiv olmayan vərəqlər</translation>
+<translation id="8079925180539182073">Əsas axtarış mühərriki silinə bilməz.</translation>
 <translation id="8112996065264879835">Bu kod sizə göndərdiyimiz kod ilə eyni deyil.
             Maksimum yalnış cəhd sayı həddini keçdiniz. Aşağıdakı Yenidən göndər seçimi ilə yeni kod tələb edin.</translation>
 <translation id="8131740175452115882">Təsdiq edin</translation>
@@ -638,6 +645,7 @@
 <translation id="856439694359429369">Daha çox seçimlər üçün vurun və ya iki dəfə vurmaqla açın.</translation>
 <translation id="8591818185775466306"><ph name="ITEM_TYPE" /> silmək</translation>
 <translation id="8605953154325672921">İstifadəçi adı tələb olunur</translation>
+<translation id="861259508026988871">Axtarış mühərriki kimi əlavə etmək</translation>
 <translation id="8675578805254882416">Alınır</translation>
 <translation id="8677007239430848917">Aşağıdakı üstəgəl nişanına vuraraq ilk əlfəcininizi əlavə edin</translation>
 <translation id="8684294196284714094">Vivaldini əsas veb-bələdçiniz təyin etməyə hazırsınız?</translation>

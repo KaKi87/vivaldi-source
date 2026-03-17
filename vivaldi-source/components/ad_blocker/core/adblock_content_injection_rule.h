@@ -3,26 +3,22 @@
 #ifndef COMPONENTS_AD_BLOCKER_CORE_ADBLOCK_CONTENT_INJECTION_RULE_H_
 #define COMPONENTS_AD_BLOCKER_CORE_ADBLOCK_CONTENT_INJECTION_RULE_H_
 
-#include <set>
 #include <string>
 #include <vector>
+
+#include "components/ad_blocker/core/adblock_domain_constraints_tree.h"
 
 namespace adblock_filter {
 
 struct ContentInjectionRuleCore {
  public:
-  ContentInjectionRuleCore();
+  explicit ContentInjectionRuleCore(bool invert);
   ~ContentInjectionRuleCore();
   ContentInjectionRuleCore(ContentInjectionRuleCore&& other);
   ContentInjectionRuleCore& operator=(ContentInjectionRuleCore&& other);
   bool operator==(const ContentInjectionRuleCore& other) const;
 
-  ContentInjectionRuleCore Clone();
-
-  bool is_allow_rule = false;
-
-  std::set<std::string> included_domains;
-  std::set<std::string> excluded_domains;
+  DomainConstraintsTree domain_constraints;
 
  private:
   ContentInjectionRuleCore(const ContentInjectionRuleCore& other);
@@ -30,7 +26,7 @@ struct ContentInjectionRuleCore {
 
 struct CosmeticRule {
  public:
-  CosmeticRule();
+  explicit CosmeticRule(ContentInjectionRuleCore core);
   ~CosmeticRule();
   CosmeticRule(CosmeticRule&& other);
   CosmeticRule& operator=(CosmeticRule&& other);
@@ -45,16 +41,21 @@ using CosmeticRules = std::vector<CosmeticRule>;
 
 struct ScriptletInjectionRule {
  public:
-  ScriptletInjectionRule();
+  struct Scriptlet {
+    std::string name;
+    std::vector<std::string> arguments;
+
+    bool operator==(const Scriptlet& other) const;
+  };
+
+  explicit ScriptletInjectionRule(ContentInjectionRuleCore core);
   ~ScriptletInjectionRule();
   ScriptletInjectionRule(ScriptletInjectionRule&& other);
   ScriptletInjectionRule& operator=(ScriptletInjectionRule&& other);
   bool operator==(const ScriptletInjectionRule& other) const;
 
   ContentInjectionRuleCore core;
-
-  std::string scriptlet_name;
-  std::vector<std::string> arguments;
+  std::vector<Scriptlet> scriptlets;
 };
 
 using ScriptletInjectionRules = std::vector<ScriptletInjectionRule>;

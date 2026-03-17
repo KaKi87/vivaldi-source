@@ -38,11 +38,11 @@ constexpr char kResourceUrlPrefix[] = "/resources/";
 // Parse the path component of chrome://vivaldi-data/ URLs. Typically it is
 // /type/data, but there are few older formats that deviates from it.
 std::optional<PathType> ParsePath(std::string_view path,
-                                   std::string* data = nullptr);
+                                  std::string* data = nullptr);
 
 // Parse the full url.
 std::optional<PathType> ParseUrl(std::string_view url,
-                                  std::string* data = nullptr);
+                                 std::string* data = nullptr);
 
 // Check if the url points to internal Vivaldi resources. If |subpath| is not
 // null on return |*subpath| holds the resource path.

@@ -7,12 +7,12 @@
 
 #include "base/callback_list.h"
 #include "base/time/time.h"
+#include "chrome/browser/glic/common/local_hotkey_manager.h"
 #include "chrome/browser/glic/host/context/glic_screenshot_capturer.h"
 #include "chrome/browser/glic/host/glic.mojom.h"
 #include "chrome/browser/glic/host/host.h"
 #include "chrome/browser/glic/service/glic_ui_embedder.h"
 #include "chrome/browser/glic/widget/glic_window_event_observer.h"
-#include "chrome/browser/glic/widget/local_hotkey_manager.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/web_modal/web_contents_modal_dialog_host.h"
 #include "components/web_modal/web_contents_modal_dialog_manager_delegate.h"
@@ -52,13 +52,14 @@ class GlicFloatingUi : public GlicUiEmbedder,
   ~GlicFloatingUi() override;
 
   static gfx::Size GetDefaultSize();
+  static gfx::Size GetCompositeViewDefaultSize();
 
   // GlicUiEmbedder:
   void OnClientReady() override;
   Host::EmbedderDelegate* GetHostEmbedderDelegate() override;
   void Show(const ShowOptions& options) override;
   bool IsShowing() const override;
-  void Close() override;
+  void Close(const CloseOptions& options) override;
   std::unique_ptr<GlicUiEmbedder> CreateInactiveEmbedder() const override;
   void Focus() override;
   mojom::PanelState GetPanelState() const override;
@@ -69,8 +70,6 @@ class GlicFloatingUi : public GlicUiEmbedder,
   void Resize(const gfx::Size& size,
               base::TimeDelta duration,
               base::OnceClosure callback) override;
-  void SetDraggableAreas(
-      const std::vector<gfx::Rect>& draggable_areas) override;
   void EnableDragResize(bool enabled) override;
   void Attach() override;
   void Detach() override;
@@ -82,6 +81,7 @@ class GlicFloatingUi : public GlicUiEmbedder,
       glic::mojom::WebClientHandler::CaptureScreenshotCallback callback)
       override;
   void ClosePanel() override;
+  void OnReload() override;
 
   // GlicWindowEventObserver::Delegate:
   GlicWindowAnimator* window_animator() override;
@@ -121,9 +121,9 @@ class GlicFloatingUi : public GlicUiEmbedder,
   void CreateAndSetupWidget(gfx::Rect initial_bounds);
   void MaybeSetWidgetCanResize();
   void SetGlicWindowToFloatingMode(bool floating);
-  void OnSourceTabDestroyed(tabs::TabInterface* tab,
-                            const InstanceId& instance_id);
+  void OnSourceTabDestroyed(tabs::TabInterface* tab);
   void FloatingPanelCanAttachChanged(bool can_attach);
+  void ConfigureWebContentsModalDialogs();
 
   // Whether the widget should be user resizable, kept here in case it's
   // specified before the widget is created.

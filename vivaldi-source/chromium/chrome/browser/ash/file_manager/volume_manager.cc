@@ -1091,7 +1091,7 @@ void VolumeManager::OnExternalStorageDisabledChangedUnmountCallback(
   while (!remaining_mount_paths.empty()) {
     std::string mount_path = remaining_mount_paths.back();
     remaining_mount_paths.pop_back();
-    if (!base::Contains(disk_mount_manager_->mount_points(), mount_path)) {
+    if (!disk_mount_manager_->mount_points().contains(mount_path)) {
       // The mount point could have already been removed for another reason
       // (i.e. the disk was removed by the user).
       continue;
@@ -1459,8 +1459,8 @@ void VolumeManager::OnClipboardDataChanged() {
     return;
   }
 
-  base::Pickle pickle =
-      base::Pickle::WithUnownedBuffer(base::as_byte_span(web_custom_data));
+  const base::Pickle pickle =
+      base::Pickle::WithData(base::as_byte_span(web_custom_data));
   std::vector<ui::FileInfo> file_info =
       file_manager::util::ParseFileSystemSources(
           base::OptionalToPtr(data->source()), pickle);

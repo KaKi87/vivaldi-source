@@ -17,7 +17,8 @@ import androidx.core.content.res.ResourcesCompat;
 import androidx.core.graphics.Insets;
 
 import org.chromium.base.Callback;
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
+import org.chromium.base.supplier.NullableObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.build.annotations.Nullable;
 import org.chromium.chrome.browser.tab.Tab;
@@ -43,7 +44,7 @@ class BackButtonMediator implements ThemeColorProvider.TintObserver {
     private final ThemeColorProvider mThemeColorProvider;
     private final TabSupplierObserver mTabObserver;
     private @Nullable Tab mCurrentTab;
-    private final ObservableSupplier<Boolean> mEnabledSupplier;
+    private final NonNullObservableSupplier<Boolean> mEnabledSupplier;
     private final Callback<Boolean> mEnabledObserver;
     private Insets mInsets;
     private final boolean mIsWebApp;
@@ -65,8 +66,8 @@ class BackButtonMediator implements ThemeColorProvider.TintObserver {
             PropertyModel model,
             ClickWithMetaStateCallback onBackPressed,
             ThemeColorProvider themeColorProvider,
-            ObservableSupplier<@Nullable Tab> tabSupplier,
-            ObservableSupplier<Boolean> enabledSupplier,
+            NullableObservableSupplier<Tab> tabSupplier,
+            NonNullObservableSupplier<Boolean> enabledSupplier,
             Callback<Tab> showNavigationPopup,
             Resources resources,
             Context context,
@@ -96,7 +97,7 @@ class BackButtonMediator implements ThemeColorProvider.TintObserver {
 
         mEnabledSupplier = enabledSupplier;
         mEnabledObserver = (isEnabled) -> updateButtonEnabledState();
-        mEnabledSupplier.addObserver(mEnabledObserver);
+        mEnabledSupplier.addSyncObserverAndPostIfNonNull(mEnabledObserver);
 
         // From web_contents_impl.cc and browser.cc back button's enabled state is updated based on
         // the InvalidateType.{TAB, LOAD, and URL} flags that are mapped to the callbacks below.

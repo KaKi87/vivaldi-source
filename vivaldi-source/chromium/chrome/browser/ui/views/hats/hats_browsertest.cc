@@ -10,6 +10,7 @@
 #include "base/json/values_util.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
+#include "base/strings/strcat.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
 #include "base/time/time.h"
@@ -159,7 +160,7 @@ IN_PROC_BROWSER_TEST_F(HatsNextWebDialogBrowserTest, SurveyLoaded) {
 
   // Check that no record of a survey being shown is present.
   {
-    const base::Value::Dict& pref_data =
+    const base::DictValue& pref_data =
         browser()->profile()->GetPrefs()->GetDict(prefs::kHatsSurveyMetadata);
     std::optional<base::Time> last_survey_started_time =
         base::ValueToTime(pref_data.FindByDottedPath(kLastSurveyStartedTime));
@@ -183,7 +184,7 @@ IN_PROC_BROWSER_TEST_F(HatsNextWebDialogBrowserTest, SurveyLoaded) {
 
   // Check that a record of the survey being shown has been recorded.
   {
-    const base::Value::Dict& pref_data =
+    const base::DictValue& pref_data =
         browser()->profile()->GetPrefs()->GetDict(prefs::kHatsSurveyMetadata);
     std::optional<base::Time> last_survey_started_time =
         base::ValueToTime(pref_data.FindByDottedPath(kLastSurveyStartedTime));
@@ -217,7 +218,7 @@ IN_PROC_BROWSER_TEST_F(HatsNextWebDialogBrowserTest,
 
   // Check that no record of a survey being shown is present.
   {
-    const base::Value::Dict& pref_data =
+    const base::DictValue& pref_data =
         browser()->profile()->GetPrefs()->GetDict(prefs::kHatsSurveyMetadata);
     std::optional<base::Time> last_survey_started_time =
         base::ValueToTime(pref_data.FindByDottedPath(kLastSurveyStartedTime));
@@ -241,7 +242,7 @@ IN_PROC_BROWSER_TEST_F(HatsNextWebDialogBrowserTest,
 
   // Check that a record of the survey being shown has been recorded.
   {
-    const base::Value::Dict& pref_data =
+    const base::DictValue& pref_data =
         browser()->profile()->GetPrefs()->GetDict(prefs::kHatsSurveyMetadata);
     std::optional<base::Time> last_survey_started_time =
         base::ValueToTime(pref_data.FindByDottedPath(kLastSurveyStartedTime));

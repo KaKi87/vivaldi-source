@@ -1,7 +1,10 @@
 .text
 .file 1 "inserted_by_delocate.c"
 .loc 1 1 0
+.globl BORINGSSL_bcm_text_start
+.hidden BORINGSSL_bcm_text_start
 BORINGSSL_bcm_text_start:
+.LBORINGSSL_bcm_text_start_local_target:
 	.type foo, @function
 	.globl foo
 .Lfoo_local_target:
@@ -130,6 +133,8 @@ bar:
 	.equ	.Llocally_set_symbol2_BCM_1, 2
 # WAS .equiv .Llocally_set_symbol3, 3
 	.equiv	.Llocally_set_symbol3_BCM_1, 3
+# WAS .Llocally_set_symbol4 = 4
+	.Llocally_set_symbol4_BCM_1 = 4
 
 # References to local symbols in .set directives should be rewritten.
 # WAS .set alias_to_local_label, .Llocal_label
@@ -141,19 +146,27 @@ bar:
 # WAS .equiv alias_to_local_label, .Llocal_label
 	.equiv	alias_to_local_label, .Llocal_label_BCM_1
 	.equiv	.Lalias_to_local_label_local_target, .Llocal_label_BCM_1
+# WAS alias_to_local_label = .LLocal_label
+	alias_to_local_label = .LLocal_label_BCM_1
+	.Lalias_to_local_label_local_target = .LLocal_label_BCM_1
 # WAS .set .Llocal_alias_to_local_label, .Llocal_label
 	.set	.Llocal_alias_to_local_label_BCM_1, .Llocal_label_BCM_1
 # WAS .equ .Llocal_alias_to_local_label, .Llocal_label
 	.equ	.Llocal_alias_to_local_label_BCM_1, .Llocal_label_BCM_1
 # WAS .equiv .Llocal_alias_to_local_label, .Llocal_label
 	.equiv	.Llocal_alias_to_local_label_BCM_1, .Llocal_label_BCM_1
+# WAS .Llocal_alias_to_local_label = .Llocal_label
+	.Llocal_alias_to_local_label_BCM_1 = .Llocal_label_BCM_1
 
 	# When rewritten, AVX-512 tokens are preserved.
 # WAS vpcmpneqq .Llabel(%rip){1to8}, %zmm1, %k0
 	vpcmpneqq	.Llabel_BCM_1(%rip){1to8}, %zmm1, %k0
 .text
 .loc 1 2 0
+.globl BORINGSSL_bcm_text_end
+.hidden BORINGSSL_bcm_text_end
 BORINGSSL_bcm_text_end:
+.LBORINGSSL_bcm_text_end_local_target:
 .type bcm_redirector_memcpy, @function
 bcm_redirector_memcpy:
 	jmp	memcpy@PLT

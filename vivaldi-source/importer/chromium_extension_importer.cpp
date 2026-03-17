@@ -21,9 +21,9 @@ inline constexpr char kChromeExtensionsListPath[] = "extensions.settings";
 inline constexpr char kChromeSecurePreferencesFile[] = "Secure Preferences";
 inline constexpr char kChromePreferencesFile[] = "Preferences";
 
-base::Value::Dict GetExtensionsFromPreferences(const base::FilePath& path) {
+base::DictValue GetExtensionsFromPreferences(const base::FilePath& path) {
   if (!base::PathExists(path)) {
-    return base::Value::Dict();
+    return base::DictValue();
   }
 
   std::string preferences_content;
@@ -32,17 +32,17 @@ base::Value::Dict GetExtensionsFromPreferences(const base::FilePath& path) {
   std::optional<base::Value> preferences = base::JSONReader::Read(
       preferences_content, base::JSON_PARSE_CHROMIUM_EXTENSIONS);
   if (!preferences || !preferences->is_dict()) {
-    return base::Value::Dict();
+    return base::DictValue();
   }
 
   if (auto* extensions = preferences->GetDict().FindDictByDottedPath(
           kChromeExtensionsListPath)) {
     return extensions->Clone();
   }
-  return base::Value::Dict();
+  return base::DictValue();
 }
 
-base::Value::Dict GetChromiumExtensions(const base::FilePath& profile_dir) {
+base::DictValue GetChromiumExtensions(const base::FilePath& profile_dir) {
   auto secure_preferences = GetExtensionsFromPreferences(
       profile_dir.AppendASCII(kChromeSecurePreferencesFile));
 
@@ -54,11 +54,11 @@ base::Value::Dict GetChromiumExtensions(const base::FilePath& profile_dir) {
 }
 
 std::vector<std::string> FilterImportableExtensions(
-    const base::Value::Dict& extensions_list) {
+    const base::DictValue& extensions_list) {
   std::vector<std::string> extensions;
   for (const auto [key, value] : extensions_list) {
     DCHECK(value.is_dict());
-    const base::Value::Dict& dict = value.GetDict();
+    const base::DictValue& dict = value.GetDict();
     // Do not import:
     // * extensions installed by default
     if (dict.FindBool("was_installed_by_default").value_or(true)) {

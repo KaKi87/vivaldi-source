@@ -308,7 +308,6 @@ void WebContentsViewChildFrame::StartDragging(
   }
 }
 
-/*static*/
 RenderWidgetHostViewChildFrame*
 WebContentsViewChildFrame::CreateRenderWidgetHostViewForInnerFrameTree(
     WebContentsImpl* web_contents,
@@ -325,11 +324,7 @@ WebContentsViewChildFrame::CreateRenderWidgetHostViewForInnerFrameTree(
                                                 screen_infos);
 }
 
-// located here because of no webcontentsview.h
-bool WebContentsView::IsWebContentsViewChildFrame() const {
-  return false;
-}
-
+// Vivaldi
 bool WebContentsViewChildFrame::IsWebContentsViewChildFrame() const {
   return true;
 }
@@ -364,5 +359,6 @@ void WebContentsViewChildFrame::SetOverscrollControllerEnabled(bool enabled) {
     gesture_nav_simple_.reset();
 #endif // USE_AURA
 }
+// End Vivaldi
 
 }  // namespace content

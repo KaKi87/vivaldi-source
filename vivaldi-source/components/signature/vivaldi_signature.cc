@@ -1,6 +1,6 @@
+#include <optional>
 #include <string>
 #include <vector>
-#include <optional>
 
 #include "base/base64.h"
 #include "base/logging.h"
@@ -15,9 +15,10 @@
 namespace vivaldi {
 namespace {
 
-static constexpr const char * kDebuggingSearchEngines = "debug-search-engines";
-static constexpr const char * kSearchEnginesUrl = "search-engines-url";
-static constexpr const char * kSearchEnginesPromptUrl = "search-engines-prompt-url";
+static constexpr const char* kDebuggingSearchEngines = "debug-search-engines";
+static constexpr const char* kSearchEnginesUrl = "search-engines-url";
+static constexpr const char* kSearchEnginesPromptUrl =
+    "search-engines-prompt-url";
 
 #include "vivaldi_key.inc"
 

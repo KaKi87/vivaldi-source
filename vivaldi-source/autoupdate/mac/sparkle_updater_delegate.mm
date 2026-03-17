@@ -24,18 +24,17 @@ base::Version GetItemVersion(SUAppcastItem* item) {
 }  // namespace
 
 @interface SparkleUpdaterDelegate ()
-@property (nonatomic, copy) void (^invocationBlock)(void);
+@property(nonatomic, copy) void (^invocationBlock)(void);
 @end
 
 @implementation SparkleUpdaterDelegate {
+  AutoUpdateStatus status_;
+  NSString* version_;
+  NSString* feedURL_;
+  NSURL* rel_notes_url_;
 
-AutoUpdateStatus status_;
-NSString* version_;
-NSString* feedURL_;
-NSURL* rel_notes_url_;
-
-uint64_t _totalLength;
-uint64_t _bytesDownloaded;
+  uint64_t _totalLength;
+  uint64_t _bytesDownloaded;
 }
 
 @synthesize invocationBlock = _invocationBlock;
@@ -58,8 +57,7 @@ uint64_t _bytesDownloaded;
   version_ = item.versionString;
   rel_notes_url_ = item.releaseNotesURL;
   extensions::AutoUpdateAPI::SendDidFindValidUpdate(
-    [self getUpdateReleaseNotesUrl],
-    GetItemVersion(item));
+      [self getUpdateReleaseNotesUrl], GetItemVersion(item));
 }
 
 - (void)updaterDidNotFindUpdate:(nonnull SPUUpdater*)updater
@@ -119,9 +117,9 @@ uint64_t _bytesDownloaded;
   extensions::AutoUpdateAPI::SendUpdaterDidRelaunchApplication();
 }
 
-- (BOOL)updater:(SPUUpdater *)updater
-          willInstallUpdateOnQuit:(SUAppcastItem *)item
-      immediateInstallationBlock:(void (^)(void))immediateInstallHandler {
+- (BOOL)updater:(SPUUpdater*)updater
+       willInstallUpdateOnQuit:(SUAppcastItem*)item
+    immediateInstallationBlock:(void (^)(void))immediateInstallHandler {
   status_ = AutoUpdateStatus::kWillInstallUpdateOnQuit;
   version_ = item.versionString;
   rel_notes_url_ = item.releaseNotesURL;
@@ -167,7 +165,7 @@ uint64_t _bytesDownloaded;
     extensions::AutoUpdateAPI::SendUpdateFinished();
 }
 
-- (NSString *)feedURLStringForUpdater:(SPUUpdater *)updater {
+- (NSString*)feedURLStringForUpdater:(SPUUpdater*)updater {
   GURL url = init_sparkle::GetAppcastUrl();
   return [NSString stringWithUTF8String:url.spec().c_str()];
 }

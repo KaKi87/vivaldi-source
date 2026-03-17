@@ -18,6 +18,8 @@ source_set("quick_settings") {
     "//ios/chrome/browser/shared/model/prefs:pref_names",
     "//ios/chrome/browser/shared/model/prefs",
     "//ui/base",
+    "//vivaldi/ios/ui/settings/start_page:start_page_constants",
+    "//vivaldi/ios/ui/settings/start_page/wallpaper_settings:wallpaper_notification_constants",
   ]
 
   frameworks = [
@@ -42,6 +44,7 @@ swift_source_set("quick_settings_swift") {
     "//ios/chrome/app/strings",
     "//vivaldi/ios/ui/bookmarks_editor:vivaldi_bookmarks_editor",
     "//vivaldi/ios/ui/helpers:helpers_swift",
+    "//vivaldi/ios/ui/settings/start_page:start_page_constants",
     "//vivaldi/ios/ui/settings/start_page/layout_settings",
     "//vivaldi/ios/ui/settings/start_page/layout_settings:layout_settings_swift",
     "//vivaldi/ios/ui/settings/start_page/wallpaper_settings",

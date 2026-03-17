@@ -3,8 +3,8 @@
 #import "ios/ui/helpers/vivaldi_uiview_style_helper.h"
 #import <UIKit/UIKit.h>
 
-@implementation UIView(VivaldiStyle)
-#pragma mark:- SETTERS
+@implementation UIView (VivaldiStyle)
+#pragma mark :- SETTERS
 
 // Applies shadow to the view
 - (void)addShadowWithBackground:(UIColor*)backgroundColor
@@ -19,7 +19,7 @@
   self.layer.shadowOpacity = opacity;
 
   self.backgroundColor = nil;
-  self.layer.backgroundColor =  backgroundColor.CGColor;
+  self.layer.backgroundColor = backgroundColor.CGColor;
 }
 
 @end

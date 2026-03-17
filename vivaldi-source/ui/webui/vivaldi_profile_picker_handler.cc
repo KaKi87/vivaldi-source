@@ -17,18 +17,18 @@
 #include "chromium/chrome/browser/signin/signin_util.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
-#include "third_party/skia/include/core/SkBitmap.h"
-#include "ui/gfx/codec/png_codec.h"
 #include "extensions/tools/vivaldi_tools.h"
 #include "prefs/vivaldi_pref_names.h"
+#include "third_party/skia/include/core/SkBitmap.h"
+#include "ui/gfx/codec/png_codec.h"
 
 #include "base/files/file.h"
 #include "base/task/thread_pool.h"
-#include "content/public/browser/browser_thread.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
+#include "content/public/browser/browser_thread.h"
 
-#include "chrome/browser/ui/chrome_select_file_policy.h"
 #include "chrome/browser/platform_util.h"
+#include "chrome/browser/ui/chrome_select_file_policy.h"
 #include "chromium/ui/shell_dialogs/selected_file_info.h"
 #include "net/base/mime_sniffer.h"
 #include "net/base/mime_util.h"
@@ -39,7 +39,7 @@
 bool IsProfileDirectoryScheduledForDeletion(const base::FilePath& profile_path);
 
 namespace {
-std::optional<int> GetCallbackId(const base::Value::List& args) {
+std::optional<int> GetCallbackId(const base::ListValue& args) {
   if (args.size() == 0) {
     return std::nullopt;
   }
@@ -51,7 +51,7 @@ const char* kMissingCallbacIdMessage = "missing callback_id";
 
 class Helper {
  public:
-  Helper(VivaldiProfilePickerHandler* handler, const base::Value::List& args)
+  Helper(VivaldiProfilePickerHandler* handler, const base::ListValue& args)
       : args_(args.Clone()), handler_wheak_(handler->GetWeakPtr()) {
     handler->InitByHelper();
     auto callback_id = GetCallbackId(args);
@@ -201,7 +201,7 @@ class Helper {
  private:
   std::optional<int> callback_id_;
   // Don't use reference here since the helper can be passed in BindOnce!
-  const base::Value::List args_;
+  const base::ListValue args_;
   std::optional<std::string> error_message_;
   bool resoponse_sent_ = false;
   VivaldiProfilePickerHandler::WeakPtr handler_wheak_;
@@ -283,7 +283,7 @@ std::optional<std::string> VivaldiProfilePickerHandler::Image::GetErrorString()
 }
 
 void VivaldiProfilePickerHandler::SendResponse(int callback_id) {
-  base::Value::Dict dict;
+  base::DictValue dict;
   dict.Set("callbackId", callback_id);
   dict.Set("status", "ok");
   FireWebUIListener("vivaldi-ui-response", dict);
@@ -291,7 +291,7 @@ void VivaldiProfilePickerHandler::SendResponse(int callback_id) {
 
 void VivaldiProfilePickerHandler::SendResponse(int callback_id,
                                                base::Value&& response) {
-  base::Value::Dict dict;
+  base::DictValue dict;
   dict.Set("callbackId", callback_id);
   dict.Set("status", "ok");
   dict.Set("response", std::move(response));
@@ -301,7 +301,7 @@ void VivaldiProfilePickerHandler::SendResponse(int callback_id,
 void VivaldiProfilePickerHandler::SendErrorResponse(
     int callback_id,
     const std::string& message) {
-  base::Value::Dict dict;
+  base::DictValue dict;
   dict.Set("callbackId", callback_id);
   dict.Set("status", "error");
   dict.Set("response", message);
@@ -359,35 +359,36 @@ void VivaldiProfilePickerHandler::RegisterMessages() {
 
   web_ui()->RegisterMessageCallback(
       "closeProfilePicker",
-      base::BindRepeating(&VivaldiProfilePickerHandler::HandleCloseProfilePicker,
-                          base::Unretained(this)));
+      base::BindRepeating(
+          &VivaldiProfilePickerHandler::HandleCloseProfilePicker,
+          base::Unretained(this)));
 }
 
 bool VivaldiProfilePickerHandler::UseCSD() {
 #if BUILDFLAG(IS_MAC)
-        // Mac always uses the native decorations, don't show ours!
-        return false;
+  // Mac always uses the native decorations, don't show ours!
+  return false;
 #else
-        // The chrome://profile-picker can be open also as tab. In this case,
-        // we want the artifical window-bar to be hidden.
-        if (!ProfilePicker::IsOpen())
-          return false;
+  // The chrome://profile-picker can be open also as tab. In this case,
+  // we want the artifical window-bar to be hidden.
+  if (!ProfilePicker::IsOpen())
+    return false;
 
-        auto* web_contents = web_ui()->GetWebContents();
-        if (web_contents) {
-          auto * delegate = web_contents->GetDelegate();
-          if (delegate) {
-            // Vivaldi Frame draws the decorations by itself.
-            return delegate->UsesVivaldiFrame();
-          }
-        }
-        // Should not be reached.
-        return false;
+  auto* web_contents = web_ui()->GetWebContents();
+  if (web_contents) {
+    auto* delegate = web_contents->GetDelegate();
+    if (delegate) {
+      // Vivaldi Frame draws the decorations by itself.
+      return delegate->UsesVivaldiFrame();
+    }
+  }
+  // Should not be reached.
+  return false;
 #endif
 }
 
 void VivaldiProfilePickerHandler::HandleSetShowOnStartup(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   Helper helper(this, args);
   if (!helper.IsValid()) {
     return;
@@ -442,7 +443,7 @@ void AvatarIconPicker::FileSelectionCanceled() {
 }
 
 void VivaldiProfilePickerHandler::HandleChooseFile(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   auto helper = std::make_unique<Helper>(this, args);
   if (!helper->IsValid()) {
     return;
@@ -466,7 +467,7 @@ void VivaldiProfilePickerHandler::HandleChooseFile(
               if (!helper->IsValid()) {
                 return;
               }
-              base::Value::Dict response;
+              base::DictValue response;
               auto error_string = img_map[filename].GetErrorString();
               if (error_string) {
                 response.Set("error", *error_string);
@@ -501,7 +502,7 @@ void VivaldiProfilePickerHandler::ReadAvatars(ImgMap request,
 }
 
 void VivaldiProfilePickerHandler::HandleGetProfilesInfo(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   auto helper = std::make_unique<Helper>(this, args);
   if (!helper->IsValid()) {
     return;
@@ -535,7 +536,7 @@ void VivaldiProfilePickerHandler::HandleGetProfilesInfo(
         ProfileAttributesStorage& storage =
             profile_manager->GetProfileAttributesStorage();
 
-        base::Value::List profiles_list;
+        base::ListValue profiles_list;
         Profile* this_profile = nullptr;
         auto* web_contents = self->web_ui()->GetWebContents();
         if (web_contents) {
@@ -564,7 +565,7 @@ void VivaldiProfilePickerHandler::HandleGetProfilesInfo(
           if (attributes.size() <= 1)
             can_delete = false;
 
-          base::Value::Dict profile;
+          base::DictValue profile;
 
           auto custom_icon = vivaldi::GetImagePathFromProfilePath(
               vivaldiprefs::kVivaldiProfileImagePath,
@@ -591,7 +592,7 @@ void VivaldiProfilePickerHandler::HandleGetProfilesInfo(
           profiles_list.Append(std::move(profile));
         }
 
-        base::Value::Dict result;
+        base::DictValue result;
 
         if (this_profile) {
           result.Set("currentProfilePath",
@@ -618,7 +619,7 @@ void VivaldiProfilePickerHandler::HandleGetProfilesInfo(
 }
 
 void VivaldiProfilePickerHandler::HandlePickProfile(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   Helper helper(this, args);
   if (!helper.IsValid()) {
     return;
@@ -676,7 +677,7 @@ void VivaldiProfilePickerHandler::InitByHelper() {
 }
 
 void VivaldiProfilePickerHandler::HandleDeleteProfile(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   Helper helper(this, args);
   if (!helper.IsValid()) {
     return;
@@ -702,7 +703,7 @@ void VivaldiProfilePickerHandler::HandleDeleteProfile(
 }
 
 void VivaldiProfilePickerHandler::HandleModifyProfile(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   Helper helper(this, args);
   if (!helper.IsValid()) {
     return;
@@ -748,7 +749,7 @@ void VivaldiProfilePickerHandler::HandleModifyProfile(
 }
 
 void VivaldiProfilePickerHandler::HandleCloseProfilePicker(
-    const base::Value::List& args) {
+    const base::ListValue& args) {
   Helper helper(this, args);
   if (!helper.IsValid()) {
     return;

@@ -11,7 +11,7 @@
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/public/glic_keyed_service.h"
 #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
 #endif
@@ -55,8 +55,10 @@ void GlicNudgeController::UpdateNudgeLabel(
   }
 
   if (activity &&
-      activity == tabs::GlicNudgeActivity::
-                      kNudgeIgnoredOpenedContextualTasksSidePanel &&
+      (activity == tabs::GlicNudgeActivity::
+                       kNudgeIgnoredOpenedContextualTasksSidePanel ||
+       activity == tabs::GlicNudgeActivity::
+                       kNudgeIgnoredOmniboxContextMenuInteraction) &&
       delegate_ && delegate_->GetIsShowingGlicNudge()) {
     delegate_->OnHideGlicNudgeUI();
     OnNudgeActivity(*activity);
@@ -68,7 +70,11 @@ void GlicNudgeController::UpdateNudgeLabel(
       browser_window_interface_->GetProfile()->GetPrefs();
   if (pref_service->GetBoolean(glic::prefs::kGlicPinnedToTabstrip)) {
     if (delegate_) {
-      delegate_->OnTriggerGlicNudgeUI(nudge_label);
+      if (nudge_label.empty() && delegate_->GetIsShowingGlicNudge()) {
+        delegate_->OnHideGlicNudgeUI();
+      } else {
+        delegate_->OnTriggerGlicNudgeUI(nudge_label);
+      }
     }
   }
 
@@ -93,7 +99,7 @@ void GlicNudgeController::OnNudgeActivity(GlicNudgeActivity activity) {
       // various places the class is referenced (which would be noisy), it's
       // possible to have this class built even when that buildflag isn't set,
       // so we'll conditionally compile this next section.
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
       auto* profile = browser_window_interface_->GetProfile();
       auto* glic_service =
           glic::GlicKeyedServiceFactory::GetGlicKeyedService(profile);
@@ -109,6 +115,7 @@ void GlicNudgeController::OnNudgeActivity(GlicNudgeActivity activity) {
     case GlicNudgeActivity::kNudgeIgnoredActiveTabChanged:
     case GlicNudgeActivity::kNudgeIgnoredNavigation:
     case GlicNudgeActivity::kNudgeIgnoredOpenedContextualTasksSidePanel:
+    case GlicNudgeActivity::kNudgeIgnoredOmniboxContextMenuInteraction:
       nudge_activity_callback_.Run(activity);
       nudge_activity_callback_.Reset();
       scoped_window_call_to_action_ptr.reset();

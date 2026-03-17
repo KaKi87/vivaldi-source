@@ -215,7 +215,7 @@ public final class TabGroupSyncLocalObserver {
             }
 
             @Override
-            public void didChangeTabGroupTitle(Token tabGroupId, @Nullable String newTitle) {
+            public void didChangeTabGroupTitle(Token tabGroupId, String newTitle) {
                 if (!mIsObserving) return;
                 LogUtils.log(TAG, "didChangeTabGroupTitle, tabGroupId = " + tabGroupId);
                 updateVisualData(
@@ -225,7 +225,7 @@ public final class TabGroupSyncLocalObserver {
             @Override
             public void didMergeTabToGroup(Tab movedTab, boolean isDestinationTab) {
                 if (!mIsObserving) return;
-                LogUtils.log(TAG, "didMergeTabToGroup, rootId = " + movedTab.getRootId());
+                LogUtils.log(TAG, "didMergeTabToGroup, tabGroupId = " + movedTab.getTabGroupId());
 
                 LocalTabGroupId localTabGroupId =
                         assertNonNull(

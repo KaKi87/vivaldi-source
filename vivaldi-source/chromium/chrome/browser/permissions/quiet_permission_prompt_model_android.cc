@@ -4,6 +4,7 @@
 
 #include "chrome/browser/permissions/quiet_permission_prompt_model_android.h"
 
+#include "base/notreached.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -37,6 +38,8 @@ std::u16string GetGeolocationBlockedUIDescription(QuietUiReason reason) {
           IDS_LOCATION_QUIET_PERMISSION_MESSAGE_UI);
     case QuietUiReason::kServicePredictedVeryUnlikelyGrant:
     case QuietUiReason::kOnDevicePredictedVeryUnlikelyGrant:
+    // TODO(crbug.com/412962300) use custom string
+    case QuietUiReason::kTriggeredDueToLackOfGesture:
       return l10n_util::GetStringUTF16(
           IDS_LOCATION_QUIET_PERMISSION_MESSAGE_UI_PREDICTION_SERVICE);
     default:
@@ -58,6 +61,8 @@ std::u16string GetNotificationBlockedUIDescription(QuietUiReason reason) {
           IDS_NOTIFICATION_QUIET_PERMISSION_INFOBAR_ABUSIVE_MESSAGE);
     case QuietUiReason::kServicePredictedVeryUnlikelyGrant:
     case QuietUiReason::kOnDevicePredictedVeryUnlikelyGrant:
+    // TODO(crbug.com/412962300) use custom string
+    case QuietUiReason::kTriggeredDueToLackOfGesture:
       return l10n_util::GetStringUTF16(
           IDS_NOTIFICATION_QUIET_PERMISSION_INFOBAR_PREDICTION_SERVICE_MESSAGE);
     case QuietUiReason::kTriggeredDueToDisruptiveBehavior:
@@ -104,6 +109,7 @@ QuietPermissionPromptModelAndroid GetQuietPermissionPromptModel(
     case QuietUiReason::kServicePredictedVeryUnlikelyGrant:
     case QuietUiReason::kOnDevicePredictedVeryUnlikelyGrant:
     case QuietUiReason::kTriggeredByCrowdDeny:
+    case QuietUiReason::kTriggeredDueToLackOfGesture:
       model.primary_button_label = l10n_util::GetStringUTF16(
           IDS_NOTIFICATIONS_QUIET_PERMISSION_BUBBLE_ALLOW_BUTTON);
       model.primary_button_behavior = PrimaryButtonBehavior::kAllowForThisSite;

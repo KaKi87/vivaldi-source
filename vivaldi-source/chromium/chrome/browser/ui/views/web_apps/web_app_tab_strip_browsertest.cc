@@ -27,9 +27,10 @@
 #include "chrome/browser/ui/unload_controller.h"
 #include "chrome/browser/ui/views/frame/browser_frame_view.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
+#include "chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h"
 #include "chrome/browser/ui/views/location_bar/custom_tab_bar_view.h"
-#include "chrome/browser/ui/views/tabs/tab_icon.h"
+#include "chrome/browser/ui/views/tabs/tab/tab_icon.h"
+#include "chrome/browser/ui/views/tabs/tab_accessibility.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/browser/ui/views/tabs/tab_strip_controller.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
@@ -40,6 +41,7 @@
 #include "chrome/browser/ui/web_applications/web_app_launch_utils.h"
 #include "chrome/browser/ui/web_applications/web_app_tabbed_utils.h"
 #include "chrome/browser/web_applications/manifest_update_manager.h"
+#include "chrome/browser/web_applications/model/display_override.h"
 #include "chrome/browser/web_applications/mojom/user_display_mode.mojom.h"
 #include "chrome/browser/web_applications/test/web_app_install_test_utils.h"
 #include "chrome/browser/web_applications/web_app_command_scheduler.h"
@@ -69,6 +71,7 @@
 
 #if BUILDFLAG(IS_CHROMEOS)
 #include "ash/wm/window_pin_util.h"
+#include "chrome/browser/ash/boca/on_task/on_task_locked_controller.h"
 #endif
 
 using content::OpenURLParams;
@@ -129,7 +132,8 @@ class WebAppTabStripBrowserTest : public WebAppBrowserTestBase,
     web_app_info->title = u"Test app";
     web_app_info->background_color = kAppBackgroundColor;
     web_app_info->user_display_mode = mojom::UserDisplayMode::kStandalone;
-    web_app_info->display_override = {blink::mojom::DisplayMode::kTabbed};
+    web_app_info->display_override = {
+        web_app::DisplayOverride::Create(blink::mojom::DisplayMode::kTabbed)};
     return test::InstallWebApp(profile, std::move(web_app_info));
   }
 
@@ -171,7 +175,7 @@ class WebAppTabStripBrowserTest : public WebAppBrowserTestBase,
   SkColor GetTabColor(BrowserView* browser_view) {
     return TabStyle::Get()->GetTabBackgroundColor(
         TabStyle::TabSelectionState::kActive, /*hovered=*/false,
-        /*frame_active=*/true, *browser_view->GetColorProvider());
+        /*frame_active=*/true, browser_view->GetColorProvider());
   }
 
   WebAppRegistrar& registrar() {
@@ -431,7 +435,7 @@ IN_PROC_BROWSER_TEST_P(WebAppTabStripBrowserTest, MonochromeAppIconOnHomeTab) {
   TabStripModel* tab_strip = app_browser->tab_strip_model();
 
   TabIcon* tab_icon =
-      static_cast<TabStripRegionView*>(
+      static_cast<HorizontalTabStripRegionView*>(
           BrowserView::GetBrowserViewForBrowser(app_browser)->tab_strip_view())
           ->tab_strip()
           ->tab_at(0)
@@ -825,8 +829,8 @@ IN_PROC_BROWSER_TEST_P(WebAppTabStripBrowserTest, NoFavicons) {
   EXPECT_TRUE(registrar().IsTabbedWindowModeEnabled(app_id));
 
   // No favicons shown for web apps.
-  EXPECT_FALSE(tab_strip->delegate()->ShouldDisplayFavicon(
-      tab_strip->GetActiveWebContents()));
+  EXPECT_FALSE(
+      app_browser->ShouldDisplayFavicon(tab_strip->GetActiveWebContents()));
 }
 
 IN_PROC_BROWSER_TEST_P(WebAppTabStripBrowserTest,
@@ -1021,7 +1025,7 @@ IN_PROC_BROWSER_TEST_P(WebAppTabStripBrowserTest,
   BrowserView* browser_view =
       BrowserView::GetBrowserViewForBrowser(app_browser);
   ::TabStrip* tab_strip =
-      static_cast<TabStripRegionView*>(browser_view->tab_strip_view())
+      static_cast<HorizontalTabStripRegionView*>(browser_view->tab_strip_view())
           ->tab_strip();
 
   // Open another tab.
@@ -1326,21 +1330,24 @@ IN_PROC_BROWSER_TEST_P(WebAppTabStripBrowserTest, PageTitle) {
   EXPECT_EQ(tab_strip->GetWebContentsAt(0)->GetVisibleURL(), start_url);
   EXPECT_EQ(tab_strip->active_index(), 0);
 
-  BrowserView* browser_view =
-      BrowserView::GetBrowserViewForBrowser(app_browser);
-
   // The tab title starts with the tab name, followed by whether it is pinned
   // but may also have more things after that.
-  EXPECT_TRUE(base::StartsWith(browser_view->GetAccessibleTabLabel(0),
-                               u"Tab Strip Customizations - Pinned"));
+  EXPECT_TRUE(
+      base::StartsWith(tabs::GetAccessibleTabLabel(tab_strip->GetTabAtIndex(0),
+                                                   /*is_for_tab=*/false),
+                       u"Tab Strip Customizations - Pinned"));
 
   chrome::NewTab(app_browser);
   content::WaitForLoadStop(tab_strip->GetActiveWebContents());
 
-  EXPECT_TRUE(base::StartsWith(browser_view->GetAccessibleTabLabel(0),
-                               u"Tab Strip Customizations - Pinned"));
-  EXPECT_TRUE(base::StartsWith(browser_view->GetAccessibleTabLabel(1),
-                               u"Favicon only"));
+  EXPECT_TRUE(
+      base::StartsWith(tabs::GetAccessibleTabLabel(tab_strip->GetTabAtIndex(0),
+                                                   /*is_for_tab=*/false),
+                       u"Tab Strip Customizations - Pinned"));
+  EXPECT_TRUE(
+      base::StartsWith(tabs::GetAccessibleTabLabel(tab_strip->GetTabAtIndex(1),
+                                                   /*is_for_tab=*/false),
+                       u"Favicon only"));
 }
 
 #if BUILDFLAG(IS_CHROMEOS)
@@ -1356,7 +1363,8 @@ IN_PROC_BROWSER_TEST_P(WebAppTabStripForOnTaskBrowserTest,
       embedded_test_server()->GetURL("/web_apps/tab_strip_customizations.html");
   const webapps::AppId app_id = InstallTestWebApp(start_url);
   Browser* const app_browser = FindWebAppBrowser(browser()->profile(), app_id);
-  app_browser->SetLockedForOnTask(true);
+  ash::boca::OnTaskLockedController::From(app_browser)
+      ->set_locked_for_on_task(true);
 
   const TabStripModel* const tab_strip_model = app_browser->tab_strip_model();
   ASSERT_TRUE(registrar().IsTabbedWindowModeEnabled(app_id));
@@ -1379,7 +1387,7 @@ IN_PROC_BROWSER_TEST_P(WebAppTabStripForOnTaskBrowserTest,
   BrowserView* browser_view =
       BrowserView::GetBrowserViewForBrowser(app_browser);
   ::TabStrip* tab_strip =
-      static_cast<TabStripRegionView*>(browser_view->tab_strip_view())
+      static_cast<HorizontalTabStripRegionView*>(browser_view->tab_strip_view())
           ->tab_strip();
   tab_strip->CloseTab(tab_strip->tab_at(0), CloseTabSource::kFromMouse);
   ASSERT_EQ(tab_strip_model->count(), 2);
@@ -1396,7 +1404,8 @@ IN_PROC_BROWSER_TEST_P(WebAppTabStripForOnTaskBrowserTest,
       embedded_test_server()->GetURL("/web_apps/tab_strip_customizations.html");
   const webapps::AppId app_id = InstallTestWebApp(start_url);
   Browser* const app_browser = FindWebAppBrowser(browser()->profile(), app_id);
-  app_browser->SetLockedForOnTask(false);
+  ash::boca::OnTaskLockedController::From(app_browser)
+      ->set_locked_for_on_task(false);
 
   const TabStripModel* const tab_strip_model = app_browser->tab_strip_model();
   ASSERT_TRUE(registrar().IsTabbedWindowModeEnabled(app_id));
@@ -1413,7 +1422,7 @@ IN_PROC_BROWSER_TEST_P(WebAppTabStripForOnTaskBrowserTest,
   BrowserView* browser_view =
       BrowserView::GetBrowserViewForBrowser(app_browser);
   ::TabStrip* tab_strip =
-      static_cast<TabStripRegionView*>(browser_view->tab_strip_view())
+      static_cast<HorizontalTabStripRegionView*>(browser_view->tab_strip_view())
           ->tab_strip();
   tab_strip->CloseTab(tab_strip->tab_at(0), CloseTabSource::kFromMouse);
   ASSERT_EQ(tab_strip_model->count(), 2);

@@ -35,7 +35,7 @@ typedef NS_ENUM(NSInteger, ItemType) {
   ItemTypeGlobalSetting = kItemTypeEnumZero
 };
 
-}
+}  // namespace
 
 // Namespace
 namespace {
@@ -43,17 +43,17 @@ namespace {
 const CGFloat tableViewHeaderHeight = 90.f;
 // Padding for the text view container when adding domain.
 const UIEdgeInsets textViewContainerPaddingDomain =
-  UIEdgeInsetsMake(12.f, 20.f, 22.f, 20.f);
+    UIEdgeInsetsMake(12.f, 20.f, 22.f, 20.f);
 // Padding for the text view container when adding source.
 const UIEdgeInsets textViewContainerPaddingSource =
-  UIEdgeInsetsMake(12.f, 20.f, 20.f, 20.f);
+    UIEdgeInsetsMake(12.f, 20.f, 20.f, 20.f);
 // Padding for the text view.
 const UIEdgeInsets textViewPadding = UIEdgeInsetsMake(8.f, 0.f, 8.f, 0.f);
 // Spacing between two buttons.
 const CGFloat stackSpacing = 8.f;
 
 CGFloat buttonCornerRadius() {
-  if (@available(iOS 26,*)) {
+  if (@available(iOS 26, *)) {
     return iOS26ActionButtonCornerRadius;
   } else {
     return actionButtonCornerRadius;
@@ -65,29 +65,28 @@ UIButton* ActionButton() {
   button.backgroundColor = [UIColor colorNamed:kBackgroundColor];
   button.layer.cornerRadius = buttonCornerRadius();
 
-  [button setTitleColor:UIColor.vSystemBlue
-               forState:UIControlStateNormal];
+  [button setTitleColor:UIColor.vSystemBlue forState:UIControlStateNormal];
   return button;
 }
 
-}
+}  // namespace
 
-@interface VivaldiATBAddDomainSourceViewController()<VivaldiATBConsumer>
+@interface VivaldiATBAddDomainSourceViewController () <VivaldiATBConsumer>
 // Textview for domain or source url.
-@property(nonatomic,weak) VivaldiTextFieldView* textFieldView;
+@property(nonatomic, weak) VivaldiTextFieldView* textFieldView;
 // Button for adding/editing domain or source
-@property(nonatomic,weak) UIButton* addEditButton;
+@property(nonatomic, weak) UIButton* addEditButton;
 // Button for deleting domain
-@property(nonatomic,weak) UIButton* deleteButton;
+@property(nonatomic, weak) UIButton* deleteButton;
 // The source type, e.g. Ads, Trackers
-@property(nonatomic,assign) ATBSourceType source;
+@property(nonatomic, assign) ATBSourceType source;
 // The manager for the adblock that provides all methods and properties for
 // adblocker.
 @property(nonatomic, strong) VivaldiATBManager* adblockManager;
 // The Browser in which blocker engine is active.
 @property(nonatomic, assign) Browser* browser;
 // The editing mode for view controller, e.g. adding domain or source.
-@property(nonatomic,assign) ATBDomainSourceEditingMode editingMode;
+@property(nonatomic, assign) ATBDomainSourceEditingMode editingMode;
 // The domain currently editing. Optional, available in editing mode.
 @property(nonatomic, strong) NSString* editingDomain;
 // User preferred setting for the editing domain.
@@ -145,13 +144,11 @@ UIButton* ActionButton() {
     [self loadATBOptions];
 }
 
-
 #pragma mark - PRIVATE
 - (void)setUpTableViewHeader {
   UIView* headerView = [UIView new];
-  headerView.frame = CGRectMake(0, 0,
-                                self.view.bounds.size.width,
-                                tableViewHeaderHeight);
+  headerView.frame =
+      CGRectMake(0, 0, self.view.bounds.size.width, tableViewHeaderHeight);
   headerView.backgroundColor = UIColor.clearColor;
 
   UIView* textViewContainer = [UIView new];
@@ -160,7 +157,7 @@ UIButton* ActionButton() {
   [headerView addSubview:textViewContainer];
 
   VivaldiTextFieldView* textFieldView =
-    [[VivaldiTextFieldView alloc] initWithPlaceholder:@""];
+      [[VivaldiTextFieldView alloc] initWithPlaceholder:@""];
   _textFieldView = textFieldView;
   [textFieldView setURLMode];
   [textViewContainer addSubview:textFieldView];
@@ -169,15 +166,13 @@ UIButton* ActionButton() {
   [textFieldView setFocus];
 
   switch (self.editingMode) {
-
     case ATBAddingModeDomain:
     case ATBEditingModeDomain: {
       [textFieldView setURLValidationType:URLTypeDomain];
-      [textViewContainer
-       fillSuperviewToSafeAreaInsetWithPadding:textViewContainerPaddingDomain];
+      [textViewContainer fillSuperviewToSafeAreaInsetWithPadding:
+                             textViewContainerPaddingDomain];
 
-      NSString* placeHolderStringDomain =
-        GetNSString(IDS_AUTOFILL_DOMAIN_HINT);
+      NSString* placeHolderStringDomain = GetNSString(IDS_AUTOFILL_DOMAIN_HINT);
       [textFieldView setPlaceholder:placeHolderStringDomain];
       [textFieldView setText:_editingDomain];
       break;
@@ -186,11 +181,11 @@ UIButton* ActionButton() {
     case ATBAddingModeSource: {
       textFieldView.validateScheme = YES;
       [textFieldView setURLValidationType:URLTypeGeneric];
-      [textViewContainer
-       fillSuperviewToSafeAreaInsetWithPadding:textViewContainerPaddingSource];
+      [textViewContainer fillSuperviewToSafeAreaInsetWithPadding:
+                             textViewContainerPaddingSource];
 
       NSString* placeHolderStringSource =
-        GetNSString(IDS_AUTOFILL_IMPORT_URL_HINT);
+          GetNSString(IDS_AUTOFILL_IMPORT_URL_HINT);
       [textFieldView setPlaceholder:placeHolderStringSource];
       break;
     }
@@ -209,14 +204,13 @@ UIButton* ActionButton() {
   switch (self.editingMode) {
     case ATBAddingModeDomain:
     case ATBAddingModeSource: {
-      footerView.frame = CGRectMake(0, 0,
-                                    self.view.bounds.size.width,
-                                    tableFooterHeight);
+      footerView.frame =
+          CGRectMake(0, 0, self.view.bounds.size.width, tableFooterHeight);
       UIButton* addEditButton = ActionButton();
       _addEditButton = addEditButton;
       [addEditButton addTarget:self
-                       action:@selector(handleAddEditButtonTap)
-                      forControlEvents:UIControlEventTouchUpInside];
+                        action:@selector(handleAddEditButtonTap)
+              forControlEvents:UIControlEventTouchUpInside];
       [footerView addSubview:addEditButton];
       [addEditButton
           fillSuperviewToSafeAreaInsetWithPadding:actionButtonPadding];
@@ -225,25 +219,22 @@ UIButton* ActionButton() {
     }
 
     case ATBEditingModeDomain: {
-      footerView.frame = CGRectMake(0, 0,
-                                    self.view.bounds.size.width,
-                                    tableFooterHeight*2);
+      footerView.frame =
+          CGRectMake(0, 0, self.view.bounds.size.width, tableFooterHeight * 2);
       UIButton* addEditButton = ActionButton();
       _addEditButton = addEditButton;
       [addEditButton addTarget:self
-                       action:@selector(handleAddEditButtonTap)
-                      forControlEvents:UIControlEventTouchUpInside];
+                        action:@selector(handleAddEditButtonTap)
+              forControlEvents:UIControlEventTouchUpInside];
 
       UIButton* deleteButton = ActionButton();
       _deleteButton = deleteButton;
       [deleteButton addTarget:self
                        action:@selector(handleDeleteButtonTap)
-                      forControlEvents:UIControlEventTouchUpInside];
+             forControlEvents:UIControlEventTouchUpInside];
 
-      UIStackView* buttonStack =
-          [[UIStackView alloc] initWithArrangedSubviews:@[
-            addEditButton, deleteButton
-          ]];
+      UIStackView* buttonStack = [[UIStackView alloc]
+          initWithArrangedSubviews:@[ addEditButton, deleteButton ]];
       buttonStack.distribution = UIStackViewDistributionFillEqually;
       buttonStack.axis = UILayoutConstraintAxisVertical;
       buttonStack.spacing = stackSpacing;
@@ -259,11 +250,9 @@ UIButton* ActionButton() {
 }
 
 - (void)setActionButtonTitle {
-
   switch (self.editingMode) {
     case ATBAddingModeDomain: {
-      NSString* domainButtonTitleString =
-        GetNSString(IDS_ADD_NEW_DOMAIN);
+      NSString* domainButtonTitleString = GetNSString(IDS_ADD_NEW_DOMAIN);
       [self.addEditButton setTitle:domainButtonTitleString
                           forState:UIControlStateNormal];
       break;
@@ -271,18 +260,15 @@ UIButton* ActionButton() {
 
     case ATBEditingModeDomain: {
       NSString* updateString = GetNSString(IDS_VIVALDI_IOS_UPDATE_DOMAIN);
-      [self.addEditButton setTitle:updateString
-                          forState:UIControlStateNormal];
+      [self.addEditButton setTitle:updateString forState:UIControlStateNormal];
 
       NSString* removeString = GetNSString(IDS_VIVALDI_IOS_REMOVE_DOMAIN);
-      [self.deleteButton setTitle:removeString
-                          forState:UIControlStateNormal];
+      [self.deleteButton setTitle:removeString forState:UIControlStateNormal];
       break;
     }
 
     case ATBAddingModeSource: {
-      NSString* importButtonTitleString =
-        GetNSString(IDS_AUTOFILL_IMPORT_URL);
+      NSString* importButtonTitleString = GetNSString(IDS_AUTOFILL_IMPORT_URL);
       [self.addEditButton setTitle:importButtonTitleString
                           forState:UIControlStateNormal];
       break;
@@ -308,23 +294,19 @@ UIButton* ActionButton() {
   [self.adblockManager getSettingOptions];
 }
 
--(void)reloadTableViewWithItems:(NSArray*)items {
-
+- (void)reloadTableViewWithItems:(NSArray*)items {
   TableViewModel* model = self.tableViewModel;
 
   // Delete any existing section.
-  if ([model
-          hasSectionForSectionIdentifier:SectionIdentifierSettings])
-    [model
-        removeSectionWithIdentifier:SectionIdentifierSettings];
+  if ([model hasSectionForSectionIdentifier:SectionIdentifierSettings])
+    [model removeSectionWithIdentifier:SectionIdentifierSettings];
 
   // Creates Section for the setting options
-  [model
-      addSectionWithIdentifier:SectionIdentifierSettings];
+  [model addSectionWithIdentifier:SectionIdentifierSettings];
 
   for (id item in items) {
-    VivaldiATBSettingItem* settingItem = [[VivaldiATBSettingItem alloc]
-        initWithType:ItemTypeGlobalSetting];
+    VivaldiATBSettingItem* settingItem =
+        [[VivaldiATBSettingItem alloc] initWithType:ItemTypeGlobalSetting];
     settingItem.item = item;
     settingItem.globalDefaultOption =
         [self.adblockManager globalBlockingSetting];
@@ -339,7 +321,7 @@ UIButton* ActionButton() {
     }
 
     [model addItem:settingItem
-         toSectionWithIdentifier:SectionIdentifierSettings];
+        toSectionWithIdentifier:SectionIdentifierSettings];
   }
 
   [self.tableView reloadData];
@@ -348,8 +330,7 @@ UIButton* ActionButton() {
 #pragma mark ACTIONS
 - (void)handleAddEditButtonTap {
   NSString* inputString = [_textFieldView getText];
-  if (![_textFieldView hasText] ||
-      !self.adblockManager)
+  if (![_textFieldView hasText] || !self.adblockManager)
     return;
 
   switch (self.editingMode) {
@@ -378,8 +359,7 @@ UIButton* ActionButton() {
     case ATBAddingModeSource: {
       if (![VivaldiGlobalHelpers isValidURL:inputString])
         return;
-      [self.adblockManager addRuleSource:inputString
-                              sourceType:_source];
+      [self.adblockManager addRuleSource:inputString sourceType:_source];
       break;
     }
     default:
@@ -392,8 +372,7 @@ UIButton* ActionButton() {
 /// Only available in exceptions editing mode.
 - (void)handleDeleteButtonTap {
   NSString* domain = [_textFieldView getText];
-  if (![_textFieldView hasText] ||
-      !self.adblockManager ||
+  if (![_textFieldView hasText] || !self.adblockManager ||
       ![VivaldiGlobalHelpers isValidDomain:domain])
     return;
   [self.adblockManager removeExceptionForDomain:domain];
@@ -423,25 +402,23 @@ UIButton* ActionButton() {
 
       // Iterate through the options and remove the checkmark from any that
       // have it.
-      if ([model
-           hasSectionForSectionIdentifier:SectionIdentifierSettings]) {
+      if ([model hasSectionForSectionIdentifier:SectionIdentifierSettings]) {
         for (TableViewItem* item in
-             [model
-              itemsInSectionWithIdentifier:SectionIdentifierSettings]) {
+             [model itemsInSectionWithIdentifier:SectionIdentifierSettings]) {
           VivaldiATBSettingItem* settingItem =
               base::apple::ObjCCastStrict<VivaldiATBSettingItem>(item);
           if (settingItem.accessoryType == UITableViewCellAccessoryCheckmark) {
             settingItem.accessoryType = UITableViewCellAccessoryNone;
             UITableViewCell* cell =
-            [tableView cellForRowAtIndexPath:[model indexPathForItem:item]];
+                [tableView cellForRowAtIndexPath:[model indexPathForItem:item]];
             cell.accessoryType = UITableViewCellAccessoryNone;
           }
         }
       }
 
       VivaldiATBSettingItem* newSelectedCell =
-          base::apple::ObjCCastStrict<VivaldiATBSettingItem>
-              ([model itemAtIndexPath:indexPath]);
+          base::apple::ObjCCastStrict<VivaldiATBSettingItem>(
+              [model itemAtIndexPath:indexPath]);
       newSelectedCell.accessoryType = UITableViewCellAccessoryCheckmark;
       UITableViewCell* cell = [tableView cellForRowAtIndexPath:indexPath];
       cell.accessoryType = UITableViewCellAccessoryCheckmark;
@@ -460,7 +437,8 @@ UIButton* ActionButton() {
         case ATBSettingBlockTrackersAndAds:
           self.siteSpecificSetting = ATBSettingBlockTrackersAndAds;
           break;
-        default: break;
+        default:
+          break;
       }
       [self.adblockManager getSettingOptions];
       break;
@@ -470,7 +448,7 @@ UIButton* ActionButton() {
   }
 }
 
-#pragma mark: - VivaldiATBConsumer
+#pragma mark : - VivaldiATBConsumer
 
 - (void)didRefreshSettingOptions:(NSArray*)options {
   if (options.count > 0)

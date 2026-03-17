@@ -10,10 +10,9 @@
 
 // static
 file_sync::SyncedFileStore* SyncedFileStoreFactory::GetForProfile(
-  ProfileIOS* profile) {
-  return GetInstance()
-      ->GetServiceForProfileAs<file_sync::SyncedFileStore>(
-          profile, /*create=*/true);
+    ProfileIOS* profile) {
+  return GetInstance()->GetServiceForProfileAs<file_sync::SyncedFileStore>(
+      profile, /*create=*/true);
 }
 
 // static

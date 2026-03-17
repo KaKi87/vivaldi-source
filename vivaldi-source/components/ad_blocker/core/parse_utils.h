@@ -36,6 +36,9 @@ inline constexpr auto kTypeStringMap =
          {"dtd", ResourceType::kOther}});
 
 std::string BuildNgramSearchString(const std::string_view& pattern);
+
+std::optional<std::string> NormalizePlainDomainConstraint(
+    std::string_view constraint);
 }  // namespace adblock_filter
 
 #endif  // COMPONENTS_AD_BLOCKER_CORE_PARSE_UTILS_H_

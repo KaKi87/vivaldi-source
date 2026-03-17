@@ -15,6 +15,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.Batch;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.Features;
 import org.chromium.base.test.util.Features.DisableFeatures;
 import org.chromium.base.test.util.Features.EnableFeatures;
@@ -33,6 +34,7 @@ import org.chromium.chrome.test.transit.ntp.RegularNewTabPageStation;
 import org.chromium.chrome.test.transit.page.WebPageStation;
 import org.chromium.components.omnibox.OmniboxFeatureList;
 import org.chromium.components.tab_groups.TabGroupColorId;
+import org.chromium.ui.base.DeviceFormFactor;
 
 /** Public transit instrumentation/integration test of Hub. */
 @RunWith(ChromeJUnit4ClassRunner.class)
@@ -109,7 +111,6 @@ public class HubLayoutPublicTransitTest {
 
     @Test
     @LargeTest
-    @EnableFeatures(ChromeFeatureList.TAB_GROUP_ENTRY_POINTS_ANDROID)
     // TODO(crbug.com/461916575): Test disabled for Incognito windowing, delete once fixed
     @DisableFeatures(ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW)
     public void testTabGroupPane_newTabGroup() {
@@ -138,7 +139,6 @@ public class HubLayoutPublicTransitTest {
 
     @Test
     @LargeTest
-    @EnableFeatures(ChromeFeatureList.TAB_GROUP_ENTRY_POINTS_ANDROID)
     public void testRegularTabSwitcher_newTabGroup() {
         WebPageStation firstPage = mCtaTestRule.startOnBlankPage();
         RegularNewTabPageStation finalPage =
@@ -155,7 +155,6 @@ public class HubLayoutPublicTransitTest {
 
     @Test
     @LargeTest
-    @EnableFeatures(ChromeFeatureList.TAB_GROUP_ENTRY_POINTS_ANDROID)
     public void testIncognitoTabSwitcherStation_newTabGroup() {
         WebPageStation firstPage = mCtaTestRule.startOnBlankPage();
         IncognitoNewTabPageStation incognitoNewTabPageStation =
@@ -181,6 +180,7 @@ public class HubLayoutPublicTransitTest {
     @Test
     @LargeTest
     @EnableFeatures({START_SURFACE_RETURN_TIME})
+    @DisableIf.Device(DeviceFormFactor.DESKTOP)
     public void testExitHubOnStartSurfaceAsNtp() {
         ChromeFeatureList.sStartSurfaceReturnTimeTabletSecs.setForTesting(0);
 

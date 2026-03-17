@@ -8,7 +8,7 @@
 #import "base/check_op.h"
 #import "components/strings/grit/components_strings.h"
 #import "ios/chrome/browser/badges/ui_bundled/badge_view_visibility_delegate.h"
-#import "ios/chrome/browser/content_suggestions/ui_bundled/content_suggestions_collection_utils.h"
+#import "ios/chrome/browser/content_suggestions/ui/content_suggestions_collection_utils.h"
 #import "ios/chrome/browser/contextual_panel/entrypoint/ui/contextual_panel_entrypoint_visibility_delegate.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/location_bar/ui_bundled/badges_container_view.h"
@@ -27,7 +27,7 @@
 
 // Vivaldi
 #import "app/vivaldi_apptools.h"
-#import "ios/chrome/browser/popup_menu/ui_bundled/popup_menu_constants.h"
+#import "ios/chrome/browser/popup_menu/public/popup_menu_constants.h"
 #import "ios/chrome/browser/ui/location_bar/location_bar_constants+vivaldi.h"
 #import "ios/ui/ad_tracker_blocker/vivaldi_atb_constants.h"
 #import "ios/ui/helpers/vivaldi_global_helpers.h"
@@ -516,27 +516,23 @@ const CGFloat kSmallerLocationLabelFontMultiplier = 0.75;
           constraintGreaterThanOrEqualToAnchor:self.leadingAnchor
                                       constant:kLocationBarLeadingPadding];
 
-  if (IsContextualPanelEnabled()) {
-    // Setup the layout guide centered between the contents of the location
-    // bar.
-    _centeredBetweenLocationBarContentsLayoutGuide =
-        [[UILayoutGuide alloc] init];
-    [_locationButton
-        addLayoutGuide:_centeredBetweenLocationBarContentsLayoutGuide];
-    [NSLayoutConstraint activateConstraints:@[
-      [_centeredBetweenLocationBarContentsLayoutGuide.leadingAnchor
-          constraintEqualToAnchor:_badgesContainerView.trailingAnchor],
-      [_centeredBetweenLocationBarContentsLayoutGuide.trailingAnchor
-          constraintEqualToAnchor:_trailingButton.leadingAnchor],
-    ]];
+  // Setup the layout guide centered between the contents of the location
+  // bar.
+  _centeredBetweenLocationBarContentsLayoutGuide = [[UILayoutGuide alloc] init];
+  [_locationButton
+      addLayoutGuide:_centeredBetweenLocationBarContentsLayoutGuide];
+  [NSLayoutConstraint activateConstraints:@[
+    [_centeredBetweenLocationBarContentsLayoutGuide.leadingAnchor
+        constraintEqualToAnchor:_badgesContainerView.trailingAnchor],
+    [_centeredBetweenLocationBarContentsLayoutGuide.trailingAnchor
+        constraintEqualToAnchor:_trailingButton.leadingAnchor],
+  ]];
 
-    _xRelativeToContentCenteredConstraint = [_locationContainerView
-                                                 .centerXAnchor
-        constraintEqualToAnchor:_centeredBetweenLocationBarContentsLayoutGuide
-                                    .centerXAnchor];
-    _xRelativeToContentCenteredConstraint.priority =
-        UILayoutPriorityDefaultHigh - 1;
-  }
+  _xRelativeToContentCenteredConstraint = [_locationContainerView.centerXAnchor
+      constraintEqualToAnchor:_centeredBetweenLocationBarContentsLayoutGuide
+                                  .centerXAnchor];
+  _xRelativeToContentCenteredConstraint.priority =
+      UILayoutPriorityDefaultHigh - 1;
 
   _trailingButtonTrailingAnchorConstraint = [self.trailingButton.trailingAnchor
       constraintEqualToAnchor:self.trailingAnchor
@@ -942,7 +938,8 @@ const CGFloat kSmallerLocationLabelFontMultiplier = 0.75;
 
 - (void)updateLocationText:(NSString*)text
                     domain:(NSString*)domain
-                  showFull:(BOOL)showFull {
+                  showFull:(BOOL)showFull
+                  clipTail:(BOOL)clipTail {
   if (self.showFullAddress != showFull)
     self.showFullAddress = showFull;
 
@@ -951,7 +948,8 @@ const CGFloat kSmallerLocationLabelFontMultiplier = 0.75;
     return;
   }
 
-  self.locationLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+  self.locationLabel.lineBreakMode =
+      clipTail ? NSLineBreakByTruncatingTail : NSLineBreakByTruncatingHead;
 
   if (showFull && ![text isEqualToString:domain] && [text length] > 0) {
     UIColor *fullTextColor =

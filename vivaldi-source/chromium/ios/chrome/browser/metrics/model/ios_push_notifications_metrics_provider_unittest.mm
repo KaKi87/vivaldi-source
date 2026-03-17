@@ -7,7 +7,6 @@
 #import "base/metrics/histogram_functions.h"
 #import "base/strings/sys_string_conversions.h"
 #import "base/test/metrics/histogram_tester.h"
-#import "base/types/cxx23_to_underlying.h"
 #import "components/signin/public/base/signin_metrics.h"
 #import "google_apis/gaia/gaia_id.h"
 #import "ios/chrome/browser/metrics/model/constants.h"
@@ -81,17 +80,13 @@ class IOSPushNotificationsMetricsProviderTest : public PlatformTest {
     FakeSystemIdentityManager::FromSystemIdentityManager(
         GetApplicationContext()->GetSystemIdentityManager())
         ->AddIdentity(identity);
-    std::string profile_name;
-    if (AreSeparateProfilesForManagedAccountsEnabled()) {
-      std::optional<std::string> assigned_profile_name =
-          GetApplicationContext()
-              ->GetAccountProfileMapper()
-              ->FindProfileNameForGaiaID(identity.gaiaId);
-      CHECK(assigned_profile_name.has_value());
-      profile_name = *assigned_profile_name;
-    } else {
-      profile_name = profile_manager_.ReserveNewProfileName();
-    }
+    std::optional<std::string> assigned_profile_name =
+        GetApplicationContext()
+            ->GetAccountProfileMapper()
+            ->FindProfileNameForGaiaID(identity.gaiaId);
+    CHECK(assigned_profile_name.has_value());
+    std::string profile_name = *assigned_profile_name;
+
     CHECK(!profile_name.empty());
 
     ProfileIOS* profile = AddProfileImpl(profile_name);

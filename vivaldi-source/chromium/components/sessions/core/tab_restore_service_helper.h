@@ -63,21 +63,14 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
     virtual ~Observer();
   };
 
-  enum {
   // Max number of entries we'll keep around.
-#if BUILDFLAG(IS_ANDROID)
-    // Android keeps at most 5 recent tabs.
-    kMaxEntries = 5,
-#else
 #if defined(VIVALDI_BUILD)
-    // Ties in with session_service.cc kWritesPerReset, so both
-    // must be changed.
-    kMaxEntries = 100,
-#else
-    kMaxEntries = 25,
+  // Ties in with session_service.cc kWritesPerReset, so both
+  // must be changed.
+  static const int kMaxEntries = 100;
+#else // Vivaldi
+  static const int kMaxEntries = 25;
 #endif  // defined(VIVALDI_BUILD)
-#endif
-  };
 
   // Creates a new TabRestoreServiceHelper and provides an object that provides
   // the current time. The TabRestoreServiceHelper does not take ownership of
@@ -122,7 +115,7 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
   const Entries& entries() const;
   std::vector<LiveTab*> RestoreMostRecentEntry(LiveTabContext* context);
   void RemoveEntryById(SessionID id);
-  int VivaldiRemoveEntryById(SessionID id);
+  void RemoveLeastRecentlyUsedEntries(int num_to_remove);
   std::vector<LiveTab*> RestoreEntryById(LiveTabContext* context,
                                          SessionID id,
                                          WindowOpenDisposition disposition);
@@ -156,6 +149,8 @@ class SESSIONS_EXPORT TabRestoreServiceHelper
 
   // Calls ValidateTab, ValidateWindow, or ValidateGroup as appropriate.
   static bool ValidateEntry(const Entry& entry);
+
+  int VivaldiRemoveEntryById(SessionID id);
 
  private:
   friend class TabRestoreServiceImpl;

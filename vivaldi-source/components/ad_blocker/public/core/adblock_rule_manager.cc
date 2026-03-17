@@ -6,4 +6,4 @@ namespace adblock_filter {
 RuleManager::Observer::~Observer() = default;
 
 RuleManager::~RuleManager() = default;
-}
+}  // namespace adblock_filter

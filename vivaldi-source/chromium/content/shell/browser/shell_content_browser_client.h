@@ -16,6 +16,7 @@
 #include "content/shell/browser/shell_speech_recognition_manager_delegate.h"
 #include "services/network/public/cpp/permissions_policy/permissions_policy_declaration.h"
 #include "services/network/public/mojom/network_context.mojom-forward.h"
+#include "third_party/blink/public/mojom/navigation/navigation_params.mojom.h"
 
 class PrefService;
 
@@ -81,12 +82,6 @@ class ShellContentBrowserClient : public ContentBrowserClient {
                                   content::RenderFrameHost* rfh,
                                   const url::Origin& top_frame_origin,
                                   const url::Origin& accessing_origin) override;
-  bool IsCookieDeprecationLabelAllowed(
-      content::BrowserContext* browser_context) override;
-  bool IsCookieDeprecationLabelAllowedForContext(
-      content::BrowserContext* browser_context,
-      const url::Origin& top_frame_origin,
-      const url::Origin& context_origin) override;
   GeneratedCodeCacheSettings GetGeneratedCodeCacheSettings(
       content::BrowserContext* context) override;
   base::OnceClosure SelectClientCertificate(
@@ -132,7 +127,7 @@ class ShellContentBrowserClient : public ContentBrowserClient {
       bool first_auth_attempt,
       GuestPageHolder* guest,
       LoginDelegate::LoginAuthRequiredCallback auth_required_callback) override;
-  base::Value::Dict GetNetLogConstants() override;
+  base::DictValue GetNetLogConstants() override;
   base::FilePath GetSandboxedStorageServiceDataDirectory() override;
   base::FilePath GetFirstPartySetsDirectory() override;
   std::optional<base::FilePath> GetLocalTracesDirectory() override;
@@ -174,9 +169,10 @@ class ShellContentBrowserClient : public ContentBrowserClient {
 
   // Turns on features via permissions policy for Isolated App
   // Web Platform Tests.
-  std::optional<network::ParsedPermissionsPolicy>
-  GetPermissionsPolicyForIsolatedWebApp(WebContents* web_contents,
-                                        const url::Origin& app_origin) override;
+  std::optional<std::vector<blink::mojom::IsolatedAppPermissionPolicyEntryPtr>>
+  GetPermissionsPolicyForIsolatedWebApp(
+      content::BrowserContext* browser_context,
+      const url::Origin& app_origin) override;
 
   void CreateFeatureListAndFieldTrials();
 

@@ -5,22 +5,27 @@
 #import <XCTest/XCTest.h>
 
 #import "base/strings/stringprintf.h"
+#import "base/strings/sys_string_conversions.h"
 #import "components/dom_distiller/core/dom_distiller_features.h"
 #import "components/dom_distiller/core/mojom/distilled_page_prefs.mojom.h"
 #import "components/dom_distiller/core/pref_names.h"
+#import "components/feature_engagement/public/event_constants.h"
 #import "components/signin/internal/identity_manager/account_capabilities_constants.h"
 #import "components/translate/core/browser/translate_pref_names.h"
 #import "ios/chrome/browser/authentication/test/signin_earl_grey.h"
 #import "ios/chrome/browser/badges/ui_bundled/badge_constants.h"
+#import "ios/chrome/browser/flags/chrome_switches.h"
 #import "ios/chrome/browser/intelligence/features/features.h"
 #import "ios/chrome/browser/intelligence/page_action_menu/utils/ai_hub_constants.h"
 #import "ios/chrome/browser/location_bar/badge/ui/location_bar_badge_constants.h"
 #import "ios/chrome/browser/metrics/model/metrics_app_interface.h"
-#import "ios/chrome/browser/popup_menu/ui_bundled/popup_menu_constants.h"
+#import "ios/chrome/browser/optimization_guide/model/optimization_guide_test_app_interface.h"
+#import "ios/chrome/browser/popup_menu/public/popup_menu_constants.h"
 #import "ios/chrome/browser/reader_mode/model/constants.h"
 #import "ios/chrome/browser/reader_mode/model/features.h"
 #import "ios/chrome/browser/reader_mode/test/reader_mode_app_interface.h"
 #import "ios/chrome/browser/reader_mode/ui/constants.h"
+#import "ios/chrome/browser/settings/ui_bundled/settings_table_view_controller_constants.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/public/features/features.h"
 #import "ios/chrome/browser/signin/model/fake_system_identity.h"
@@ -41,9 +46,19 @@ using testing::HasSubstr;
 
 namespace {
 
+// Returns the badge used to open Reader Mode customization UI.
+id<GREYMatcher> ReaderModeCustomizationBadge() {
+  NSString* const badgeIdentifier =
+      [ChromeEarlGrey isProactiveSuggestionsFrameworkEnabled]
+          ? kBadgeButtonReaderModeAccessibilityIdentifier
+          : kReaderModeChipViewAccessibilityIdentifier;
+  return grey_allOf(grey_accessibilityID(badgeIdentifier), grey_interactable(),
+                    nil);
+}
+
 // Base font size for Reader Mode, in pixels. This is the font size that is
 // multiplied by the font scale multipliers. This value is defined in
-// components/dom_distiller/core/javascript/dom_distiller_viewer.js.
+// components/dom_distiller/core/javascript/font_size_slider.js.
 constexpr double kReaderModeBaseFontSize = 16.0;
 
 // Return the number of links on the page.
@@ -93,6 +108,21 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
       chrome_test_util::ContextMenuItemWithAccessibilityLabelId(message_id),
       grey_sufficientlyVisible(), nil);
 }
+
+// Returns the Contextual Panel's entrypoint view GREY matcher.
+id<GREYMatcher> ContextualPanelEntrypointImageViewMatcher() {
+  // TODO(crbug.com/457880049): Clean up when feature is enabled by default.
+  if ([ChromeEarlGrey isAskGeminiChipEnabled] ||
+      [ChromeEarlGrey isProactiveSuggestionsFrameworkEnabled]) {
+    return grey_allOf(
+        grey_accessibilityID(kLocationBarBadgeImageViewIdentifier),
+        grey_interactable(), nil);
+  }
+  return grey_allOf(
+      grey_accessibilityID(@"ContextualPanelEntrypointImageViewAXID"),
+      grey_interactable(), nil);
+}
+
 }  // namespace
 
 // Tests interactions with Reader Mode on a web page.
@@ -117,12 +147,14 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
   chrome_test_util::GREYAssertErrorNil(
       [MetricsAppInterface setupHistogramTester]);
 
+  // The user should be signed out at the beginning of Reading Mode tests.
+  [SigninEarlGrey verifySignedOut];
+
   self.fakeIdentity = [FakeSystemIdentity fakeIdentity1];
   [SigninEarlGrey addFakeIdentity:self.fakeIdentity
                  withCapabilities:@{
                    @(kCanUseModelExecutionFeaturesName) : @YES,
                  }];
-  [SigninEarlGrey signinWithFakeIdentity:self.fakeIdentity];
 }
 
 - (void)tearDownHelper {
@@ -138,54 +170,149 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
 - (AppLaunchConfiguration)appConfigurationForTestCase {
   AppLaunchConfiguration config;
 
-  if ([self isRunningTest:@selector
-            (testNotEligibleReaderModePageEnabledInToolsMenu)]) {
-    config.features_disabled.push_back(
-        kEnableReaderModePageEligibilityForToolsMenu);
-  } else {
-    config.features_enabled_and_params.push_back(
-        {kEnableReaderModePageEligibilityForToolsMenu, {}});
-  }
-  if ([self isRunningTest:@selector(testReadabilityEnabled)]) {
-    config.features_enabled_and_params.push_back(
-        {dom_distiller::kReaderModeUseReadability, {}});
-  }
-  if ([self isRunningTest:@selector(testReaderModeDistillationTimeout)]) {
-    config.features_enabled_and_params.push_back(
-        {kEnableReaderMode,
-         {{{kReaderModeDistillationTimeoutDurationStringName, "0s"}}}});
-    config.features_enabled_and_params.push_back({kEnableReaderModeInUS, {}});
-  } else {
-    config.features_enabled_and_params.push_back({kEnableReaderMode, {}});
-    config.features_enabled_and_params.push_back({kEnableReaderModeInUS, {}});
-  }
+  config.iph_feature_enabled =
+      feature_engagement::kIPHiOSReaderModeLargeOmniboxEntrypointFeature.name;
+  config.features_enabled_and_params.push_back({kEnableReaderModeInUS, {}});
+
   if ([self isRunningTest:@selector(testTurnOnReaderModeViaPageActionMenu)] ||
-      [self isRunningTest:@selector(testReaderModeChipShowsAIHubIfAvailable)]) {
+      [self isRunningTest:@selector(testReaderModeChipShowsAIHubIfAvailable)] ||
+#if TARGET_OS_SIMULATOR
+      [self isRunningTest:@selector
+            (testSampleContextualChipVisibleInReaderMode)] ||
+#else
+      [self isRunningTest:@selector
+            (FLAKY_testSampleContextualChipVisibleInReaderMode)] ||
+#endif
+      [self isRunningTest:@selector(testReaderModeChipHiddenInReaderMode)]) {
     config.features_enabled_and_params.push_back({kPageActionMenu, {}});
     config.features_enabled_and_params.push_back(
-        {kLensOverlayEnableIPadCompatibility, {}});
+        {kProactiveSuggestionsFramework, {}});
   } else {
+    // Force an app restart before any tests that require the Gemini kill
+    // switch. This is required to ensure that
+    // BWGServiceFactory::BuildBwgService is re-evaluated for the new flag
+    // configuration, otherwise a cached BWGService instance may be used.
+    config.relaunch_policy = ForceRelaunchByCleanShutdown;
     config.features_disabled.push_back(kPageActionMenu);
+    config.features_enabled_and_params.push_back({kGeminiKillSwitch, {}});
   }
   if ([self isRunningTest:@selector(testOmniboxEntryPointDisabled)]) {
-    config.features_disabled.push_back(kEnableReaderModeOmniboxEntryPoint);
+    config.features_disabled.push_back(kEnableReaderModeOmniboxEntryPointInUS);
   } else {
     config.features_enabled_and_params.push_back(
-        {kEnableReaderModeOmniboxEntryPoint, {}});
+        {kEnableReaderModeOmniboxEntryPointInUS, {}});
+  }
+
+  if ([self isRunningTest:@selector(testReaderModeContentSettingsOldToggle)]) {
+    config.features_disabled.push_back(kEnableContentSettingsOptionForLinks);
+  }
+  if ([self isRunningTest:@selector(testReaderModeContentSettingsNewOptions)]) {
+    config.features_enabled_and_params.push_back(
+        {kEnableContentSettingsOptionForLinks, {}});
+  }
+
+  if ([self isRunningTest:@selector(testReaderModeDistillationTimeout)]) {
+    config.additional_args.push_back(
+        "--" + std::string(switches::kForceReaderModeDistillationTimeout));
+  }
+  if ([self isRunningTest:@selector(testReaderModeChipHiddenInReaderMode)] ||
+#if TARGET_OS_SIMULATOR
+      [self
+          isRunningTest:@selector(testSampleContextualChipVisibleInReaderMode)]
+#else
+      [self isRunningTest:@selector
+            (FLAKY_testSampleContextualChipVisibleInReaderMode)]
+#endif
+  ) {
+    config.features_enabled_and_params.push_back(
+        {kProactiveSuggestionsFramework, {}});
+    config.features_enabled_and_params.push_back({kAskGeminiChip, {}});
+  }
+#if TARGET_OS_SIMULATOR
+  if ([self isRunningTest:@selector
+            (testReaderModeChipVisibleWhenLeavingReaderModeWithPSFDisabled)]) {
+#else
+  if ([self
+          isRunningTest:@selector
+          (FLAKY_testReaderModeChipVisibleWhenLeavingReaderModeWithPSFDisabled)]) {
+#endif
+    config.features_disabled.push_back(kProactiveSuggestionsFramework);
+    config.features_disabled.push_back(kAskGeminiChip);
+  }
+#if TARGET_OS_SIMULATOR
+  if ([self isRunningTest:@selector
+            (testSampleContextualChipVisibleInReaderMode)]) {
+#else
+  if ([self isRunningTest:@selector
+            (FLAKY_testSampleContextualChipVisibleInReaderMode)]) {
+#endif
+    config.features_enabled_and_params.push_back(
+        {kContextualPanelForceShowEntrypoint, {}});
   }
   return config;
 }
 
 #pragma mark - Helpers
 
+// Opens Reader mode via the contextual panel badge entrypoint UI.
+- (void)openReaderModeWithBadgeEntrypoint {
+  if ([ChromeEarlGrey isProactiveSuggestionsFrameworkEnabled]) {
+    // Tap the AI hub entrypoint.
+    id<GREYMatcher> entrypointMatcher = grey_allOf(
+        grey_accessibilityID(kAIHubEntrypointAccessibilityIdentifier),
+        grey_sufficientlyVisible(), nil);
+
+    [[EarlGrey selectElementWithMatcher:entrypointMatcher]
+        performAction:grey_tap()];
+
+    // Verify the bottom sheet appears.
+    id<GREYMatcher> bottomSheet =
+        grey_accessibilityID(kAIHubBottomSheetAccessibilityIdentifier);
+    [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:bottomSheet];
+
+    // Tap the "Reading mode" button.
+    id<GREYMatcher> readingModeButton =
+        chrome_test_util::ButtonWithAccessibilityLabelId(
+            IDS_IOS_AI_HUB_READER_MODE_LABEL);
+    [[EarlGrey selectElementWithMatcher:readingModeButton]
+        performAction:grey_tap()];
+
+    // Verify bottom sheet disappears.
+    [ChromeEarlGrey waitForUIElementToDisappearWithMatcher:bottomSheet];
+  } else {
+    // Wait for the contextual panel entrypoint to appear and tap it.
+    id<GREYMatcher> entrypoint =
+        chrome_test_util::ButtonWithAccessibilityLabelId(
+            IDS_IOS_CONTEXTUAL_PANEL_READER_MODE_MODEL_ENTRYPOINT_MESSAGE);
+    [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:entrypoint];
+    [[EarlGrey selectElementWithMatcher:entrypoint] performAction:grey_tap()];
+  }
+}
+
+// Loads the URL with optimization guide hints for Reader Mode eligibility
+// set to true.
+- (void)loadURLWithOptimizationGuideHints:(const GURL&)URL {
+  optimization_guide::proto::Any any_metadata;
+  NSData* metadata_data =
+      [NSData dataWithBytes:any_metadata.SerializeAsString().c_str()
+                     length:any_metadata.ByteSizeLong()];
+
+  [OptimizationGuideTestAppInterface
+      addHintForTesting:base::SysUTF8ToNSString(URL.spec())
+                   type:optimization_guide::proto::READER_MODE_ELIGIBLE
+         serialized_any:metadata_data
+               type_url:@"type.googleapis.com/"
+                        @"optimization_guide.proto.Any"];
+
+  [ChromeEarlGrey loadURL:URL];
+}
+
 // Asserts that the matcher has the expected content in the Tools Menu.
 - (void)assertReaderModeInToolsMenuWithMatcher:(id<GREYMatcher>)matcher {
   [ChromeEarlGreyUI openToolsMenu];
 
   id<GREYMatcher> tableViewMatcher =
-      [ChromeEarlGrey isNewOverflowMenuEnabled]
-          ? grey_accessibilityID(kPopupMenuToolsMenuActionListId)
-          : grey_accessibilityID(kPopupMenuToolsMenuTableViewId);
+      grey_accessibilityID(kPopupMenuToolsMenuActionListId);
   id<GREYMatcher> readerModeButtonMatcher =
       grey_allOf(grey_accessibilityID(kToolsMenuReaderMode),
                  grey_accessibilityTrait(UIAccessibilityTraitButton),
@@ -198,101 +325,111 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
   [ChromeEarlGreyUI closeToolsMenu];
 }
 
-#pragma mark - Tests
-
-// Tests that the user can show / hide Reader Mode from the tools menu
-// entrypoint on an eligible web page.
-// TODO(crbug.com/438763264): Failing on device and flaky on simulator.
-- (void)DISABLED_testToggleReaderModeInToolsMenuForDistillablePage {
-  [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
-
-  // Open Reader Mode UI.
-  [ChromeEarlGreyUI openToolsMenu];
-  [ChromeEarlGreyUI
-      tapToolsMenuAction:grey_accessibilityID(kToolsMenuReaderMode)];
-
+// Asserts that the Reader Mode UI attributes, the distilled page and the
+// reading icon, are visible.
+- (void)assertReaderModePageIsVisible {
   [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
+      waitForUIElementToAppearWithMatcher:
           grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
   [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
+      waitForUIElementToAppearWithMatcher:ReaderModeCustomizationBadge()];
+}
 
-  // Close Reader Mode UI.
-  [ChromeEarlGreyUI openToolsMenu];
-  [ChromeEarlGreyUI
-      tapToolsMenuAction:grey_accessibilityID(kToolsMenuReaderMode)];
-
-  // The Reader Mode UI is not visible.
+// Asserts that the Reader Mode UI attributes, the distilled page and the
+// reading icon, are not visible.
+- (void)assertReaderModePageIsHidden {
   [ChromeEarlGrey
       waitForUIElementToDisappearWithMatcher:
           grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      assertWithMatcher:grey_hidden(YES)];
+  [[EarlGrey selectElementWithMatcher:ReaderModeCustomizationBadge()]
+      assertWithMatcher:grey_not(grey_sufficientlyVisible())];
 }
 
-// Tests that the user can show / hide Reader Mode from the tools menu
-// entrypoint on an eligible web page in Incognito Mode.
-// TODO(crbug.com/438763264): Failing on iPhone device, and flaky otherwise.
-- (void)
-    DISABLED_testToggleReaderModeInToolsMenuForDistillablePageInIncognitoMode {
+// Open the customization options UI via the Reader Mode badge.
+- (void)openReaderModeCustomizationOptions {
+  if ([ChromeEarlGrey isProactiveSuggestionsFrameworkEnabled]) {
+    // Tap the Reader Mode chip.
+    [[EarlGrey
+        selectElementWithMatcher:
+            grey_allOf(grey_accessibilityID(
+                           kBadgeButtonReaderModeAccessibilityIdentifier),
+                       grey_interactable(), nil)] performAction:grey_tap()];
+
+    // Verify the bottom sheet appears.
+    id<GREYMatcher> bottomSheet =
+        grey_accessibilityID(kAIHubBottomSheetAccessibilityIdentifier);
+    [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:bottomSheet];
+
+    // Tap the "Reading mode" button to go to the options view.
+    id<GREYMatcher> readingModeOptionsButton =
+        chrome_test_util::ButtonWithAccessibilityLabelId(
+            IDS_IOS_AI_HUB_READER_MODE_OPTIONS_BUTTON_TITLE);
+    [[EarlGrey
+        selectElementWithMatcher:grey_allOf(grey_ancestor(bottomSheet),
+                                            readingModeOptionsButton, nil)]
+        performAction:grey_tap()];
+  } else {
+    // Tap the Reader Mode chip.
+    [[EarlGrey
+        selectElementWithMatcher:
+            grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)]
+        performAction:grey_tap()];
+  }
+
+  // The options view should be visible.
+  [ChromeEarlGrey
+      waitForSufficientlyVisibleElementWithMatcher:
+          grey_accessibilityID(kReaderModeOptionsViewAccessibilityIdentifier)];
+}
+
+#pragma mark - Tests
+
+// Tests that Reader Mode is shown / hidden for a distillable page.
+- (void)testToggleReaderModeForDistillablePage {
+  [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
+
+  // Open Reader Mode UI.
+  GREYAssertTrue(
+      [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
+      @"Reader mode content could not be loaded");
+  [self assertReaderModePageIsVisible];
+
+  // Close Reader Mode UI.
+  [ChromeEarlGrey hideReaderMode];
+  [self assertReaderModePageIsHidden];
+}
+
+// Tests that Reader Mode is shown / hidden for a distillable page in
+// incognito mode.
+- (void)testToggleReaderModeForDistillablePageInIncognitoMode {
   // Open a web page in Incognito.
   [ChromeEarlGrey openNewIncognitoTab];
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Open Reader Mode UI.
-  [ChromeEarlGreyUI openToolsMenu];
-  [ChromeEarlGreyUI
-      tapToolsMenuAction:grey_accessibilityID(kToolsMenuReaderMode)];
-
+  GREYAssertTrue(
+      [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
+      @"Reader mode content could not be loaded");
   [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
+      waitForUIElementToAppearWithMatcher:
           grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
+
   [ChromeEarlGrey
       waitForSufficientlyVisibleElementWithMatcher:
           grey_accessibilityID(kBadgeButtonIncognitoAccessibilityIdentifier)];
 
   // Close Reader Mode UI.
-  [ChromeEarlGreyUI openToolsMenu];
-  [ChromeEarlGreyUI
-      tapToolsMenuAction:grey_accessibilityID(kToolsMenuReaderMode)];
-
-  // The Reader Mode UI is not visible, but Incognito badge continues to be
-  // visible.
-  [ChromeEarlGrey
-      waitForUIElementToDisappearWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      assertWithMatcher:grey_hidden(YES)];
+  [ChromeEarlGrey hideReaderMode];
+  [self assertReaderModePageIsHidden];
   [ChromeEarlGrey
       waitForSufficientlyVisibleElementWithMatcher:
           grey_accessibilityID(kBadgeButtonIncognitoAccessibilityIdentifier)];
 }
 
-// Test that a page that is not eligible for Reader Mode shows as a disabled
-// option in the Tools menu.
-- (void)testNotEligibleReaderModePageDisabledInToolsMenu {
-  [ChromeEarlGrey loadURL:self.testServer->GetURL("/pony.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
-
-  [self assertReaderModeInToolsMenuWithMatcher:
-            grey_accessibilityTrait(UIAccessibilityTraitNotEnabled)];
-}
-
 // Test that a page that is not eligible for Reader Mode shows as an enabled
-// option in the Tools menu when there is no page eligibility criteria.
+// option in the Tools menu.
 - (void)testNotEligibleReaderModePageEnabledInToolsMenu {
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/pony.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   [self assertReaderModeInToolsMenuWithMatcher:
             grey_not(grey_accessibilityTrait(UIAccessibilityTraitNotEnabled))];
@@ -301,30 +438,19 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
 // Tests that swiping between a Reader Mode web state and a normal web
 // state shows the expected view.
 - (void)testSideSwipeReaderMode {
-  // TODO(crbug.com/460745280): Test is flaky.
-  if ([ChromeEarlGrey isIPadIdiom]) {
-    EARL_GREY_TEST_DISABLED(@"Side swipe transitions are flaky on iPad.");
-  }
   const GURL readerModeURL = self.testServer->GetURL("/article.html");
   [ChromeEarlGrey loadURL:readerModeURL];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Open Reader Mode UI.
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
+  [self assertReaderModePageIsVisible];
 
   // Open a new Tab with an article to have a tab to switch to.
   [ChromeEarlGreyUI openNewTab];
   const GURL nonReaderModeURL = self.testServer->GetURL("/pony.html");
   [ChromeEarlGrey loadURL:nonReaderModeURL];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Side swipe on the toolbar.
   [[EarlGrey
@@ -332,12 +458,8 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
       performAction:grey_swipeSlowInDirection(kGREYDirectionRight)];
 
   // Reader Mode view is visible.
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
+  [self assertReaderModePageIsVisible];
+
   // Verifies that the navigation to the destination page happened.
   GREYAssertEqual(readerModeURL, [ChromeEarlGrey webStateVisibleURL],
                   @"Did not navigate to Reader Mode url.");
@@ -348,14 +470,8 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
       performAction:grey_swipeSlowInDirection(kGREYDirectionLeft)];
 
   // Non-Reader Mode view is visible.
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeViewAccessibilityIdentifier)]
-      assertWithMatcher:grey_nil()];
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      assertWithMatcher:grey_hidden(YES)];
+  [self assertReaderModePageIsHidden];
+
   // Verifies that the navigation to the destination page happened.
   GREYAssertEqual(nonReaderModeURL, [ChromeEarlGrey webStateVisibleURL],
                   @"Did not navigate to non-Reader Mode url.");
@@ -364,38 +480,16 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
 // Tests that the user can show Reader Mode from the contextual panel entrypoint
 // on an eligible web page.
 - (void)testToggleReaderModeInContextualPanelEntrypointForDistillablePage {
-  // TODO(crbug.com/438763264): Failing on iPad device.
-#if !TARGET_OS_SIMULATOR
-  if ([ChromeEarlGrey isIPadIdiom]) {
-    EARL_GREY_TEST_DISABLED(@"Failing on iPad device");
-  }
-#endif
-  [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
+  [SigninEarlGrey signinWithFakeIdentity:self.fakeIdentity];
+  [self loadURLWithOptimizationGuideHints:self.testServer->GetURL(
+                                              "/article.html")];
 
-  // TODO(crbug.com/457880049): Clean up when feature is enabled by default.
-  NSString* imageViewIdentifier =
-      [ChromeEarlGrey isAskGeminiChipEnabled]
-          ? kLocationBarBadgeImageViewIdentifier
-          : @"ContextualPanelEntrypointImageViewAXID";
   // Open Reader Mode UI.
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:grey_accessibilityID(
-                                                       imageViewIdentifier)];
-  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(imageViewIdentifier)]
-      performAction:grey_tap()];
-
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
+  [self openReaderModeWithBadgeEntrypoint];
+  [self assertReaderModePageIsVisible];
 
   // Check that the chip is a button with the expected accessibility label.
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
+  [[EarlGrey selectElementWithMatcher:ReaderModeCustomizationBadge()]
       assertWithMatcher:chrome_test_util::ButtonWithAccessibilityLabelId(
                             IDS_IOS_READER_MODE_CHIP_ACCESSIBILITY_LABEL)];
 }
@@ -416,26 +510,77 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
   ExpectBodyHasThemeAndFont("dark", "sans-serif");
 }
 
-// Tests that font change is applied to the Reading Mode web page.
-// TODO(crbug.com/438265943): Re-enable.
-- (void)DISABLED_testUpdateReaderModeFont {
+// Tests that unselecting the theme in Reading Mode options will apply the
+// default theme on the Reading Mode web page.
+- (void)testUnselectReaderModeTheme {
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
 
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
-  // Tap the chip to open the options view.
+  // Set the user-selected preference to Dark theme.
+  [ChromeEarlGrey setIntegerValue:(int)dom_distiller::mojom::Theme::kDark
+                      forUserPref:dom_distiller::prefs::kTheme];
+
+  // Open Reading Mode options view.
+  [self openReaderModeCustomizationOptions];
+
+  ExpectBodyHasThemeAndFont("dark", "sans-serif");
+
+  // Tap the Dark theme button.
   [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
+      selectElementWithMatcher:
+          chrome_test_util::ButtonWithAccessibilityLabelId(
+              IDS_IOS_READER_MODE_OPTIONS_COLOR_THEME_BUTTON_ACCESSIBILITY_LABEL_DARK)]
       performAction:grey_tap()];
 
-  // The options view should be visible.
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeOptionsViewAccessibilityIdentifier)];
+  // Expect the theme to return to the default theme preference and the button
+  // to be unselected.
+  ExpectBodyHasThemeAndFont("light", "sans-serif");
+  [[EarlGrey
+      selectElementWithMatcher:
+          grey_allOf(
+              chrome_test_util::ButtonWithAccessibilityLabelId(
+                  IDS_IOS_READER_MODE_OPTIONS_COLOR_THEME_BUTTON_ACCESSIBILITY_LABEL_DARK),
+              grey_not(grey_accessibilityTrait(UIAccessibilityTraitSelected)),
+              nil)] assertWithMatcher:grey_notNil()];
+
+  // Tap the Light theme button.
+  [[EarlGrey
+      selectElementWithMatcher:
+          chrome_test_util::ButtonWithAccessibilityLabelId(
+              IDS_IOS_READER_MODE_OPTIONS_COLOR_THEME_BUTTON_ACCESSIBILITY_LABEL_LIGHT)]
+      performAction:grey_tap()];
+
+  // Expect the theme to register light theme as the user preference and the
+  // button to be selected.
+  ExpectBodyHasThemeAndFont("light", "sans-serif");
+  [[EarlGrey
+      selectElementWithMatcher:
+          grey_allOf(
+              chrome_test_util::ButtonWithAccessibilityLabelId(
+                  IDS_IOS_READER_MODE_OPTIONS_COLOR_THEME_BUTTON_ACCESSIBILITY_LABEL_LIGHT),
+              grey_accessibilityTrait(UIAccessibilityTraitSelected), nil)]
+      assertWithMatcher:grey_notNil()];
+}
+
+// Tests that font change is applied to the Reading Mode web page.
+// TODO(crbug.com/481633359): Deflake this test.
+#if TARGET_OS_SIMULATOR
+#define MAYBE_testUpdateReaderModeFont testUpdateReaderModeFont
+#else
+#define MAYBE_testUpdateReaderModeFont FLAKY_testUpdateReaderModeFont
+#endif
+- (void)MAYBE_testUpdateReaderModeFont {
+  [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
+
+  GREYAssertTrue(
+      [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
+      @"Reader mode content could not be loaded");
+
+  // Open Reading Mode options view.
+  [self openReaderModeCustomizationOptions];
 
   ExpectBodyHasThemeAndFont("light", "sans-serif");
   [[EarlGrey selectElementWithMatcher:
@@ -464,61 +609,39 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
 }
 
 // Tests that tapping the reader mode chip shows the Reader mode options view.
-- (void)testTapReaderModeChipShowsOptionsView {
+// TODO(crbug.com/481633359): Deflake this test.
+#if TARGET_OS_SIMULATOR
+#define MAYBE_testTapReaderModeChipShowsOptionsView \
+  testTapReaderModeChipShowsOptionsView
+#else
+#define MAYBE_testTapReaderModeChipShowsOptionsView \
+  FLAKY_testTapReaderModeChipShowsOptionsView
+#endif
+- (void)MAYBE_testTapReaderModeChipShowsOptionsView {
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Open Reader Mode UI.
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
+  [self assertReaderModePageIsVisible];
 
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
-
-  // Tap the chip.
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      performAction:grey_tap()];
-
-  // The options view should be visible.
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeOptionsViewAccessibilityIdentifier)];
+  // Open Reading Mode options view.
+  [self openReaderModeCustomizationOptions];
 }
 
 // Tests that font family can be changed from the options view.
 - (void)testChangeReaderModeFontFamilyFromOptionsView {
-  // TODO(crbug.com/438763264): Failing on iPad device.
-#if !TARGET_OS_SIMULATOR
-  if ([ChromeEarlGrey isIPadIdiom]) {
-    EARL_GREY_TEST_DISABLED(@"Failing on iPad device");
-  }
-#endif
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Open Reader Mode UI.
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
+  [self assertReaderModePageIsVisible];
 
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
-
-  // Tap the chip to open the options view.
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      performAction:grey_tap()];
-
-  // The options view should be visible.
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeOptionsViewAccessibilityIdentifier)];
+  // Open Reading Mode options view.
+  [self openReaderModeCustomizationOptions];
 
   ExpectBodyHasThemeAndFont("light", "sans-serif");
 
@@ -568,70 +691,30 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
   ExpectBodyHasThemeAndFont("light", "sans-serif");
 }
 
-// Tests that Reading Mode UI continues to be functional when changing the
-// underlying distillation architecture.
-- (void)testReadabilityEnabled {
-  [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
-
-  // Open Reader Mode UI.
-  GREYAssertTrue(
-      [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
-      @"Reader mode content could not be loaded");
-
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
-
-  // Close Reader Mode UI.
-  [ChromeEarlGrey hideReaderMode];
-
-  // The Reader Mode UI is not visible.
-  [ChromeEarlGrey
-      waitForUIElementToDisappearWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      assertWithMatcher:grey_hidden(YES)];
-}
-
 // Tests that font size can be changed from the options view.
-- (void)testChangeReaderModeFontSizeFromOptionsView {
-  // TODO(crbug.com/438763264): Failing on iPad device.
-#if !TARGET_OS_SIMULATOR
-  if ([ChromeEarlGrey isIPadIdiom]) {
-    EARL_GREY_TEST_DISABLED(@"Failing on iPad device");
-  }
+// TODO(crbug.com/481633359): Deflake this test.
+#if TARGET_OS_SIMULATOR
+#define MAYBE_testChangeReaderModeFontSizeFromOptionsView \
+  testChangeReaderModeFontSizeFromOptionsView
+#else
+#define MAYBE_testChangeReaderModeFontSizeFromOptionsView \
+  FLAKY_testChangeReaderModeFontSizeFromOptionsView
 #endif
+- (void)MAYBE_testChangeReaderModeFontSizeFromOptionsView {
   std::vector<double> multipliers = ReaderModeFontScaleMultipliers();
   [ChromeEarlGrey setDoubleValue:multipliers[0]
                      forUserPref:dom_distiller::prefs::kFontScale];
 
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Open Reader Mode UI.
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
+  [self assertReaderModePageIsVisible];
 
-  // Tap the chip to open the options view.
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      performAction:grey_tap()];
-
-  // The options view should be visible.
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeOptionsViewAccessibilityIdentifier)];
+  // Open Reading Mode options view.
+  [self openReaderModeCustomizationOptions];
 
   // Decrease button should be disabled at the minimum font size.
   [[EarlGrey
@@ -687,38 +770,28 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
 }
 
 // Tests that color theme can be changed from the options view.
-- (void)testChangeReaderModeThemeFromOptionsView {
-  // TODO(crbug.com/438763264): Failing on iPad device.
-#if !TARGET_OS_SIMULATOR
-  if ([ChromeEarlGrey isIPadIdiom]) {
-    EARL_GREY_TEST_DISABLED(@"Failing on iPad device");
-  }
+// TODO(crbug.com/481633359): Deflake this test.
+#if TARGET_OS_SIMULATOR
+#define MAYBE_testChangeReaderModeThemeFromOptionsView \
+  testChangeReaderModeThemeFromOptionsView
+#else
+#define MAYBE_testChangeReaderModeThemeFromOptionsView \
+  FLAKY_testChangeReaderModeThemeFromOptionsView
 #endif
+- (void)MAYBE_testChangeReaderModeThemeFromOptionsView {
   [ChromeEarlGrey setIntegerValue:(int)dom_distiller::mojom::Theme::kLight
                       forUserPref:dom_distiller::prefs::kTheme];
 
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Open Reader Mode UI.
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
+  [self assertReaderModePageIsVisible];
 
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
-
-  // Tap the chip to open the options view.
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      performAction:grey_tap()];
-
-  // The options view should be visible.
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeOptionsViewAccessibilityIdentifier)];
+  // Open Reading Mode options view.
+  [self openReaderModeCustomizationOptions];
 
   // Change the theme to dark.
   [[EarlGrey selectElementWithMatcher:
@@ -752,29 +825,24 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
 }
 
 // Tests that tapping the close button in the options view dismisses the view.
-- (void)testTapCloseButtonInOptionsView {
+// TODO(crbug.com/481633359): Deflake this test.
+#if TARGET_OS_SIMULATOR
+#define MAYBE_testTapCloseButtonInOptionsView testTapCloseButtonInOptionsView
+#else
+#define MAYBE_testTapCloseButtonInOptionsView \
+  FLAKY_testTapCloseButtonInOptionsView
+#endif
+- (void)MAYBE_testTapCloseButtonInOptionsView {
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Open Reader Mode UI.
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
+  [self assertReaderModePageIsVisible];
 
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
-
-  // Tap the chip to open the options view.
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      performAction:grey_tap()];
-
-  // The options view should be visible.
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeOptionsViewAccessibilityIdentifier)];
+  // Open Reading Mode options view.
+  [self openReaderModeCustomizationOptions];
 
   // Tap the close button.
   [[EarlGrey selectElementWithMatcher:
@@ -790,35 +858,40 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
 
 // Tests that tapping the "Turn Off" button in the options view dismisses the
 // view and deactivates Reader mode.
-- (void)testTapTurnOffButtonInOptionsView {
+// TODO(crbug.com/481633359): Deflake this test.
+#if TARGET_OS_SIMULATOR
+#define MAYBE_testTapTurnOffButtonInOptionsView \
+  testTapTurnOffButtonInOptionsView
+#else
+#define MAYBE_testTapTurnOffButtonInOptionsView \
+  FLAKY_testTapTurnOffButtonInOptionsView
+#endif
+- (void)MAYBE_testTapTurnOffButtonInOptionsView {
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Open Reader Mode UI.
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
+  [self assertReaderModePageIsVisible];
 
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
+  // Open Reading Mode options view.
+  [self openReaderModeCustomizationOptions];
 
-  // Tap the chip to open the options view.
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      performAction:grey_tap()];
-
-  // The options view should be visible.
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeOptionsViewAccessibilityIdentifier)];
-
-  // Tap the hide button.
-  [[EarlGrey selectElementWithMatcher:
-                 grey_accessibilityID(
-                     kReaderModeOptionsTurnOffButtonAccessibilityIdentifier)]
-      performAction:grey_tap()];
+  // Tap the "Turn off" button.
+  if ([ChromeEarlGrey isProactiveSuggestionsFrameworkEnabled]) {
+    [[EarlGrey selectElementWithMatcher:testing::NavigationBarBackButton()]
+        performAction:grey_tap()];
+    [[EarlGrey selectElementWithMatcher:
+                   chrome_test_util::ButtonWithAccessibilityLabelId(
+                       IDS_IOS_AI_HUB_HIDE_BUTTON_LABEL)]
+        performAction:grey_tap()];
+  } else {
+    [[EarlGrey selectElementWithMatcher:
+                   grey_accessibilityID(
+                       kReaderModeOptionsTurnOffButtonAccessibilityIdentifier)]
+        performAction:grey_tap()];
+  }
 
   // The options view should be hidden.
   [ChromeEarlGrey
@@ -826,45 +899,29 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
           grey_accessibilityID(kReaderModeOptionsViewAccessibilityIdentifier)];
 
   // The Reader Mode UI is not visible.
-  [ChromeEarlGrey
-      waitForUIElementToDisappearWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      assertWithMatcher:grey_hidden(YES)];
+  [self assertReaderModePageIsHidden];
 }
 
 // Tests that tapping outside of the options view dismisses it.
-- (void)testTapOutsideOptionsViewDismissesIt {
-  // TODO(crbug.com/438763264): Failing on iPad device.
-#if !TARGET_OS_SIMULATOR
-  if ([ChromeEarlGrey isIPadIdiom]) {
-    EARL_GREY_TEST_DISABLED(@"Failing on iPad device");
-  }
+// TODO(crbug.com/481633359): Deflake this test.
+#if TARGET_OS_SIMULATOR
+#define MAYBE_testTapOutsideOptionsViewDismissesIt \
+  testTapOutsideOptionsViewDismissesIt
+#else
+#define MAYBE_testTapOutsideOptionsViewDismissesIt \
+  FLAKY_testTapOutsideOptionsViewDismissesIt
 #endif
+- (void)MAYBE_testTapOutsideOptionsViewDismissesIt {
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Open Reader Mode UI.
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
+  [self assertReaderModePageIsVisible];
 
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
-
-  // Tap the chip to open the options view.
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      performAction:grey_tap()];
-
-  // The options view should be visible.
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeOptionsViewAccessibilityIdentifier)];
+  // Open Reading Mode options view.
+  [self openReaderModeCustomizationOptions];
 
   // Tap on the top left corner of the screen to dismiss the options view.
   [[EarlGrey selectElementWithMatcher:grey_keyWindow()]
@@ -878,28 +935,16 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
 
 // Test accessibility for Reader mode options screen.
 - (void)testReaderModeOptionsAccessibility {
-  // TODO(crbug.com/438763264): Failing on iPad device.
-#if !TARGET_OS_SIMULATOR
-  if ([ChromeEarlGrey isIPadIdiom]) {
-    EARL_GREY_TEST_DISABLED(@"Failing on iPad device");
-  }
-#endif
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Open Reader Mode UI.
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
-
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
+  [self assertReaderModePageIsVisible];
 
   // Tap the chip to open the options view.
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
+  [[EarlGrey selectElementWithMatcher:ReaderModeCustomizationBadge()]
       performAction:grey_tap()];
 
   [ChromeEarlGrey verifyAccessibilityForCurrentScreen];
@@ -908,8 +953,9 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
 // Tests that the contextual panel entrypoint disappears and a failure snackbar
 // is presented when distillation fails.
 - (void)testReaderModeDistillationFailure {
-  [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
+  [SigninEarlGrey signinWithFakeIdentity:self.fakeIdentity];
+  [self loadURLWithOptimizationGuideHints:self.testServer->GetURL(
+                                              "/article.html")];
 
   // Wait for the contextual panel entrypoint to appear.
   id<GREYMatcher> entrypoint = chrome_test_util::ButtonWithAccessibilityLabelId(
@@ -921,10 +967,7 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
       evaluateJavaScriptForSideEffect:@"document.body.outerHTML = ''"];
 
   // Tap the entrypoint to trigger distillation.
-  [[EarlGrey selectElementWithMatcher:entrypoint] performAction:grey_tap()];
-
-  // The entrypoint should disappear.
-  [ChromeEarlGrey waitForUIElementToDisappearWithMatcher:entrypoint];
+  [self openReaderModeWithBadgeEntrypoint];
 
   // A snackbar should be displayed with a failure message.
   NSString* failureMessage =
@@ -938,19 +981,11 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
 // Tests that the contextual panel entrypoint disappears and a failure snackbar
 // is presented when distillation times out.
 - (void)testReaderModeDistillationTimeout {
-  [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
+  [SigninEarlGrey signinWithFakeIdentity:self.fakeIdentity];
+  [self loadURLWithOptimizationGuideHints:self.testServer->GetURL(
+                                              "/article.html")];
 
-  // Wait for the contextual panel entrypoint to appear.
-  id<GREYMatcher> entrypoint = chrome_test_util::ButtonWithAccessibilityLabelId(
-      IDS_IOS_CONTEXTUAL_PANEL_READER_MODE_MODEL_ENTRYPOINT_MESSAGE);
-  [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:entrypoint];
-
-  // Tap the entrypoint to trigger distillation.
-  [[EarlGrey selectElementWithMatcher:entrypoint] performAction:grey_tap()];
-
-  // The entrypoint should disappear.
-  [ChromeEarlGrey waitForUIElementToDisappearWithMatcher:entrypoint];
+  [self openReaderModeWithBadgeEntrypoint];
 
   // A snackbar should be displayed with a failure message.
   NSString* failureMessage =
@@ -963,35 +998,81 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
 
 // Tests that non-http links are removed from Reading mode.
 - (void)testNonHttpsLinksRemovedFromReadingMode {
-  // TODO(crbug.com/438763264): Failing on iPad device.
-#if !TARGET_OS_SIMULATOR
-  if ([ChromeEarlGrey isIPadIdiom]) {
-    EARL_GREY_TEST_DISABLED(@"Failing on iPad device");
-  }
-#endif
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   EXPECT_EQ(4, CountNumLinks());
 
-  // Wait for the contextual panel entrypoint to appear.
-  id<GREYMatcher> entrypoint = chrome_test_util::ButtonWithAccessibilityLabelId(
-      IDS_IOS_CONTEXTUAL_PANEL_READER_MODE_MODEL_ENTRYPOINT_MESSAGE);
-  [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:entrypoint];
+  // Open Reader Mode UI.
+  GREYAssertTrue(
+      [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
+      @"Reader mode content could not be loaded");
 
-  // Tap the entrypoint to trigger distillation.
-  [[EarlGrey selectElementWithMatcher:entrypoint] performAction:grey_tap()];
-
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
+  [self assertReaderModePageIsVisible];
   EXPECT_EQ(1, CountNumLinks());
+}
+
+// Tests that a sample contextual chip stays visible inside Reader mode if
+// kAskGeminiChip is enabled.
+// TODO(crbug.com/481633359): Deflake this test.
+#if TARGET_OS_SIMULATOR
+#define MAYBE_testSampleContextualChipVisibleInReaderMode \
+  testSampleContextualChipVisibleInReaderMode
+#else
+#define MAYBE_testSampleContextualChipVisibleInReaderMode \
+  FLAKY_testSampleContextualChipVisibleInReaderMode
+#endif
+- (void)MAYBE_testSampleContextualChipVisibleInReaderMode {
+  [SigninEarlGrey signinWithFakeIdentity:self.fakeIdentity];
+  [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
+
+  // Open Reader Mode UI.
+  GREYAssertTrue(
+      [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
+      @"Reader mode content could not be loaded");
+  [self assertReaderModePageIsVisible];
+
+  // Check that the sample contextual chip is visible.
+  [[EarlGrey
+      selectElementWithMatcher:ContextualPanelEntrypointImageViewMatcher()]
+      assertWithMatcher:grey_sufficientlyVisible()];
+}
+
+// Tests that the Reader mode contextual chip is hidden inside Reader mode if
+// kAskGeminiChip is enabled.
+- (void)testReaderModeChipHiddenInReaderMode {
+  [SigninEarlGrey signinWithFakeIdentity:self.fakeIdentity];
+  [self loadURLWithOptimizationGuideHints:self.testServer->GetURL(
+                                              "/article.html")];
+
+  // Wait for the Reader Mode contextual entrypoint to appear.
+  [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:
+                      ContextualPanelEntrypointImageViewMatcher()];
+
+  // Open Reader Mode UI.
+  GREYAssertTrue(
+      [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
+      @"Reader mode content could not be loaded");
+  [self assertReaderModePageIsVisible];
+
+  // The Reader Mode contextual entrypoint should be hidden.
+  [[EarlGrey
+      selectElementWithMatcher:ContextualPanelEntrypointImageViewMatcher()]
+      assertWithMatcher:grey_notVisible()];
+  // The Reader mode badge button should be visible instead.
+  [[EarlGrey
+      selectElementWithMatcher:
+          grey_accessibilityID(kBadgeButtonReaderModeAccessibilityIdentifier)]
+      assertWithMatcher:grey_sufficientlyVisible()];
 }
 
 // Tests that the user can turn on Reader Mode from the page action menu.
 - (void)testTurnOnReaderModeViaPageActionMenu {
-  [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
+  GREYAssertTrue([ChromeEarlGrey isProactiveSuggestionsFrameworkEnabled],
+                 @"Proactive suggestions framework feature must be enabled");
+
+  [SigninEarlGrey signinWithFakeIdentity:self.fakeIdentity];
+  [self loadURLWithOptimizationGuideHints:self.testServer->GetURL(
+                                              "/article.html")];
 
   // Wait for the contextual chip to appear and then disappear.
   id<GREYMatcher> entrypoint = chrome_test_util::ButtonWithAccessibilityLabelId(
@@ -1000,51 +1081,26 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
   [ChromeEarlGrey waitForUIElementToDisappearWithMatcher:entrypoint
                                                  timeout:base::Seconds(10)];
 
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kAIHubEntrypointAccessibilityIdentifier)]
-      performAction:grey_tap()];
+  [self openReaderModeWithBadgeEntrypoint];
 
-  // Verify the bottom sheet appears.
-  id<GREYMatcher> bottomSheet =
-      grey_accessibilityID(kAIHubBottomSheetAccessibilityIdentifier);
-  [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:bottomSheet];
-
-  // Tap the "Reading mode" button.
-  id<GREYMatcher> readingModeButton =
-      chrome_test_util::ButtonWithAccessibilityLabelId(
-          IDS_IOS_AI_HUB_READER_MODE_LABEL);
-  [[EarlGrey selectElementWithMatcher:readingModeButton]
-      performAction:grey_tap()];
-
-  // Verify bottom sheet disappears and Reader Mode UI is shown.
-  [ChromeEarlGrey waitForUIElementToDisappearWithMatcher:bottomSheet];
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
+  [self assertReaderModePageIsVisible];
 }
 
 // Tests that tapping the Reader mode chip shows the AI hub bottom sheet if AI
 // hub is available.
 - (void)testReaderModeChipShowsAIHubIfAvailable {
+  [SigninEarlGrey signinWithFakeIdentity:self.fakeIdentity];
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Open Reader Mode UI.
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
+  [self assertReaderModePageIsVisible];
 
-  // Tap the Reader mode chip.
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
+  // Tap the Reader mode customization badge.
+  [[EarlGrey selectElementWithMatcher:grey_allOf(ReaderModeCustomizationBadge(),
+                                                 grey_interactable(), nil)]
       performAction:grey_tap()];
 
   // Verify the bottom sheet appears.
@@ -1081,13 +1137,7 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
       performAction:grey_tap()];
 
   // The Reader Mode UI is not visible.
-  [ChromeEarlGrey
-      waitForUIElementToDisappearWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      assertWithMatcher:grey_hidden(YES)];
+  [self assertReaderModePageIsHidden];
 }
 
 // Tests that the text zoom UI can be opened from reader mode and that it
@@ -1104,7 +1154,6 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
                      forUserPref:dom_distiller::prefs::kFontScale];
 
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Open Reader Mode UI.
   GREYAssertTrue(
@@ -1152,127 +1201,72 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
   ExpectFontSize(1.0 * kReaderModeBaseFontSize);
 }
 
-// Tests that the contextual chip is visible in Incognito.
-// TODO(crbug.com/438763264): Failing on device and flaky on simulator.
-- (void)DISABLED_testContextualChipVisibleInIncognito {
+// Tests that the Reader mode badge is visible in Incognito.
+- (void)testReaderModeBadgeVisibleInIncognito {
   // Open a web page in Incognito.
   [ChromeEarlGrey openNewIncognitoTab];
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
-  // TODO(crbug.com/457880049): Clean up when feature is enabled by default.
-  NSString* imageViewIdentifier =
-      [ChromeEarlGrey isAskGeminiChipEnabled]
-          ? kLocationBarBadgeImageViewIdentifier
-          : @"ContextualPanelEntrypointImageViewAXID";
-  // Tap on the contextual panel entrypoint.
-  [[EarlGrey selectElementWithMatcher:grey_accessibilityID(imageViewIdentifier)]
-      performAction:grey_tap()];
+  // Open Reader Mode UI.
+  GREYAssertTrue(
+      [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
+      @"Reader mode content could not be loaded");
 
-  // Reader mode and the incognito badge should be visible.
+  // Reader mode and incognito badge should be visible.
   [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
+      waitForUIElementToAppearWithMatcher:
           grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
   [ChromeEarlGrey
       waitForSufficientlyVisibleElementWithMatcher:
           grey_accessibilityID(kBadgeButtonIncognitoAccessibilityIdentifier)];
 }
 
-// Tests that overscroll actions can be used to refresh dismisses Reader mode.
-// TODO(crbug.com/446692216): Re-enable this test.
-- (void)DISABLED_testOverscrollToRefresh {
-  if ([ChromeEarlGrey isIPadIdiom]) {
-    EARL_GREY_TEST_SKIPPED(@"Overscroll Actions are only on iPhone.");
-  }
+// Tests that a reload action dismisses Reader mode.
+- (void)testReloadDismissesReaderMode {
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Open Reader Mode UI.
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
+  [self assertReaderModePageIsVisible];
 
-  // Pull down to reload.
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::WebViewMatcher()]
-      performAction:chrome_test_util::OverscrollSwipe(kGREYDirectionDown)];
-
-  // Wait for the page to reload.
-  [ChromeEarlGrey waitForPageToFinishLoading];
+  [ChromeEarlGrey reload];
 
   // The Reader Mode UI is not visible.
-  [ChromeEarlGrey
-      waitForUIElementToDisappearWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      assertWithMatcher:grey_hidden(YES)];
+  [self assertReaderModePageIsHidden];
 }
 
 // Tests that Reader Mode can be toggled on and off for a URL with an empty
 // fragment.
 - (void)testToggleReaderModeWithEmptyRef {
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html#")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Turn on Reader Mode.
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
+  [self assertReaderModePageIsVisible];
 
   // Turn off Reader Mode.
   [ChromeEarlGrey hideReaderMode];
-  [ChromeEarlGrey
-      waitForUIElementToDisappearWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      assertWithMatcher:grey_hidden(YES)];
+  [self assertReaderModePageIsHidden];
 
   // Turn on Reader Mode again.
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeViewAccessibilityIdentifier)];
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
+  [self assertReaderModePageIsVisible];
 }
 
 // Tests that the killswitch to disable the omnibox entrypoint does not
 // interfere with other Reading Mode entrypoints.
 - (void)testOmniboxEntryPointDisabled {
-  // TODO(crbug.com/445861550): Re-enable the test on device.
-#if !TARGET_OS_SIMULATOR
-  EARL_GREY_TEST_DISABLED(@"Test disabled on device.");
-#endif
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Verify that the omnibox entrypoint is disabled and the tools menu
   // entrypoint is still available.
-  [[EarlGrey
-      selectElementWithMatcher:grey_accessibilityID(
-                                   kReaderModeChipViewAccessibilityIdentifier)]
-      assertWithMatcher:grey_hidden(YES)];
+  [self assertReaderModePageIsHidden];
   [self assertReaderModeInToolsMenuWithMatcher:
             grey_not(grey_accessibilityTrait(UIAccessibilityTraitNotEnabled))];
 }
@@ -1280,19 +1274,13 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
 // Tests that the share menu is accessible via Reader Mode and records the
 // expected metrics.
 - (void)testShareMenuInReaderMode {
-#if !TARGET_OS_SIMULATOR
-  EARL_GREY_TEST_DISABLED(@"Test disabled on device.");
-#endif
   [ChromeEarlGrey loadURL:self.testServer->GetURL("/article.html")];
-  [ChromeEarlGrey waitForPageToFinishLoading];
 
   // Open Reader Mode UI.
   GREYAssertTrue(
       [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
       @"Reader mode content could not be loaded");
-  [ChromeEarlGrey
-      waitForSufficientlyVisibleElementWithMatcher:
-          grey_accessibilityID(kReaderModeChipViewAccessibilityIdentifier)];
+  [self assertReaderModePageIsVisible];
 
   [ChromeEarlGreyUI openShareMenu];
 
@@ -1318,6 +1306,155 @@ id<GREYMatcher> VisibleContextMenuItem(int message_id) {
   if (error) {
     GREYFail([error description]);
   }
+}
+
+// Tests that the Reader mode chip is visible when leaving Reader mode if
+// PSF is disabled.
+// TODO(crbug.com/467908483): Remove this test once PSF is launched with
+// Reading Mode.
+// TODO(crbug.com/481633359): Deflake this test.
+#if TARGET_OS_SIMULATOR
+#define MAYBE_testReaderModeChipVisibleWhenLeavingReaderModeWithPSFDisabled \
+  testReaderModeChipVisibleWhenLeavingReaderModeWithPSFDisabled
+#else
+#define MAYBE_testReaderModeChipVisibleWhenLeavingReaderModeWithPSFDisabled \
+  FLAKY_testReaderModeChipVisibleWhenLeavingReaderModeWithPSFDisabled
+#endif
+- (void)MAYBE_testReaderModeChipVisibleWhenLeavingReaderModeWithPSFDisabled {
+  [self loadURLWithOptimizationGuideHints:self.testServer->GetURL(
+                                              "/article.html")];
+
+  // Wait for the Reader mode contextual panel entry point chip to be visible.
+  [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:
+                      ContextualPanelEntrypointImageViewMatcher()];
+
+  // Open Reader Mode UI.
+  GREYAssertTrue(
+      [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
+      @"Reader mode content could not be loaded");
+  [self assertReaderModePageIsVisible];
+
+  // Close Reader Mode UI.
+  [ChromeEarlGrey hideReaderMode];
+
+  [self assertReaderModePageIsHidden];
+
+  // Wait for the Reader mode contextual panel entry point chip to be visible.
+  [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:
+                      ContextualPanelEntrypointImageViewMatcher()];
+}
+
+// Tests that disabling kEnableContentSettingsOptionForLinks shows the old
+// Reading Mode toggle in Content Settings.
+- (void)testReaderModeContentSettingsOldToggle {
+  [self loadURLWithOptimizationGuideHints:self.testServer->GetURL(
+                                              "/article.html")];
+
+  // Wait for the contextual panel entrypoint to appear.
+  [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:
+                      ContextualPanelEntrypointImageViewMatcher()];
+
+  // Open Content Settings.
+  [ChromeEarlGreyUI openSettingsMenu];
+  [ChromeEarlGreyUI
+      tapSettingsMenuButton:chrome_test_util::ContentSettingsButton()];
+
+  // Check that the Reading Mode toggle is visible.
+  id<GREYMatcher> readingModeToggleMatcher =
+      chrome_test_util::TableViewSwitchCell(
+          kSettingsShowReadingModeAvailableCellId, YES);
+  [[EarlGrey selectElementWithMatcher:readingModeToggleMatcher]
+      assertWithMatcher:grey_sufficientlyVisible()];
+
+  // Toggle it OFF.
+  [[EarlGrey selectElementWithMatcher:readingModeToggleMatcher]
+      performAction:chrome_test_util::TurnTableViewSwitchOn(NO)];
+
+  // Go back to the page.
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::SettingsDoneButton()]
+      performAction:grey_tap()];
+
+  // Reload the page to ensure the contextual panel entrypoint is updated.
+  [ChromeEarlGrey reload];
+
+  // The contextual panel entrypoint should be hidden.
+  [ChromeEarlGrey waitForUIElementToDisappearWithMatcher:
+                      ContextualPanelEntrypointImageViewMatcher()];
+}
+
+// Tests that enabling kEnableContentSettingsOptionForLinks shows the new
+// Reading Mode section in Content Settings with multiple options.
+- (void)testReaderModeContentSettingsNewOptions {
+  [self loadURLWithOptimizationGuideHints:self.testServer->GetURL(
+                                              "/article.html")];
+
+  // Wait for the contextual panel entrypoint to appear.
+  [ChromeEarlGrey waitForSufficientlyVisibleElementWithMatcher:
+                      ContextualPanelEntrypointImageViewMatcher()];
+
+  // Open Content Settings.
+  [ChromeEarlGreyUI openSettingsMenu];
+  [ChromeEarlGreyUI
+      tapSettingsMenuButton:chrome_test_util::ContentSettingsButton()];
+
+  // Check that the Reading Mode section is visible.
+  id<GREYMatcher> readingModeSectionMatcher =
+      grey_accessibilityID(kSettingsReaderModeCellId);
+  [[EarlGrey selectElementWithMatcher:readingModeSectionMatcher]
+      assertWithMatcher:grey_sufficientlyVisible()];
+
+  // Tap on the Reading Mode section.
+  [[EarlGrey selectElementWithMatcher:readingModeSectionMatcher]
+      performAction:grey_tap()];
+
+  // Check that "Show suggestion" toggle is visible and toggle it OFF.
+  id<GREYMatcher> showSuggestionToggleMatcher =
+      chrome_test_util::TableViewSwitchCell(
+          kReaderModeSettingsShowSuggestionAccessibilityIdentifier, YES);
+  [[EarlGrey selectElementWithMatcher:showSuggestionToggleMatcher]
+      performAction:chrome_test_util::TurnTableViewSwitchOn(NO)];
+
+  // Check that "Show hyperlinks" toggle is visible and toggle it OFF.
+  id<GREYMatcher> showHyperlinksToggleMatcher =
+      chrome_test_util::TableViewSwitchCell(
+          kReaderModeSettingsShowHyperlinksAccessibilityIdentifier, YES);
+  [[EarlGrey selectElementWithMatcher:showHyperlinksToggleMatcher]
+      performAction:chrome_test_util::TurnTableViewSwitchOn(NO)];
+
+  // Go back to the page.
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::SettingsDoneButton()]
+      performAction:grey_tap()];
+
+  // Reload the page to ensure the contextual panel entrypoint is updated.
+  [ChromeEarlGrey reload];
+
+  // The contextual panel entrypoint should be hidden.
+  [ChromeEarlGrey waitForUIElementToDisappearWithMatcher:
+                      ContextualPanelEntrypointImageViewMatcher()];
+
+  // Open Reader Mode UI to check for links-hidden class.
+  GREYAssertTrue(
+      [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
+      @"Reader mode content could not be loaded");
+
+  // Check for 'links-hidden' class on body.
+  NSString* js = @"document.body.classList.contains('links-hidden')";
+  GREYAssertTrue([ChromeEarlGrey evaluateJavaScript:js].GetBool(),
+                 @"The body should have the 'links-hidden' class");
+}
+
+// Tests that Reader mode UI stays visible when clearing the presented state.
+- (void)testReaderModeUIStaysWhenClearingPresentedState {
+  [self loadURLWithOptimizationGuideHints:self.testServer->GetURL(
+                                              "/article.html")];
+  // Open Reader Mode UI.
+  GREYAssertTrue(
+      [ChromeEarlGrey showReaderModeAndWaitUntilReaderModeWebStateIsReady],
+      @"Reader mode content could not be loaded");
+  [self assertReaderModePageIsVisible];
+
+  [ChromeTestCase removeAnyOpenMenusAndInfoBars];
+  [self assertReaderModePageIsVisible];
 }
 
 @end

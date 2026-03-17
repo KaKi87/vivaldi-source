@@ -38,7 +38,7 @@ std::string StatsReporterImpl::GetClientHints() {
 
   blink::UserAgentMetadata metadata = embedder_support::GetUserAgentMetadata();
 
-  base::Value::Dict client_hints;
+  base::DictValue client_hints;
 
   client_hints.Set(
       network::GetClientHintToNameMap().at(WebClientHintsType::kUA),

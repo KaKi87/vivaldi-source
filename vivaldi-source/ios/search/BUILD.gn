@@ -1,8 +1,23 @@
-import("//ios/web/public/js_messaging/optimize_ts.gni")
+import("//ios/web/public/js_messaging/compile_ts.gni")
+import("//ios/web/public/js_messaging/optimize_js.gni")
 
-optimize_ts("vivaldi_searchable_form_js") {
+compile_ts("vivaldi_searchable_form_js_compile_ts") {
   sources = [ "resources/vivaldi_searchable_form.ts" ]
+  tsconfig_base = "tsconfig_base.json"
   deps = [
+    "//ios/web/public/js_messaging:gcrweb",
+    "//ios/web/public/js_messaging:util_scripts",
+  ]
+}
+
+optimize_js("vivaldi_searchable_form_js") {
+  _script = filter_include(
+      get_target_outputs(":vivaldi_searchable_form_js_compile_ts"),
+      [ "*vivaldi_searchable_form.js" ])
+  primary_script = _script[0]
+  sources = _script
+  deps = [
+    ":vivaldi_searchable_form_js_compile_ts",
     "//ios/web/public/js_messaging:gcrweb",
     "//ios/web/public/js_messaging:util_scripts",
   ]

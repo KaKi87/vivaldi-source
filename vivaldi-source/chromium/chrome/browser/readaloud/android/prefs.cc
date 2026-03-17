@@ -23,7 +23,7 @@
 #include "chrome/browser/readaloud/android/jni_headers/ReadAloudPrefs_jni.h"
 
 using base::android::ConvertJavaStringToUTF8;
-using base::android::JavaParamRef;
+using base::android::JavaRef;
 
 namespace readaloud {
 namespace {
@@ -50,25 +50,22 @@ void RegisterLocalPrefs(PrefRegistrySimple* registry) {
   registry->RegisterDictionaryPref(prefs::kReadAloudSyntheticTrials);
 }
 
-static void JNI_ReadAloudPrefs_GetVoices(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& j_pref_service,
-    const JavaParamRef<jobject>& j_output_map) {
+static void JNI_ReadAloudPrefs_GetVoices(JNIEnv* env,
+                                         const JavaRef<jobject>& j_pref_service,
+                                         const JavaRef<jobject>& j_output_map) {
   PrefService* prefs =
       PrefServiceAndroid::FromPrefServiceAndroid(j_pref_service);
 
-  const base::Value::Dict& dict =
-      prefs->GetDict(prefs::kReadAloudVoiceSettings);
+  const base::DictValue& dict = prefs->GetDict(prefs::kReadAloudVoiceSettings);
   for (auto [language, value] : dict) {
     jni_zero::MapPut(env, j_output_map, language, value.GetString());
   }
 }
 
-static void JNI_ReadAloudPrefs_SetVoice(
-    JNIEnv* env,
-    const JavaParamRef<jobject>& j_pref_service,
-    const JavaParamRef<jstring>& j_language,
-    const JavaParamRef<jstring>& j_voice_id) {
+static void JNI_ReadAloudPrefs_SetVoice(JNIEnv* env,
+                                        const JavaRef<jobject>& j_pref_service,
+                                        const JavaRef<jstring>& j_language,
+                                        const JavaRef<jstring>& j_voice_id) {
   ScopedDictPrefUpdate(
       PrefServiceAndroid::FromPrefServiceAndroid(j_pref_service),
       prefs::kReadAloudVoiceSettings)
@@ -76,10 +73,10 @@ static void JNI_ReadAloudPrefs_SetVoice(
             ConvertJavaStringToUTF8(env, j_voice_id));
 }
 
-static jlong JNI_ReadAloudPrefs_GetReliabilityLoggingId(
+static int64_t JNI_ReadAloudPrefs_GetReliabilityLoggingId(
     JNIEnv* env,
-    const JavaParamRef<jobject>& j_pref_service,
-    const JavaParamRef<jstring>& j_metrics_id) {
+    const JavaRef<jobject>& j_pref_service,
+    const JavaRef<jstring>& j_metrics_id) {
   PrefService* prefs =
       PrefServiceAndroid::FromPrefServiceAndroid(j_pref_service);
   if (!prefs) {

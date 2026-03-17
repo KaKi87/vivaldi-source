@@ -21,17 +21,17 @@ describe('The Network Tab', function() {
   it('can pretty print an inline json subtype file', async ({devToolsPage, inspectedPage}) => {
     await navigateToNetworkTab('code-with-json-subtype-request.html', devToolsPage, inspectedPage);
     await waitForSomeRequestsToAppear(2, devToolsPage);
-    await selectRequestByName('json-subtype-ld.rawresponse', {devToolsPage});
+    await selectRequestByName('json-subtype-ld.rawresponse', {}, devToolsPage);
 
     const networkView = await devToolsPage.waitFor('.network-item-view');
     await devToolsPage.click('#tab-headers-component', {
       root: networkView,
     });
 
-    await devToolsPage.click('[aria-label=Response][role="tab"]', {
+    await devToolsPage.click('[aria-label=Response].tabbed-pane-header-tab', {
       root: networkView,
     });
-    await devToolsPage.waitFor('[aria-label=Response][role=tab][aria-selected=true]', networkView);
+    await devToolsPage.waitFor('[aria-label=Response].tabbed-pane-header-tab[aria-selected=true]', networkView);
 
     const editor = await devToolsPage.waitFor('[aria-label="Code editor"]');
 
@@ -78,17 +78,17 @@ describe('The Network Tab', function() {
   it('can pretty print when there is only one json or json subtype file', async ({devToolsPage, inspectedPage}) => {
     await navigateToNetworkTab('json-subtype-ld.rawresponse', devToolsPage, inspectedPage);
     await waitForSomeRequestsToAppear(1, devToolsPage);
-    await selectRequestByName('json-subtype-ld.rawresponse', {devToolsPage});
+    await selectRequestByName('json-subtype-ld.rawresponse', {}, devToolsPage);
 
     const networkView = await devToolsPage.waitFor('.network-item-view');
     await devToolsPage.click('#tab-headers-component', {
       root: networkView,
     });
 
-    await devToolsPage.click('[aria-label=Response][role="tab"]', {
+    await devToolsPage.click('[aria-label=Response].tabbed-pane-header-tab', {
       root: networkView,
     });
-    await devToolsPage.waitFor('[aria-label=Response][role=tab][aria-selected=true]', networkView);
+    await devToolsPage.waitFor('[aria-label=Response].tabbed-pane-header-tab[aria-selected=true]', networkView);
 
     const editor = await devToolsPage.waitFor('[aria-label="Code editor"]');
 

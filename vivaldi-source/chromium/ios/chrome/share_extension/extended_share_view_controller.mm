@@ -16,7 +16,7 @@
 #import "ios/chrome/common/crash_report/crash_helper.h"
 #import "ios/chrome/common/extension_open_url.h"
 #import "ios/chrome/common/ui/util/constraints_ui_util.h"
-#import "ios/chrome/share_extension/account_info.h"
+#import "ios/chrome/share_extension/share_extension_account_info.h"
 #import "ios/chrome/share_extension/share_extension_delegate.h"
 #import "ios/chrome/share_extension/share_extension_sheet.h"
 #import "ios/chrome/share_extension/ui_util.h"
@@ -26,8 +26,6 @@
 using ItemBlock = void (^)(id idResponse, NSError* error);
 
 namespace {
-
-const CGFloat kShareSheetCornerRadius = 20;
 
 const CGFloat kShareImageTargetHeight = 1024;
 const CGFloat kShareImageTargetWidth = 1024;
@@ -118,13 +116,6 @@ const NSUInteger kSearchCharacterLimit = 1000;
   _navigationController = [[UINavigationController alloc]
       initWithRootViewController:self.shareSheet];
   _navigationController.modalPresentationStyle = UIModalPresentationFormSheet;
-  UISheetPresentationController* presentationController =
-      _navigationController.sheetPresentationController;
-  presentationController.prefersEdgeAttachedInCompactHeight = YES;
-  presentationController.detents = @[
-    [UISheetPresentationControllerDetent largeDetent]
-  ];
-  presentationController.preferredCornerRadius = kShareSheetCornerRadius;
   if (@available(iOS 26, *)) {
     [self addChildViewController:_navigationController];
   }
@@ -364,7 +355,8 @@ const NSUInteger kSearchCharacterLimit = 1000;
                                                                @".png"]];
     UIImage* avatar = [UIImage imageWithContentsOfFile:[avatarDirectory path]];
 
-    AccountInfo* account = [[AccountInfo alloc] init];
+    ShareExtensionAccountInfo* account =
+        [[ShareExtensionAccountInfo alloc] init];
     account.gaiaIDString = gaiaID;
     account.avatar = avatar;
     account.fullName = accounts[gaiaID][app_group::kFullName];
@@ -377,7 +369,8 @@ const NSUInteger kSearchCharacterLimit = 1000;
   }
 
   if (!self.shareSheet.selectedAccountInfo) {
-    AccountInfo* accountInfo = [[AccountInfo alloc] init];
+    ShareExtensionAccountInfo* accountInfo =
+        [[ShareExtensionAccountInfo alloc] init];
     accountInfo.gaiaIDString = app_group::kNoAccount;
     self.shareSheet.selectedAccountInfo = accountInfo;
     [loadedAccounts addObject:accountInfo];
@@ -485,6 +478,25 @@ const NSUInteger kSearchCharacterLimit = 1000;
     [self displayErrorView];
     return;
   }
+
+  if ([URL isFileURL]) {
+    UTType* imageType = [UTType typeWithIdentifier:UTTypeImage.identifier];
+    NSError* attributesError = nil;
+    NSDictionary* values =
+        [URL resourceValuesForKeys:@[ NSURLTypeIdentifierKey ]
+                             error:&attributesError];
+    if (!attributesError) {
+      NSString* fileIdentifier = values[NSURLTypeIdentifierKey];
+      if (fileIdentifier) {
+        UTType* fileUTType = [UTType typeWithIdentifier:fileIdentifier];
+        if ([fileUTType conformsToType:imageType]) {
+          [self handleSharedImage:URL forItem:item withError:error];
+          return;
+        }
+      }
+    }
+  }
+
   [self initiateHeaderCheckForURL:URL forItem:item withError:error];
 }
 
@@ -493,7 +505,6 @@ const NSUInteger kSearchCharacterLimit = 1000;
 - (void)initiateHeaderCheckForURL:(NSURL*)URL
                           forItem:(NSExtensionItem*)item
                         withError:(NSError*)error {
-  // TODO(crbug.com/40278725): Add image with a file path handling.
   if (![[URL scheme] isEqualToString:@"http"] &&
       ![[URL scheme] isEqualToString:@"https"]) {
     [self displayErrorView];

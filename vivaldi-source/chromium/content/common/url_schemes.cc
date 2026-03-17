@@ -18,6 +18,10 @@
 #include "third_party/blink/public/common/scheme_registry.h"
 #include "url/url_util.h"
 
+#if defined(VIVALDI_BUILD)
+#include "app/vivaldi_constants.h"
+#endif
+
 namespace content {
 namespace {
 
@@ -67,6 +71,10 @@ void RegisterContentSchemes(bool should_lock_registry) {
 
   for (auto& scheme : schemes.referrer_schemes)
     url::AddReferrerScheme(scheme.c_str(), url::SCHEME_WITH_HOST);
+
+#if defined(VIVALDI_BUILD)
+  url::AddStandardScheme(vivaldi::kVivaldiUIScheme, url::SCHEME_WITH_HOST);
+#endif
 
   schemes.secure_schemes.push_back(kChromeDevToolsScheme);
   schemes.secure_schemes.push_back(kChromeUIScheme);

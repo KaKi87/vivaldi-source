@@ -86,7 +86,8 @@ bool RazerChromaPlatformDriverWin::Initialize() {
   if (module_ == nullptr) {
     // Note the Razer system dll is by default located in the system32
     // directory. Only try to use the one there. VB-109515.
-    module_ = ::LoadLibraryEx(CHROMASDKDLL, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    module_ =
+        ::LoadLibraryEx(CHROMASDKDLL, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
     if (module_ != NULL) {
       INIT Init = (INIT)::GetProcAddress(module_, "Init");
       if (Init != NULL) {
@@ -174,10 +175,9 @@ bool RazerChromaPlatformDriverWin::IsReady() {
 
 void RazerChromaPlatformDriverWin::GenerateDeviceListFromPrefs(
     std::vector<RazerChromaDevice>& device_list) {
-  auto& devices =
-      pref_service_->GetList(vivaldiprefs::kRazerChromaDevices);
-  for (auto& it: devices) {
-    const std::string *device = it.GetIfString();
+  auto& devices = pref_service_->GetList(vivaldiprefs::kRazerChromaDevices);
+  for (auto& it : devices) {
+    const std::string* device = it.GetIfString();
     if (device) {
       if (*device == "keyboard") {
         device_list.push_back(RazerChromaDevice::CHROMA_DEVICE_KEYBOARD);
@@ -296,7 +296,7 @@ void RazerChromaPlatformDriverWin::RunEffectsOnThread(
 void RazerChromaPlatformDriverWin::DeleteEffectImpl(RZEFFECTID effect_id) {
   if (pDeleteEffect == nullptr) {
     NOTREACHED();
-    //return;
+    // return;
   }
   auto iterator = effects_.find(effect_id);
   if (iterator != effects_.end()) {

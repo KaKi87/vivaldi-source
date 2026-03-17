@@ -5,8 +5,8 @@
 
 #import <UIKit/UIKit.h>
 
-@interface UIView(VivaldiStyle)
-#pragma mark:- SETTERS
+@interface UIView (VivaldiStyle)
+#pragma mark :- SETTERS
 /// Applies shadow to the view
 - (void)addShadowWithBackground:(UIColor*)backgroundColor
                          offset:(CGSize)offset

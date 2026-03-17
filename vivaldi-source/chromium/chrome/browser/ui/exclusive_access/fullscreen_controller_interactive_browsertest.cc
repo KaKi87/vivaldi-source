@@ -78,6 +78,12 @@ const base::FilePath::CharType* kSimpleFile = FILE_PATH_LITERAL("simple.html");
 }  // namespace
 
 class FullscreenControllerInteractiveTest : public ExclusiveAccessTest {
+  void SetUpOnMainThread() override {
+    ExclusiveAccessTest::SetUpOnMainThread();
+
+    SetDisableFullscreenWithinTab(true);
+  }
+
  protected:
   void SetUpCommandLine(base::CommandLine* command_line) override {
     ExclusiveAccessTest::SetUpCommandLine(command_line);
@@ -148,6 +154,16 @@ class FullscreenControllerInteractiveTest : public ExclusiveAccessTest {
     FinishExclusiveAccessBubbleAnimation();
   }
 
+  void SetDisableFullscreenWithinTab(bool disable) {
+    FullscreenController* fullscreen_controller =
+        browser()
+            ->GetFeatures()
+            .exclusive_access_manager()
+            ->fullscreen_controller();
+    fullscreen_controller
+        ->set_disable_entering_fullscreen_within_tab_for_testing(disable);
+  }
+
  private:
   void ToggleTabFullscreen_Internal(bool enter_fullscreen,
                                     bool retry_until_success);
@@ -212,7 +228,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
                        TestNewTabExitsFullscreen) {
 #if BUILDFLAG(IS_LINUX) && BUILDFLAG(IS_OZONE)
   // Flaky in Linux interactive_ui_tests_wayland: crbug.com/1200036
-  if (ui::OzonePlatform::GetPlatformNameForTest() == "wayland") {
+  if (ui::OzonePlatform::RunningOnWaylandForTest()) {
     GTEST_SKIP();
   }
 #endif
@@ -780,7 +796,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
   ASSERT_FALSE(fullscreen_controller->IsTabFullscreen());
 
   // Accept the permission request to close the bubble.
-  permission_request_manager->Accept();
+  permission_request_manager->Accept(/*prompt_options=*/std::monostate());
 
   // Now we should be able to enter tab fullscreen again.
   EXPECT_THAT(content::EvalJs(web_contents,
@@ -841,6 +857,7 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
 
 IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
                        CapturedContentEntersFullscreenWithinTab) {
+  SetDisableFullscreenWithinTab(false);
   // Simulate tab capture, as used by getDisplayMedia() content sharing.
   WebContents* tab = browser()->tab_strip_model()->GetActiveWebContents();
   base::ScopedClosureRunner capture_closure =
@@ -871,6 +888,8 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
 
 IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
                        OpeningPopupDoesNotExitFullscreenWithinTab) {
+  SetDisableFullscreenWithinTab(false);
+
   // Simulate visible tab capture and enter fullscreen-within-tab.
   WebContents* tab = browser()->tab_strip_model()->GetActiveWebContents();
   base::ScopedClosureRunner capture_closure =
@@ -894,6 +913,8 @@ IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
 
 IN_PROC_BROWSER_TEST_F(FullscreenControllerInteractiveTest,
                        BlockingContentsDoesNotExitFullscreenWithinTab) {
+  SetDisableFullscreenWithinTab(false);
+
   // Simulate visible tab capture and enter fullscreen-within-tab.
   WebContents* tab = browser()->tab_strip_model()->GetActiveWebContents();
   base::ScopedClosureRunner capture_closure =
@@ -1154,8 +1175,9 @@ IN_PROC_BROWSER_TEST_P(AutomaticFullscreenTest, ImmediatelyAfterPopupExit) {
   ExitFullscreen(popup->tab_strip_model()->GetActiveWebContents());
   EXPECT_LT(base::TimeTicks::Now() - exit, base::Seconds(5));
   EXPECT_FALSE(RequestFullscreen());
+  ui_test_utils::BrowserDestroyedObserver observer(popup);
   popup->window()->Close();
-  ui_test_utils::WaitForBrowserToClose(popup);
+  observer.Wait();
   EXPECT_LT(base::TimeTicks::Now() - exit, base::Seconds(5));
   EXPECT_FALSE(RequestFullscreen());
   EXPECT_TRUE(RequestFullscreen(/*gesture=*/true));
@@ -1750,7 +1772,7 @@ IN_PROC_BROWSER_TEST_F(MAYBE_MultiScreenFullscreenControllerInteractiveTest,
   ExecuteScriptAsync(tab, "getScreenDetails()");
   WaitForUserActivationExpiry();
   ASSERT_TRUE(permission_request_manager->IsRequestInProgress());
-  permission_request_manager->Accept();
+  permission_request_manager->Accept(/*prompt_options=*/std::monostate());
   const std::string script = R"(
     (async () => {
       await document.body.requestFullscreen();

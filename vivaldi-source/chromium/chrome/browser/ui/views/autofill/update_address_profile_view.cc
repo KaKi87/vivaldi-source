@@ -27,6 +27,7 @@
 #include "ui/views/layout/box_layout_view.h"
 #include "ui/views/layout/flex_layout.h"
 #include "ui/views/layout/table_layout_view.h"
+#include "ui/views/metadata/view_factory.h"
 #include "ui/views/style/typography.h"
 
 namespace autofill {
@@ -178,6 +179,10 @@ UpdateAddressProfileView::UpdateAddressProfileView(
   std::vector<ProfileValueDifference> profile_diff = GetProfileDifferenceForUi(
       controller_->GetProfileToSave(), controller_->GetOriginalProfile(),
       g_browser_process->GetApplicationLocale());
+  // TODO(crbug.com/481234059): Convert this to CHECK after investigation.
+  // Based of hypothesis in crbug.com/477044258, `GetProfileDifferenceForUi` is
+  // returning empty.
+  DUMP_WILL_BE_CHECK(!profile_diff.empty());
   has_empty_original_values_ = !HasNonEmptySecondValues(profile_diff);
 
   SetAcceptCallback(

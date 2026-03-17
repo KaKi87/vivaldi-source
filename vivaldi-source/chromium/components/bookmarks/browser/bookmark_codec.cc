@@ -12,7 +12,6 @@
 #include <utility>
 
 #include "base/base64.h"
-#include "base/containers/contains.h"
 #include "base/containers/span.h"
 #include "base/json/json_string_value_serializer.h"
 #include "base/logging.h"
@@ -30,7 +29,6 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
 
-#include <set>
 #include "app/vivaldi_resources.h"
 
 using base::Time;
@@ -40,7 +38,6 @@ namespace bookmarks {
 const char BookmarkCodec::kRootsKey[] = "roots";
 const char BookmarkCodec::kBookmarkBarFolderNameKey[] = "bookmark_bar";
 const char BookmarkCodec::kOtherBookmarkFolderNameKey[] = "other";
-const char BookmarkCodec::kTrashBookmarkFolderNameKey[] = "trash";
 // The value is left as 'synced' for historical reasons.
 const char BookmarkCodec::kMobileBookmarkFolderNameKey[] = "synced";
 const char BookmarkCodec::kVersionKey[] = "version";
@@ -60,6 +57,9 @@ const char BookmarkCodec::kTypeFolder[] = "folder";
 const char BookmarkCodec::kSyncMetadata[] = "sync_metadata";
 const char BookmarkCodec::kDateLastUsed[] = "date_last_used";
 
+// Vivaldi
+const char BookmarkCodec::kTrashBookmarkFolderNameKey[] = "trash";
+
 // Current version of the file.
 static const int kCurrentVersion = 1;
 
@@ -78,7 +78,7 @@ int64_t ToMicrosecondsSinceWindowsEpoch(Time time) {
 
 // Helper function to parse date from dictionary, returns nullopt if not found.
 std::optional<Time> FindMicrosecondsSinceWindowsEpoch(
-    const base::Value::Dict& dict,
+    const base::DictValue& dict,
     std::string_view key) {
   const std::string* string_value = dict.FindString(key);
   if (!string_value) {
@@ -99,16 +99,15 @@ BookmarkCodec::BookmarkCodec() = default;
 
 BookmarkCodec::~BookmarkCodec() = default;
 
-base::Value::Dict BookmarkCodec::Encode(
-    const BookmarkNode* bookmark_bar_node,
-    const BookmarkNode* other_folder_node,
-    const BookmarkNode* mobile_folder_node,
-    const BookmarkNode* trash_folder_node,
-    std::string sync_metadata_str) {
+base::DictValue BookmarkCodec::Encode(const BookmarkNode* bookmark_bar_node,
+                                      const BookmarkNode* other_folder_node,
+                                      const BookmarkNode* mobile_folder_node,
+                                      const BookmarkNode* trash_folder_node, // Vivaldi
+                                      std::string sync_metadata_str) {
   ids_reassigned_ = false;
   uuids_reassigned_ = false;
 
-  base::Value::Dict main;
+  base::DictValue main;
   main.Set(kVersionKey, kCurrentVersion);
 
   // Encode Sync metadata before encoding other fields to reduce peak memory
@@ -119,7 +118,7 @@ base::Value::Dict BookmarkCodec::Encode(
   }
 
   InitializeChecksum();
-  base::Value::Dict roots;
+  base::DictValue roots;
 
   if (bookmark_bar_node) {
     // If one permanent node is provided, all permanent nodes should have been
@@ -129,8 +128,11 @@ base::Value::Dict BookmarkCodec::Encode(
     roots.Set(kBookmarkBarFolderNameKey, EncodeNode(bookmark_bar_node));
     roots.Set(kOtherBookmarkFolderNameKey, EncodeNode(other_folder_node));
     roots.Set(kMobileBookmarkFolderNameKey, EncodeNode(mobile_folder_node));
+
+    // Vivaldi
     if (trash_folder_node)
       roots.Set(kTrashBookmarkFolderNameKey, EncodeNode(trash_folder_node));
+    // End Vivaldi
   } else {
     // No permanent node should have been provided.
     CHECK(!other_folder_node);
@@ -146,12 +148,12 @@ base::Value::Dict BookmarkCodec::Encode(
   return main;
 }
 
-bool BookmarkCodec::Decode(const base::Value::Dict& value,
+bool BookmarkCodec::Decode(const base::DictValue& value,
                            std::set<int64_t> already_assigned_ids,
                            BookmarkNode* bb_node,
                            BookmarkNode* other_folder_node,
                            BookmarkNode* mobile_folder_node,
-                           BookmarkNode* trash_folder_node,
+                           BookmarkNode* trash_folder_node, // Vivaldi
                            int64_t* max_id,
                            std::string* sync_metadata_str) {
   if (sync_metadata_str) {
@@ -164,7 +166,7 @@ bool BookmarkCodec::Decode(const base::Value::Dict& value,
             base::Uuid::ParseLowercase(kBookmarkBarNodeUuid),
             base::Uuid::ParseLowercase(kOtherBookmarksNodeUuid),
             base::Uuid::ParseLowercase(kMobileBookmarksNodeUuid),
-            base::Uuid::ParseLowercase(kVivaldiTrashNodeUuid),
+            base::Uuid::ParseLowercase(kVivaldiTrashNodeUuid), // Vivaldi
             base::Uuid::ParseLowercase(kManagedNodeUuid)};
   ids_reassigned_ = false;
   uuids_reassigned_ = false;
@@ -183,8 +185,8 @@ bool BookmarkCodec::required_recovery() const {
   return ids_reassigned_ || uuids_reassigned_;
 }
 
-base::Value::Dict BookmarkCodec::EncodeNode(const BookmarkNode* node) {
-  base::Value::Dict value;
+base::DictValue BookmarkCodec::EncodeNode(const BookmarkNode* node) {
+  base::DictValue value;
   std::string id = base::NumberToString(node->id());
   value.Set(kIdKey, id);
   const std::u16string& title = node->GetTitle();
@@ -207,7 +209,7 @@ base::Value::Dict BookmarkCodec::EncodeNode(const BookmarkNode* node) {
                   node->date_folder_modified())));
     UpdateChecksumWithFolderNode(id, title);
 
-    base::Value::List child_values;
+    base::ListValue child_values;
     for (const auto& child : node->children())
       child_values.Append(EncodeNode(child.get()));
     value.Set(kChildrenKey, base::Value(std::move(child_values)));
@@ -218,9 +220,9 @@ base::Value::Dict BookmarkCodec::EncodeNode(const BookmarkNode* node) {
   return value;
 }
 
-base::Value::Dict BookmarkCodec::EncodeMetaInfo(
+base::DictValue BookmarkCodec::EncodeMetaInfo(
     const BookmarkNode::MetaInfoMap& meta_info_map) {
-  base::Value::Dict meta_info;
+  base::DictValue meta_info;
   for (const auto& item : meta_info_map)
     meta_info.Set(item.first, base::Value(item.second));
   return meta_info;
@@ -229,8 +231,8 @@ base::Value::Dict BookmarkCodec::EncodeMetaInfo(
 bool BookmarkCodec::DecodeHelper(BookmarkNode* bb_node,
                                  BookmarkNode* other_folder_node,
                                  BookmarkNode* mobile_folder_node,
-                                 BookmarkNode* trash_folder_node,
-                                 const base::Value::Dict& value,
+                                 BookmarkNode* trash_folder_node, // Vivaldi
+                                 const base::DictValue& value,
                                  std::string* sync_metadata_str) {
   std::optional<int> version = value.FindInt(kVersionKey);
   if (!version || *version != kCurrentVersion)
@@ -244,14 +246,13 @@ bool BookmarkCodec::DecodeHelper(BookmarkNode* bb_node,
     }
   }
 
-  const base::Value::Dict* roots = value.FindDict(kRootsKey);
+  const base::DictValue* roots = value.FindDict(kRootsKey);
   if (!roots)
     return false;  // No roots, or invalid type for roots.
-  const base::Value::Dict* bb_value =
-      roots->FindDict(kBookmarkBarFolderNameKey);
-  const base::Value::Dict* other_folder_value =
+  const base::DictValue* bb_value = roots->FindDict(kBookmarkBarFolderNameKey);
+  const base::DictValue* other_folder_value =
       roots->FindDict(kOtherBookmarkFolderNameKey);
-  const base::Value::Dict* mobile_folder_value =
+  const base::DictValue* mobile_folder_value =
       roots->FindDict(kMobileBookmarkFolderNameKey);
 
   if (!bb_value || !other_folder_value || !mobile_folder_value)
@@ -261,14 +262,16 @@ bool BookmarkCodec::DecodeHelper(BookmarkNode* bb_node,
   DecodeNode(*other_folder_value, nullptr, other_folder_node);
   DecodeNode(*mobile_folder_value, nullptr, mobile_folder_node);
 
+  // Vivaldi
   if (trash_folder_node) {
     // Older versions didn't have predefined trash content.
-    const base::Value::Dict* trash_folder_value = roots->FindDict(
+    const base::DictValue* trash_folder_value = roots->FindDict(
         kTrashBookmarkFolderNameKey);
     if (trash_folder_value) {
       DecodeNode(*trash_folder_value, nullptr, trash_folder_node);
     }
   }
+  // End Vivaldi
 
   // Need to reset the title as the title is persisted and restored from
   // the file.
@@ -277,14 +280,17 @@ bool BookmarkCodec::DecodeHelper(BookmarkNode* bb_node,
       l10n_util::GetStringUTF16(IDS_BOOKMARK_BAR_OTHER_FOLDER_NAME));
   mobile_folder_node->SetTitle(
         l10n_util::GetStringUTF16(IDS_BOOKMARK_BAR_MOBILE_FOLDER_NAME));
+
+  // End Vivaldi
   if (trash_folder_node)
     trash_folder_node->SetTitle(
         l10n_util::GetStringUTF16(IDS_BOOKMARK_BAR_TRASH_FOLDER_NAME));
+  // End Vivaldi
 
   return true;
 }
 
-void BookmarkCodec::DecodeChildren(const base::Value::List& child_value_list,
+void BookmarkCodec::DecodeChildren(const base::ListValue& child_value_list,
                                    BookmarkNode* parent) {
   for (const base::Value& child_value : child_value_list) {
     if (child_value.is_dict()) {
@@ -293,7 +299,7 @@ void BookmarkCodec::DecodeChildren(const base::Value::List& child_value_list,
   }
 }
 
-void BookmarkCodec::DecodeNode(const base::Value::Dict& value,
+void BookmarkCodec::DecodeNode(const base::DictValue& value,
                                BookmarkNode* parent,
                                BookmarkNode* node) {
   // If no `node` is specified, we'll create one and add it to the `parent`.
@@ -343,7 +349,7 @@ void BookmarkCodec::DecodeNode(const base::Value::Dict& value,
 
     // Guard against UUID collisions, which would violate BookmarkModel's
     // invariant that each UUID is unique.
-    if (base::Contains(uuids_, uuid)) {
+    if (uuids_.contains(uuid)) {
       uuid = base::Uuid::GenerateRandomV4();
       uuids_reassigned_ = true;
     }
@@ -377,7 +383,7 @@ void BookmarkCodec::DecodeNode(const base::Value::Dict& value,
     if (parent)
       parent->Add(base::WrapUnique(node));
   } else {
-    const base::Value::List* child_values = value.FindList(kChildrenKey);
+    const base::ListValue* child_values = value.FindList(kChildrenKey);
     if (!child_values)
       return;
 
@@ -416,7 +422,7 @@ void BookmarkCodec::DecodeNode(const base::Value::Dict& value,
   }
 }
 
-bool BookmarkCodec::DecodeMetaInfo(const base::Value::Dict& value,
+bool BookmarkCodec::DecodeMetaInfo(const base::DictValue& value,
                                    BookmarkNode::MetaInfoMap* meta_info_map) {
   DCHECK(meta_info_map);
   meta_info_map->clear();
@@ -448,7 +454,7 @@ bool BookmarkCodec::DecodeMetaInfo(const base::Value::Dict& value,
 }
 
 void BookmarkCodec::DecodeMetaInfoHelper(
-    const base::Value::Dict& dict,
+    const base::DictValue& dict,
     const std::string& prefix,
     BookmarkNode::MetaInfoMap* meta_info_map) {
   for (const auto it : dict) {

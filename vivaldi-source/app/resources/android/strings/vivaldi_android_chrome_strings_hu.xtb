@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">Megnyitás új lapcsoportban</translation>
 <translation id="1925021887439448749">Írd be az egyéni internetcímet</translation>
 <translation id="2038563949887743358">Bekapcsolja az Asztali webhely kérése funkciót</translation>
+<translation id="2072027001582274150">Nem használt vagy duplikált lapok</translation>
 <translation id="208033313373016095">Olvasó nézet weboldalakhoz</translation>
 <translation id="2149973817440762519">Könyvjelző szerkesztése</translation>
 <translation id="2306442503286132111">Könyvjelző mentve ( <ph name="FOLDER_NAME" /> mappa)</translation>
@@ -46,6 +47,10 @@
 <translation id="385051799172605136">Vissza</translation>
 <translation id="3987993985790029246">Hivatkozás másolása</translation>
 <translation id="399014816462153200">Olvasott cikkek:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> lap}
+          other {<ph name="TAB_COUNT_MANY" /> lap, <ph name="TAB_COUNT_INCOGNITO" /> privát}}</translation>
+<translation id="408336132633586393">Privát ablak</translation>
 <translation id="4121750346708795461">Az alkalmazás használatával elfogadod a Vivaldi <ph name="BEGIN_LINK1" />Általános Szerződési Feltételeit<ph name="END_LINK1" /> és <ph name="BEGIN_LINK2" />Adatvédelmi szabályzatát<ph name="END_LINK2" />.</translation>
 <translation id="4137746084635924146">Aktuális eszköz nyelve</translation>
 <translation id="4167670741834902166">Új privát lap</translation>
@@ -55,9 +60,7 @@
 <translation id="4269820728363426813">Hivatkozási cím másolása</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Képernyőzár bekapcsolása az Android beállításai között<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Jelszókezelő</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {Az elmúlt 1 vagy több napban nem használt lapok és csoportok}
-          other {Az elmúlt # vagy több napban nem használt lapok és csoportok}}</translation>
+<translation id="441100617989818073">Nem használt vagy duplikált lapok és csoportok</translation>
 <translation id="451872707440238414">Keresés a könyvjelzők közt</translation>
 <translation id="4526803704855831732">Privát lapok</translation>
 <translation id="4532845899244822526">Mappa választása</translation>
@@ -71,6 +74,9 @@ Az "Érintéses keresés" csak akkor érhető el, ha a Vivaldi alapértelmezett 
 <translation id="4883379392681899581">Privát mód elhagyása</translation>
 <translation id="4943872375798546930">Nincs találat</translation>
 <translation id="49576331685473090">Tartalom blokkolása</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> privát lap}
+          other {<ph name="TAB_COUNT_NORMAL" /> privát lap}}</translation>
 <translation id="5079259810715830221">Mikor egy Google weboldal a hivatkozásokat privát módon kívánja előtölteni, a Vivaldi titkosítja és előtölti az oldalakat a Google szerverein keresztül. Ezzel elrejthető a személyazonosságod az előre betöltött weboldal elől.</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" /> tárhely</translation>
 <translation id="5144385790872094440">A felkeresett oldalak némelyikét előtölti a rendszer. Az oldalakat előre betöltheti a rendszer a Google szerverein keresztül, ha Google-webhely vagy -alkalmazás hivatkozik rájuk.</translation>
@@ -103,6 +109,7 @@ A keresési kifejezés módosításához tarts hosszan nyomva. A keresés finom�
 <translation id="6909589135458168665">Oldalak előtöltése</translation>
 <translation id="7029995644714925509">Mikor egy weboldal a hivatkozásokat privát módon kívánja előtölteni, a Vivaldi titkosítja és előtölti az oldalakat a Google szerverein keresztül. Ezzel elrejthető a személyazonosságod az előre betöltött weboldal elől.</translation>
 <translation id="706339621163631076">Vivaldi - Adatvédelmi szabályzat</translation>
+<translation id="7100573672995171864">A Vivaldi testreszabása és vezérlése</translation>
 <translation id="732145680195464316">Könyvjelző mentve (<ph name="PRODUCT_NAME" />)</translation>
 <translation id="7324354302972299151">"Do Not Track" kérés küldése</translation>
 <translation id="7359002509206457351">Hozzáférés a fizetési módokhoz</translation>
@@ -124,14 +131,11 @@ A keresési kifejezés módosításához tarts hosszan nyomva. A keresés finom�
 <translation id="8348430946834215779">HTTPS használata, amikor csak lehetséges, és figyelmeztetés megjelenítése a protokollt nem támogató webhelyek betöltése előtt</translation>
 <translation id="8560602726703398413">Olvasási lista keresése a Könyvjelzőkben</translation>
 <translation id="85991616550051997">Kezdőlapra ugrás</translation>
-<translation id="8693232767599693749">Olvasási mód megjelenítése?</translation>
+<translation id="8738163682604285902">Megtekintés Olvasó módban?</translation>
 <translation id="8820817407110198400">Könyvjelzők</translation>
 <translation id="9042893549633094279">Adatvédelem és biztonság</translation>
 <translation id="9063523880881406963">Kikapcsolja az Asztali webhely kérése funkciót</translation>
 <translation id="9080642952018487277">Privát módba váltás</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {1 vagy több napja nem használva}
-          other {# vagy több napja nem használva}}</translation>
 <translation id="930124987204876019">Előzmények, cookie-k, webhelyadatok, gyorsítótár törlése…</translation>
 <translation id="961856697154696964">Böngészési adatok törlése</translation>
 </translationbundle>

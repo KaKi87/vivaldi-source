@@ -33,7 +33,7 @@ class OmniboxEventRouter : public OmniboxServiceObserver {
  private:
   void DispatchEvent(Profile* profile,
                      const std::string& event_name,
-                     base::Value::List event_args);
+                     base::ListValue event_args);
 
   // OmniboxServiceObserver overrides:
   void OnResultChanged(AutocompleteController* controller,
@@ -82,32 +82,32 @@ class OmniboxPrivateStartOmniboxFunction : public ExtensionFunction {
   ~OmniboxPrivateStartOmniboxFunction() override {}
   ExtensionFunction::ResponseAction Run() override;
   metrics::OmniboxEventProto::PageClassification GetPageClassification(
-                 vivaldi::omnibox_private::PageClassification name);
+      vivaldi::omnibox_private::PageClassification name);
 };
 
 class OmniboxPrivateAddOrUpdateShortcutFunction : public ExtensionFunction {
-  public:
-   DECLARE_EXTENSION_FUNCTION("omniboxPrivate.addOrUpdateShortcut",
-                              OMNIBOX_PRIVATE_ADD_OR_UDATE_SHORTCUT)
+ public:
+  DECLARE_EXTENSION_FUNCTION("omniboxPrivate.addOrUpdateShortcut",
+                             OMNIBOX_PRIVATE_ADD_OR_UDATE_SHORTCUT)
 
-  private:
-   ~OmniboxPrivateAddOrUpdateShortcutFunction() override {}
-   ExtensionFunction::ResponseAction Run() override;
-   metrics::OmniboxEventProto::PageClassification GetPageClassification(
-                  vivaldi::omnibox_private::PageClassification name);
- };
+ private:
+  ~OmniboxPrivateAddOrUpdateShortcutFunction() override {}
+  ExtensionFunction::ResponseAction Run() override;
+  metrics::OmniboxEventProto::PageClassification GetPageClassification(
+      vivaldi::omnibox_private::PageClassification name);
+};
 
- class OmniboxPrivateDeleteShortcutFunction : public ExtensionFunction {
-  public:
-   DECLARE_EXTENSION_FUNCTION("omniboxPrivate.deleteShortcut",
-                              OMNIBOX_PRIVATE_DELETE_SHORTCUT)
+class OmniboxPrivateDeleteShortcutFunction : public ExtensionFunction {
+ public:
+  DECLARE_EXTENSION_FUNCTION("omniboxPrivate.deleteShortcut",
+                             OMNIBOX_PRIVATE_DELETE_SHORTCUT)
 
-  private:
-   ~OmniboxPrivateDeleteShortcutFunction() override {}
-   ExtensionFunction::ResponseAction Run() override;
-   metrics::OmniboxEventProto::PageClassification GetPageClassification(
-       vivaldi::omnibox_private::PageClassification name);
- };
+ private:
+  ~OmniboxPrivateDeleteShortcutFunction() override {}
+  ExtensionFunction::ResponseAction Run() override;
+  metrics::OmniboxEventProto::PageClassification GetPageClassification(
+      vivaldi::omnibox_private::PageClassification name);
+};
 
 }  // namespace extensions
 

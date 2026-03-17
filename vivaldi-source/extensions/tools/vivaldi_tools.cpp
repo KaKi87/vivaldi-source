@@ -26,8 +26,8 @@
 #include "prefs/vivaldi_gen_prefs.h"
 #include "prefs/vivaldi_pref_names.h"
 #include "third_party/blink/public/common/page/page_zoom.h"
-#include "ui/base/l10n/l10n_util.h"
 #include "ui/base/accelerators/command_constants.h"
+#include "ui/base/l10n/l10n_util.h"
 #include "ui/strings/grit/ui_strings.h"
 #include "ui/vivaldi_browser_window.h"
 
@@ -46,7 +46,6 @@ const char* kVivaldiKeySubtract = "-";
 const char* kVivaldiKeyPeriod = ".";
 const char* kVivaldiKeyComma = ",";
 const char* kVivaldiKeyBackslash = "\\";
-
 
 // Local copy of similar function in blink and aura (former is in a module we
 // can not link it and latter is not used by Mac).
@@ -121,12 +120,12 @@ std::string GetMacOSEmailLinkShortcut(Profile* profile) {
 
   PrefService* prefs = profile->GetPrefs();
   auto& vivaldi_actions = prefs->GetList(vivaldiprefs::kActions);
-  const base::Value::Dict* dict = vivaldi_actions[0].GetIfDict();
-  const base::Value::Dict* command =
+  const base::DictValue* dict = vivaldi_actions[0].GetIfDict();
+  const base::DictValue* command =
       dict->FindDict("COMMAND_EMAIL_LINK_OVERRIDE");
 
   if (command) {
-    const base::Value::List* shortcuts = command->FindList("shortcuts");
+    const base::ListValue* shortcuts = command->FindList("shortcuts");
     if (shortcuts) {
       for (auto keycombo = shortcuts->begin(); keycombo != shortcuts->end();
            ++keycombo) {
@@ -143,7 +142,7 @@ std::string GetMacOSEmailLinkShortcut(Profile* profile) {
 
 ui::Accelerator VivaldiShortcut2Accelerator(const std::string& shortcut) {
   std::vector<std::string> tokens = base::SplitString(
-    shortcut, "+", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
+      shortcut, "+", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
   if (tokens.size() == 0) {
     return ui::Accelerator();
   }
@@ -210,8 +209,9 @@ ui::Accelerator VivaldiShortcut2Accelerator(const std::string& shortcut) {
         // Nasty workaround. The parser does not handle "++"
         key = ui::VKEY_ADD;
       } else if (tokens[i].size() == 1 && std::toupper(tokens[i][0]) >= 'A' &&
-                std::toupper(tokens[i][0]) <= 'Z') {
-        key = static_cast<ui::KeyboardCode>(ui::VKEY_A + (std::toupper(tokens[i][0]) - 'A'));
+                 std::toupper(tokens[i][0]) <= 'Z') {
+        key = static_cast<ui::KeyboardCode>(ui::VKEY_A +
+                                            (std::toupper(tokens[i][0]) - 'A'));
       } else if (tokens[i].size() == 1 && tokens[i][0] >= '0' &&
                  tokens[i][0] <= '9') {
         key = static_cast<ui::KeyboardCode>(ui::VKEY_0 + (tokens[i][0] - '0'));
@@ -308,8 +308,7 @@ ui::Accelerator ParseShortcut(const std::string& accelerator,
       } else if (tokens[i] == ui::kKeyMediaPrevTrack &&
                  should_parse_media_keys) {
         key = ui::VKEY_MEDIA_PREV_TRACK;
-      } else if (tokens[i] == ui::kKeyMediaStop &&
-                 should_parse_media_keys) {
+      } else if (tokens[i] == ui::kKeyMediaStop && should_parse_media_keys) {
         key = ui::VKEY_MEDIA_STOP;
       } else if (tokens[i].size() == 1 && tokens[i][0] >= 'A' &&
                  tokens[i][0] <= 'Z') {
@@ -336,7 +335,7 @@ ui::Accelerator ParseShortcut(const std::string& accelerator,
 }
 
 void BroadcastEvent(const std::string& eventname,
-                    base::Value::List args,
+                    base::ListValue args,
                     content::BrowserContext* context) {
   if (!context)
     return;
@@ -349,14 +348,13 @@ void BroadcastEvent(const std::string& eventname,
 }
 
 void BroadcastEventToAllProfiles(const std::string& eventname,
-                                 base::Value::List args_list) {
+                                 base::ListValue args_list) {
   std::vector<Profile*> active_profiles =
-      VivaldiBrowserComponentWrapper::GetInstance()
-          ->GetLoadedProfiles();
+      VivaldiBrowserComponentWrapper::GetInstance()->GetLoadedProfiles();
   for (size_t i = 0; i < active_profiles.size(); ++i) {
     Profile* profile = active_profiles[i];
     DCHECK(profile);
-    base::Value::List args;
+    base::ListValue args;
     if (i + 1 == active_profiles.size()) {
       args = std::move(args_list);
     } else {

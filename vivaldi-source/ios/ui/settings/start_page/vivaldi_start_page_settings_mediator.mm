@@ -8,12 +8,12 @@
 #import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_names.h"
 #import "ios/chrome/browser/shared/model/utils/observable_boolean.h"
-#import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
 #import "ios/ui/settings/start_page/vivaldi_start_page_prefs.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "ios/ui/settings/start_page/vivaldi_start_page_prefs_helper.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 
-@interface VivaldiStartPageSettingsMediator ()<BooleanObserver,
-                                              PrefObserverDelegate>
+@interface VivaldiStartPageSettingsMediator () <BooleanObserver,
+                                                PrefObserverDelegate>
 @end
 
 @implementation VivaldiStartPageSettingsMediator {
@@ -52,33 +52,30 @@
     _localPrefChangeRegistrar.Init(_localPrefs);
     _localPrefObserverBridge.reset(new PrefObserverBridge(self));
     _localPrefObserverBridge->ObserveChangesForPreference(
-          vivaldiprefs::kVivaldiStartPageOpenWithItem,
-              &_localPrefChangeRegistrar);
+        vivaldiprefs::kVivaldiStartPageOpenWithItem,
+        &_localPrefChangeRegistrar);
 
-    _showFrequentlyVisited =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                prefName:vivaldiprefs::kVivaldiStartPageShowFrequentlyVisited];
+    _showFrequentlyVisited = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::
+                                kVivaldiStartPageShowFrequentlyVisited];
     [_showFrequentlyVisited setObserver:self];
 
-    _showSpeedDials =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:originalPrefService
-                prefName:vivaldiprefs::kVivaldiStartPageShowSpeedDials];
+    _showSpeedDials = [[PrefBackedBoolean alloc]
+        initWithPrefService:originalPrefService
+                   prefName:vivaldiprefs::kVivaldiStartPageShowSpeedDials];
     [_showSpeedDials setObserver:self];
     [self booleanDidChange:_showSpeedDials];
 
-    _showCustomizeStartPageButton =
-        [[PrefBackedBoolean alloc]
-             initWithPrefService:_prefs
-                prefName:vivaldiprefs::kVivaldiStartPageShowCustomizeButton];
+    _showCustomizeStartPageButton = [[PrefBackedBoolean alloc]
+        initWithPrefService:_prefs
+                   prefName:vivaldiprefs::kVivaldiStartPageShowCustomizeButton];
     [_showCustomizeStartPageButton setObserver:self];
     [self booleanDidChange:_showCustomizeStartPageButton];
 
-    _showAddButton =
-        [[PrefBackedBoolean alloc]
-            initWithPrefService:GetApplicationContext()->GetLocalState()
-                 prefName:vivaldiprefs::kVivaldiStartPageShowAddButton];
+    _showAddButton = [[PrefBackedBoolean alloc]
+        initWithPrefService:GetApplicationContext()->GetLocalState()
+                   prefName:vivaldiprefs::kVivaldiStartPageShowAddButton];
     [_showAddButton setObserver:self];
     [self booleanDidChange:_showAddButton];
 
@@ -121,9 +118,10 @@
   [self.consumer
       setPreferenceShowFrequentlyVisitedPages:[_showFrequentlyVisited value]];
   [self.consumer setPreferenceSpeedDialLayout:[self currentLayoutStyle]];
-  [self.consumer setPreferenceShowCustomizeStartPageButton:
-      [_showCustomizeStartPageButton value]];
-  [self.consumer setPreferenceShowAddButton: [_showAddButton value]];
+  [self.consumer
+      setPreferenceShowCustomizeStartPageButton:[_showCustomizeStartPageButton
+                                                    value]];
+  [self.consumer setPreferenceShowAddButton:[_showAddButton value]];
   [self.consumer
       setPreferenceStartPageReopenWithItem:[self reopenStartPageWith]];
 }
@@ -133,11 +131,10 @@
 - (void)onPreferenceChanged:(const std::string&)preferenceName {
   if (preferenceName == vivaldiprefs::kVivaldiStartPageLayoutStyle) {
     [self.consumer setPreferenceSpeedDialLayout:[self currentLayoutStyle]];
-  } else if (preferenceName ==
-              vivaldiprefs::kVivaldiStartPageOpenWithItem) {
+  } else if (preferenceName == vivaldiprefs::kVivaldiStartPageOpenWithItem) {
     [self.consumer
         setPreferenceStartPageReopenWithItem:[self reopenStartPageWith]];
-   }
+  }
 }
 
 #pragma mark - BooleanObserver
@@ -178,8 +175,7 @@
     [_showAddButton setValue:showAddButton];
 }
 
-- (void)setPreferenceSpeedDialLayout:
-    (VivaldiStartPageLayoutStyle)layoutStyle {
+- (void)setPreferenceSpeedDialLayout:(VivaldiStartPageLayoutStyle)layoutStyle {
   // No op.
 }
 
@@ -190,6 +186,10 @@
 - (void)setPreferenceStartPageReopenWithItem:
     (VivaldiStartPageStartItemType)item {
   [VivaldiStartPagePrefsHelper setReopenStartPageWithItem:item];
+}
+
+- (void)setPreferenceDailyMixEnabled:(BOOL)enabled {
+  // No op.
 }
 
 #pragma mark - Private

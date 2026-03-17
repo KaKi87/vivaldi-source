@@ -88,6 +88,7 @@
 #include "./fuzztest/internal/io.h"
 #include "./fuzztest/internal/logging.h"
 #include "./fuzztest/internal/runtime.h"
+#include "./fuzztest/internal/serialization.h"
 #include "./fuzztest/internal/subprocess.h"
 #include "./fuzztest/internal/table_of_recent_compares.h"
 
@@ -264,16 +265,9 @@ fuzztest::internal::Environment CreateCentipedeEnvironmentFromConfiguration(
   env.coverage_binary = (*args)[0];
   env.binary_name = std::filesystem::path{(*args)[0]}.filename();
   env.binary_hash = "DUMMY_HASH";
-  env.exit_on_crash =
-      // Do shallow testing when running in unit-test mode unless we are replay
-      // coverage inputs.
-      (run_mode == RunMode::kUnitTest &&
-       !configuration.replay_coverage_inputs) ||
-      // When not using a corpus database, keep the same behavior as the legacy
-      // single-process mode.
-      configuration.corpus_database.empty() ||
-      // No need to keep running when replaying crashing input.
-      configuration.crashing_input_to_reproduce.has_value();
+  env.exit_on_crash = !configuration.continue_after_crash ||
+                      // Always fail on crash for reproducer tests.
+                      configuration.crashing_input_to_reproduce.has_value();
   env.print_runner_log = configuration.print_subprocess_log;
   env.workdir = workdir;
   if (configuration.corpus_database.empty()) {
@@ -511,7 +505,7 @@ class CentipedeAdaptorRunnerCallbacks
     absl::c_shuffle(seeds, prng_);
     for (const auto& seed : seeds) {
       const auto seed_serialized =
-          fuzzer_impl_.params_domain_.SerializeCorpus(seed).ToString();
+          SerializeIRObject(fuzzer_impl_.params_domain_.SerializeCorpus(seed));
       seed_callback(fuzztest::internal::AsByteSpan(seed_serialized));
     }
   }
@@ -535,9 +529,8 @@ class CentipedeAdaptorRunnerCallbacks
       constexpr double kDomainInitRatio = 0.0001;
       if (choice < kDomainInitRatio) {
         mutant_data =
-            fuzzer_impl_.params_domain_
-                .SerializeCorpus(fuzzer_impl_.params_domain_.Init(prng_))
-                .ToString();
+            SerializeIRObject(fuzzer_impl_.params_domain_.SerializeCorpus(
+                fuzzer_impl_.params_domain_.Init(prng_)));
       } else {
         const auto origin_index =
             absl::Uniform<size_t>(prng_, 0, inputs.size());
@@ -559,8 +552,8 @@ class CentipedeAdaptorRunnerCallbacks
             mutant, prng_,
             {cmp_tables[origin_index].has_value() ? &*cmp_tables[origin_index]
                                                   : nullptr});
-        mutant_data =
-            fuzzer_impl_.params_domain_.SerializeCorpus(mutant.args).ToString();
+        mutant_data = SerializeIRObject(
+            fuzzer_impl_.params_domain_.SerializeCorpus(mutant.args));
       }
       new_mutant_callback(
           {(unsigned char*)mutant_data.data(), mutant_data.size()});

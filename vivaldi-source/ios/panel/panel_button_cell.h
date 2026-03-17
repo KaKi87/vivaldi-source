@@ -12,8 +12,7 @@
 - (instancetype)initWithFrame:(CGRect)rect;
 
 // SETTERS
-- (void)configureCellWithIndex:(NSInteger)index
-                   highlighted:(BOOL)highlighted;
+- (void)configureCellWithIndex:(NSInteger)index highlighted:(BOOL)highlighted;
 
 @end
 

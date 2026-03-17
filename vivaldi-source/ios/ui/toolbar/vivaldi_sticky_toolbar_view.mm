@@ -16,14 +16,14 @@ const CGFloat locationContainerHorizontalPadding = 52;
 const CGFloat locationImageViewWidth = 14;
 const CGFloat locationImageViewYOffset = 0.5;
 const CGFloat locationImageViewRightPadding = 2;
-}
+}  // namespace
 
-@interface VivaldiStickyToolbarView()
+@interface VivaldiStickyToolbarView ()
 
-@property(nonatomic,weak) UIView* locationContainer;
-@property(nonatomic,weak) UILabel* locationLabel;
-@property(nonatomic,weak) UIImageView* locationIconImageView;
-@property(nonatomic,copy) NSString* securityLevelAccessibilityString;
+@property(nonatomic, weak) UIView* locationContainer;
+@property(nonatomic, weak) UILabel* locationLabel;
+@property(nonatomic, weak) UIImageView* locationIconImageView;
+@property(nonatomic, copy) NSString* securityLevelAccessibilityString;
 
 // Location text to be shown
 @property(nonatomic, strong) NSString* locationText;
@@ -31,6 +31,8 @@ const CGFloat locationImageViewRightPadding = 2;
 @property(nonatomic, strong) NSString* domainText;
 // Boolean to determine if the full address should be shown.
 @property(nonatomic, assign) BOOL showFullAddress;
+// Boolean to determine whether to clip tail or head of location label.
+@property(nonatomic, assign) BOOL clipTail;
 
 // Tint color for the location text
 @property(nonatomic, strong) UIColor* localLabelTintColor;
@@ -50,7 +52,7 @@ const CGFloat locationImageViewRightPadding = 2;
 @synthesize locationLabel = _locationLabel;
 @synthesize locationIconImageView = _locationIconImageView;
 @synthesize securityLevelAccessibilityString =
-  _securityLevelAccessibilityString;
+    _securityLevelAccessibilityString;
 
 #pragma mark - INITIALIZER
 - (instancetype)init {
@@ -64,27 +66,27 @@ const CGFloat locationImageViewRightPadding = 2;
 
 #pragma mark - SET UP UI COMPONENTS
 - (void)setUpUI {
-
   self.backgroundColor = UIColor.clearColor;
 
   UIView* locationContainer = [UIView new];
   _locationContainer = locationContainer;
   locationContainer.backgroundColor = UIColor.clearColor;
   [self addSubview:locationContainer];
-  [locationContainer anchorTop:self.safeTopAnchor
-                       leading:nil
-                        bottom:self.safeBottomAnchor
-                      trailing:nil
-                       padding:UIEdgeInsetsMake(
-                            0, 0, locationContainerVerticalPadding, 0)];
+  [locationContainer
+      anchorTop:self.safeTopAnchor
+        leading:nil
+         bottom:self.safeBottomAnchor
+       trailing:nil
+        padding:UIEdgeInsetsMake(0, 0, locationContainerVerticalPadding, 0)];
 
   [NSLayoutConstraint activateConstraints:@[
     [locationContainer.leadingAnchor
-      constraintGreaterThanOrEqualToAnchor:self.safeLeftAnchor
-                                  constant:locationContainerHorizontalPadding],
+        constraintGreaterThanOrEqualToAnchor:self.safeLeftAnchor
+                                    constant:
+                                        locationContainerHorizontalPadding],
     [locationContainer.trailingAnchor
-      constraintLessThanOrEqualToAnchor:self.safeRightAnchor
-                               constant:-locationContainerHorizontalPadding]
+        constraintLessThanOrEqualToAnchor:self.safeRightAnchor
+                                 constant:-locationContainerHorizontalPadding]
   ]];
   [locationContainer centerXInSuperview];
 
@@ -97,7 +99,8 @@ const CGFloat locationImageViewRightPadding = 2;
   _locationLabel = locationLabel;
   locationLabel.adjustsFontForContentSizeCategory = YES;
   locationLabel.font =
-    [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+      [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+  locationLabel.lineBreakMode = NSLineBreakByTruncatingHead;
   locationLabel.backgroundColor = UIColor.clearColor;
   locationLabel.textColor = UIColor.labelColor;
   self.localLabelTintColor = UIColor.labelColor;
@@ -108,7 +111,7 @@ const CGFloat locationImageViewRightPadding = 2;
                     bottom:locationContainer.bottomAnchor
                   trailing:locationContainer.trailingAnchor];
 
-  UIImageView *locationIconImageView = [UIImageView new];
+  UIImageView* locationIconImageView = [UIImageView new];
   _locationIconImageView = locationIconImageView;
   locationIconImageView.contentMode = UIViewContentModeScaleAspectFit;
   locationIconImageView.backgroundColor = UIColor.clearColor;
@@ -117,8 +120,9 @@ const CGFloat locationImageViewRightPadding = 2;
   [locationContainer addSubview:locationIconImageView];
   [locationIconImageView setWidthWithConstant:locationImageViewWidth];
   [locationIconImageView.centerYAnchor
-    constraintEqualToAnchor:locationLabel.centerYAnchor
-                   constant:locationImageViewYOffset].active = YES;
+      constraintEqualToAnchor:locationLabel.centerYAnchor
+                     constant:locationImageViewYOffset]
+      .active = YES;
 
   _showLocationImageConstraints = @[
     [locationContainer.leadingAnchor
@@ -147,7 +151,6 @@ const CGFloat locationImageViewRightPadding = 2;
   }
 }
 
-
 #pragma mark - SETTERS
 - (void)updateBackgroundColor:(UIColor*)backgroundColor {
   self.backgroundColor = backgroundColor;
@@ -155,22 +158,23 @@ const CGFloat locationImageViewRightPadding = 2;
 
 - (void)updateLocationText:(NSString*)text
                     domain:(NSString*)domain
-                  showFull:(BOOL)showFull {
+                  showFull:(BOOL)showFull
+                  clipTail:(BOOL)clipTail {
   if (self.showFullAddress != showFull)
     self.showFullAddress = showFull;
   self.locationText = text;
   self.domainText = domain;
 
-  self.locationLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+  self.clipTail = clipTail;
+  self.locationLabel.lineBreakMode =
+      clipTail ? NSLineBreakByTruncatingTail : NSLineBreakByTruncatingHead;
 
   if (showFull && ![text isEqualToString:domain] && [text length] > 0) {
-    UIColor *fullTextColor =
-        [self.localLabelTintColor
-            colorWithAlphaComponent:vLocationBarSteadyViewFullAddressOpacity];
-    UIColor *domainColor =
-        [self.localLabelTintColor
-             colorWithAlphaComponent:vLocationBarSteadyViewDomainOpacity];
-    NSAttributedString *attributedString =
+    UIColor* fullTextColor = [self.localLabelTintColor
+        colorWithAlphaComponent:vLocationBarSteadyViewFullAddressOpacity];
+    UIColor* domainColor = [self.localLabelTintColor
+        colorWithAlphaComponent:vLocationBarSteadyViewDomainOpacity];
+    NSAttributedString* attributedString =
         [VivaldiGlobalHelpers attributedStringWithText:text
                                              highlight:domain
                                              textColor:fullTextColor
@@ -210,7 +214,8 @@ const CGFloat locationImageViewRightPadding = 2;
   // Update the label after setting tint color
   [self updateLocationText:self.locationText
                     domain:self.domainText
-                  showFull:self.showFullAddress];
+                  showFull:self.showFullAddress
+                  clipTail:self.clipTail];
 }
 
 - (void)setSecurityLevelAccessibilityString:(NSString*)string {

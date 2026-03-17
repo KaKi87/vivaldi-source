@@ -48,12 +48,19 @@ std::unique_ptr<KeyedService>
 PasskeyUnlockManagerFactory::BuildServiceInstanceForBrowserContext(
     content::BrowserContext* context) const {
   Profile* profile = Profile::FromBrowserContext(context);
-  return std::make_unique<PasskeyUnlockManager>(profile);
+  return std::make_unique<PasskeyUnlockManager>(
+      EnclaveManagerFactory::GetForProfile(profile),
+      PasskeyModelFactory::GetForProfile(profile),
+      SyncServiceFactory::GetForProfile(profile));
 }
 
 bool PasskeyUnlockManagerFactory::ServiceIsCreatedWithBrowserContext() const {
   // For the purpose of publishing passkey readiness metrics we need to create
   // Passkey Unlock Manager as soon as the BrowserContext has been brought up.
+  return true;
+}
+
+bool PasskeyUnlockManagerFactory::ServiceIsNULLWhileTesting() const {
   return true;
 }
 

@@ -100,10 +100,10 @@ void VivaldiAttachTabHelpers(WebContents* web_contents) {
   }
 }
 
-base::Value::List getLinkRoutes(content::WebContents* contents) {
+base::ListValue getLinkRoutes(content::WebContents* contents) {
   Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());
   PrefService* prefs = profile->GetPrefs();
-  base::Value::List link_routes =
+  base::ListValue link_routes =
       prefs->GetList(vivaldiprefs::kWorkspacesLinkRoutes).Clone();
   return link_routes;
 }

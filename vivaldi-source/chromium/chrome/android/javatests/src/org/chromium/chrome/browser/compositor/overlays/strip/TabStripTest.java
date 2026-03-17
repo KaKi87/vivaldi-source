@@ -28,6 +28,7 @@ import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Criteria;
 import org.chromium.base.test.util.CriteriaHelper;
+import org.chromium.base.test.util.DisableIf;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.DoNotBatch;
 import org.chromium.base.test.util.Feature;
@@ -38,6 +39,7 @@ import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.compositor.layouts.components.CompositorButton;
 import org.chromium.chrome.browser.flags.ChromeFeatureList;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
+import org.chromium.chrome.browser.incognito.IncognitoUtils;
 import org.chromium.chrome.browser.layouts.animation.CompositorAnimationHandler;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabModel;
@@ -615,7 +617,11 @@ public class TabStripTest {
     @Test
     @LargeTest
     @Feature({"TabStrip"})
-    @Restriction(DeviceFormFactor.TABLET_OR_DESKTOP)
+    @Restriction({
+        DeviceFormFactor.TABLET_OR_DESKTOP,
+        DeviceRestriction.RESTRICTION_TYPE_NON_AUTO,
+        DeviceRestriction.RESTRICTION_TYPE_NON_FOLDABLE
+    })
     @EnableFeatures(ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW)
     public void testCloseLastIncognitoTab_OpenIncognitoAsNewWindow() {
         // Create a regular window and verify.
@@ -759,7 +765,11 @@ public class TabStripTest {
     @Test
     @LargeTest
     @Feature({"TabStrip"})
-    @Restriction(DeviceFormFactor.TABLET_OR_DESKTOP)
+    @Restriction({
+        DeviceFormFactor.TABLET_OR_DESKTOP,
+        DeviceRestriction.RESTRICTION_TYPE_NON_AUTO,
+        DeviceRestriction.RESTRICTION_TYPE_NON_FOLDABLE
+    })
     @EnableFeatures(ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW)
     public void testCloseAllIncognitoTabsFromTabMenu_OpenIncognitoAsNewWindow() {
         // Create a regular window and verify.
@@ -860,8 +870,8 @@ public class TabStripTest {
     // launched.
     @DisableFeatures({
         ChromeFeatureList.ANDROID_OPEN_INCOGNITO_AS_WINDOW,
-        ChromeFeatureList.TAB_STRIP_INCOGNITO_MIGRATION
     })
+    @DisableIf.Device(DeviceFormFactor.DESKTOP_FREEFORM) // crbug.com/480150165
     public void testTabSelectionViewDoesNotBreakModelSwitch() {
         InstrumentationRegistry.getInstrumentation().waitForIdleSync();
         Assert.assertFalse(
@@ -1685,7 +1695,7 @@ public class TabStripTest {
         CompositorButton incognitoIndicator =
                 TabStripUtils.getStripLayoutHelperManager(mActivityTestRule.getActivity())
                         .getModelSelectorButton();
-        if (!ChromeFeatureList.sTabStripIncognitoMigration.isEnabled()) {
+        if (!IncognitoUtils.shouldOpenIncognitoAsWindow()) {
             if (activeModel.isIncognitoBranded()) {
                 Assert.assertNotNull(
                         "Incognito indicator null in incognito mode", incognitoIndicator);

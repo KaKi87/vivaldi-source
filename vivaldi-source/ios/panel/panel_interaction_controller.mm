@@ -9,11 +9,12 @@
 #import "base/strings/utf_string_conversions.h"
 #import "components/omnibox/browser/omnibox_pref_names.h"
 #import "ios/chrome/browser/bookmarks/ui_bundled/home/bookmarks_coordinator.h"
-#import "ios/chrome/browser/history/ui_bundled/history_coordinator_delegate.h"
 #import "ios/chrome/browser/history/ui_bundled/history_coordinator.h"
+#import "ios/chrome/browser/history/ui_bundled/history_coordinator_delegate.h"
+#import "ios/chrome/browser/history/ui_bundled/history_coordinator_factory.h"
 #import "ios/chrome/browser/history/ui_bundled/history_table_view_controller.h"
-#import "ios/chrome/browser/reading_list/ui_bundled/reading_list_coordinator_delegate.h"
 #import "ios/chrome/browser/reading_list/ui_bundled/reading_list_coordinator.h"
+#import "ios/chrome/browser/reading_list/ui_bundled/reading_list_coordinator_delegate.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
 #import "ios/chrome/browser/shared/model/browser/browser.h"
 #import "ios/chrome/browser/shared/model/prefs/pref_backed_boolean.h"
@@ -21,7 +22,7 @@
 #import "ios/chrome/browser/shared/model/profile/profile_ios.h"
 #import "ios/chrome/browser/shared/ui/table_view/table_view_navigation_controller.h"
 #import "ios/chrome/browser/shared/ui/util/uikit_ui_util.h"
-#import "ios/chrome/browser/toolbar/ui_bundled//public/toolbar_type.h"
+#import "ios/chrome/browser/toolbar/legacy/ui_bundled/public/toolbar_type.h"
 #import "ios/chrome/browser/url_loading/model/url_loading_params.h"
 #import "ios/chrome/common/ui/colors/semantic_color_names.h"
 #import "ios/chrome/grit/ios_strings.h"
@@ -35,8 +36,8 @@
 #import "ios/ui/notes/note_interaction_controller.h"
 #import "ios/ui/notes/note_navigation_controller.h"
 #import "ios/ui/translate/vivaldi_translate_coordinator.h"
-#import "ui/base/l10n/l10n_util_mac.h"
 #import "ui/base/l10n/l10n_util.h"
+#import "ui/base/l10n/l10n_util_mac.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using l10n_util::GetNSString;
@@ -54,9 +55,11 @@ enum class PresentedState {
 
 }  // namespace
 
-@interface PanelInteractionController ()<HistoryCoordinatorDelegate,
-                                        ReadingListCoordinatorDelegate,
-                                        BooleanObserver> {
+@interface PanelInteractionController () <
+    HistoryCoordinatorDelegate,
+    ReadingListCoordinatorDelegate,
+    BooleanObserver,
+    UIAdaptivePresentationControllerDelegate> {
   // The browser panels are presented in.
   Browser* _browser;  // weak
 
@@ -74,7 +77,7 @@ enum class PresentedState {
 
 @property(nonatomic, strong) HistoryCoordinator* historyCoordinator;
 
-@property(nonatomic, strong) PanelTransitioningDelegate* tc;
+@property(nonatomic, strong) PanelTransitioningDelegate* transitioningDelegate;
 
 // The type of view controller that is being presented.
 @property(nonatomic, assign) PresentedState currentPresentedState;
@@ -85,16 +88,20 @@ enum class PresentedState {
 // Panel controller for iPad
 @property(nonatomic, strong) SidebarPanelViewController* sidebarPanelController;
 
-@property(nonatomic, readonly, weak) id<ApplicationCommands, BrowserCommands>
-    handler;
+@property(nonatomic, readonly, weak) id<SceneCommands, BrowserCommands> handler;
 
 @property(nonatomic, assign) ToolbarType toolbarType;
 
 // Dismisses the panel browser.  If |urlsToOpen| is not empty, then the user
 // has selected to navigate to those URLs with specified tab mode.
 - (void)dismissPanelBrowserAnimated:(BOOL)animated
-                           inIncognito:(BOOL)inIncognito
-                                newTab:(BOOL)newTab;
+                        inIncognito:(BOOL)inIncognito
+                             newTab:(BOOL)newTab;
+//- (BOOL)isPanelContainerPresented;
+//- (NSInteger)indexForPanelPage:(PanelPage)page;
+//- (void)selectPanelPage:(PanelPage)page;
+//- (void)updatePhonePanelDetentsForIndex:(NSInteger)index;
+//- (void)resetPanelState;
 @end
 
 @implementation PanelInteractionController
@@ -116,13 +123,7 @@ enum class PresentedState {
 }
 
 - (void)shutdown {
-  _noteInteractionController = nil;
-  // shutdown
-  _historyCoordinator = nil;
-  _bookmarksCoordinator = nil;
-  _readinglistCoordinator = nil;
-  [_translateCoordinator stop];
-  _translateCoordinator = nil;
+  [self resetPanelState];
 
   if (_bottomOmniboxEnabled) {
     [_bottomOmniboxEnabled stop];
@@ -132,36 +133,54 @@ enum class PresentedState {
 }
 
 - (void)dismissPanelBrowserAnimated:(BOOL)animated
-                           inIncognito:(BOOL)inIncognito
-                                newTab:(BOOL)newTab {
-  if (_parentController.presentedViewController) {
+                        inIncognito:(BOOL)inIncognito
+                             newTab:(BOOL)newTab {
+  __weak __typeof(self) weakSelf = self;
+  if ([self isPanelContainerPresented]) {
     [_parentController dismissViewControllerAnimated:animated
-                                          completion:nil];
+                                          completion:^{
+                                            [weakSelf resetPanelState];
+                                          }];
+    return;
   }
-  self.currentPresentedState = PresentedState::NONE;
+
+  [self resetPanelState];
 }
 
-- (void)presentPanel:(PanelPage)page
-    withSearchString:(NSString*)searchString {
+- (void)presentPanel:(PanelPage)page withSearchString:(NSString*)searchString {
+  if (self.currentPresentedState == PresentedState::PANEL_BROWSER) {
+    // If panel is already showing, simply switch to requested page.
+    if ([self isPanelContainerPresented]) {
+      [self selectPanelPage:page];
+      return;
+    }
+
+    // Recover from stale state (for example after an interactive dismissal).
+    [self resetPanelState];
+  }
+
   DCHECK_EQ(PresentedState::NONE, self.currentPresentedState);
   DCHECK(!self.panelController);
+  DCHECK(!self.sidebarPanelController);
 
   UIViewController* vc;
   if (self.showSidePanel) {
     SidebarPanelViewController* sidebar =
-    [[SidebarPanelViewController alloc] init];
-    self.tc = [[PanelTransitioningDelegate alloc] init];
-    self.tc.toolbarType = self.toolbarType;
-    sidebar.transitioningDelegate = self.tc;
+        [[SidebarPanelViewController alloc] init];
+    self.transitioningDelegate = [[PanelTransitioningDelegate alloc] init];
+    self.transitioningDelegate.toolbarType = self.toolbarType;
+    sidebar.transitioningDelegate = self.transitioningDelegate;
     self.sidebarPanelController = sidebar;
     [self.sidebarPanelController
         setModalPresentationStyle:UIModalPresentationCustom];
     self.sidebarPanelController.modalInPresentation = NO;
+    self.sidebarPanelController.presentationController.delegate = self;
     vc = self.sidebarPanelController;
   } else {
     PanelViewController* panelController = [[PanelViewController alloc] init];
     self.panelController = panelController;
     [panelController setModalPresentationStyle:UIModalPresentationPageSheet];
+    self.panelController.presentationController.delegate = self;
     vc = self.panelController;
   }
 
@@ -177,14 +196,7 @@ enum class PresentedState {
   _readinglistCoordinator.panelDelegate = self;
   _historyCoordinator.panelDelegate = self;
   _translateCoordinator.panelDelegate = self;
-  int index = 0;
-  switch (page) {
-    case PanelPage::BookmarksPage: index = 0; break;
-    case PanelPage::ReadinglistPage: index = 1; break;
-    case PanelPage::HistoryPage: index = 2; break;
-    case PanelPage::NotesPage: index = 3; break;
-    case PanelPage::TranslatePage: index = 4; break;
-  }
+  NSInteger index = [self indexForPanelPage:page];
 
   if (self.showSidePanel) {
     [self setupAndPresentiPadPanel:index];
@@ -195,60 +207,51 @@ enum class PresentedState {
 }
 
 - (void)setupAndPresentiPadPanel:(NSInteger)index {
-    [_sidebarPanelController setupControllers:
-     (NoteNavigationController*)
-       _noteInteractionController.noteNavigationController
-      withBookmarkController:
-       _bookmarksCoordinator.bookmarkNavigationController
-      andReadinglistController:
-       _readinglistCoordinator.navigationController
-      andHistoryController:self.historyCoordinator.historyNavigationController
-      andTranslateController:_translateCoordinator.navigationController];
-    self.sidebarPanelController.view.backgroundColor =
-        [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
-    [self.sidebarPanelController.segmentControl setSelectedSegmentIndex:index];
-    [self.sidebarPanelController setIndexForControl:index];
-    [_parentController presentViewController:self.sidebarPanelController
-                              animated:YES
-                            completion:nil];
+  [_sidebarPanelController
+              setupControllers:(NoteNavigationController*)
+                                   _noteInteractionController
+                                       .noteNavigationController
+        withBookmarkController:_bookmarksCoordinator
+                                   .bookmarkNavigationController
+      andReadinglistController:_readinglistCoordinator.navigationController
+          andHistoryController:self.historyCoordinator
+                                   .historyNavigationController
+        andTranslateController:_translateCoordinator.navigationController];
+  self.sidebarPanelController.view.backgroundColor =
+      [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
+  [self.sidebarPanelController.segmentControl setSelectedSegmentIndex:index];
+  [self.sidebarPanelController setIndexForControl:index];
+  [_parentController presentViewController:self.sidebarPanelController
+                                  animated:YES
+                                completion:nil];
 }
 
 - (void)setupAndPresentPhonePanel:(NSInteger)index {
-  [_panelController setupControllers:
-      (NoteNavigationController*)_noteInteractionController
-            .noteNavigationController
-              withBookmarkController:
-      _bookmarksCoordinator.bookmarkNavigationController
-            andReadinglistController:
-      _readinglistCoordinator.navigationController
-                andHistoryController:
-      _historyCoordinator.historyNavigationController
-              andTranslateController:
-      _translateCoordinator.navigationController];
+  [_panelController
+              setupControllers:(NoteNavigationController*)
+                                   _noteInteractionController
+                                       .noteNavigationController
+        withBookmarkController:_bookmarksCoordinator
+                                   .bookmarkNavigationController
+      andReadinglistController:_readinglistCoordinator.navigationController
+          andHistoryController:_historyCoordinator.historyNavigationController
+        andTranslateController:_translateCoordinator.navigationController];
 
   self.panelController.view.backgroundColor =
       [UIColor colorNamed:kGroupedPrimaryBackgroundColor];
   [self.panelController.segmentControl setSelectedSegmentIndex:index];
   [self.panelController setIndexForControl:index];
-
+  [self updatePhonePanelDetentsForIndex:index];
   UISheetPresentationController* sheetPc =
-       _panelController.sheetPresentationController;
-  sheetPc.detents = @[UISheetPresentationControllerDetent.mediumDetent,
-                       UISheetPresentationControllerDetent.largeDetent];
+      self.panelController.sheetPresentationController;
 
-  if (index == PanelPage::TranslatePage &&
-      _translateCoordinator && _translateCoordinator.shouldOpenFullSheet) {
-    sheetPc.detents = @[UISheetPresentationControllerDetent.largeDetent];
-  } else {
-    sheetPc.detents = @[UISheetPresentationControllerDetent.mediumDetent,
-                         UISheetPresentationControllerDetent.largeDetent];
+  if (sheetPc) {
+    if (!@available(iOS 26, *)) {
+      sheetPc.preferredCornerRadius = panel_sheet_corner_radius;
+    }
+    sheetPc.prefersScrollingExpandsWhenScrolledToEdge = NO;
+    sheetPc.widthFollowsPreferredContentSizeWhenEdgeAttached = YES;
   }
-
-  if (!@available(iOS 26, *)) {
-    sheetPc.preferredCornerRadius = panel_sheet_corner_radius;
-  }
-  sheetPc.prefersScrollingExpandsWhenScrolledToEdge = NO;
-  sheetPc.widthFollowsPreferredContentSizeWhenEdgeAttached = YES;
   [_parentController presentViewController:_panelController
                                   animated:YES
                                 completion:nil];
@@ -256,25 +259,25 @@ enum class PresentedState {
 
 #pragma mark - Private
 - (void)startObservingOmniboxPositionChange {
-  _bottomOmniboxEnabled =
-      [[PrefBackedBoolean alloc]
-          initWithPrefService:GetApplicationContext()->GetLocalState()
-                     prefName:omnibox::kIsOmniboxInBottomPosition];
+  _bottomOmniboxEnabled = [[PrefBackedBoolean alloc]
+      initWithPrefService:GetApplicationContext()->GetLocalState()
+                 prefName:omnibox::kIsOmniboxInBottomPosition];
   [_bottomOmniboxEnabled setObserver:self];
   // Initialize to the correct value.
   [self booleanDidChange:_bottomOmniboxEnabled];
 }
 
 - (void)showHistory:(UIViewController*)vc
-   withSearchString:(NSString*)searchString {
-  if (!self.historyCoordinator) {
-      self.historyCoordinator = [[HistoryCoordinator alloc]
-        initWithBaseViewController:vc
-                           browser:_browser];
+    withSearchString:(NSString*)searchString {
+  if (self.historyCoordinator) {
+    [self.historyCoordinator stop];
+    self.historyCoordinator = nil;
   }
+  self.historyCoordinator = CreateHistoryCoordinator(vc, _browser);
   self.historyCoordinator.searchTerms = searchString;
   self.historyCoordinator.loadStrategy = UrlLoadStrategy::NORMAL;
   self.historyCoordinator.delegate = self;
+  self.historyCoordinator.panelDelegate = self;
   [self.historyCoordinator start];
 }
 
@@ -284,7 +287,7 @@ enum class PresentedState {
     return;
   _noteInteractionController =
       [[NoteInteractionController alloc] initWithBrowser:_browser
-                                parentController:vc];
+                                        parentController:vc];
 }
 
 // Initializes the bookmark interaction controller if not already initialized.
@@ -292,7 +295,7 @@ enum class PresentedState {
   if (_bookmarksCoordinator)
     return;
   _bookmarksCoordinator =
-    [[BookmarksCoordinator alloc] initWithBrowser:_browser];
+      [[BookmarksCoordinator alloc] initWithBrowser:_browser];
 }
 
 // Initializes the reading list interaction controller
@@ -301,8 +304,8 @@ enum class PresentedState {
   if (_readinglistCoordinator)
     return;
   _readinglistCoordinator =
-  [[ReadingListCoordinator alloc] initWithBaseViewController:vc
-                                                     browser:_browser];
+      [[ReadingListCoordinator alloc] initWithBaseViewController:vc
+                                                         browser:_browser];
   _readinglistCoordinator.delegate = self;
   [_readinglistCoordinator start];
 }
@@ -311,40 +314,23 @@ enum class PresentedState {
 - (void)initializeTranslateCoordinator:(UIViewController*)vc
                             sourceText:(NSString*)sourceText {
   VivaldiTranslateEntryPoint entryPoint =
-      self.showSidePanel ?
-          VivaldiTranslateEntryPointSidePanel : VivaldiTranslateEntryPointPanel;
-  _translateCoordinator =
-      [[VivaldiTranslateCoordinator alloc]
-          initWithBaseViewController:vc
-            presentingViewController:_parentController
-                             browser:_browser
-                          entryPoint:entryPoint
-                        selectedText:sourceText];
+      self.showSidePanel ? VivaldiTranslateEntryPointSidePanel
+                         : VivaldiTranslateEntryPointPanel;
+  _translateCoordinator = [[VivaldiTranslateCoordinator alloc]
+      initWithBaseViewController:vc
+        presentingViewController:_parentController
+                         browser:_browser
+                      entryPoint:entryPoint
+                    selectedText:sourceText];
   [_translateCoordinator start];
 }
 
 - (void)dismissPanelModalControllerAnimated:(BOOL)animated {
-  [self dismissPanelBrowserAnimated:animated
-                           inIncognito:NO
-                                newTab:NO];
+  [self dismissPanelBrowserAnimated:animated inIncognito:NO newTab:NO];
 }
 
 - (void)panelDismissed {
-  if (self.panelController) {
-    [self.panelController panelDismissed];
-    [self dismissPanelModalControllerAnimated:YES];
-    self.panelController = nil;
-  }
-  if (self.sidebarPanelController) {
-    [self.sidebarPanelController dismissViewControllerAnimated:YES completion:^{
-      [self.sidebarPanelController panelDismissed];
-      if (self.showSidePanel) {
-        [self.sidebarPanelController.view removeFromSuperview];
-        [self.sidebarPanelController removeFromParentViewController];
-        self.sidebarPanelController = nil;
-      }
-    }];
-  }
+  [self dismissPanelModalControllerAnimated:YES];
 }
 
 - (BOOL)isPresenting {
@@ -354,8 +340,7 @@ enum class PresentedState {
 - (BOOL)hasPresentedModalViewController {
   return (_noteInteractionController &&
           [_noteInteractionController isEditorPresented]) ||
-         (_translateCoordinator &&
-          [_translateCoordinator isEditorPresented]);
+         (_translateCoordinator && [_translateCoordinator isEditorPresented]);
 }
 
 /// Returns true if device is iPad and multitasking UI has
@@ -363,9 +348,134 @@ enum class PresentedState {
 - (BOOL)showSidePanel {
   if (_parentController) {
     return [VivaldiGlobalHelpers
-                canShowSidePanelForTrait:_parentController.traitCollection];
+        canShowSidePanelForTrait:_parentController.traitCollection];
   }
   return NO;
+}
+
+- (BOOL)isPanelContainerPresented {
+  UIViewController* presentedViewController =
+      _parentController.presentedViewController;
+  return (self.panelController &&
+          presentedViewController == self.panelController) ||
+         (self.sidebarPanelController &&
+          presentedViewController == self.sidebarPanelController);
+}
+
+- (NSInteger)indexForPanelPage:(PanelPage)page {
+  switch (page) {
+    case PanelPage::BookmarksPage:
+      return 0;
+    case PanelPage::ReadinglistPage:
+      return 1;
+    case PanelPage::HistoryPage:
+      return 2;
+    case PanelPage::NotesPage:
+      return 3;
+    case PanelPage::TranslatePage:
+      return 4;
+  }
+
+  return 0;
+}
+
+- (void)selectPanelPage:(PanelPage)page {
+  NSInteger index = [self indexForPanelPage:page];
+  if (self.showSidePanel && self.sidebarPanelController) {
+    [self.sidebarPanelController.segmentControl setSelectedSegmentIndex:index];
+    [self.sidebarPanelController setIndexForControl:index];
+    return;
+  }
+
+  if (self.panelController) {
+    [self.panelController.segmentControl setSelectedSegmentIndex:index];
+    [self.panelController setIndexForControl:index];
+    [self updatePhonePanelDetentsForIndex:index];
+  }
+}
+
+- (void)updatePhonePanelDetentsForIndex:(NSInteger)index {
+  if (!self.panelController) {
+    return;
+  }
+
+  UISheetPresentationController* sheetPc =
+      self.panelController.sheetPresentationController;
+  if (!sheetPc) {
+    return;
+  }
+
+  if (index == PanelPage::TranslatePage && _translateCoordinator &&
+      _translateCoordinator.shouldOpenFullSheet) {
+    sheetPc.detents = @[ UISheetPresentationControllerDetent.largeDetent ];
+  } else {
+    sheetPc.detents = @[
+      UISheetPresentationControllerDetent.mediumDetent,
+      UISheetPresentationControllerDetent.largeDetent
+    ];
+  }
+}
+
+- (void)resetPanelState {
+  if (_noteInteractionController) {
+    _noteInteractionController.panelDelegate = nil;
+    [_noteInteractionController shutdown];
+    _noteInteractionController = nil;
+  }
+
+  if (_bookmarksCoordinator) {
+    _bookmarksCoordinator.panelDelegate = nil;
+    [_bookmarksCoordinator stop];
+    _bookmarksCoordinator = nil;
+  }
+
+  if (_readinglistCoordinator) {
+    _readinglistCoordinator.panelDelegate = nil;
+    _readinglistCoordinator.delegate = nil;
+    [_readinglistCoordinator stop];
+    _readinglistCoordinator = nil;
+  }
+
+  if (_historyCoordinator) {
+    _historyCoordinator.panelDelegate = nil;
+    _historyCoordinator.delegate = nil;
+    [_historyCoordinator stop];
+    _historyCoordinator = nil;
+  }
+
+  if (_translateCoordinator) {
+    _translateCoordinator.panelDelegate = nil;
+    [_translateCoordinator stop];
+    _translateCoordinator = nil;
+  }
+
+  if (self.panelController) {
+    self.panelController.presentationController.delegate = nil;
+    [self.panelController panelDismissed];
+    self.panelController = nil;
+  }
+
+  if (self.sidebarPanelController) {
+    self.sidebarPanelController.presentationController.delegate = nil;
+    [self.sidebarPanelController panelDismissed];
+    [self.sidebarPanelController.view removeFromSuperview];
+    [self.sidebarPanelController removeFromParentViewController];
+    self.sidebarPanelController = nil;
+  }
+
+  self.transitioningDelegate = nil;
+  self.currentPresentedState = PresentedState::NONE;
+}
+
+#pragma mark - UIAdaptivePresentationControllerDelegate
+
+- (void)presentationControllerDidDismiss:
+    (UIPresentationController*)presentationController {
+  if (presentationController.presentedViewController == self.panelController ||
+      presentationController.presentedViewController ==
+          self.sidebarPanelController) {
+    [self resetPanelState];
+  }
 }
 
 #pragma mark - HistoryCoordinatorDelegate
@@ -400,8 +510,8 @@ enum class PresentedState {
 #pragma mark - Boolean Observer
 - (void)booleanDidChange:(id<ObservableBoolean>)observableBoolean {
   if (observableBoolean == _bottomOmniboxEnabled) {
-    self.toolbarType = _bottomOmniboxEnabled.value ?
-        ToolbarType::kSecondary : ToolbarType::kPrimary;
+    self.toolbarType = _bottomOmniboxEnabled.value ? ToolbarType::kSecondary
+                                                   : ToolbarType::kPrimary;
   }
 }
 

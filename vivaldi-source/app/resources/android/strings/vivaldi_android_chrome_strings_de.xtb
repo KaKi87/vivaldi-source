@@ -12,6 +12,7 @@
 <translation id="1910514478706885609">In neuer Tabgruppe öffnen</translation>
 <translation id="1925021887439448749">Benutzerdefinierte Webadresse eingeben</translation>
 <translation id="2038563949887743358">“Desktopversion ansehen” aktivieren</translation>
+<translation id="2072027001582274150">Ungenutzte oder doppelte Tabs</translation>
 <translation id="208033313373016095">Leseansicht für Webseiten</translation>
 <translation id="2149973817440762519">Lesezeichen bearbeiten</translation>
 <translation id="2306442503286132111">Lesezeichen wurde im Ordner <ph name="FOLDER_NAME" /> gespeichert</translation>
@@ -46,6 +47,10 @@
 <translation id="385051799172605136">Zurück</translation>
 <translation id="3987993985790029246">Link kopieren</translation>
 <translation id="399014816462153200">Artikel lesen:</translation>
+<translation id="40716919553748435">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> Tab}
+          other {<ph name="TAB_COUNT_MANY" /> Tabs, <ph name="TAB_COUNT_INCOGNITO" /> privat}}</translation>
+<translation id="408336132633586393">Privates Fenster</translation>
 <translation id="4121750346708795461">Durch die Verwendung dieser App stimmen Sie den <ph name="BEGIN_LINK1" />Nutzungsbedingungen<ph name="END_LINK1" /> und der <ph name="BEGIN_LINK2" />Datenschutzerklärung<ph name="END_LINK2" /> von Vivaldi zu.</translation>
 <translation id="4137746084635924146">Aktuelle Gerätesprache</translation>
 <translation id="4167670741834902166">Neuer privater Tab</translation>
@@ -55,9 +60,7 @@
 <translation id="4269820728363426813">Link-Adresse kopieren</translation>
 <translation id="4291407919474070700"><ph name="BEGIN_LINK" />Displaysperre in den Android-Einstellungen aktivieren<ph name="END_LINK" /></translation>
 <translation id="4304713468139749426">Passwortverwaltung</translation>
-<translation id="4401432223274567153">{INACTIVE_TIME_DAYS, plural,
-          =1 {Tabs und Gruppen, die seit einem Tag oder länger nicht verwendet wurden}
-          other {Tabs und Gruppen, die seit # Tagen oder länger nicht verwendet wurden}}</translation>
+<translation id="441100617989818073">Ungenutzte oder doppelte Tabs und Gruppen</translation>
 <translation id="451872707440238414">Lesezeichen durchsuchen</translation>
 <translation id="4526803704855831732">Private Tabs</translation>
 <translation id="4532845899244822526">Ordner auswählen</translation>
@@ -71,6 +74,9 @@
 <translation id="4883379392681899581">Privatmodus verlassen</translation>
 <translation id="4943872375798546930">Keine Ergebnisse</translation>
 <translation id="49576331685473090">Inhalte blockieren</translation>
+<translation id="5048396920203761159">{TAB_COUNT, plural,
+          =1 {<ph name="TAB_COUNT_ONE" /> privater Tab}
+          other {<ph name="TAB_COUNT_NORMAL" /> private Tabs}}</translation>
 <translation id="5079259810715830221">Wenn eine Google-Website darum bittet, Links auf ihrer Seite privat vorab zu laden, verschlüsselt und lädt Vivaldi Seiten über Google-Server ohne Cookies vor. Dies verbirgt Ihre Identität vor der vorinstallierten Website.</translation>
 <translation id="5118676864324397542"><ph name="APP_NAME" />-Speicher</translation>
 <translation id="5144385790872094440">Einige der Seiten, die Sie besuchen, werden vorab geladen. Diese Seiten werden über Google-Server geladen, wenn sie von einer Google-Website oder ‑App verlinkt sind.</translation>
@@ -103,6 +109,7 @@ Drücken Sie lange, um Ihren Suchbegriff anzupassen. Um Ihre Suche zu verfeinern
 <translation id="6909589135458168665">Seiten vorab laden</translation>
 <translation id="7029995644714925509">Wenn eine Website darum bittet, Links auf ihrer Seite privat vorab zu laden, verschlüsselt und lädt Vivaldi Seiten über Google-Server ohne Cookies vor. Dies verbirgt Ihre Identität vor der vorinstallierten Website.</translation>
 <translation id="706339621163631076">Vivaldi-Datenschutzerklärung</translation>
+<translation id="7100573672995171864">Anpassung und Steuerung von Vivaldi</translation>
 <translation id="732145680195464316">Lesezeichen in <ph name="PRODUCT_NAME" /> gespeichert</translation>
 <translation id="7324354302972299151">„Do Not Track“-Anforderung senden</translation>
 <translation id="7359002509206457351">Auf Zahlungsmethoden zugreifen</translation>
@@ -124,14 +131,11 @@ Drücken Sie lange, um Ihren Suchbegriff anzupassen. Um Ihre Suche zu verfeinern
 <translation id="8348430946834215779">Nach Möglichkeit HTTPS verwenden und vor dem Laden von Websites warnen, die das Protokoll nicht unterstützen</translation>
 <translation id="8560602726703398413">Finden Sie Ihre Leseliste in den Lesezeichen</translation>
 <translation id="85991616550051997">Startseite</translation>
-<translation id="8693232767599693749">Lesemodus anzeigen?</translation>
+<translation id="8738163682604285902">Als Leseansicht ansehen?</translation>
 <translation id="8820817407110198400">Lesezeichen</translation>
 <translation id="9042893549633094279">Datenschutz und Sicherheit</translation>
 <translation id="9063523880881406963">“Desktopversion ansehen” deaktivieren</translation>
 <translation id="9080642952018487277">In den Privatmodus wechseln</translation>
-<translation id="9104858485806491627">{INACTIVE_TIME_DAYS, plural,
-          =1 {Nicht verwendet seit mindestens einem Tag}
-          other {Nicht verwendet seit mindestens # Tagen}}</translation>
 <translation id="930124987204876019">Verlauf, Cookies, Websitedaten löschen, Cache leeren…</translation>
 <translation id="961856697154696964">Browserdaten löschen</translation>
 </translationbundle>

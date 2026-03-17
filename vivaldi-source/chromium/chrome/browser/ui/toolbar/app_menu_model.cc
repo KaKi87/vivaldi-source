@@ -27,6 +27,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/defaults.h"
 #include "chrome/browser/extensions/extension_ui_util.h"
+#include "chrome/browser/feedback/report_unsafe_site_dialog.h"
 #include "chrome/browser/media/router/media_router_feature.h"
 #include "chrome/browser/prefs/incognito_mode_prefs.h"
 #include "chrome/browser/profiles/profile.h"
@@ -66,6 +67,7 @@
 #include "chrome/browser/ui/safety_hub/safety_hub_hats_service.h"
 #include "chrome/browser/ui/safety_hub/safety_hub_hats_service_factory.h"
 #include "chrome/browser/ui/startup/default_browser_prompt/default_browser_prompt_manager.h"
+#include "chrome/browser/ui/tab_search_feature.h"
 #include "chrome/browser/ui/tabs/organization/tab_declutter_controller.h"
 #include "chrome/browser/ui/tabs/organization/tab_organization_service_factory.h"
 #include "chrome/browser/ui/tabs/organization/tab_organization_utils.h"
@@ -147,7 +149,7 @@
 #include "ui/gfx/text_elider.h"
 #include "ui/menus/simple_menu_model.h"
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
 #include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
 #include "chrome/browser/glic/public/glic_enabling.h"
 #include "chrome/browser/glic/resources/grit/glic_browser_resources.h"
@@ -404,7 +406,8 @@ std::u16string GetOpenPWALabel(const Browser* browser) {
   return l10n_util::GetStringFUTF16(
       IDS_OPEN_IN_APP_WINDOW,
       ui::EscapeMenuLabelAmpersands(gfx::TruncateString(
-          short_name, GetLayoutConstant(APP_MENU_MAXIMUM_CHARACTER_LENGTH),
+          short_name,
+          GetLayoutConstant(LayoutConstant::kAppMenuMaximumCharacterLength),
           gfx::CHARACTER_BREAK)));
 }
 
@@ -479,7 +482,7 @@ ProfileSubMenuModel::ProfileSubMenuModel(
       app_menu_model_delegate_(delegate),
       next_other_profile_menu_id_(AppMenuModel::kMinOtherProfileCommandId) {
   const int avatar_icon_size =
-      GetLayoutConstant(APP_MENU_PROFILE_ROW_AVATAR_ICON_SIZE);
+      GetLayoutConstant(LayoutConstant::kAppMenuProfileRowAvatarIconSize);
   avatar_image_model_ = ui::ImageModel::FromVectorIcon(
       kAccountCircleChromeRefreshIcon, ui::kColorMenuIcon, avatar_icon_size);
   if (profile->IsIncognitoProfile()) {
@@ -541,7 +544,7 @@ ProfileSubMenuModel::ProfileSubMenuModel(
           menu_id,
           ui::EscapeMenuLabelAmpersands(gfx::TruncateString(
               display_name,
-              GetLayoutConstant(APP_MENU_MAXIMUM_CHARACTER_LENGTH),
+              GetLayoutConstant(LayoutConstant::kAppMenuMaximumCharacterLength),
               gfx::CHARACTER_BREAK)),
           ui::ImageModel::FromImage(profiles::GetSizedAvatarIcon(
               profile_entry->GetAvatarIcon(
@@ -677,10 +680,11 @@ bool ProfileSubMenuModel::BuildSyncSection() {
           icon = &vector_icons::kErrorOutlineIcon;
           break;
         case syncer::SyncService::UserActionableError::kBookmarksLimitExceeded:
-          // TODO(crbug.com/452968646): Adjust this with providing the concrete
-          // help center article link.
-          break;
+          // For this specific error (as opposed to all others), there is no
+          // error UI in the menu.
+          return true;
       }
+      CHECK_NE(command_id, 0);
       AddItemWithStringIdAndVectorIcon(this, command_id, button_string_id,
                                        *icon);
       return true;
@@ -945,11 +949,19 @@ class HelpMenuModel : public ui::SimpleMenuModel {
     } else {
       SetCommandIcon(this, IDC_HELP_PAGE_VIA_MENU, kHelpMenuIcon);
     }
-    if (browser->profile()->GetPrefs()->GetBoolean(
-            prefs::kUserFeedbackAllowed)) {
+#if BUILDFLAG(GOOGLE_CHROME_BRANDING)
+    PrefService* pref_service = browser->profile()->GetPrefs();
+    if (pref_service->GetBoolean(prefs::kUserFeedbackAllowed)) {
       AddItemWithStringIdAndVectorIcon(this, IDC_FEEDBACK, IDS_FEEDBACK,
                                        kReportIcon);
+
+      if (feedback::ReportUnsafeSiteDialog::IsEnabled(*browser->profile())) {
+        AddItemWithStringIdAndVectorIcon(this, IDC_REPORT_UNSAFE_SITE,
+                                         IDS_REPORT_UNSAFE_SITE,
+                                         vector_icons::kWarningIcon);
+      }
     }
+#endif  // BUILDFLAG(GOOGLE_CHROME_BRANDING)
   }
 };
 
@@ -980,9 +992,8 @@ void ToolsMenuModel::Build(Browser* browser) {
 #endif  // BUILDFLAG(IS_CHROMEOS)
   if (!is_tablet_mode) {
     if (features::HasTabSearchToolbarButton()) {
-      AddItemWithStringIdAndVectorIcon(this, IDC_TAB_SEARCH,
-                                       IDS_TAB_SEARCH_MENU,
-                                       vector_icons::kTabSearchIcon);
+      AddItemWithStringIdAndVectorIcon(
+          this, IDC_TAB_SEARCH, IDS_TAB_SEARCH_MENU, kTabSearchToolbarIcon);
     }
 
     if (base::FeatureList::IsEnabled(features::kTabOrganizationAppMenuItem) &&
@@ -1328,7 +1339,7 @@ void AppMenuModel::LogMenuMetrics(int command_id) {
       }
       LogMenuAction(MENU_ACTION_PRINT);
       break;
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
     case IDC_OPEN_GLIC:
       if (!uma_action_recorded_) {
         base::UmaHistogramMediumTimes("WrenchMenu.TimeToAction.OpenGlic",
@@ -1814,8 +1825,7 @@ void AppMenuModel::LogMenuMetrics(int command_id) {
         base::UmaHistogramMediumTimes("WrenchMenu.TimeToAction.DeclutterTabs",
                                       delta);
       }
-      tabs::TabDeclutterController::EmitEntryPointHistogram(
-          tab_search::mojom::TabDeclutterEntryPoint::kAppMenu);
+
       LogMenuAction(MENU_ACTION_DECLUTTER_TABS);
       break;
     case IDC_SAFETY_HUB_MANAGE_EXTENSIONS:
@@ -1977,20 +1987,9 @@ void AppMenuModel::Build() {
   if (!browser_->profile()->IsGuestSession()) {
     sub_menus_.push_back(
         std::make_unique<PasswordsAndAutofillSubMenuModel>(this));
-    bool use_your_saved_info_branding =
-        base::FeatureList::IsEnabled(
-            autofill::features::kYourSavedInfoSettingsPage) ||
-        base::FeatureList::IsEnabled(
-            autofill::features::kYourSavedInfoBrandingInSettings);
-    int string_id = use_your_saved_info_branding
-                        ? IDS_SETTINGS_YOUR_SAVED_INFO
-                        : IDS_PASSWORDS_AND_AUTOFILL_MENU;
-    const gfx::VectorIcon& vector_icon =
-        use_your_saved_info_branding ? vector_icons::kPersonTextIcon
-                                     : vector_icons::kPasswordManagerIcon;
     AddSubMenuWithStringIdAndVectorIcon(this, IDC_PASSWORDS_AND_AUTOFILL_MENU,
-                                        string_id, sub_menus_.back().get(),
-                                        vector_icon);
+                                        IDS_PASSWORDS_AND_AUTOFILL_MENU, sub_menus_.back().get(),
+                                        vector_icons::kPasswordManagerIcon);
     SetElementIdentifierAt(
         GetIndexOfCommandId(IDC_PASSWORDS_AND_AUTOFILL_MENU).value(),
         kPasswordAndAutofillMenuItem);
@@ -2062,7 +2061,7 @@ void AppMenuModel::Build() {
 
   AddItemWithStringIdAndVectorIcon(this, IDC_PRINT, IDS_PRINT, kPrintMenuIcon);
 
-#if BUILDFLAG(ENABLE_GLIC)
+#if BUILDFLAG(ENABLE_GLIC)  // Vivaldi keep disabled
   if (glic::GlicEnabling::IsEnabledForProfile(browser_->profile())) {
     AddItemWithStringIdAndVectorIcon(this, IDC_OPEN_GLIC,
                                      IDS_GLIC_THREE_DOT_MENU_ITEM,
@@ -2229,6 +2228,7 @@ bool AppMenuModel::AddDefaultBrowserMenuItems() {
     return false;
   }
 
+  /* Vivaldi
   if (DefaultBrowserPromptManager::GetInstance()->show_app_menu_item()) {
     AddItemWithIcon(
         IDC_SET_BROWSER_AS_DEFAULT,
@@ -2239,6 +2239,7 @@ bool AppMenuModel::AddDefaultBrowserMenuItems() {
                            AppMenuModel::kSetBrowserAsDefaultMenuItem);
     return true;
   }
+  */
 #endif
   return false;
 }

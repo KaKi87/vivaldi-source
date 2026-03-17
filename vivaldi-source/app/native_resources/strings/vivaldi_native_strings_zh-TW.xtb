@@ -23,7 +23,7 @@
 <translation id="16328381871867323">立法者終於開始正視人們對數位資料追蹤、收集與儲存方式的疑慮。了解這項改變遊戲規則的裁決代表了什麼，以及它可能對我們帶來哪些影響。</translation>
 <translation id="1635542496948266458">切換設定檔</translation>
 <translation id="1657174850639146440">怪獸 9</translation>
-<translation id="1676595396635191120">新增無痕視窗</translation>
+<translation id="1676595396635191120">新增私密視窗</translation>
 <translation id="1702758681952953055">如果持續發生錯誤，請回報並包含以下資訊：</translation>
 <translation id="1728549374069268714">貼上並前往</translation>
 <translation id="1756026472674246267">在新分頁開啟連結</translation>
@@ -66,7 +66,7 @@
 <translation id="292258461174562431">怪獸 4</translation>
 <translation id="2923448633003185837">貼上並前往</translation>
 <translation id="2953943267837858202">不允許自動播放影音</translation>
-<translation id="2977472760057091832">在無痕視窗中開啟連結</translation>
+<translation id="2977472760057091832">在私密視窗中開啟連結</translation>
 <translation id="2978824962390592855">Opera</translation>
 <translation id="2989805286512600854">在新分頁開啟</translation>
 <translation id="3084011186245865060">風景 6</translation>
@@ -126,14 +126,14 @@
 <translation id="4064545092083709582">Vivaldi 無法解鎖您的安全金鑰儲存庫。沒有金鑰儲存庫，您將會失去已儲存的登入資訊、安全 Cookie，並且部分功能像是同步、郵件和日曆等將會停止運作。
 
     請立即結束，解鎖或是修復您的金鑰儲存庫，然後再試一次。您真的確定要在會失去資料的情況下繼續嗎？</translation>
-<translation id="4074744496918018786">在無痕視窗中開啟圖片</translation>
+<translation id="4074744496918018786">在私密視窗中開啟圖片</translation>
 <translation id="410351446219883937">自動播放</translation>
 <translation id="4241573219093785166">另一個 Vivaldi 實例仍在執行時，無法匯入其設定。若要將這些設定匯入此瀏覽器，請先關閉該 Vivaldi 實例的所有視窗，然後再按一下繼續。</translation>
 <translation id="4281844954008187215">服務條款</translation>
 <translation id="430967081421617822">不限時間</translation>
 <translation id="4324492550286218827">風景 2</translation>
 <translation id="436942009209245676">無法解析 Local State 中的 JSON</translation>
-<translation id="4406101500523955324">在新無痕視窗中開啟</translation>
+<translation id="4406101500523955324">在新私密視窗中開啟</translation>
 <translation id="4420816922321010053">您確定要結束 Vivaldi 嗎？</translation>
 <translation id="4430019312045809116">音量</translation>
 <translation id="443008484043213881">工具</translation>
@@ -142,8 +142,8 @@
 <translation id="4459169140545916303"><ph name="DEVICE_LAST_ACTIVATED_TIME" /> 天前活躍</translation>
 <translation id="4474776280324528449">https://vivaldi.com/blog/do-no-track-gets-legal-backing-in-germany/</translation>
 <translation id="4510781427281143276">刪除設定檔</translation>
-<translation id="4511738570787012048">加入 Vivaldi 的零追蹤宣言，重新掌握您的線上隱私。
-		透過以下文章，了解更多關於我們如何為使用者權益努力。</translation>
+<translation id="4511738570787012048">加入 Vivaldi 的零追蹤行動，重新掌握您的線上隱私。
+		透過以下文章，深入了解我們如何為使用者權益發聲。</translation>
 <translation id="4512900838580567989">在新的背景分頁中開啟連結</translation>
 <translation id="4545097004879999966">Opera 郵件</translation>
 <translation id="4548358047305717967">在新的背景分頁中開啟圖片</translation>

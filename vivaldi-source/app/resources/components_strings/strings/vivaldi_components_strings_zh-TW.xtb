@@ -35,7 +35,7 @@
 <translation id="2337852623177822836">管理員所控制的設定</translation>
 <translation id="2355395290879513365">攻擊者可能會看到您正在這個網站上瀏覽的圖片，並以修改圖片內容的方式讓您受騙。</translation>
 <translation id="2359808026110333948">繼續</translation>
-<translation id="2388886110302389394">在新無痕視窗中開啟頁面 (Ctrl-Shift-N)</translation>
+<translation id="2388886110302389394">在新私密視窗中開啟頁面 (Ctrl-Shift-N)</translation>
 <translation id="2467694685043708798"><ph name="BEGIN_LINK" />正在執行網路診斷<ph name="END_LINK" /></translation>
 <translation id="2491414235131909199">此頁面已由擴充功能封鎖</translation>
 <translation id="255002559098805027"><ph name="HOST_NAME" /> 傳送的回應無效。</translation>
@@ -82,7 +82,7 @@
 <translation id="3950820424414687140">登入</translation>
 <translation id="3973234410852337861"><ph name="HOST_NAME" /> 已遭封鎖</translation>
 <translation id="3987940399970879459">小於 1 MB</translation>
-<translation id="4075123085690634698">在新無痕視窗中開啟頁面 (⇧⌘N)</translation>
+<translation id="4075123085690634698">在新私密視窗中開啟頁面 (⇧⌘N)</translation>
 <translation id="4075732493274867456">用戶端和伺服器不支援一般 SSL 通訊協定版本或加密套件。</translation>
 <translation id="4116663294526079822">永遠允許在這個網站執行</translation>
 <translation id="4130226655945681476">檢查網路線、數據機和路由器</translation>
@@ -94,7 +94,6 @@
 <translation id="4250431568374086873">您與這個網站的連線可能有安全漏洞</translation>
 <translation id="4265872034478892965">依據管理員的設定允許</translation>
 <translation id="4305666528087210886">無法存取您的檔案</translation>
-<translation id="4408413947728134509"><ph name="NUM_COOKIES" /> 個 Cookie</translation>
 <translation id="4432688616882109544"><ph name="HOST_NAME" /> 不接受您的登入憑證，或是您可能未提供登入憑證。</translation>
 <translation id="4506599922270137252">與系統管理員聯絡</translation>
 <translation id="4522570452068850558">詳細資訊</translation>
@@ -111,7 +110,6 @@
 <translation id="4943872375798546930">無結果</translation>
 <translation id="5017554619425969104">您複製的文字</translation>
 <translation id="5023310440958281426">請查看您的管理員策略</translation>
-<translation id="5068778127327928576">{NUM_COOKIES,plural, =1{（1 個 Cookie 正在使用）}other{（# 個 Cookie 正在使用）}}</translation>
 <translation id="5070335125961472645"><ph name="BEGIN_LINK" />檢查 Proxy 網址<ph name="END_LINK" /></translation>
 <translation id="5115563688576182185">（64 位元）</translation>
 <translation id="5216942107514965959">今天最後造訪</translation>
@@ -133,7 +131,6 @@
 <translation id="5838278095973806738">請勿在這個網站上輸入任何機密資訊（例如密碼或信用卡號碼），以免遭到攻擊者竊取。</translation>
 <translation id="5863515189965725638">編輯 IBAN</translation>
 <translation id="5869405914158311789">無法存取這個網站</translation>
-<translation id="5920262536204764679">{NUM_COOKIES,plural, =1{目前使用 1 個 Cookie}other{目前使用 # 個 Cookie}}</translation>
 <translation id="5932224571077948991">網站顯示干擾性或誤導性廣告</translation>
 <translation id="6051221802930200923">目前無法造訪 <ph name="SITE" />，因為這個網站使用憑證鎖定功能。網路錯誤和攻擊行為通常是暫時性的，因此這個網頁可能稍後就會恢復正常狀態。</translation>
 <translation id="6146055958333702838">檢查您的網路線是否穩固連接。重新啟動您可能正在使用的任何
@@ -160,7 +157,7 @@
 <translation id="6890956352250146925">Cookie 和網站資料的選項</translation>
 <translation id="6897140037006041989">使用者代理</translation>
 <translation id="6935179587384421592"><ph name="SIZE" />。下次造訪某些網站時，載入速度可能會變慢。</translation>
-<translation id="6957624206566198865">在新無痕分頁中開啟頁面</translation>
+<translation id="6957624206566198865">在新私密分頁中開啟頁面</translation>
 <translation id="7096937462164235847">此網站的身份未經驗證。</translation>
 <translation id="7108819624672055576">依據擴充功能設定允許</translation>
 <translation id="7111012039238467737">（有效）</translation>

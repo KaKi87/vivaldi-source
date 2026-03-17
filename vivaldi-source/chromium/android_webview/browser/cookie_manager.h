@@ -113,40 +113,34 @@ class CookieManager {
   // specified for insecure URLs with the 'Secure' directive. See
   // |workaround_http_secure_cookies_| for the default behavior. This should not
   // be needed in production, as the default is the desirable behavior.
-  void SetWorkaroundHttpSecureCookiesForTesting(
-      JNIEnv* env,
-      jboolean allow);
-  void SetShouldAcceptCookies(JNIEnv* env,
-                              jboolean accept);
-  jboolean GetShouldAcceptCookies(JNIEnv* env);
+  void SetWorkaroundHttpSecureCookiesForTesting(JNIEnv* env, bool allow);
+  void SetShouldAcceptCookies(JNIEnv* env, bool accept);
+  bool GetShouldAcceptCookies(JNIEnv* env);
   void SetCookie(JNIEnv* env,
-                 const base::android::JavaParamRef<jstring>& url,
+                 const base::android::JavaRef<jstring>& url,
                  std::string& value,
-                 const base::android::JavaParamRef<jobject>& java_callback);
+                 base::OnceCallback<void(bool)> callback);
   void SetCookieSync(JNIEnv* env,
-                     const base::android::JavaParamRef<jstring>& url,
+                     const base::android::JavaRef<jstring>& url,
                      std::string& value);
 
   std::string GetCookie(JNIEnv* env,
-                        const base::android::JavaParamRef<jstring>& url);
+                        const base::android::JavaRef<jstring>& url);
 
   base::android::ScopedJavaLocalRef<jobjectArray> GetCookieInfo(
       JNIEnv* env,
-      const base::android::JavaParamRef<jstring>& url);
+      const base::android::JavaRef<jstring>& url);
 
-  void RemoveAllCookies(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& java_callback);
-  void RemoveSessionCookies(
-      JNIEnv* env,
-      const base::android::JavaParamRef<jobject>& java_callback);
+  void RemoveAllCookies(JNIEnv* env, base::OnceCallback<void(bool)> callback);
+  void RemoveSessionCookies(JNIEnv* env,
+                            base::OnceCallback<void(bool)> callback);
   void RemoveAllCookiesSync(JNIEnv* env);
   void RemoveSessionCookiesSync(JNIEnv* env);
   void RemoveExpiredCookies(JNIEnv* env);
   void FlushCookieStore(JNIEnv* env);
-  jboolean HasCookies(JNIEnv* env);
+  bool HasCookies(JNIEnv* env);
   bool GetAllowFileSchemeCookies();
-  jboolean GetAllowFileSchemeCookies(JNIEnv* env);
+  bool GetAllowFileSchemeCookies(JNIEnv* env);
 
   // Configures whether CookieManager and WebView instances will honor requests
   // to set cookies for file:// scheme URLs. This method must be called (and
@@ -157,9 +151,7 @@ class CookieManager {
   // guarantee (otherwise other mojo::Remote<network::mojom::CookieManager>
   // instances might be able to modify the underlying net::CookieStore before
   // this call finishes.
-  void SetAllowFileSchemeCookies(
-      JNIEnv* env,
-      jboolean allow);
+  void SetAllowFileSchemeCookies(JNIEnv* env, bool allow);
 
   base::FilePath GetCookieStorePath();
 
@@ -175,7 +167,7 @@ class CookieManager {
   // Gets the Network Service CookieManager if it's been passed via
   // |SetMojoCookieManager|. Otherwise (if Network Service is disabled or
   // content layer has not yet initialized the NetworkContext), this returns
-  // nullptr (and |GetCookieStore| should be used installed). This must only be
+  // nullptr (and |GetCookieStore| should be used instead). This must only be
   // called on the CookieStore TaskRunner.
   network::mojom::CookieManager* GetMojoCookieManager();
 

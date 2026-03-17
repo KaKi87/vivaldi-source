@@ -4,12 +4,14 @@
 
 package org.chromium.chrome.browser.keyboard_accessory;
 
+import android.graphics.RectF;
 import android.view.View;
 import android.view.ViewGroup;
 
 import androidx.annotation.Px;
 
-import org.chromium.base.supplier.ObservableSupplier;
+import org.chromium.base.supplier.MonotonicObservableSupplier;
+import org.chromium.base.supplier.NonNullObservableSupplier;
 import org.chromium.build.annotations.NullMarked;
 import org.chromium.chrome.browser.back_press.BackPressManager;
 import org.chromium.chrome.browser.keyboard_accessory.data.KeyboardAccessoryData;
@@ -116,7 +118,7 @@ public interface ManualFillingComponent extends BackPressHandler {
             BooleanSupplier isContextualSearchOpened,
             SoftKeyboardDelegate keyboardDelegate,
             BackPressManager backPressManager,
-            ObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
+            MonotonicObservableSupplier<EdgeToEdgeController> edgeToEdgeControllerSupplier,
             InsetObserver insetObserver,
             AsyncViewStub sheetStub,
             AsyncViewStub barStub);
@@ -165,6 +167,15 @@ public interface ManualFillingComponent extends BackPressHandler {
      */
     void registerActionProvider(
             WebContents webContents, Provider<KeyboardAccessoryData.Action[]> actionProvider);
+
+    /**
+     * Sets the bounds of focused field in device-independent. This is used only for dynamically
+     * positioned bars on large-screen devices.
+     *
+     * @param bounds The bounds of the focused field in viewport coordinates given in
+     *     device-independent pixels.
+     */
+    void setFieldBounds(RectF bounds);
 
     /**
      * Sets the suggestions to be displayed in the accessory bar.
@@ -221,9 +232,10 @@ public interface ManualFillingComponent extends BackPressHandler {
     /**
      * The filling UI extends or
      *
-     * @return A {@link ObservableSupplier<Integer>} providing an inset to shrink the page by.
+     * @return A {@link NonNullObservableSupplier <Integer>} providing an inset to shrink the page
+     *     by.
      */
-    ObservableSupplier<Integer> getBottomInsetSupplier();
+    NonNullObservableSupplier<Integer> getBottomInsetSupplier();
 
     /**
      * @param observer An {@link Observer} to add.
@@ -269,12 +281,13 @@ public interface ManualFillingComponent extends BackPressHandler {
      * Returns a supplier for {@link KeyboardAccessoryVisualStateProvider} that can be observed to
      * be notified of changes to the visual state of the keyboard accessory.
      */
-    ObservableSupplier<KeyboardAccessoryVisualStateProvider>
+    MonotonicObservableSupplier<KeyboardAccessoryVisualStateProvider>
             getKeyboardAccessoryVisualStateProvider();
 
     /**
      * Returns a supplier for {@link AccessorySheetVisualStateProvider} that can be observed to be
      * notified of changes to the visual state of the keyboard accessory sheet.
      */
-    ObservableSupplier<AccessorySheetVisualStateProvider> getAccessorySheetVisualStateProvider();
+    MonotonicObservableSupplier<AccessorySheetVisualStateProvider>
+            getAccessorySheetVisualStateProvider();
 }

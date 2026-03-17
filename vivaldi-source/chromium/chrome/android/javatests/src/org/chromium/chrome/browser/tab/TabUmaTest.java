@@ -16,18 +16,18 @@ import org.junit.runner.RunWith;
 import org.chromium.base.CallbackUtils;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.base.supplier.ObservableSupplierImpl;
+import org.chromium.base.supplier.ObservableSuppliers;
 import org.chromium.base.supplier.OneshotSupplierImpl;
 import org.chromium.base.test.util.Batch;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.HistogramWatcher;
-import org.chromium.cc.input.BrowserControlsState;
 import org.chromium.chrome.browser.ChromeTabbedActivity;
 import org.chromium.chrome.browser.TabbedModeTabDelegateFactory;
 import org.chromium.chrome.browser.flags.ChromeSwitches;
 import org.chromium.chrome.browser.ui.RootUiCoordinator;
+import org.chromium.chrome.browser.ui.edge_to_edge.NoOpTopInsetProvider;
 import org.chromium.chrome.test.ChromeJUnit4ClassRunner;
 import org.chromium.chrome.test.transit.AutoResetCtaTransitTestRule;
 import org.chromium.chrome.test.transit.ChromeTransitTestRules;
@@ -66,14 +66,14 @@ public class TabUmaTest {
 
     private TabbedModeTabDelegateFactory createTabDelegateFactory() {
         BrowserControlsVisibilityDelegate visibilityDelegate =
-                new BrowserControlsVisibilityDelegate(BrowserControlsState.BOTH) {};
+                new BrowserControlsVisibilityDelegate();
         ChromeTabbedActivity cta = mActivityTestRule.getActivity();
         RootUiCoordinator rootUiCoordinator = cta.getRootUiCoordinatorForTesting();
         return new TabbedModeTabDelegateFactory(
                 mActivityTestRule.getActivity(),
                 visibilityDelegate,
-                new ObservableSupplierImpl<>(),
-                null,
+                ObservableSuppliers.alwaysNull(),
+                /* ephemeralTabCoordinatorSupplier= */ null,
                 CallbackUtils.emptyRunnable(),
                 rootUiCoordinator.getBottomSheetController(),
                 /* chromeActivityNativeDelegate= */ cta,
@@ -84,21 +84,23 @@ public class TabUmaTest {
                 cta.getCompositorViewHolderSupplier(),
                 cta.getModalDialogManagerSupplier(),
                 cta::getSnackbarManager,
+                cta.getActivityResultTracker(),
                 cta.getBrowserControlsManager(),
                 cta.getActivityTabProvider(),
                 cta.getLifecycleDispatcher(),
                 cta.getWindowAndroid(),
                 rootUiCoordinator.getToolbarManager()::getToolbar,
-                null,
-                null,
+                /* homeSurfaceTracker= */ null,
+                /* tabContentManagerSupplier= */ null,
                 rootUiCoordinator.getToolbarManager().getTabStripHeightSupplier(),
                 new OneshotSupplierImpl<>(),
-                new ObservableSupplierImpl<>(),
-                new ObservableSupplierImpl<>(),
+                ObservableSuppliers.alwaysNull(),
+                new NoOpTopInsetProvider(),
                 cta.getStartupMetricsTracker(),
-                null,
-                null,
-                null);
+                /* exclusiveAccessManager= */ null,
+                /* backPressManager= */ null,
+                /* multiInstanceManager= */ null,
+                /* recentlyClosedEntriesManager= */ null);
     }
 
     private Tab createLazilyLoadedTab(boolean show) throws ExecutionException {

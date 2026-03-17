@@ -10,12 +10,12 @@
 
 class Browser;
 
-@protocol VivaldiTranslateCoordinatorDelegate<NSObject>
+@protocol VivaldiTranslateCoordinatorDelegate <NSObject>
 - (void)translateViewDidDismiss;
 @end
 
 // This class is the coordinator for the translate.
-@interface VivaldiTranslateCoordinator: ChromeCoordinator
+@interface VivaldiTranslateCoordinator : ChromeCoordinator
 
 // Creates a coordinator configured to open translate view using the
 // base `viewController`, a `browser`, `selectedText` which can be nil,
@@ -23,28 +23,27 @@ class Browser;
 // and `originView` and `originRect` from which the scenario was triggered.
 // This initializer also uses the `originView`'s bounds and
 // `originRect` to position the activity view popover on iPad.
-- (instancetype)initWithBaseViewController:(UIViewController*)viewController
-                  presentingViewController:
-        (UIViewController*)presentingViewController
-                                 browser:(Browser*)browser
-                              entryPoint:(VivaldiTranslateEntryPoint)entryPoint
-                            selectedText:(NSString*)selectedText
-                              originView:(UIView*)originView
-                              originRect:(CGRect)originRect
-    NS_DESIGNATED_INITIALIZER;
+- (instancetype)
+    initWithBaseViewController:(UIViewController*)viewController
+      presentingViewController:(UIViewController*)presentingViewController
+                       browser:(Browser*)browser
+                    entryPoint:(VivaldiTranslateEntryPoint)entryPoint
+                  selectedText:(NSString*)selectedText
+                    originView:(UIView*)originView
+                    originRect:(CGRect)originRect NS_DESIGNATED_INITIALIZER;
 
-- (instancetype)initWithBaseViewController:(UIViewController*)viewController
-                  presentingViewController:
-        (UIViewController*)presentingViewController
-                                   browser:(Browser*)browser
-                              entryPoint:(VivaldiTranslateEntryPoint)entryPoint
-                              selectedText:(NSString*)selectedText;
+- (instancetype)
+    initWithBaseViewController:(UIViewController*)viewController
+      presentingViewController:(UIViewController*)presentingViewController
+                       browser:(Browser*)browser
+                    entryPoint:(VivaldiTranslateEntryPoint)entryPoint
+                  selectedText:(NSString*)selectedText;
 
 - (instancetype)initWithBaseViewController:(UIViewController*)viewController
                                    browser:(Browser*)browser NS_UNAVAILABLE;
 
 // Delegate
-@property (nonatomic, weak) id<VivaldiTranslateCoordinatorDelegate> delegate;
+@property(nonatomic, weak) id<VivaldiTranslateCoordinatorDelegate> delegate;
 
 // Delegate for panel
 @property(nonatomic, weak) PanelInteractionController* panelDelegate;

@@ -4,7 +4,6 @@
 
 #import "chrome/browser/profiles/incognito_helpers.h"
 #import "components/ad_blocker/ios/adblock_rule_service_impl.h"
-#import "components/ad_blocker/ios/ios_rules_compiler.h"
 #import "components/application_locale_storage/application_locale_storage.h"
 #import "components/language/core/browser/pref_names.h"
 #import "components/prefs/pref_service.h"
@@ -55,13 +54,8 @@ std::unique_ptr<KeyedService> RuleServiceFactory::BuildServiceInstanceFor(
 
   PrefService* pref_service = profile->GetPrefs();
 
-  auto rule_service = std::make_unique<RuleServiceImpl>(
-      profile, pref_service,
-      base::BindRepeating(
-          &CompileIosRules,
-          pref_service->GetBoolean(
-              vivaldiprefs::kPrivacyAdBlockerEnableDocumentBlocking)),
-      locale);
+  auto rule_service =
+      std::make_unique<RuleServiceImpl>(profile, pref_service, locale);
   rule_service->Load();
   return rule_service;
 }

@@ -31,7 +31,7 @@
 #import "app/vivaldi_apptools.h"
 #import "components/prefs/pref_service.h"
 #import "ios/chrome/browser/shared/model/application_context/application_context.h"
-#import "prefs/vivaldi_pref_names.h"
+#import "prefs/ios/vivaldi_ios_pref_names.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
 using vivaldi::IsVivaldiRunning;
@@ -145,6 +145,10 @@ const CGFloat kOmniboxPopupCellMinimumHeight = 58;
     self.trailingIconType = TrailingIconType::kRefineQuery;
     trailingButtonActionName =
         l10n_util::GetNSString(IDS_IOS_OMNIBOX_POPUP_APPEND);
+  } else if (_suggestion.isShareable) {
+    self.trailingIconType = TrailingIconType::kShare;
+    trailingButtonActionName =
+        l10n_util::GetNSString(IDS_IOS_TOOLS_MENU_SHARE_THIS_PAGE);
   }
 
   // Accessibility actions.

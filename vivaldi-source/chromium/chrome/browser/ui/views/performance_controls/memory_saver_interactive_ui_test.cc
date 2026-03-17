@@ -4,8 +4,9 @@
 
 #include <memory>
 
-#include "base/byte_count.h"
+#include "base/byte_size.h"
 #include "base/callback_list.h"
+#include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/test/bind.h"
 #include "base/test/simple_test_tick_clock.h"
@@ -30,7 +31,7 @@
 #include "chrome/browser/ui/recently_audible_helper.h"
 #include "chrome/browser/ui/ui_features.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
-#include "chrome/browser/ui/views/frame/tab_strip_view_interface.h"
+#include "chrome/browser/ui/views/frame/tab_strip_region_view.h"
 #include "chrome/browser/ui/views/frame/toolbar_button_provider.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/page_action/page_action_icon_controller.h"
@@ -39,7 +40,7 @@
 #include "chrome/browser/ui/views/performance_controls/memory_saver_bubble_view.h"
 #include "chrome/browser/ui/views/performance_controls/memory_saver_chip_view.h"
 #include "chrome/browser/ui/views/performance_controls/memory_saver_resource_view.h"
-#include "chrome/browser/ui/views/tabs/tab_icon.h"
+#include "chrome/browser/ui/views/tabs/tab/tab_icon.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
 #include "chrome/browser/ui/webui/test_support/webui_interactive_test_mixin.h"
 #include "chrome/common/webui_url_constants.h"
@@ -69,6 +70,7 @@
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/text/bytes_formatting.h"
 #include "ui/gfx/animation/animation.h"
+#include "ui/gfx/animation/animation_test_api.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/styled_label.h"
@@ -412,7 +414,7 @@ class MemorySaverChipInteractiveTest
   }
 
   // Sets discard usage on the active tab for deterministic UI testing.
-  auto SetTabPreDiscardMemoryUsage(size_t index, base::ByteCount usage) {
+  auto SetTabPreDiscardMemoryUsage(size_t index, base::ByteSize usage) {
     return Do(base::BindLambdaForTesting([=, this]() {
       content::WebContents* web_contents =
           browser()->tab_strip_model()->GetWebContentsAt(index);
@@ -471,13 +473,8 @@ IN_PROC_BROWSER_TEST_P(MemorySaverChipInteractiveTest,
 // Page Action chip should stay collapsed when navigating between two
 // discarded tabs
 // TODO(crbug.com/391482960): Re-enable this test
-#if BUILDFLAG(IS_MAC)
-#define MAYBE_ChipCollapseRemainCollapse DISABLED_ChipCollapseRemainCollapse
-#else
-#define MAYBE_ChipCollapseRemainCollapse ChipCollapseRemainCollapse
-#endif
 IN_PROC_BROWSER_TEST_P(MemorySaverChipInteractiveTest,
-                       MAYBE_ChipCollapseRemainCollapse) {
+                       DISABLED_ChipCollapseRemainCollapse) {
   RunTestSequence(
       InstrumentTab(kFirstTabContents, 0),
       NavigateWebContents(kFirstTabContents, GetURL()),
@@ -610,7 +607,7 @@ IN_PROC_BROWSER_TEST_P(MemorySaverChipInteractiveTest, CloseBubbleOnTabSwitch) {
 IN_PROC_BROWSER_TEST_P(MemorySaverChipInteractiveTest,
                        BubbleCorrectlyReportingMemorySaved) {
   // Simulate a page larger than the threshold for showing savings UI.
-  static constexpr base::ByteCount kMemoryUsage = base::GiB(1);
+  static constexpr base::ByteSize kMemoryUsage = base::GiBU(1);
   RunTestSequence(
       InstrumentTab(kFirstTabContents, 0),
       NavigateWebContents(kFirstTabContents, GetURL()),
@@ -652,7 +649,7 @@ IN_PROC_BROWSER_TEST_P(MemorySaverChipInteractiveTest,
       WaitForHide(MemorySaverBubbleView::kMemorySaverDialogBodyElementId),
       Do(base::BindLambdaForTesting([=, this]() {
         PrefService* const pref_service = browser()->profile()->GetPrefs();
-        const base::Value::Dict& discard_exception =
+        const base::DictValue& discard_exception =
             pref_service->GetDict(performance_manager::user_tuning::prefs::
                                       kTabDiscardingExceptionsWithTime);
         EXPECT_EQ(1u, discard_exception.size());
@@ -675,7 +672,7 @@ IN_PROC_BROWSER_TEST_P(MemorySaverChipInteractiveTest,
       PressButton(MemorySaverBubbleView::kMemorySaverDialogCancelButton),
       WaitForHide(MemorySaverBubbleView::kMemorySaverDialogBodyElementId),
       Check(base::BindLambdaForTesting(
-          [&]() { return browser()->tab_strip_model()->GetTabCount() == 3; })),
+          [&]() { return browser()->tab_strip_model()->count() == 3; })),
       InstrumentTab(kPerformanceSettingsTab, 2),
       WaitForWebContentsReady(
           kPerformanceSettingsTab,
@@ -738,7 +735,7 @@ IN_PROC_BROWSER_TEST_P(MemorySaverChipInteractiveTest,
       NavigateWebContents(kFirstTabContents, GetURL()),
       AddInstrumentedTab(kSecondTabContents, GURL(kOtherPage)),
       ForceRefreshMemoryMetrics(), DiscardAndReloadTab(0, kFirstTabContents),
-      SetTabPreDiscardMemoryUsage(0, base::MiB(135)), PressPageActionButton(),
+      SetTabPreDiscardMemoryUsage(0, base::MiBU(135)), PressPageActionButton(),
       WaitForShow(
           MemorySaverBubbleView::kMemorySaverDialogResourceViewElementId),
       Screenshot(MemorySaverBubbleView::kMemorySaverDialogResourceViewElementId,
@@ -803,17 +800,21 @@ class MemorySaverImprovedFaviconTreatmentTest
     MemorySaverInteractiveTestMixin::SetUpOnMainThread();
     SetMemorySaverModeEnabled(true);
   }
-  TabStripViewInterface* GetTabStripView() {
+  TabStripRegionView* GetTabStripView() {
     return BrowserView::GetBrowserViewForBrowser(browser())->tab_strip_view();
   }
 
   TabIcon* GetTabIcon(int tab_index) {
-    return GetTabStripView()
-        ->GetTabAnchorViewAt(tab_index)
-        ->GetTabIconForTesting();
+    return views::AsViewClass<TabIcon>(
+        GetTabStripView()->GetTabAnchorViewAt(tab_index)->GetViewByElementId(
+            kTabIconElementId));
   }
 
  private:
+  const gfx::AnimationTestApi::RenderModeResetter disable_rich_animations_ =
+      gfx::AnimationTestApi::SetRichAnimationRenderMode(
+          gfx::Animation::RichAnimationRenderMode::FORCE_DISABLED);
+
   base::test::ScopedFeatureList scoped_feature_list_;
 };
 
@@ -827,8 +828,6 @@ IN_PROC_BROWSER_TEST_P(MemorySaverImprovedFaviconTreatmentTest,
       InstrumentTab(kFirstTabContents, 0),
       NavigateWebContents(kFirstTabContents, GetURL()),
       AddInstrumentedTab(kSecondTabContents, GURL(kOtherPage)),
-      Do(base::BindLambdaForTesting(
-          [=, this]() { GetTabStripView()->StopAnimating(); })),
       TryDiscardTab(0), CheckTabIsDiscarded(0, true),
       NameView(kFirstTabFavicon, base::BindLambdaForTesting([&]() {
                  return views::AsViewClass<views::View>(GetTabIcon(0));
@@ -859,8 +858,6 @@ IN_PROC_BROWSER_TEST_P(MemorySaverImprovedFaviconTreatmentTest,
       AddInstrumentedTab(
           kPerformanceSettingsTab,
           GURL(chrome::GetSettingsUrl(chrome::kPerformanceSubPage))),
-      Do(base::BindLambdaForTesting(
-          [=, this]() { GetTabStripView()->StopAnimating(); })),
       TryDiscardTab(0), CheckTabIsDiscarded(0, true),
       NameView(kFirstTabFavicon, base::BindLambdaForTesting([&]() {
                  return views::AsViewClass<views::View>(GetTabIcon(0));

@@ -8,6 +8,7 @@
 #include <optional>
 
 #include "base/memory/raw_ptr.h"
+#include "base/strings/to_string.h"
 #include "base/test/bind.h"
 #include "base/test/test_future.h"
 #include "base/values.h"
@@ -28,6 +29,7 @@
 #include "components/enterprise/data_controls/core/browser/test_utils.h"
 #include "components/policy/core/common/cloud/dm_token.h"
 #include "components/policy/core/common/cloud/mock_cloud_policy_client.h"
+#include "components/policy/core/common/cloud/realtime_reporting_job_configuration.h"
 #include "components/policy/core/common/policy_types.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/writeable_pref_store.h"
@@ -289,7 +291,13 @@ TEST_F(DataProtectionNavigationObserverTest, MatchedAuditRuleHasEvent) {
   enterprise_connectors::test::EventReportValidator validator(client_.get());
   base::RunLoop run_loop;
   validator.SetDoneClosure(run_loop.QuitClosure());
-  validator.ExpectURLFilteringInterstitialEvent(expected_event);
+
+  if (base::FeatureList::IsEnabled(
+          policy::kUploadRealtimeReportingEventsUsingProto)) {
+    validator.ExpectProtoBasedUrlFilteringInterstitialEvent(expected_event);
+  } else {
+    validator.ExpectURLFilteringInterstitialEvent(expected_event);
+  }
 
   lookup_service_.SetShouldHaveMatchedRule(true);
   lookup_service_.SetWatermarkTextForURL(GURL("https://example.com/"),
@@ -1014,7 +1022,12 @@ TEST_P(OrderedDataProtectionNavigationObserverTest, TestWatermarkTextUpdated) {
   enterprise_connectors::test::EventReportValidator validator(client_.get());
   base::RunLoop run_loop;
   validator.SetDoneClosure(run_loop.QuitClosure());
-  validator.ExpectURLFilteringInterstitialEvent(expected_event);
+  if (base::FeatureList::IsEnabled(
+          policy::kUploadRealtimeReportingEventsUsingProto)) {
+    validator.ExpectProtoBasedUrlFilteringInterstitialEvent(expected_event);
+  } else {
+    validator.ExpectURLFilteringInterstitialEvent(expected_event);
+  }
 
   base::test::TestFuture<const UrlSettings&> future;
   FakeDataProtectionNavigationController controller(

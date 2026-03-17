@@ -29,7 +29,6 @@
 #define SRC_TINT_CMD_FUZZ_IR_FUZZ_H_
 
 #include <functional>
-#include <iostream>
 #include <span>
 #include <string>
 #include <tuple>
@@ -57,6 +56,10 @@ struct Options {
     bool verbose = false;
     /// If not empty, load DXC from this path when fuzzing HLSL generation.
     std::string dxc;
+#if TINT_BUILD_FUZZER_VULKAN_SUPPORT
+    /// If not empty, load the Vulkan ICD from this path when fuzzing SPIR-V generation.
+    std::string vk_icd;
+#endif
     /// If true, dump shader input/output text to stdout
     bool dump = false;
 };
@@ -84,19 +87,14 @@ struct IRFuzzer {
             auto fn_with_decode = [fn](core::ir::Module& module, const Context& context,
                                        std::span<const std::byte> data) -> Result<SuccessType> {
                 if (data.empty()) {
-                    if (context.options.verbose) {
-                        std::cout << "   - Data expected but no data provided.\n";
-                    }
-                    return Failure{"Invalid data"};
+                    return Failure{"Data expected but no data provided."};
                 }
 
                 bytes::BufferReader reader{data};
                 auto data_args = bytes::Decode<std::tuple<std::decay_t<ARGS>...>>(reader);
                 if (data_args != Success) {
-                    if (context.options.verbose) {
-                        std::cout << "   - Failed to decode fuzzer argument data.\n";
-                    }
-                    return data_args.Failure();
+                    return Failure("Failed to decode fuzzer argument data: " +
+                                   data_args.Failure().reason);
                 }
 
                 auto all_args =

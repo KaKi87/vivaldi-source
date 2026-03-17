@@ -18,7 +18,6 @@
   CAShapeLayer* _leftCornerLayer;
   CAShapeLayer* _rightCornerLayer;
 
-
   UIColor* _strokeColor;
   BOOL _fillLeftCorner;
 }
@@ -32,22 +31,26 @@
     // Setup top stroke layer
     _topStrokeLayer = [CAShapeLayer layer];
     _topStrokeLayer.fillColor = UIColor.clearColor.CGColor;
-    _topStrokeLayer.lineWidth = TabStripCollectionViewConstants.groupStrokeLineWidth;
+    _topStrokeLayer.lineWidth =
+        TabStripCollectionViewConstants.groupStrokeLineWidth;
 
     // Setup bottom stroke layer
     _bottomStrokeLayer = [CAShapeLayer layer];
     _bottomStrokeLayer.fillColor = UIColor.clearColor.CGColor;
-    _bottomStrokeLayer.lineWidth = TabStripCollectionViewConstants.groupStrokeLineWidth;
+    _bottomStrokeLayer.lineWidth =
+        TabStripCollectionViewConstants.groupStrokeLineWidth;
 
     // Setup left corner layer for last tab
     _leftCornerLayer = [CAShapeLayer layer];
     _leftCornerLayer.fillColor = UIColor.clearColor.CGColor;
-    _leftCornerLayer.lineWidth = TabStripCollectionViewConstants.groupStrokeLineWidth;
+    _leftCornerLayer.lineWidth =
+        TabStripCollectionViewConstants.groupStrokeLineWidth;
 
     // Setup right corner layer for last tab
     _rightCornerLayer = [CAShapeLayer layer];
     _rightCornerLayer.fillColor = UIColor.clearColor.CGColor;
-    _rightCornerLayer.lineWidth = TabStripCollectionViewConstants.groupStrokeLineWidth;
+    _rightCornerLayer.lineWidth =
+        TabStripCollectionViewConstants.groupStrokeLineWidth;
 
     // Add layers to the view
     [self.layer addSublayer:_topStrokeLayer];

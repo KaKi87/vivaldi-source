@@ -46,4 +46,4 @@ bool HasKeychainAccess() {
   return GetVivaldiKeychainStatus() == errSecSuccess;
 }
 
-} // namespace vivaldi
+}  // namespace vivaldi

@@ -11,11 +11,10 @@ class ProfileIOS;
 @protocol VivaldiSearchEngineSettingsConsumer;
 
 // The mediator for search engine settings.
-@interface VivaldiSearchEngineSettingsMediator: NSObject
-                            <VivaldiSearchEngineSettingsViewControllerDelegate>
+@interface VivaldiSearchEngineSettingsMediator
+    : NSObject <VivaldiSearchEngineSettingsViewControllerDelegate>
 
-- (instancetype)initWithProfile:(ProfileIOS*)profile
-    NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithProfile:(ProfileIOS*)profile NS_DESIGNATED_INITIALIZER;
 
 - (instancetype)init NS_UNAVAILABLE;
 

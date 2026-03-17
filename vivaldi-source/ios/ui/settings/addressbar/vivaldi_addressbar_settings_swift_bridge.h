@@ -12,4 +12,5 @@
 #import "ui/base/l10n/l10n_util_mac_bridge.h"
 #import "vivaldi/ios/grit/vivaldi_ios_native_strings.h"
 
-#endif /* IOS_UI_SETTINGS_ADDRESSBAR_VIVALDI_ADDRESSBAR_SETTINGS_SWIFT_BRIDGE_H_ */
+#endif /* IOS_UI_SETTINGS_ADDRESSBAR_VIVALDI_ADDRESSBAR_SETTINGS_SWIFT_BRIDGE_H_ \
+        */

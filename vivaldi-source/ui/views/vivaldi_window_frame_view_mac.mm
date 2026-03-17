@@ -6,10 +6,12 @@
 
 #include "third_party/skia/include/core/SkRegion.h"
 #include "ui/base/hit_test.h"
+#include "ui/events/event_observer.h"
+#import "ui/gfx/mac/coordinate_conversion.h"
+#include "ui/views/event_monitor.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/native_frame_view.h"
 #include "ui/views/window/non_client_view.h"
-#import "ui/gfx/mac/coordinate_conversion.h"
 
 #include "ui/vivaldi_browser_window.h"
 
@@ -21,10 +23,9 @@ class VivaldiWindowFrameViewMac : public views::NativeFrameView {
  public:
   VivaldiWindowFrameViewMac(VivaldiBrowserWindow* window);
   ~VivaldiWindowFrameViewMac() override;
-  VivaldiWindowFrameViewMac(
-      const VivaldiWindowFrameViewMac&) = delete;
-  VivaldiWindowFrameViewMac& operator=(
-      const VivaldiWindowFrameViewMac&) = delete;
+  VivaldiWindowFrameViewMac(const VivaldiWindowFrameViewMac&) = delete;
+  VivaldiWindowFrameViewMac& operator=(const VivaldiWindowFrameViewMac&) =
+      delete;
 
  private:
   // views::FrameView overrides
@@ -34,19 +35,22 @@ class VivaldiWindowFrameViewMac : public views::NativeFrameView {
 
   // views::View overrides
   gfx::Size GetMinimumSize() const override;
+
  private:
   // Indirect owner.
   raw_ptr<VivaldiBrowserWindow> const window_;
-};
 
+  std::unique_ptr<VivaldiWindowFrameEventObserver> vivaldi_native_frame_view_;
+};
 
 VivaldiWindowFrameViewMac::VivaldiWindowFrameViewMac(
     VivaldiBrowserWindow* window)
     : views::NativeFrameView(window->GetWidget()),
-      window_(window) {}
+      window_(window),
+      vivaldi_native_frame_view_(
+          std::make_unique<VivaldiWindowFrameEventObserver>(window_)) {}
 
-VivaldiWindowFrameViewMac::~VivaldiWindowFrameViewMac() =
-    default;
+VivaldiWindowFrameViewMac::~VivaldiWindowFrameViewMac() = default;
 
 gfx::Rect VivaldiWindowFrameViewMac::GetWindowBoundsForClientBounds(
     const gfx::Rect& client_bounds) const {
@@ -60,11 +64,7 @@ gfx::Rect VivaldiWindowFrameViewMac::GetWindowBoundsForClientBounds(
   return window_bounds;
 }
 
-int VivaldiWindowFrameViewMac::NonClientHitTest(
-    const gfx::Point& point) {
-
-  window_->ReportNCMousePosition(point);
-
+int VivaldiWindowFrameViewMac::NonClientHitTest(const gfx::Point& point) {
   if (!bounds().Contains(point))
     return HTNOWHERE;
 
@@ -84,7 +84,7 @@ gfx::Size VivaldiWindowFrameViewMac::GetMinimumSize() const {
   views::Widget* widget = window_->GetWidget();
   if (!widget) {
     LOG(ERROR) << "GetMinimumSize called with no widget";
-    return gfx::Size(1,1);
+    return gfx::Size(1, 1);
   }
   gfx::Size min_size = widget->client_view()->GetMinimumSize();
   min_size.SetToMax(gfx::Size(1, 1));
